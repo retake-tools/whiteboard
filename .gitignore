@@ -1,0 +1,17 @@
+/research/
+/docs/
+/experiments/
+/scratch/
+/tmp/
+/.local/
+/market-research/
+/product-screenshots/
+/node_modules/
+/dist/
+/.retake/
+/.retake-test/
+/coverage/
+.playwright-mcp/
+.DS_Store
+*.log
+*.tsbuildinfo

@@ -1,0 +1,197 @@
+.board-history-panel {
+  position: absolute;
+  top: 76px;
+  right: 16px;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 156px);
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 94%);
+  box-shadow: 0 16px 34px rgb(16 24 40 / 14%);
+  backdrop-filter: blur(12px);
+}
+
+.board-history-panel header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.board-history-panel header div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.board-history-panel header span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.board-history-panel header strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #172033;
+  font-size: 14px;
+  font-weight: 780;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-history-panel > header .icon-tooltip,
+.board-history-actions .icon-tooltip {
+  top: calc(100% + 7px);
+  bottom: auto;
+  transform: translate(-50%, -4px);
+}
+
+.board-history-panel > header .tooltipped-button:hover .icon-tooltip,
+.board-history-panel > header .tooltipped-button:focus-visible .icon-tooltip,
+.board-history-actions .tooltipped-button:hover .icon-tooltip,
+.board-history-actions .tooltipped-button:focus-visible .icon-tooltip {
+  transform: translate(-50%, 0);
+}
+
+.board-history-panel ol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board-history-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.board-history-item.is-expanded {
+  background: #ffffff;
+}
+
+.board-history-item-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.board-history-item-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.board-history-item-title strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #172033;
+  font-size: 13px;
+  font-weight: 780;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-history-item p,
+.board-history-item time,
+.board-history-empty {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.board-history-item p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-status {
+  flex: none;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 10px;
+  font-weight: 780;
+}
+
+.history-status.is-running,
+.history-status.is-queued {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.history-status.is-succeeded {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.history-status.is-failed {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.board-history-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.board-history-actions .icon-button {
+  width: 30px;
+  height: 30px;
+}
+
+.board-history-actions .icon-button.is-active svg {
+  transform: rotate(180deg);
+}
+
+.board-history-detail {
+  grid-column: 1 / -1;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.board-history-detail .execution-detail-content {
+  gap: 10px;
+}
+
+.board-history-detail .execution-inspector-meta {
+  grid-template-columns: 86px minmax(0, 1fr);
+}
+
+.board-history-detail .execution-inspector-image-card img {
+  height: 98px;
+}
+
+.board-history-detail .execution-inspector-prompt pre {
+  max-height: 128px;
+}
+
+@media (max-width: 860px) {
+  .board-history-panel {
+    top: auto;
+    right: 10px;
+    bottom: 78px;
+    max-height: min(460px, calc(100vh - 148px));
+  }
+}

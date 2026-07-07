@@ -1,0 +1,45 @@
+{
+  "name": "@retake-tools/whiteboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 18770",
+    "dev:local": "vite --host 127.0.0.1 --port 18770",
+    "build": "tsc --noEmit && vite build",
+    "codex:e2e:prepare": "tsx server/codex-e2e-prepare.ts",
+    "mcp": "tsx server/mcp-server.ts",
+    "mcp:binding-guard": "RETAKE_WORKSPACE_DIR=.retake-test tsx server/mcp-binding-guard-test.ts",
+    "mcp:execution-status": "RETAKE_WORKSPACE_DIR=.retake-test tsx server/mcp-execution-status-test.ts",
+    "mcp:existing-execution": "RETAKE_WORKSPACE_DIR=.retake-test tsx server/mcp-existing-execution-smoke-test.ts",
+    "mcp:import-smoke": "RETAKE_WORKSPACE_DIR=.retake-test tsx server/mcp-import-smoke-test.ts",
+    "mcp:smoke": "RETAKE_WORKSPACE_DIR=.retake-test tsx server/mcp-smoke-test.ts",
+    "mcp:test": "npm run mcp:binding-guard && npm run mcp:execution-status && npm run mcp:smoke && npm run mcp:import-smoke && npm run mcp:existing-execution",
+    "production": "npm run build && npm run production:preview",
+    "production:preview": "vite preview --host 127.0.0.1 --port 18771",
+    "preview": "vite preview --host 127.0.0.1 --port 18771",
+    "preview:local": "npm run preview",
+    "skill:validate": "python3 /Users/wingoo/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/retake-whiteboard-codex",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@xyflow/react": "12.11.1",
+    "lucide-react": "1.22.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "6.0.3",
+    "tsx": "^4.22.4",
+    "typescript": "6.0.3",
+    "vite": "8.1.2"
+  }
+}

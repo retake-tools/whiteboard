@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "retake-whiteboard": {
+      "title": "Retake Whiteboard MCP",
+      "description": "Validate Retake project bindings, read executions, import generated assets, and update whiteboard result blocks.",
+      "command": "npm",
+      "args": [
+        "run",
+        "--silent",
+        "mcp"
+      ],
+      "cwd": "."
+    }
+  }
+}

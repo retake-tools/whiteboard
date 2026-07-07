@@ -1,0 +1,429 @@
+.project-board-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 40;
+  width: min(340px, calc(100vw - 28px));
+  max-height: min(560px, calc(100vh - 92px));
+  overflow: visible;
+  border: 1px solid #d8dee8;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 22px 56px rgb(16 24 40 / 18%);
+}
+
+.project-board-menu.is-boards {
+  width: min(278px, calc(100vw - 28px));
+}
+
+.project-board-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 46px;
+  padding: 8px 10px 8px 14px;
+  border-bottom: 1px solid #eef2f6;
+}
+
+.project-board-menu-header strong {
+  color: #172033;
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.project-board-menu-body {
+  max-height: calc(min(560px, calc(100vh - 92px)) - 46px);
+  overflow: visible;
+  padding: 8px;
+}
+
+.project-board-menu-body.is-board-only {
+  max-height: min(420px, calc(100vh - 92px));
+  padding: 6px;
+}
+
+.project-board-project {
+  position: relative;
+  border-radius: 8px;
+  transition:
+    box-shadow 120ms ease,
+    opacity 120ms ease;
+}
+
+.project-board-project + .project-board-project {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eef2f6;
+}
+
+.project-board-project-row,
+.project-board-board-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  gap: 8px;
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.project-board-project-row {
+  padding: 2px 2px 2px 6px;
+}
+
+.project-board-project-name {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+}
+
+.project-board-project-name strong,
+.project-board-board-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-board-name-tooltip {
+  display: inline-flex;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.project-board-project-name .project-board-name-tooltip {
+  max-width: 170px;
+}
+
+.project-board-board-button .project-board-name-tooltip {
+  flex: 1;
+  max-width: 176px;
+}
+
+.project-board-name-tooltip > strong,
+.project-board-name-tooltip > span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-board-project-name strong {
+  color: #172033;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.project-board-project-name span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: #eef2f6;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.project-board-row-actions {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.project-board-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+}
+
+.project-board-icon-button:hover,
+.project-board-icon-button.is-active {
+  border-color: #d8dee8;
+  background: #f1f5f9;
+  color: #202938;
+}
+
+.project-board-board-list {
+  display: grid;
+  gap: 2px;
+  margin-top: 2px;
+  padding-left: 14px;
+}
+
+.project-board-board-list.is-root-list {
+  margin-top: 0;
+  padding-left: 0;
+}
+
+.project-board-menu.is-project-dragging .project-board-board-list {
+  display: none;
+}
+
+.project-board-board-row {
+  padding: 1px 2px 1px 0;
+}
+
+.project-board-board-row > .project-board-row-actions {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.project-board-board-row:hover > .project-board-row-actions,
+.project-board-board-row:focus-within > .project-board-row-actions,
+.project-board-board-row > .project-board-row-actions.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.project-board-board-row.is-active {
+  border-radius: 8px;
+  background: #e8f0ff;
+}
+
+.project-board-board-button {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  gap: 8px;
+  border-radius: 8px;
+  background: transparent;
+  color: #344054;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.project-board-board-button > span,
+.project-board-board-button .project-board-name-tooltip {
+  max-width: 176px;
+}
+
+.project-board-board-button:hover {
+  background: #f8fafc;
+}
+
+.project-board-board-row.is-active .project-board-board-button {
+  color: #1d4ed8;
+}
+
+.project-board-action-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  right: 0;
+  z-index: 90;
+  display: grid;
+  min-width: 128px;
+  padding: 5px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgb(16 24 40 / 16%);
+}
+
+.project-board-drag-handle {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 22px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #98a2b3;
+  cursor: grab;
+  touch-action: none;
+}
+
+.project-board-drag-handle:hover {
+  background: #f1f5f9;
+  color: #667085;
+}
+
+.project-board-drag-handle:active {
+  cursor: grabbing;
+}
+
+.project-board-project.is-dragging,
+.project-board-board-row.is-dragging {
+  z-index: 2;
+  opacity: 0.82;
+}
+
+.project-board-project.is-dragging .project-board-project-row,
+.project-board-board-row.is-dragging {
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgb(16 24 40 / 16%);
+}
+
+.project-board-project-row.is-active-drag,
+.project-board-board-row.is-active-drag {
+  background: #eef4ff;
+}
+
+.project-board-action-menu button {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: transparent;
+  color: #344054;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.project-board-action-menu button:hover {
+  background: #f1f5f9;
+}
+
+.project-board-action-menu button.is-danger {
+  color: #b42318;
+}
+
+.project-board-action-menu button.is-danger:hover {
+  background: #fef2f2;
+}
+
+.project-board-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(15 23 42 / 18%);
+}
+
+.project-board-dialog {
+  display: grid;
+  width: min(360px, calc(100vw - 40px));
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #d8dee8;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgb(16 24 40 / 22%);
+}
+
+.project-board-dialog header,
+.project-board-dialog footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.project-board-dialog h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 14px;
+  font-weight: 780;
+}
+
+.project-board-dialog header button {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.project-board-dialog header button:hover {
+  background: #f1f5f9;
+  color: #202938;
+}
+
+.project-board-dialog p {
+  margin: 0;
+  color: #475467;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.project-board-dialog input {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #172033;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.project-board-dialog input:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 14%);
+}
+
+.project-board-dialog footer {
+  justify-content: flex-end;
+}
+
+.project-board-dialog-secondary,
+.project-board-dialog-primary {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.project-board-dialog-secondary {
+  border: 1px solid #d8dee8;
+  background: #ffffff;
+  color: #344054;
+}
+
+.project-board-dialog-secondary:hover {
+  background: #f1f5f9;
+}
+
+.project-board-dialog-primary {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.project-board-dialog-primary:hover {
+  background: #1d4ed8;
+}
+
+.project-board-dialog-primary.is-danger {
+  background: #dc2626;
+}
+
+.project-board-dialog-primary.is-danger:hover {
+  background: #b91c1c;
+}
+
+.project-board-dialog-primary:disabled {
+  cursor: default;
+  opacity: 0.45;
+}

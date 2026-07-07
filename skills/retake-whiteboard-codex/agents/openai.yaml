@@ -1,0 +1,5 @@
+interface:
+  display_name: "Retake Whiteboard Codex"
+  short_description: "Write Retake image results back via MCP"
+  default_prompt: "Use $retake-whiteboard-codex to run this Retake Whiteboard operation through Codex/MCP and write the generated result back."
+

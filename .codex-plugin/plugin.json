@@ -1,0 +1,43 @@
+{
+  "name": "retake-whiteboard",
+  "version": "0.1.0",
+  "description": "Retake Whiteboard MCP tools and Codex skill for Retake video workflow board operations.",
+  "author": {
+    "name": "Retake Tools",
+    "url": "https://github.com/retake-tools"
+  },
+  "homepage": "https://github.com/retake-tools/whiteboard",
+  "repository": "https://github.com/retake-tools/whiteboard",
+  "keywords": [
+    "whiteboard",
+    "mcp",
+    "codex",
+    "video-workflow",
+    "asset-generation",
+    "annotation"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Retake Whiteboard",
+    "shortDescription": "Run Retake video workflow board operations through Codex and MCP.",
+    "longDescription": "Retake Whiteboard provides MCP writeback tools and a Codex skill for Retake's video creation workflow board. The current MVP supports image-stage generation and annotation-driven image edits, while keeping the whiteboard as an independent web app and Codex as one execution route that imports generated assets and updates board result blocks.",
+    "developerName": "Retake Tools",
+    "category": "Productivity",
+    "websiteURL": "https://github.com/retake-tools/whiteboard",
+    "brandColor": "#2563EB",
+    "capabilities": [
+      "MCP writeback",
+      "Video workflow board operations",
+      "MVP image-stage generation",
+      "Annotation-driven image editing stage",
+      "Project and board binding",
+      "Asset import"
+    ],
+    "defaultPrompt": [
+      "Use Retake Whiteboard MCP tools to write this video workflow result back.",
+      "Bind this Codex workspace to my Retake Whiteboard board.",
+      "Run the Retake image-stage annotation edit and update the result block."
+    ]
+  }
+}

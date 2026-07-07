@@ -1,0 +1,21 @@
+import type { BlockRecord, BlockType } from './types';
+
+type BlockTranslationKey =
+  | 'block.image.body'
+  | 'block.image.title'
+  | 'block.task.body'
+  | 'block.task.title'
+  | 'block.text.body'
+  | 'block.text.title'
+  | 'block.video.body'
+  | 'block.video.title';
+
+export function localizedBlockData(
+  type: Exclude<BlockType, 'frame'>,
+  t: (key: BlockTranslationKey) => string,
+): Pick<BlockRecord['data'], 'title' | 'body'> {
+  if (type === 'image') return { title: t('block.image.title'), body: t('block.image.body') };
+  if (type === 'video') return { title: t('block.video.title'), body: t('block.video.body') };
+  if (type === 'task') return { title: t('block.task.title'), body: t('block.task.body') };
+  return { title: t('block.text.title'), body: t('block.text.body') };
+}
