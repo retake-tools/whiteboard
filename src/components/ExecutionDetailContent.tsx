@@ -1,20 +1,54 @@
-import { Check, ChevronRight, Clipboard, ImageIcon, X } from 'lucide-react';
+import { Check, ChevronRight, Clipboard, ImageIcon, RotateCcw, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useEffect, useState, type ReactElement } from 'react';
-import type { AssetRecord, BlockRecord, BoardSnapshot, ExecutionRecord } from '../core/types';
+import { inputRoleDefinition, isExecutionInputRole } from '../core/inputRoles';
+import { executionSourceLineage } from '../core/executionLineage';
+import {
+  configurationChanges,
+  currentOperationConfiguration,
+  executionConfiguration,
+  executionVersionFor,
+  latestExecutionForOperation,
+  previousExecutionFor,
+} from '../core/executionConfiguration';
+import type {
+  AssetRecord,
+  BlockRecord,
+  BoardHistoryEvent,
+  BoardSnapshot,
+  ExecutionConfigurationChange,
+  ExecutionConfigurationChangeKind,
+  ExecutionConfigurationInputSnapshot,
+  ExecutionInputRole,
+  ExecutionRecord,
+} from '../core/types';
 import { useI18n } from '../i18n';
 import { TooltipIconButton } from './Tooltip';
 
-export type ExecutionDetailCopySource = 'execution_inspector' | 'history_panel';
+export type ExecutionDetailCopySource = 'execution_inspector' | 'group_inspector' | 'history_panel';
 
 export interface ExecutionDetailContext {
+  activity: ExecutionActivityItem[];
   annotatedCompositeAsset?: AssetRecord;
   annotationText?: string;
   execution: ExecutionRecord;
+  inputImages: Array<{ asset: AssetRecord; inputRole?: ExecutionInputRole }>;
+  operationBlock?: BlockRecord;
   outputAssets: AssetRecord[];
   prompt?: string;
   sourceAssets: AssetRecord[];
   sourceBlock?: BlockRecord;
+  sourceExecutionVersion?: number;
+  currentDraftChanges: ExecutionConfigurationChange[];
+  executionChanges: ExecutionConfigurationChange[];
+  executionVersion?: number;
+}
+
+export interface ExecutionActivityItem {
+  createdAt: string;
+  detail?: string;
+  kind: 'started' | 'failed' | 'resumed' | 'result_updated' | 'succeeded';
+  resultTitles: string[];
 }
 
 interface ExecutionDetailContentProps {
@@ -23,6 +57,8 @@ interface ExecutionDetailContentProps {
   copiedPromptKey?: string;
   copyKey: string;
   copySource: ExecutionDetailCopySource;
+  onSelectAsset?: (asset: AssetRecord) => void;
+  onRestoreConfiguration?: () => void;
   onCopyPrompt: (input: {
     blockIds?: string[];
     copyKey: string;
@@ -48,12 +84,36 @@ export function ExecutionDetailContent({
   copiedPromptKey,
   copyKey,
   copySource,
+  onSelectAsset,
+  onRestoreConfiguration,
   onCopyPrompt,
 }: ExecutionDetailContentProps): ReactElement {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [previewImage, setPreviewImage] = useState<PreviewImage | undefined>();
-  const { annotatedCompositeAsset, annotationText, execution, outputAssets, prompt, sourceBlock, sourceAssets } = context;
+  const {
+    annotatedCompositeAsset,
+    activity,
+    annotationText,
+    currentDraftChanges,
+    execution,
+    executionChanges,
+    executionVersion,
+    inputImages,
+    outputAssets,
+    prompt,
+    sourceBlock,
+    sourceExecutionVersion,
+  } = context;
   const isCopied = copiedPromptKey === copyKey;
+
+  function openImagePreview(image: PreviewImage): void {
+    const selected = image.images[image.index];
+    if (onSelectAsset && selected) {
+      onSelectAsset(selected.asset);
+      return;
+    }
+    setPreviewImage(image);
+  }
 
   useEffect(() => {
     if (!previewImage) return;
@@ -78,23 +138,65 @@ export function ExecutionDetailContent({
       <dl className="execution-inspector-meta">
         <Meta label={t('inspector.status')} value={t(`status.${execution.status}`)} />
         <Meta label={t('inspector.capability')} value={execution.capabilityId} />
+        <Meta label={t('inspector.generator')} value={execution.generationProfile?.name} />
         <Meta label={t('inspector.adapter')} value={execution.adapter} />
         <Meta label={t('inspector.skill')} value={execution.skillId} />
-        <Meta label={t('inspector.source')} value={sourceBlock?.data.title} />
+        <Meta
+          label={t('inspector.source')}
+          value={sourceBlock
+            ? `${sourceBlock.data.title}${typeof sourceExecutionVersion === 'number' ? ` · V${sourceExecutionVersion}` : ''}`
+            : undefined}
+        />
         <Meta label={t('inspector.executionId')} value={execution.executionId} mono />
       </dl>
+
+      {activity.length ? <ExecutionActivity activity={activity} locale={locale} /> : null}
+
+      <ConfigurationChanges
+        changes={executionChanges}
+        emptyLabel={t(executionVersion === 1 ? 'configuration.initial' : 'configuration.noChanges')}
+        title={
+          typeof executionVersion === 'number'
+            ? `${t('inspector.versionChanges')} · V${executionVersion}`
+            : t('inspector.pendingConfiguration')
+        }
+      />
+      {currentDraftChanges.length ? (
+        <ConfigurationChanges
+          changes={currentDraftChanges}
+          emptyLabel={t('inspector.none')}
+          title={t('inspector.currentDraftChanges')}
+        />
+      ) : null}
+      {onRestoreConfiguration ? (
+        <button
+          type="button"
+          className="execution-restore-configuration"
+          disabled={context.operationBlock?.data.status === 'queued' || context.operationBlock?.data.status === 'running'}
+          onClick={onRestoreConfiguration}
+        >
+          <RotateCcw size={14} />
+          <span>{t('inspector.restoreConfiguration')}</span>
+        </button>
+      ) : null}
 
       <ImageComparison
         annotatedAsset={annotatedCompositeAsset}
         annotatedLabel={t('inspector.annotatedComposite')}
         emptyLabel={t('inspector.none')}
-        onPreview={setPreviewImage}
-        sourceAsset={sourceAssets.find((asset) => asset.kind === 'image')}
+        inputImages={inputImages}
+        onPreview={openImagePreview}
         sourceLabel={t('inspector.inputAssets')}
         title={t('inspector.imageComparison')}
       />
       <AnnotationText emptyLabel={t('inspector.none')} text={annotationText} title={t('inspector.annotationText')} />
-      <AssetList assets={outputAssets} emptyLabel={t('inspector.none')} icon={<ImageIcon size={13} />} title={t('inspector.outputAssets')} />
+      <AssetList
+        assets={outputAssets}
+        emptyLabel={t('inspector.none')}
+        icon={<ImageIcon size={13} />}
+        title={t('inspector.outputAssets')}
+        onSelect={onSelectAsset}
+      />
 
       {prompt ? (
         <section className="execution-inspector-prompt">
@@ -104,7 +206,7 @@ export function ExecutionDetailContent({
               label={t(isCopied ? 'feedback.copied' : 'feedback.copyPrompt')}
               onClick={() =>
                 onCopyPrompt({
-                  blockIds: [...execution.inputBlockIds, ...execution.outputBlockIds],
+                  blockIds: executionDetailBlockIds(context),
                   copyKey,
                   executionId: execution.executionId,
                   prompt,
@@ -161,48 +263,303 @@ function createExecutionDetailContext(
   detailBlock?: BlockRecord,
 ): ExecutionDetailContext {
   const sourceBlocks = snapshot.blocks.filter((block) => execution.inputBlockIds.includes(block.blockId));
-  const sourceAssetIds = sourceBlocks
-    .map((block) => block.data.assetId)
-    .filter((assetId): assetId is string => typeof assetId === 'string');
+  const operationBlock = findOperationBlock(snapshot, execution);
+  const inputBindings = readExecutionInputBindings(execution.params?.inputBindings);
+  const inputImages: Array<{ asset: AssetRecord; inputRole?: ExecutionInputRole }> = inputBindings.flatMap((binding) => {
+    const block = sourceBlocks.find((candidate) => candidate.blockId === binding.blockId);
+    const assetId = binding.assetId ?? (typeof block?.data.assetId === 'string' ? block.data.assetId : undefined);
+    const asset = snapshot.assets.find((candidate) => candidate.assetId === assetId && candidate.kind === 'image');
+    return asset ? [{ asset, inputRole: binding.inputRole }] : [];
+  });
+  for (const block of sourceBlocks) {
+    const assetId = typeof block.data.assetId === 'string' ? block.data.assetId : undefined;
+    const asset = snapshot.assets.find((candidate) => candidate.assetId === assetId && candidate.kind === 'image');
+    if (asset && !inputImages.some((inputImage) => inputImage.asset.assetId === asset.assetId)) {
+      inputImages.push({ asset });
+    }
+  }
+  inputImages.sort((left, right) => Number(right.inputRole === 'source') - Number(left.inputRole === 'source'));
+  const { sourceBlock, sourceExecutionVersion } = executionSourceLineage(snapshot, execution);
   const annotatedCompositeAssetId =
-    typeof detailBlock?.data.annotatedCompositeAssetId === 'string'
-      ? detailBlock.data.annotatedCompositeAssetId
+    typeof operationBlock?.data.annotatedCompositeAssetId === 'string'
+      ? operationBlock.data.annotatedCompositeAssetId
+      : typeof detailBlock?.data.annotatedCompositeAssetId === 'string'
+        ? detailBlock.data.annotatedCompositeAssetId
       : undefined;
   const annotationText =
-    typeof detailBlock?.data.annotationText === 'string' ? detailBlock.data.annotationText : undefined;
+    typeof operationBlock?.data.annotationText === 'string'
+      ? operationBlock.data.annotationText
+      : typeof detailBlock?.data.annotationText === 'string'
+        ? detailBlock.data.annotationText
+        : undefined;
   const blockPrompt =
-    typeof detailBlock?.data.agentPrompt === 'string' ? detailBlock.data.agentPrompt : undefined;
+    typeof operationBlock?.data.agentPrompt === 'string'
+      ? operationBlock.data.agentPrompt
+      : typeof detailBlock?.data.agentPrompt === 'string'
+        ? detailBlock.data.agentPrompt
+        : undefined;
+  const previousExecution = previousExecutionFor(snapshot, execution);
+  const executionChanges = previousExecution
+    ? configurationChanges(executionConfiguration(previousExecution), executionConfiguration(execution))
+    : [];
+  const operationBlockId = typeof execution.params?.operationBlockId === 'string'
+    ? execution.params.operationBlockId
+    : undefined;
+  const latestExecution = operationBlockId
+    ? latestExecutionForOperation(snapshot, operationBlockId)
+    : undefined;
+  const currentDraftChanges =
+    operationBlock && latestExecution?.executionId === execution.executionId
+      ? configurationChanges(executionConfiguration(execution), currentOperationConfiguration(snapshot, operationBlock))
+      : [];
 
   return {
+    activity: executionActivity(snapshot, execution),
     annotatedCompositeAsset: snapshot.assets.find((asset) => asset.assetId === annotatedCompositeAssetId),
     annotationText,
     execution,
+    inputImages,
+    operationBlock,
     outputAssets: snapshot.assets.filter((asset) => execution.outputAssetIds.includes(asset.assetId)),
     prompt: execution.agentPrompt ?? blockPrompt ?? execution.prompt,
-    sourceAssets: snapshot.assets.filter((asset) => sourceAssetIds.includes(asset.assetId)),
-    sourceBlock: sourceBlocks[0],
+    sourceAssets: inputImages.map((inputImage) => inputImage.asset),
+    sourceBlock,
+    sourceExecutionVersion,
+    currentDraftChanges,
+    executionChanges,
+    executionVersion: executionVersionFor(snapshot, execution),
   };
+}
+
+function executionActivity(snapshot: BoardSnapshot, execution: ExecutionRecord): ExecutionActivityItem[] {
+  const events = (snapshot.historyEvents ?? [])
+    .filter((event) => event.executionId === execution.executionId && isExecutionActivityEvent(event))
+    .sort((left, right) => {
+      const timestampDifference = Date.parse(left.createdAt) - Date.parse(right.createdAt);
+      return timestampDifference || activityEventOrder(left) - activityEventOrder(right);
+    });
+  const resumedResultBlockIds = events.flatMap((event) => readStringArray(event.detail?.retriedResultBlockIds));
+  const hasFailureRecovery = events.some(
+    (event) => event.type === 'execution_failed' || readString(event.detail?.resumedFromStatus) === 'failed',
+  );
+  if (!hasFailureRecovery) return [];
+
+  return events.map((event): ExecutionActivityItem => {
+    const resumed = event.type === 'execution_started' && readString(event.detail?.resumedFromStatus) === 'failed';
+    const resultBlockIds = event.type === 'execution_failed'
+      ? readStringArray(event.detail?.failedResultBlockIds).length
+        ? readStringArray(event.detail?.failedResultBlockIds)
+        : resumedResultBlockIds
+      : resumed
+        ? readStringArray(event.detail?.retriedResultBlockIds)
+        : event.type === 'result_block_updated'
+          ? [readString(event.detail?.resultBlockId)].filter((value): value is string => Boolean(value))
+          : [];
+    return {
+      createdAt: event.createdAt,
+      detail: event.type === 'execution_failed' ? readString(event.detail?.errorMessage) : undefined,
+      kind: resumed ? 'resumed' : activityKind(event),
+      resultTitles: resultBlockIds.map((blockId) =>
+        snapshot.blocks.find((block) => block.blockId === blockId)?.data.title ?? blockId,
+      ),
+    };
+  });
+}
+
+function ExecutionActivity({
+  activity,
+  locale,
+}: {
+  activity: ExecutionActivityItem[];
+  locale: 'en' | 'zh';
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <section className="execution-activity">
+      <h3>{t('inspector.failureRecovery')}</h3>
+      <ol>
+        {activity.map((item, index) => (
+          <li className={`is-${item.kind}`} key={`${item.createdAt}:${item.kind}:${index}`}>
+            <span className="execution-activity-marker" aria-hidden="true" />
+            <div>
+              <header>
+                <strong>{t(activityLabelKey(item.kind))}</strong>
+                <time dateTime={item.createdAt}>{formatActivityTime(item.createdAt, locale)}</time>
+              </header>
+              {item.resultTitles.length ? <p>{item.resultTitles.join(' · ')}</p> : null}
+              {item.detail ? <p className="execution-activity-error">{item.detail}</p> : null}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function isExecutionActivityEvent(event: BoardHistoryEvent): boolean {
+  return event.type === 'execution_started' ||
+    event.type === 'execution_failed' ||
+    event.type === 'result_block_updated' ||
+    event.type === 'execution_succeeded';
+}
+
+function activityKind(event: BoardHistoryEvent): ExecutionActivityItem['kind'] {
+  if (event.type === 'execution_failed') return 'failed';
+  if (event.type === 'result_block_updated') return 'result_updated';
+  if (event.type === 'execution_succeeded') return 'succeeded';
+  return 'started';
+}
+
+function activityEventOrder(event: BoardHistoryEvent): number {
+  if (event.type === 'execution_started' && readString(event.detail?.resumedFromStatus) === 'failed') return 2;
+  if (event.type === 'result_block_updated') return 3;
+  if (event.type === 'execution_succeeded') return 4;
+  if (event.type === 'execution_failed') return 1;
+  return 0;
+}
+
+function activityLabelKey(kind: ExecutionActivityItem['kind']) {
+  return `inspector.activity.${kind}` as const;
+}
+
+function formatActivityTime(value: string, locale: 'en' | 'zh'): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return value;
+  return new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(new Date(timestamp));
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function readStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function ConfigurationChanges({
+  changes,
+  emptyLabel,
+  title,
+}: {
+  changes: ExecutionConfigurationChange[];
+  emptyLabel: string;
+  title: string;
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <section className="execution-configuration-changes">
+      <h3>{title}</h3>
+      {changes.length ? (
+        <ul>
+          {changes.map((change) => (
+            <li key={`${change.kind}:${change.key}`}>
+              <strong>
+                {t(configurationChangeLabelKey(change.kind))}
+                {change.kind === 'parameter' ? ` · ${change.key}` : ''}
+                {parameterSchemaTransition(change)}
+              </strong>
+              <div>
+                <span>{formatConfigurationValue(change, change.previous, t('inspector.none'), t)}</span>
+                <ChevronRight size={13} />
+                <span>{formatConfigurationValue(change, change.current, t('inspector.none'), t)}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : <p>{emptyLabel}</p>}
+    </section>
+  );
+}
+
+function configurationChangeLabelKey(kind: ExecutionConfigurationChangeKind) {
+  return `configuration.${kind}` as const;
+}
+
+function formatConfigurationValue(
+  change: ExecutionConfigurationChange,
+  value: unknown,
+  emptyLabel: string,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  if (value === undefined || value === null || value === '') return emptyLabel;
+  if (change.kind === 'input' && typeof value === 'object') {
+    const input = value as ExecutionConfigurationInputSnapshot;
+    return input.title || input.assetId || input.blockId;
+  }
+  if (change.kind === 'role' && typeof value === 'string' && isExecutionInputRole(value)) {
+    return t(inputRoleDefinition(value).titleKey);
+  }
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return JSON.stringify(value);
+}
+
+function parameterSchemaTransition(change: ExecutionConfigurationChange): string {
+  if (change.kind !== 'parameter') return '';
+  const previous = change.previousParameter;
+  const current = change.currentParameter;
+  if (!previous || !current) return '';
+  if (previous.valueType === current.valueType && previous.schemaVersion === current.schemaVersion) return '';
+  return ` · ${previous.valueType} v${previous.schemaVersion} → ${current.valueType} v${current.schemaVersion}`;
+}
+
+function readExecutionInputBindings(
+  value: unknown,
+): Array<{ assetId?: string; blockId: string; inputRole: ExecutionInputRole }> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((binding) => {
+    if (!binding || typeof binding !== 'object') return [];
+    const candidate = binding as Record<string, unknown>;
+    if (typeof candidate.blockId !== 'string' || !isExecutionInputRole(candidate.inputRole)) return [];
+    return [{
+      assetId: typeof candidate.assetId === 'string' ? candidate.assetId : undefined,
+      blockId: candidate.blockId,
+      inputRole: candidate.inputRole,
+    }];
+  });
+}
+
+function findOperationBlock(snapshot: BoardSnapshot, execution: ExecutionRecord): BlockRecord | undefined {
+  const operationBlockId =
+    typeof execution.params?.operationBlockId === 'string' ? execution.params.operationBlockId : undefined;
+  if (!operationBlockId) return undefined;
+  return snapshot.blocks.find((block) => block.blockId === operationBlockId && block.type === 'operation');
+}
+
+function executionDetailBlockIds(context: ExecutionDetailContext): string[] {
+  return [
+    ...context.execution.inputBlockIds,
+    context.operationBlock?.blockId,
+    ...context.execution.outputBlockIds,
+  ].filter((blockId): blockId is string => typeof blockId === 'string');
 }
 
 function ImageComparison({
   annotatedAsset,
   annotatedLabel,
   emptyLabel,
+  inputImages,
   onPreview,
-  sourceAsset,
   sourceLabel,
   title,
 }: {
   annotatedAsset?: AssetRecord;
   annotatedLabel: string;
   emptyLabel: string;
+  inputImages: Array<{ asset: AssetRecord; inputRole?: ExecutionInputRole }>;
   onPreview: (image: PreviewImage) => void;
-  sourceAsset?: AssetRecord;
   sourceLabel: string;
   title: string;
 }): ReactElement {
+  const { t } = useI18n();
   const imageItems = [
-    sourceAsset ? { asset: sourceAsset, title: sourceLabel } : undefined,
+    ...inputImages.map((inputImage) => ({
+      asset: inputImage.asset,
+      title: inputImage.inputRole ? t(inputRoleDefinition(inputImage.inputRole).titleKey) : sourceLabel,
+    })),
     annotatedAsset ? { asset: annotatedAsset, title: annotatedLabel } : undefined,
   ].filter((item): item is PreviewImageItem => Boolean(item));
 
@@ -210,18 +567,17 @@ function ImageComparison({
     <section className="execution-inspector-image-comparison">
       <h3>{title}</h3>
       <div className="execution-inspector-image-grid">
-        <ImagePreviewCard
-          asset={sourceAsset}
-          emptyLabel={emptyLabel}
-          label={sourceLabel}
-          onPreview={() => onPreview({ images: imageItems, index: indexOfPreviewAsset(imageItems, sourceAsset) })}
-        />
-        <ImagePreviewCard
-          asset={annotatedAsset}
-          emptyLabel={emptyLabel}
-          label={annotatedLabel}
-          onPreview={() => onPreview({ images: imageItems, index: indexOfPreviewAsset(imageItems, annotatedAsset) })}
-        />
+        {imageItems.length ? imageItems.map((item, index) => (
+          <ImagePreviewCard
+            key={`${item.asset.assetId}-${item.title}`}
+            asset={item.asset}
+            emptyLabel={emptyLabel}
+            label={item.title}
+            onPreview={() => onPreview({ images: imageItems, index })}
+          />
+        )) : (
+          <ImagePreviewCard emptyLabel={emptyLabel} label={sourceLabel} onPreview={() => undefined} />
+        )}
       </div>
     </section>
   );
@@ -354,11 +710,13 @@ function AssetList({
   assets,
   emptyLabel,
   icon,
+  onSelect,
   title,
 }: {
   assets: AssetRecord[];
   emptyLabel: string;
   icon: ReactElement;
+  onSelect?: (asset: AssetRecord) => void;
   title: string;
 }): ReactElement {
   return (
@@ -368,8 +726,17 @@ function AssetList({
         <ul>
           {assets.map((asset) => (
             <li key={asset.assetId}>
-              {icon}
-              <span>{asset.storageKey}</span>
+              {onSelect ? (
+                <button type="button" onClick={() => onSelect(asset)}>
+                  {icon}
+                  <span>{asset.storageKey}</span>
+                </button>
+              ) : (
+                <>
+                  {icon}
+                  <span>{asset.storageKey}</span>
+                </>
+              )}
             </li>
           ))}
         </ul>
@@ -386,12 +753,6 @@ function splitAnnotationText(text?: string): string[] {
     .split(/\n+/)
     .map((line) => line.trim().replace(/^\d+[.)、]\s*/, ''))
     .filter(Boolean);
-}
-
-function indexOfPreviewAsset(images: PreviewImageItem[], asset?: AssetRecord): number {
-  if (!asset) return 0;
-  const index = images.findIndex((item) => item.asset.assetId === asset.assetId);
-  return index >= 0 ? index : 0;
 }
 
 function nextPreviewImage(current?: PreviewImage): PreviewImage | undefined {

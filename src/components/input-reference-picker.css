@@ -1,0 +1,136 @@
+.input-reference-picker {
+  position: fixed;
+  z-index: 2200;
+  display: grid;
+  width: 360px;
+  max-height: 450px;
+  gap: 10px;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 44px rgb(15 23 42 / 20%);
+}
+
+.input-reference-picker > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.input-reference-picker > header > span {
+  display: grid;
+  gap: 3px;
+}
+
+.input-reference-picker > header strong {
+  color: #111827;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.input-reference-picker > header small {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.input-reference-picker > header button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+}
+
+.input-reference-image-list,
+.input-reference-picker .input-role-option-list {
+  display: grid;
+  max-height: 350px;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.input-reference-image-list button,
+.input-reference-picker .input-role-option {
+  display: flex;
+  width: 100%;
+  min-height: 52px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  background: transparent;
+  color: #334155;
+  text-align: left;
+}
+
+.input-reference-image-list button:hover,
+.input-reference-picker .input-role-option:hover,
+.input-reference-picker .input-role-option.is-selected {
+  background: #eef2ff;
+  color: #1d4ed8;
+}
+
+.input-reference-image-list img,
+.input-reference-selected-image img {
+  width: 48px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: 5px;
+  object-fit: cover;
+}
+
+.input-reference-image-list span {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 680;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.input-reference-selected-image {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.input-reference-picker .input-role-option > span {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+}
+
+.input-reference-picker .input-role-option strong {
+  font-size: 12px;
+}
+
+.input-reference-picker .input-role-option small {
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.input-reference-picker .input-role-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.input-reference-empty {
+  display: flex;
+  min-height: 96px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 12px;
+}

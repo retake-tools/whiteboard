@@ -1,12 +1,17 @@
 import { defaultSnapshot } from './sampleBoard';
+import { migrateBoardSnapshot } from './snapshotMigration';
 import type { BoardSnapshot, WorkspaceSummary } from './types';
 
 const storageKey = 'retake.whiteboard.spike.boardSnapshot';
 const currentProjectKey = 'retake.whiteboard.currentProjectId';
 const currentBoardKey = 'retake.whiteboard.currentBoardId';
 
+export type SnapshotSaveResult = {
+  persistedTo: 'local-api' | 'browser-storage';
+};
+
 export function createFallbackBoardSnapshot(): BoardSnapshot {
-  return structuredClone(defaultSnapshot);
+  return migrateBoardSnapshot(structuredClone(defaultSnapshot));
 }
 
 export async function loadBoardSnapshot(input?: { projectId?: string; boardId?: string }): Promise<BoardSnapshot> {
@@ -16,7 +21,7 @@ export async function loadBoardSnapshot(input?: { projectId?: string; boardId?: 
     const query = projectId && boardId ? `?projectId=${encodeURIComponent(projectId)}&boardId=${encodeURIComponent(boardId)}` : '';
     const response = await fetch(`/api/local/snapshot${query}`);
     if (response.ok) {
-      const snapshot = (await response.json()) as BoardSnapshot;
+      const snapshot = migrateBoardSnapshot((await response.json()) as BoardSnapshot);
       rememberCurrentBoard(snapshot);
       return snapshot;
     }
@@ -28,25 +33,26 @@ export async function loadBoardSnapshot(input?: { projectId?: string; boardId?: 
   if (!raw) return createFallbackBoardSnapshot();
 
   try {
-    return JSON.parse(raw) as BoardSnapshot;
+    return migrateBoardSnapshot(JSON.parse(raw) as BoardSnapshot);
   } catch {
     return createFallbackBoardSnapshot();
   }
 }
 
-export async function saveBoardSnapshot(snapshot: BoardSnapshot): Promise<void> {
+export async function saveBoardSnapshot(snapshot: BoardSnapshot): Promise<SnapshotSaveResult> {
   try {
     const response = await fetch('/api/local/snapshot', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(snapshot),
     });
-    if (response.ok) return;
+    if (response.ok) return { persistedTo: 'local-api' };
   } catch {
     // Browser-only fallback for static preview builds.
   }
 
   localStorage.setItem(storageKey, JSON.stringify(snapshot));
+  return { persistedTo: 'browser-storage' };
 }
 
 export async function clearBoardSnapshot(): Promise<BoardSnapshot> {
@@ -54,7 +60,7 @@ export async function clearBoardSnapshot(): Promise<BoardSnapshot> {
     const response = await fetch('/api/local/reset', { method: 'POST' });
     if (response.ok) {
       localStorage.removeItem(storageKey);
-      const snapshot = (await response.json()) as BoardSnapshot;
+      const snapshot = migrateBoardSnapshot((await response.json()) as BoardSnapshot);
       rememberCurrentBoard(snapshot);
       return snapshot;
     }
@@ -143,6 +149,7 @@ export async function reorderWorkspaceBoards(
 
 export function subscribeToBoardSnapshotChanges(input: {
   getCurrentSnapshot: () => BoardSnapshot;
+  isPaused?: () => boolean;
   onSnapshot: (snapshot: BoardSnapshot) => void;
   intervalMs?: number;
 }): () => void {
@@ -151,7 +158,7 @@ export function subscribeToBoardSnapshotChanges(input: {
   let observedSignature = createSnapshotSignature(input.getCurrentSnapshot());
 
   async function checkForChanges(): Promise<void> {
-    if (stopped || inFlight) return;
+    if (stopped || inFlight || input.isPaused?.()) return;
 
     const currentSignature = createSnapshotSignature(input.getCurrentSnapshot());
     if (currentSignature !== observedSignature) {
@@ -165,8 +172,9 @@ export function subscribeToBoardSnapshotChanges(input: {
         projectId: current.project.projectId,
         boardId: current.board.boardId,
       });
+      if (stopped || input.isPaused?.()) return;
       const loadedSignature = createSnapshotSignature(loadedSnapshot);
-      if (!stopped && loadedSignature !== observedSignature) {
+      if (loadedSignature !== observedSignature) {
         observedSignature = loadedSignature;
         input.onSnapshot(loadedSnapshot);
       }

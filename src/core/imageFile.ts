@@ -1,3 +1,5 @@
+export { fitImageBlockSize } from './blockSizing';
+
 export function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -20,37 +22,4 @@ export function readImageDimensions(src: string): Promise<{ width: number; heigh
     image.onerror = () => resolve(undefined);
     image.src = src;
   });
-}
-
-export function fitImageBlockSize(width?: number, height?: number): { width: number; height: number } {
-  if (!width || !height || width <= 0 || height <= 0) return { width: 300, height: 230 };
-
-  const maxWidth = 640;
-  const maxImageHeight = 520;
-  const minWidth = 240;
-  const minImageHeight = 180;
-  const blockChromeHeight = 38;
-  const ratio = width / height;
-  let nextWidth = maxWidth;
-  let nextHeight = nextWidth / ratio;
-
-  if (nextHeight > maxImageHeight) {
-    nextHeight = maxImageHeight;
-    nextWidth = nextHeight * ratio;
-  }
-
-  if (nextWidth < minWidth) {
-    nextWidth = minWidth;
-    nextHeight = nextWidth / ratio;
-  }
-
-  if (nextHeight < minImageHeight) {
-    nextHeight = minImageHeight;
-    nextWidth = nextHeight * ratio;
-  }
-
-  return {
-    width: Math.round(Math.min(nextWidth, maxWidth)),
-    height: Math.round(Math.min(nextHeight, maxImageHeight) + blockChromeHeight),
-  };
 }

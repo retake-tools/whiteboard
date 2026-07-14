@@ -71,6 +71,24 @@ async function main(): Promise<void> {
     throw new Error('Expected existing queued execution to be readable by MCP');
   }
 
+  const runningResult = await client.callTool({
+    name: 'retake_mark_execution_running',
+    arguments: {
+      projectId: prepared.snapshot.project.projectId,
+      boardId: prepared.snapshot.board.boardId,
+      executionId: prepared.executionId,
+    },
+  });
+  const running = readStructuredContent<{
+    execution: { status: string; operationVersion?: number };
+  }>(
+    runningResult.structuredContent,
+  );
+  const runningExecution = running.execution;
+  if (runningExecution.status !== 'running' || runningExecution.operationVersion !== 1) {
+    throw new Error('Expected starting the existing execution to assign operation version 1');
+  }
+
   const generatedPath = await writeAgentOutputSvg(prepared.executionId);
   const assetResult = await client.callTool({
     name: 'retake_import_asset',
@@ -115,7 +133,10 @@ async function main(): Promise<void> {
   const snapshot = readStructuredContent<BoardSnapshot>(snapshotResult.structuredContent);
   const updatedResultBlock = snapshot.blocks.find((block) => block.blockId === prepared.resultBlockId);
   const resultEdge = snapshot.edges.find(
-    (edge) => edge.sourceBlockId === prepared.sourceImageBlockId && edge.targetBlockId === result.block.blockId,
+    (edge) => edge.sourceBlockId === prepared.operationBlockId && edge.targetBlockId === result.block.blockId,
+  );
+  const inputEdge = snapshot.edges.find(
+    (edge) => edge.sourceBlockId === prepared.sourceImageBlockId && edge.targetBlockId === prepared.operationBlockId,
   );
 
   await client.close();
@@ -127,7 +148,10 @@ async function main(): Promise<void> {
     throw new Error('Expected result image block status and asset to be synced to succeeded');
   }
   if (!resultEdge) {
-    throw new Error('Expected result block to connect from the source image block');
+    throw new Error('Expected result block to connect from the operation block');
+  }
+  if (!inputEdge) {
+    throw new Error('Expected operation block to connect from the source image block');
   }
 
   console.log(
@@ -135,7 +159,9 @@ async function main(): Promise<void> {
       {
         bindingValidated: validation.ok,
         executionId: prepared.executionId,
+        operationVersion: runningExecution.operationVersion,
         sourceImageBlockId: prepared.sourceImageBlockId,
+        operationBlockId: prepared.operationBlockId,
         generatedPath,
         resultBlockId: result.block.blockId,
         executionStatus: result.execution.status,
@@ -155,6 +181,7 @@ async function prepareExistingExecution(): Promise<{
   snapshot: BoardSnapshot;
   executionId: string;
   sourceImageBlockId: string;
+  operationBlockId: string;
   resultBlockId: string;
 }> {
   const snapshot = await ensureDefaultSnapshot();
@@ -165,13 +192,19 @@ async function prepareExistingExecution(): Promise<{
   const operation = addImageCodexOperation(snapshot, {
     operation: 'create_similar',
     sourceBlockId: imageBlock.blockId,
+    generationParams: { strength: 0.8 },
   });
+  const effectiveGeneration = operation.execution.params?.generation as Record<string, unknown> | undefined;
+  if (effectiveGeneration?.strength !== undefined || operation.prompt.includes('requested edit strength')) {
+    throw new Error('Expected generic image-to-image execution and prompt to remove provider-specific Strength');
+  }
   await saveSnapshot(snapshot);
 
   return {
     snapshot,
     executionId: operation.execution.executionId,
     sourceImageBlockId: imageBlock.blockId,
+    operationBlockId: operation.operationBlock.blockId,
     resultBlockId: operation.resultBlock.blockId,
   };
 }

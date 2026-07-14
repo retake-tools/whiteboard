@@ -5,7 +5,6 @@ import {
   createBoard,
   createExecution,
   createCodexBindingPrompt,
-  createImageResultBlock,
   createProject,
   createAssetFromDataUrl,
   createMockGeneratedAsset,
@@ -18,6 +17,7 @@ import {
   getExecution,
   importAssetFromPath,
   listWorkspace,
+  markExecutionRunning,
   readAssetFile,
   renameBoard,
   renameProject,
@@ -31,11 +31,27 @@ import {
 } from './local-store';
 import type { BoardSnapshot } from '../src/core/types';
 
+type MiddlewareContainer = {
+  use(
+    path: string,
+    handler: (req: IncomingMessage, res: ServerResponse, next: () => void) => void,
+  ): void;
+};
+
 export function localApiPlugin(): Plugin {
   return {
     name: 'retake-local-api',
     configureServer(server) {
-      server.middlewares.use('/api/local', async (req, res, next) => {
+      installLocalApiMiddleware(server.middlewares);
+    },
+    configurePreviewServer(server) {
+      installLocalApiMiddleware(server.middlewares);
+    },
+  };
+}
+
+function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
+  middlewares.use('/api/local', async (req, res, next) => {
         try {
           const url = new URL(req.url ?? '/', 'http://localhost');
           const method = req.method ?? 'GET';
@@ -322,6 +338,26 @@ export function localApiPlugin(): Plugin {
             return;
           }
 
+          const startExecutionMatch = url.pathname.match(/^\/executions\/([^/]+)\/start$/);
+          if (method === 'POST' && startExecutionMatch) {
+            const [, executionId] = startExecutionMatch;
+            const body = (await readJson(req)) as { projectId?: string; boardId?: string };
+            if (!body.projectId || !body.boardId) {
+              sendJson(res, { error: 'projectId and boardId are required' }, 400);
+              return;
+            }
+
+            sendJson(
+              res,
+              await markExecutionRunning({
+                projectId: body.projectId,
+                boardId: body.boardId,
+                executionId,
+              }),
+            );
+            return;
+          }
+
           const completeExecutionMatch = url.pathname.match(/^\/executions\/([^/]+)\/complete$/);
           if (method === 'POST' && completeExecutionMatch) {
             const [, executionId] = completeExecutionMatch;
@@ -369,40 +405,6 @@ export function localApiPlugin(): Plugin {
                 boardId: body.boardId,
                 executionId,
                 errorMessage: body.errorMessage,
-              }),
-            );
-            return;
-          }
-
-          if (method === 'POST' && url.pathname === '/result-blocks/image') {
-            const body = (await readJson(req)) as {
-              projectId?: string;
-              boardId?: string;
-              executionId?: string;
-              assetId?: string;
-              sourceBlockIds?: string[];
-              displayWidth?: number;
-              displayHeight?: number;
-              title?: string;
-              body?: string;
-            };
-            if (!body.projectId || !body.boardId || !body.executionId || !body.assetId) {
-              sendJson(res, { error: 'projectId, boardId, executionId, and assetId are required' }, 400);
-              return;
-            }
-
-            sendJson(
-              res,
-              await createImageResultBlock({
-                projectId: body.projectId,
-                boardId: body.boardId,
-                executionId: body.executionId,
-                assetId: body.assetId,
-                sourceBlockIds: body.sourceBlockIds,
-                displayWidth: body.displayWidth,
-                displayHeight: body.displayHeight,
-                title: body.title,
-                body: body.body,
               }),
             );
             return;
@@ -459,8 +461,6 @@ export function localApiPlugin(): Plugin {
           );
         }
       });
-    },
-  };
 }
 
 async function readJson(req: IncomingMessage): Promise<unknown> {

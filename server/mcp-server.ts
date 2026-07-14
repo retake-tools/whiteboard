@@ -4,13 +4,13 @@ import { z } from 'zod';
 import {
   completeExecution,
   createExecution,
-  createImageResultBlock,
   createMockGeneratedAsset,
   createCodexBindingPrompt,
   failExecution,
   getBoardSnapshot,
   getExecution,
   importAssetFromPath,
+  markExecutionRunning,
   resetWorkspace,
   setCodexProjectBinding,
   updateImageResultBlock,
@@ -202,6 +202,34 @@ server.registerTool(
 );
 
 server.registerTool(
+  'retake_mark_execution_running',
+  {
+    title: 'Start or Resume Retake Execution',
+    description:
+      'Mark a queued ExecutionRecord as running, or resume a failed Codex-managed ExecutionRecord that still has incomplete result blocks.',
+    inputSchema: {
+      projectId: z.string(),
+      boardId: z.string(),
+      executionId: z.string(),
+    },
+  },
+  async (input) => {
+    const result = await markExecutionRunning(input);
+    return toJsonToolResult({
+      execution: result.execution,
+      snapshotSummary: {
+        projectId: result.snapshot.project.projectId,
+        boardId: result.snapshot.board.boardId,
+        blocks: result.snapshot.blocks.length,
+        edges: result.snapshot.edges.length,
+        assets: result.snapshot.assets.length,
+        executions: result.snapshot.executions.length,
+      },
+    });
+  },
+);
+
+server.registerTool(
   'retake_complete_execution',
   {
     title: 'Complete Retake Execution',
@@ -234,7 +262,8 @@ server.registerTool(
   'retake_fail_execution',
   {
     title: 'Fail Retake Execution',
-    description: 'Mark an ExecutionRecord as failed and persist the failure reason.',
+    description:
+      'Mark an ExecutionRecord as failed, persist the reason, preserve completed result blocks, and visibly fail incomplete results.',
     inputSchema: {
       projectId: z.string(),
       boardId: z.string(),
@@ -275,44 +304,10 @@ server.registerTool(
 );
 
 server.registerTool(
-  'retake_create_image_result_block',
-  {
-    title: 'Create Retake Image Result Block',
-    description: 'Create an Image Block from an existing AssetRecord and mark its ExecutionRecord as succeeded.',
-    inputSchema: {
-      projectId: z.string(),
-      boardId: z.string(),
-      executionId: z.string(),
-      assetId: z.string(),
-      sourceBlockIds: z.array(z.string()).optional(),
-      displayWidth: z.number().positive().optional(),
-      displayHeight: z.number().positive().optional(),
-      title: z.string().optional(),
-      body: z.string().optional(),
-    },
-  },
-  async (input) => {
-    const result = await createImageResultBlock(input);
-    return toJsonToolResult({
-      block: result.block,
-      execution: result.execution,
-      snapshotSummary: {
-        projectId: result.snapshot.project.projectId,
-        boardId: result.snapshot.board.boardId,
-        blocks: result.snapshot.blocks.length,
-        edges: result.snapshot.edges.length,
-        assets: result.snapshot.assets.length,
-        executions: result.snapshot.executions.length,
-      },
-    });
-  },
-);
-
-server.registerTool(
   'retake_update_image_result_block',
   {
     title: 'Update Retake Image Result Block',
-    description: 'Attach an imported AssetRecord to an existing Image Result Block and mark its ExecutionRecord as succeeded.',
+    description: 'Attach an imported AssetRecord to an assigned Image Result Block. Multi-result executions succeed after every assigned result is updated.',
     inputSchema: {
       projectId: z.string(),
       boardId: z.string(),

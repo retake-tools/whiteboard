@@ -10,6 +10,7 @@
 /dist/
 /.retake/
 /.retake-test/
+/.retake-test-installed/
 /coverage/
 .playwright-mcp/
 .DS_Store

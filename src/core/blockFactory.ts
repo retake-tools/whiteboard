@@ -1,9 +1,11 @@
 import { createId, nowIso } from './id';
+import { defaultGenerationProfileId } from './generationProfiles';
+import { defaultBlockSize } from './blockSizing';
 import type { BlockRecord, BlockType, BoardSnapshot } from './types';
 
 export function createBlockRecord(
   snapshot: BoardSnapshot,
-  type: Exclude<BlockType, 'frame'>,
+  type: BlockType,
 ): BlockRecord {
   const index = snapshot.blocks.length;
   const createdAt = nowIso();
@@ -14,7 +16,7 @@ export function createBlockRecord(
     type,
     layerId: 'layer_default',
     position: { x: 80 + index * 36, y: 80 + index * 24 },
-    size: sizeForType(type),
+    size: defaultBlockSize(type),
     zIndex: maxZIndex(snapshot.blocks) + 1,
     data: dataForType(type),
     createdAt,
@@ -33,20 +35,22 @@ export function maxZIndex(blocks: BlockRecord[]): number {
   return blocks.reduce((max, block) => Math.max(max, block.zIndex), 0);
 }
 
-function sizeForType(type: Exclude<BlockType, 'frame'>): { width: number; height: number } {
-  if (type === 'image') return { width: 300, height: 230 };
-  if (type === 'video') return { width: 300, height: 180 };
-  if (type === 'task') return { width: 280, height: 160 };
-  return { width: 260, height: 170 };
-}
-
-function dataForType(type: Exclude<BlockType, 'frame'>): BlockRecord['data'] {
-  if (type === 'task') {
+function dataForType(type: BlockType): BlockRecord['data'] {
+  if (type === 'operation') {
     return {
-      title: 'New task',
-      body: 'Choose capability, skill, and adapter.',
-      status: 'queued',
-      capabilityId: 'image.generate',
+      title: 'New operation',
+      body: 'Choose capability, inputs, and execution adapter.',
+      capabilityId: 'image.text_to_image',
+      generationProfileId: defaultGenerationProfileId,
+    };
+  }
+
+  if (type === 'group') {
+    return {
+      title: 'Group',
+      groupColor: 'neutral',
+      groupKind: 'manual',
+      groupLayoutMode: 'free',
     };
   }
 

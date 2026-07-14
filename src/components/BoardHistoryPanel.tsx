@@ -1,6 +1,14 @@
 import { Check, ChevronDown, Clipboard, LocateFixed, X } from 'lucide-react';
 import { useEffect, useState, type ReactElement } from 'react';
-import type { BoardHistoryEvent, BoardSnapshot, ExecutionRecord } from '../core/types';
+import type { BoardHistoryEvent, BoardSnapshot, ExecutionConfigurationChangeKind, ExecutionRecord } from '../core/types';
+import {
+  configurationChangeKinds,
+  configurationChanges,
+  executionConfiguration,
+  executionVersionFor,
+  previousExecutionFor,
+} from '../core/executionConfiguration';
+import { executionSourceLineage } from '../core/executionLineage';
 import { useI18n, type Locale } from '../i18n';
 import {
   ExecutionDetailContent,
@@ -174,7 +182,7 @@ function createHistoryEntries(
       id: event.eventId,
       prompt,
       status: execution?.status,
-      subtitle: historySubtitle(event, execution, locale, t),
+      subtitle: historySubtitle(event, execution, snapshot, locale, t),
       title: historyTitle(event, execution, t),
       type: event.type,
     };
@@ -190,7 +198,7 @@ function createHistoryEntries(
       id: `execution:${execution.executionId}`,
       prompt: execution.agentPrompt ?? execution.prompt,
       status: execution.status,
-      subtitle: `${execution.capabilityId} · ${execution.adapter}`,
+      subtitle: `${executionVersionSummary(snapshot, execution, t)} · ${execution.capabilityId} · ${execution.adapter}`,
       title: titleForExecution(execution, t),
       type: 'execution',
     });
@@ -206,8 +214,13 @@ function historyTitle(
 ): string {
   if (event.type === 'prompt_copied') return t('history.promptCopied');
   if (event.type === 'operation_created' && execution) return titleForExecution(execution, t);
+  if (event.type === 'asset_imported') return t('history.assetImported');
+  if (event.type === 'asset_replaced') return t('history.assetReplaced');
+  if (event.type === 'configuration_restored') return t('history.configurationRestored');
+  if (event.type === 'execution_started') return t('history.executionStarted');
   if (event.type === 'execution_succeeded') return t('history.executionSucceeded');
   if (event.type === 'execution_failed') return t('history.executionFailed');
+  if (event.type === 'execution_canceled') return t('history.executionCanceled');
   if (event.type === 'result_block_updated') return t('history.resultUpdated');
   return event.summary;
 }
@@ -215,11 +228,14 @@ function historyTitle(
 function historySubtitle(
   event: BoardHistoryEvent,
   execution: ExecutionRecord | undefined,
+  snapshot: BoardSnapshot,
   locale: Locale,
   t: ReturnType<typeof useI18n>['t'],
 ): string {
   const parts = [
     event.type === 'prompt_copied' ? t('history.promptCopiedSubtitle') : event.summary,
+    event.type === 'operation_created' && execution ? executionVersionSummary(snapshot, execution, t) : undefined,
+    event.type === 'operation_created' && execution ? sourceLineageSummary(snapshot, execution) : undefined,
     execution?.capabilityId,
   ].filter((part): part is string => Boolean(part));
 
@@ -227,17 +243,69 @@ function historySubtitle(
   return formatHistoryTime(event.createdAt, locale);
 }
 
+function sourceLineageSummary(
+  snapshot: BoardSnapshot,
+  execution: ExecutionRecord,
+): string | undefined {
+  const { sourceBlock, sourceExecutionVersion } = executionSourceLineage(snapshot, execution);
+  if (!sourceBlock) return undefined;
+  return `${sourceBlock.data.title}${typeof sourceExecutionVersion === 'number' ? ` · V${sourceExecutionVersion}` : ''}`;
+}
+
+function executionVersionSummary(
+  snapshot: BoardSnapshot,
+  execution: ExecutionRecord,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  const version = executionVersionFor(snapshot, execution);
+  const previousExecution = previousExecutionFor(snapshot, execution);
+  if (!previousExecution) {
+    return typeof version === 'number'
+      ? `V${version} · ${t('configuration.initial')}`
+      : t('configuration.pendingExecution');
+  }
+  const kinds = configurationChangeKinds(
+    configurationChanges(executionConfiguration(previousExecution), executionConfiguration(execution)),
+  );
+  const summary = kinds.length
+    ? kinds.map((kind) => t(configurationChangeLabelKey(kind))).join(' + ')
+    : t('configuration.noChanges');
+  return typeof version === 'number'
+    ? `V${version} · ${summary}`
+    : `${t('configuration.pendingExecution')} · ${summary}`;
+}
+
+function configurationChangeLabelKey(kind: ExecutionConfigurationChangeKind) {
+  return `configuration.${kind}` as const;
+}
+
 function titleForExecution(execution: ExecutionRecord, t: ReturnType<typeof useI18n>['t']): string {
   if (execution.capabilityId === 'image.annotation_edit') return t('operation.annotationEdit.title');
-  if (execution.capabilityId === 'image.generate') return t('operation.generateImage.title');
-  if (execution.capabilityId === 'image.edit') return t('operation.quickEdit.title');
-  if (execution.capabilityId === 'image.generate.similar') return t('operation.createSimilar.title');
+  if (execution.capabilityId === 'image.text_to_image' || execution.capabilityId === 'image.generate') {
+    return t('operation.generateImage.title');
+  }
+  if (
+    execution.capabilityId === 'image.image_to_image' ||
+    execution.capabilityId === 'image.edit' ||
+    execution.capabilityId === 'image.generate.similar'
+  ) {
+    return t('operation.createSimilar.title');
+  }
+  if (execution.capabilityId === 'image.local_adjust') return t('context.adjust');
+  if (execution.capabilityId === 'image.local_crop') return t('context.crop');
+  if (execution.capabilityId === 'image.local_expand') return t('context.expand');
   return t('history.execution');
 }
 
 function executionBlockIds(execution?: ExecutionRecord): string[] {
   if (!execution) return [];
-  return [...execution.inputBlockIds, ...execution.outputBlockIds];
+  const operationBlockId =
+    typeof execution.params?.operationBlockId === 'string' ? execution.params.operationBlockId : undefined;
+  return [
+    ...execution.inputBlockIds,
+    operationBlockId,
+    ...execution.outputBlockIds,
+  ].filter((blockId): blockId is string => typeof blockId === 'string');
 }
 
 function lastExistingBlockId(snapshot: BoardSnapshot, blockIds: string[]): string | undefined {

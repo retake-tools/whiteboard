@@ -1,5 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { cancelExecution } from '../src/core/executionLifecycle';
+import { getBoardSnapshot, saveSnapshot } from './local-store';
 
 const client = new Client({
   name: 'retake-whiteboard-execution-status-test',
@@ -48,7 +50,7 @@ async function main(): Promise<void> {
     arguments: {
       projectId: binding.project.projectId,
       boardId: binding.board.boardId,
-      capabilityId: 'image.generate',
+      capabilityId: 'image.text_to_image',
       adapter: 'mcp_agent',
       inputBlockIds: ['block_brief'],
       agentHost: 'codex',
@@ -103,7 +105,6 @@ async function main(): Promise<void> {
       projectId: binding.project.projectId,
       boardId: binding.board.boardId,
       executionId: completedExecution.executionId,
-      outputBlockIds: ['block_output_placeholder'],
       outputAssetIds: ['asset_output_placeholder'],
     },
   });
@@ -127,11 +128,73 @@ async function main(): Promise<void> {
   if (completedStatus.status !== 'succeeded') {
     throw new Error('Expected execution status to be succeeded');
   }
-  if (!completedStatus.outputBlockIds.includes('block_output_placeholder')) {
-    throw new Error('Expected completed execution to persist outputBlockIds');
+  if (completedStatus.outputBlockIds.length) {
+    throw new Error('Expected generic completion without a result block to keep outputBlockIds empty');
   }
   if (!completedStatus.outputAssetIds.includes('asset_output_placeholder')) {
     throw new Error('Expected completed execution to persist outputAssetIds');
+  }
+
+  const cancelableExecutionResult = await client.callTool({
+    name: 'retake_create_execution',
+    arguments: {
+      projectId: binding.project.projectId,
+      boardId: binding.board.boardId,
+      capabilityId: 'image.text_to_image',
+      adapter: 'mcp_agent',
+      inputBlockIds: ['block_brief'],
+      agentHost: 'codex',
+      triggerMode: 'manual_agent_session',
+    },
+  });
+  const cancelableExecution = readStructuredContent<{ executionId: string }>(cancelableExecutionResult.structuredContent);
+  const cancellationSnapshot = await getBoardSnapshot({
+    projectId: binding.project.projectId,
+    boardId: binding.board.boardId,
+  });
+  const cancellation = cancelExecution(cancellationSnapshot, cancelableExecution.executionId);
+  if (cancellation.execution?.status !== 'canceled') throw new Error('Expected local cancellation to persist canceled');
+  await saveSnapshot(cancellationSnapshot);
+
+  const canceledStartResult = await client.callTool({
+    name: 'retake_mark_execution_running',
+    arguments: {
+      projectId: binding.project.projectId,
+      boardId: binding.board.boardId,
+      executionId: cancelableExecution.executionId,
+    },
+  });
+  const canceledCompleteResult = await client.callTool({
+    name: 'retake_complete_execution',
+    arguments: {
+      projectId: binding.project.projectId,
+      boardId: binding.board.boardId,
+      executionId: cancelableExecution.executionId,
+    },
+  });
+  const canceledFailResult = await client.callTool({
+    name: 'retake_fail_execution',
+    arguments: {
+      projectId: binding.project.projectId,
+      boardId: binding.board.boardId,
+      executionId: cancelableExecution.executionId,
+      errorMessage: 'Old agent attempted to overwrite cancellation',
+    },
+  });
+  const canceledAssetResult = await client.callTool({
+    name: 'retake_create_mock_generated_asset',
+    arguments: {
+      projectId: binding.project.projectId,
+      sourceExecutionId: cancelableExecution.executionId,
+    },
+  });
+  if (
+    !canceledStartResult.isError ||
+    !canceledCompleteResult.isError ||
+    !canceledFailResult.isError ||
+    !canceledAssetResult.isError
+  ) {
+    throw new Error('Expected every old-agent mutation to reject a canceled execution');
   }
 
   await client.close();
@@ -146,6 +209,8 @@ async function main(): Promise<void> {
         completedStatus: completedStatus.status,
         completedProvider: completedStatus.provider,
         completedModel: completedStatus.model,
+        canceledExecutionId: cancelableExecution.executionId,
+        canceledMutationsRejected: true,
       },
       null,
       2,

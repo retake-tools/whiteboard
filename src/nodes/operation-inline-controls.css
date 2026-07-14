@@ -1,0 +1,308 @@
+.operation-inline-controls {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.operation-param-group,
+.operation-param-strength {
+  min-width: 0;
+  color: var(--retake-text-muted);
+  font-size: 12px;
+  font-weight: 730;
+}
+
+.operation-option-popover-wrap {
+  position: relative;
+}
+
+.operation-option-row {
+  display: grid;
+  width: 100%;
+  min-height: 35px;
+  grid-template-columns: 62px minmax(0, 1fr) 16px;
+  gap: 10px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--retake-border-subtle);
+  border-radius: 7px;
+  background: var(--retake-surface-subtle);
+  color: var(--retake-text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 680;
+  text-align: left;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.operation-option-row:hover,
+.operation-option-row[aria-expanded='true'] {
+  border-color: var(--retake-accent-border);
+  background: var(--retake-accent-soft);
+  box-shadow: 0 0 0 2px var(--retake-accent-ring);
+}
+
+.operation-option-row strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--retake-text);
+  font-size: 13px;
+  font-weight: 740;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.operation-option-row > svg {
+  color: var(--retake-text-subtle);
+}
+
+.operation-side-popover {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 10px);
+  z-index: 1001;
+  padding: 10px;
+  border: 1px solid var(--retake-border);
+  border-radius: 8px;
+  background: var(--retake-surface-elevated);
+  box-shadow: var(--retake-shadow-popover);
+}
+
+.operation-generator-popover {
+  display: grid;
+  width: 176px;
+  gap: 3px;
+}
+
+.operation-param-popover {
+  display: flex;
+  width: 520px;
+  max-width: min(520px, calc(100vw - 48px));
+  flex-direction: column;
+  gap: 16px;
+  padding: 14px;
+}
+
+.operation-param-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.operation-param-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.operation-param-title {
+  color: var(--retake-text-muted);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.operation-param-support {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: var(--retake-success-soft);
+  color: var(--retake-success);
+  font-size: 10px;
+  font-weight: 760;
+  line-height: 1;
+}
+
+.operation-param-support.is-best_effort {
+  background: var(--retake-warning-soft);
+  color: var(--retake-warning);
+}
+
+.operation-param-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.operation-param-options button {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--retake-border-subtle);
+  border-radius: 7px;
+  background: var(--retake-surface-subtle);
+  color: var(--retake-text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.operation-param-options.is-aspect-options button {
+  min-width: 76px;
+  justify-content: flex-start;
+}
+
+.operation-param-options button:hover,
+.operation-param-options button.is-selected {
+  border-color: var(--retake-accent-border);
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
+}
+
+.aspect-option-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  border: 1.8px solid currentColor;
+  border-radius: 3px;
+  opacity: 0.8;
+}
+
+.aspect-option-icon.aspect-16-9 {
+  width: 23px;
+  height: 13px;
+}
+
+.aspect-option-icon.aspect-9-16 {
+  width: 13px;
+  height: 23px;
+}
+
+.aspect-option-icon.aspect-4-3 {
+  width: 20px;
+  height: 15px;
+}
+
+.aspect-option-icon.aspect-3-4 {
+  width: 15px;
+  height: 20px;
+}
+
+.aspect-option-icon.aspect-3-2 {
+  width: 21px;
+  height: 14px;
+}
+
+.aspect-option-icon.aspect-2-3 {
+  width: 14px;
+  height: 21px;
+}
+
+.operation-param-strength {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  gap: 8px;
+}
+
+.operation-param-strength input {
+  width: 100%;
+}
+
+.operation-param-strength output {
+  color: var(--retake-text-secondary);
+  font-size: 11px;
+  font-weight: 760;
+  text-align: right;
+}
+
+.operation-run-button {
+  display: inline-flex;
+  width: 100%;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--retake-accent);
+  border-radius: 7px;
+  background: var(--retake-accent);
+  color: var(--retake-on-accent);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 760;
+  box-shadow: 0 5px 12px var(--retake-accent-shadow);
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.operation-readiness {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 7px 8px;
+  border: 1px solid #fed7aa;
+  border-radius: 7px;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 10px;
+  font-weight: 680;
+  line-height: 1.35;
+}
+
+.operation-readiness svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.operation-readiness span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.operation-run-button:hover:not(:disabled) {
+  border-color: var(--retake-accent-strong);
+  background: var(--retake-accent-strong);
+  box-shadow: 0 7px 16px var(--retake-accent-shadow-strong);
+  transform: translateY(-1px);
+}
+
+.operation-run-button.is-queued {
+  border-color: var(--retake-accent-border);
+  background: var(--retake-surface);
+  color: var(--retake-accent-strong);
+  box-shadow: none;
+}
+
+.operation-run-button.is-queued:hover:not(:disabled) {
+  border-color: var(--retake-accent);
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
+  box-shadow: 0 5px 12px var(--retake-accent-shadow);
+}
+
+.operation-run-button:focus-visible {
+  outline: 2px solid var(--retake-accent-border);
+  outline-offset: 2px;
+}
+
+.operation-run-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.operation-run-button.is-running:disabled {
+  cursor: wait;
+}
+
+.operation-run-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.operation-run-button.is-running svg {
+  animation: spin 1s linear infinite;
+}

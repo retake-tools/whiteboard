@@ -5,11 +5,12 @@ const client = new Client({
   name: 'retake-whiteboard-smoke-test',
   version: '0.1.0',
 });
+const installedLauncherDir = process.env.RETAKE_MCP_LAUNCHER_DIR;
 
 const transport = new StdioClientTransport({
-  command: 'npm',
-  args: ['run', '--silent', 'mcp'],
-  cwd: process.cwd(),
+  command: installedLauncherDir ? process.execPath : 'npm',
+  args: installedLauncherDir ? ['./scripts/start-mcp.mjs'] : ['run', '--silent', 'mcp'],
+  cwd: installedLauncherDir ?? process.cwd(),
   env: {
     RETAKE_WORKSPACE_DIR: process.env.RETAKE_WORKSPACE_DIR ?? '.retake-test',
   },
@@ -29,10 +30,10 @@ async function main(): Promise<void> {
     'retake_get_binding_prompt',
     'retake_create_execution',
     'retake_get_execution',
+    'retake_mark_execution_running',
     'retake_complete_execution',
     'retake_fail_execution',
     'retake_create_mock_generated_asset',
-    'retake_create_image_result_block',
     'retake_update_image_result_block',
     'retake_import_asset',
   ];
@@ -96,7 +97,7 @@ async function main(): Promise<void> {
   }
   if (
     bindingPrompt.prompt.includes('retake_create_execution') ||
-    bindingPrompt.prompt.includes('retake_create_image_result_block')
+    bindingPrompt.prompt.includes('retake_update_image_result_block')
   ) {
     throw new Error('Binding prompt must not instruct Codex to create an execution or result block');
   }
@@ -106,7 +107,7 @@ async function main(): Promise<void> {
     arguments: {
       projectId: binding.project.projectId,
       boardId: binding.board.boardId,
-      capabilityId: 'image.generate',
+      capabilityId: 'image.text_to_image',
       adapter: 'mcp_agent',
       inputBlockIds: ['block_brief'],
       agentHost: 'codex',
@@ -126,20 +127,19 @@ async function main(): Promise<void> {
   });
   const asset = readStructuredContent<{ assetId: string }>(assetResult.structuredContent);
 
-  const blockResult = await client.callTool({
-    name: 'retake_create_image_result_block',
+  const completeResult = await client.callTool({
+    name: 'retake_complete_execution',
     arguments: {
       projectId: binding.project.projectId,
       boardId: binding.board.boardId,
       executionId: execution.executionId,
-      assetId: asset.assetId,
-      sourceBlockIds: ['block_brief'],
-      title: 'MCP smoke image result',
+      outputAssetIds: [asset.assetId],
     },
   });
-  const block = readStructuredContent<{
+  const completed = readStructuredContent<{
+    execution: { status: string; outputAssetIds: string[] };
     snapshotSummary: { blocks: number; edges: number; assets: number; executions: number };
-  }>(blockResult.structuredContent);
+  }>(completeResult.structuredContent);
 
   const snapshotResult = await client.callTool({
     name: 'retake_get_board_snapshot',
@@ -152,7 +152,6 @@ async function main(): Promise<void> {
     blocks: unknown[];
     edges: unknown[];
     assets: unknown[];
-    executions: Array<{ status: string; adapter: string }>;
     executions: Array<{ status: string; adapter: string; agentHost?: string; triggerMode?: string }>;
   }>(snapshotResult.structuredContent);
 
@@ -170,7 +169,8 @@ async function main(): Promise<void> {
         bindingPromptUsesSnapshotConfirm: bindingPrompt.prompt.includes('retake_get_board_snapshot'),
         executionId: execution.executionId,
         assetId: asset.assetId,
-        summary: block.snapshotSummary,
+        completeStatus: completed.execution.status,
+        summary: completed.snapshotSummary,
         snapshot: {
           blocks: snapshot.blocks.length,
           edges: snapshot.edges.length,

@@ -19,12 +19,14 @@ import {
   Redo2,
   RefreshCw,
   Settings,
+  Sparkles,
   Trash2,
   Undo2,
   X,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type CSSProperties, type MutableRefObject, type ReactElement } from 'react';
 import type { BoardSnapshot, WorkspaceSummary } from '../core/types';
+import { listGenerationProfiles } from '../core/generationProfiles';
 import { loadUiPreferences, saveUiPreferences } from '../core/uiPreferences';
 import { useI18n, type Locale } from '../i18n';
 import { ProjectBoardMenu } from './ProjectBoardMenu';
@@ -419,9 +421,31 @@ function SettingsMenu({
   onToggleGrid: () => void;
 }): ReactElement {
   const { t } = useI18n();
+  const generationProfiles = listGenerationProfiles();
 
   return (
     <section className="top-bar-settings-menu" aria-label={t('settings.title')}>
+      <div className="settings-menu-group">
+        <button type="button" className="settings-menu-item">
+          <Sparkles size={15} />
+          <span>{t('settings.generationProfiles')}</span>
+          <ChevronRight size={14} />
+        </button>
+        <div className="settings-submenu" role="menu" aria-label={t('settings.generationProfiles')}>
+          {generationProfiles.map((profile) => (
+            <div key={profile.generationProfileId} className="settings-submenu-row settings-generation-profile-row">
+              <Sparkles size={15} />
+              <span>
+                <strong>{profile.name}</strong>
+                <small>{t('settings.generationProfileBuiltin')}</small>
+              </span>
+              <span className="settings-profile-default">
+                {profile.isDefault ? t('settings.generationProfileDefault') : null}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
       <div className="settings-menu-group">
         <button type="button" className="settings-menu-item">
           <Grid3X3 size={15} />

@@ -49,6 +49,7 @@ async function main(): Promise<void> {
     boardId: snapshot.board.boardId,
     executionId: operation.execution.executionId,
     sourceBlockId: imageBlock.blockId,
+    operationBlockId: operation.operationBlock.blockId,
     resultBlockId: operation.resultBlock.blockId,
     sourceAssetId: fixture.sourceAsset.assetId,
     annotatedCompositeAssetId: fixture.annotatedCompositeAsset.assetId,

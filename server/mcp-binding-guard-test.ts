@@ -38,7 +38,7 @@ async function main(): Promise<void> {
     arguments: {
       projectId: binding.project.projectId,
       boardId: binding.board.boardId,
-      capabilityId: 'image.generate',
+      capabilityId: 'image.text_to_image',
       adapter: 'mcp_agent',
       inputBlockIds: ['block_brief'],
       agentHost: 'codex',
@@ -65,7 +65,7 @@ async function main(): Promise<void> {
     arguments: {
       projectId: binding.project.projectId,
       boardId: binding.board.boardId,
-      capabilityId: 'image.generate',
+      capabilityId: 'image.text_to_image',
       adapter: 'mcp_agent',
       inputBlockIds: ['block_brief'],
       agentHost: 'codex',

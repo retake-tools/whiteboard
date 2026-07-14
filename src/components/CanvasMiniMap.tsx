@@ -1,6 +1,6 @@
 import { MiniMap, useReactFlow, type NodeMouseHandler } from '@xyflow/react';
 import type { ReactElement } from 'react';
-import { nodeColor } from '../core/flowProjection';
+import { nodeColor, nodeStrokeColor } from '../core/flowProjection';
 import type { RetakeEdge, RetakeNode } from '../core/types';
 
 interface CanvasMiniMapProps {
@@ -27,6 +27,7 @@ export function CanvasMiniMap({ onSelectBlock }: CanvasMiniMapProps): ReactEleme
       pannable
       zoomable
       nodeColor={nodeColor}
+      nodeStrokeColor={nodeStrokeColor}
       nodeStrokeWidth={2}
       onNodeClick={handleNodeClick}
     />

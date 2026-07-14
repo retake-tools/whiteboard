@@ -5,10 +5,15 @@ import './styles.css';
 import './feedback.css';
 import './components/board-history-panel.css';
 import './components/execution-inspector.css';
+import './components/group-toolbar.css';
+import './components/group-inspector.css';
+import './components/group-draw-overlay.css';
 import './components/image-generation-panel.css';
+import './components/input-reference-picker.css';
 import './components/project-board.css';
 import './components/top-bar.css';
 import './nodes/block-node.css';
+import './nodes/operation-inline-controls.css';
 import { App } from './App';
 import { I18nProvider } from './i18n';
 

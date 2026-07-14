@@ -1,0 +1,36 @@
+.execution-result-stage > video {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #10141c;
+  object-fit: contain;
+}
+
+.group-media-video-thumbnail {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  background: #1e293b;
+  color: #cbd5e1;
+}
+
+.group-inspector-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.group-inspector-summary h3:not(:first-child) {
+  margin-top: 8px;
+}
+
+.group-inspector .execution-inspector-details {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}

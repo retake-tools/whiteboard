@@ -55,6 +55,19 @@ npm install
 npm run mcp:test
 ```
 
+Register this checkout in the default personal Codex marketplace and install
+the bundled plugin:
+
+```bash
+npm run codex:install
+```
+
+Start a new Codex task after installation so the bundled Skill and MCP tools are
+loaded. `Codex Managed` is the built-in generation profile and requires no model
+provider or API-key configuration. Direct API, ACP, and third-party model
+profiles are optional user-local settings and are not distributed with project
+defaults.
+
 `npm run mcp:test` uses `.retake-test/` and does not reset the real `.retake/`
 workspace.
 

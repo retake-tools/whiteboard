@@ -1,4 +1,5 @@
 import { nowIso } from './id';
+import { defaultGenerationProfileId } from './generationProfiles';
 import type { BoardSnapshot } from './types';
 
 const createdAt = nowIso();
@@ -47,33 +48,18 @@ export const defaultSnapshot: BoardSnapshot = {
       updatedAt: createdAt,
     },
     {
-      blockId: 'block_task',
+      blockId: 'block_operation',
       boardId: 'board_demo_video_001',
-      type: 'task',
+      type: 'operation',
       layerId: 'layer_default',
       position: { x: -40, y: -130 },
       size: { width: 280, height: 160 },
       zIndex: 2,
       data: {
-        title: 'image.generate',
-        body: 'Capability: image.generate\nAdapter: mcp_agent.codex or direct_api in the future',
-        capabilityId: 'image.generate',
-        status: 'queued',
-      },
-      createdAt,
-      updatedAt: createdAt,
-    },
-    {
-      blockId: 'frame_storyboard',
-      boardId: 'board_demo_video_001',
-      type: 'frame',
-      layerId: 'layer_default',
-      position: { x: -500, y: 140 },
-      size: { width: 800, height: 320 },
-      zIndex: 0,
-      data: {
-        title: 'Storyboard / generation area',
-        body: 'Frame is only spatial organization in the MVP spike.',
+        title: 'image.text_to_image',
+        body: 'Capability: image.text_to_image\nAdapter: mcp_agent.codex or direct_api in the future',
+        capabilityId: 'image.text_to_image',
+        generationProfileId: defaultGenerationProfileId,
       },
       createdAt,
       updatedAt: createdAt,
@@ -83,7 +69,7 @@ export const defaultSnapshot: BoardSnapshot = {
     {
       edgeId: 'edge_brief_task',
       sourceBlockId: 'block_brief',
-      targetBlockId: 'block_task',
+      targetBlockId: 'block_operation',
       kind: 'execution_input',
     },
   ],

@@ -46,8 +46,8 @@
 }
 
 .top-bar-title.is-active {
-  background: #e8f0ff;
-  color: #1d4ed8;
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
 }
 
 .top-bar-title.is-board-controls {
@@ -96,9 +96,9 @@
 
 .top-bar-title-icon:hover,
 .top-bar-title-icon.is-active {
-  border-color: #bfdbfe;
+  border-color: var(--retake-accent-border);
   background: #ffffff;
-  color: #1d4ed8;
+  color: var(--retake-accent-strong);
 }
 
 .top-bar-title-menu {
@@ -220,6 +220,20 @@
   background: transparent;
 }
 
+.settings-generation-profile-row {
+  cursor: default;
+}
+
+.settings-profile-default {
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
+  font-size: 10px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
 .settings-menu-item svg,
 .settings-submenu-row svg,
 .settings-shortcut-row svg {
@@ -297,8 +311,8 @@
 }
 
 .settings-check.is-active {
-  background: #e8f0ff;
-  color: #1d4ed8;
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
 }
 
 .settings-shortcut-row {

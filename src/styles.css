@@ -1,6 +1,30 @@
 :root {
+  color-scheme: light;
   color: #172033;
   background: #f4f5f7;
+  --retake-accent: #1677ff;
+  --retake-accent-strong: #0f63d8;
+  --retake-accent-soft: #eaf3ff;
+  --retake-accent-border: #a8cfff;
+  --retake-accent-ring: rgb(22 119 255 / 10%);
+  --retake-accent-shadow: rgb(22 119 255 / 18%);
+  --retake-accent-shadow-strong: rgb(22 119 255 / 24%);
+  --retake-on-accent: #ffffff;
+  --retake-surface: #ffffff;
+  --retake-surface-elevated: rgb(255 255 255 / 98%);
+  --retake-surface-subtle: #f8fafc;
+  --retake-surface-hover: #f1f5f9;
+  --retake-border: #d8dee8;
+  --retake-border-subtle: #e5eaf1;
+  --retake-text: #172033;
+  --retake-text-secondary: #344054;
+  --retake-text-muted: #667085;
+  --retake-text-subtle: #98a2b3;
+  --retake-success: #027a48;
+  --retake-success-soft: #ecfdf3;
+  --retake-warning: #b54708;
+  --retake-warning-soft: #fff4e5;
+  --retake-shadow-popover: 0 16px 34px rgb(16 24 40 / 18%);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
@@ -8,6 +32,36 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior-x: none;
+}
+
+/* Dark values are ready for the future theme switch; no partial dark mode is exposed yet. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  color: #f4f7fb;
+  background: #111318;
+  --retake-accent: #4d9aff;
+  --retake-accent-strong: #73b0ff;
+  --retake-accent-soft: #172d49;
+  --retake-accent-border: #315f93;
+  --retake-accent-ring: rgb(77 154 255 / 14%);
+  --retake-accent-shadow: rgb(0 0 0 / 28%);
+  --retake-accent-shadow-strong: rgb(0 0 0 / 38%);
+  --retake-on-accent: #ffffff;
+  --retake-surface: #181b21;
+  --retake-surface-elevated: rgb(28 32 40 / 98%);
+  --retake-surface-subtle: #20242c;
+  --retake-surface-hover: #292e38;
+  --retake-border: #3a424f;
+  --retake-border-subtle: #303743;
+  --retake-text: #f4f7fb;
+  --retake-text-secondary: #d8dee8;
+  --retake-text-muted: #aab2bf;
+  --retake-text-subtle: #7f8998;
+  --retake-success: #68d49b;
+  --retake-success-soft: #173426;
+  --retake-warning: #ffc070;
+  --retake-warning-soft: #3a2b18;
+  --retake-shadow-popover: 0 18px 42px rgb(0 0 0 / 38%);
 }
 
 * {
@@ -60,9 +114,9 @@ button {
 }
 
 .icon-button.is-active {
-  border-color: #93c5fd;
-  background: #e8f0ff;
-  color: #1d4ed8;
+  border-color: var(--retake-accent-border);
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
 }
 
 .icon-tooltip {
@@ -163,6 +217,139 @@ button {
   backdrop-filter: blur(12px);
 }
 
+.operation-toolbar {
+  display: flex;
+  width: 360px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  background: rgb(248 255 253 / 96%);
+  box-shadow: 0 12px 28px rgb(15 118 110 / 14%);
+  backdrop-filter: blur(12px);
+}
+
+.operation-toolbar-row,
+.operation-toolbar-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.operation-toolbar-row select {
+  min-width: 0;
+  flex: 1;
+  height: 32px;
+  border: 1px solid #99f6e4;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #134e4a;
+  font: inherit;
+  font-size: 13px;
+  padding: 0 8px;
+}
+
+.operation-toolbar-params {
+  display: grid;
+  grid-template-columns: 1fr 1fr 72px;
+  gap: 6px;
+}
+
+.operation-toolbar-params label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  color: #0f766e;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.operation-toolbar-params select {
+  width: 100%;
+  height: 30px;
+  border: 1px solid #99f6e4;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #134e4a;
+  font: inherit;
+  font-size: 12px;
+  padding: 0 6px;
+}
+
+.operation-toolbar-param-note {
+  margin: -4px 0 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.operation-toolbar textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #99f6e4;
+  border-radius: 7px;
+  padding: 8px;
+  color: #172033;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.operation-toolbar-prompt-summary {
+  min-height: 56px;
+  padding: 8px;
+  border: 1px solid #99f6e4;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.operation-toolbar-prompt-summary > span {
+  display: block;
+  margin-bottom: 4px;
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.operation-toolbar-prompt-summary p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.operation-toolbar-prompt-summary.is-missing {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.operation-toolbar-prompt-summary.is-missing > span,
+.operation-toolbar-prompt-summary.is-missing p {
+  color: #c2410c;
+}
+
+.operation-toolbar-actions {
+  justify-content: space-between;
+}
+
+.operation-toolbar-actions > span {
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.operation-toolbar-actions .primary-popover-button {
+  width: auto;
+  gap: 6px;
+  padding: 0 12px;
+}
+
 .hidden-file-input {
   display: none;
 }
@@ -213,6 +400,76 @@ button {
   align-items: center;
   color: #475467;
   font-size: 12px;
+}
+
+.floating-toolbar-menu {
+  position: relative;
+}
+
+.floating-toolbar-menu::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: -8px;
+  width: calc(100% + 16px);
+  height: 12px;
+}
+
+.floating-toolbar button.floating-toolbar-menu-trigger {
+  color: #334155;
+}
+
+.floating-toolbar-submenu {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  z-index: 20;
+  display: none;
+  min-width: 190px;
+  padding: 6px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 16px 34px rgb(16 24 40 / 16%);
+  transform: translateX(-50%);
+  backdrop-filter: blur(12px);
+}
+
+.floating-toolbar-menu:focus-within .floating-toolbar-submenu,
+.floating-toolbar-menu:hover .floating-toolbar-submenu {
+  display: grid;
+  gap: 4px;
+}
+
+.floating-toolbar button.floating-toolbar-menu-item {
+  display: flex;
+  width: 100%;
+  height: 34px;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #202938;
+  font-size: 13px;
+  text-align: left;
+}
+
+.floating-toolbar button.floating-toolbar-menu-item:hover {
+  background: #f1f5f9;
+}
+
+.floating-toolbar button.floating-toolbar-menu-item:disabled {
+  color: #94a3b8;
+  opacity: 1;
+}
+
+.floating-toolbar-menu-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .execution-route-control select {
@@ -574,9 +831,9 @@ button {
 }
 
 .annotation-size-row button.is-active {
-  border-color: #93c5fd;
-  background: #e8f0ff;
-  color: #1d4ed8;
+  border-color: var(--retake-accent-border);
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
 }
 
 .secondary-popover-button {
@@ -637,6 +894,7 @@ button {
 }
 
 .canvas-area {
+  position: relative;
   width: 100%;
   height: 100%;
   min-width: 0;

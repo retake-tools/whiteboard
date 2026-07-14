@@ -1,8 +1,13 @@
 import {
+  Clapperboard,
   FileText,
   Hand,
   ImageIcon,
+  Layers3,
   MousePointer2,
+  Play,
+  Shapes,
+  Sparkles,
   Video,
 } from 'lucide-react';
 import type { ReactElement } from 'react';
@@ -10,17 +15,21 @@ import type { BlockType } from '../core/types';
 import { useI18n } from '../i18n';
 import { TooltipIconButton } from './Tooltip';
 
-export type CanvasTool = 'select' | 'pan';
+export type CanvasTool = 'group' | 'select' | 'pan';
 
 interface FloatingToolbarProps {
   activeTool: CanvasTool;
-  onAddBlock: (type: Extract<BlockType, 'image' | 'text' | 'video'>) => void;
+  onAddBlock: (type: Extract<BlockType, 'group' | 'image' | 'operation' | 'text' | 'video'>) => void;
+  onCreateImageToImage: () => void;
+  onCreateTextToImage: () => void;
   onSetActiveTool: (tool: CanvasTool) => void;
 }
 
 export function FloatingToolbar({
   activeTool,
   onAddBlock,
+  onCreateImageToImage,
+  onCreateTextToImage,
   onSetActiveTool,
 }: FloatingToolbarProps): ReactElement {
   const { t } = useI18n();
@@ -42,16 +51,68 @@ export function FloatingToolbar({
         <Hand size={18} />
       </ToolButton>
       <div className="toolbar-divider" />
-      <ToolButton label={t('toolbar.addText')} onClick={() => onAddBlock('text')}>
-        <FileText size={18} />
-      </ToolButton>
-      <ToolButton label={t('toolbar.addImage')} onClick={() => onAddBlock('image')}>
-        <ImageIcon size={18} />
-      </ToolButton>
-      <ToolButton label={t('toolbar.addVideo')} onClick={() => onAddBlock('video')}>
-        <Video size={18} />
+      <ToolbarMenu icon={<Shapes size={18} />} label={t('toolbar.basicElements')}>
+        <MenuItem icon={<FileText size={15} />} label={t('toolbar.addText')} onClick={() => onAddBlock('text')} />
+        <MenuItem icon={<ImageIcon size={15} />} label={t('toolbar.addImage')} onClick={() => onAddBlock('image')} />
+        <MenuItem icon={<Video size={15} />} label={t('toolbar.addVideo')} onClick={() => onAddBlock('video')} />
+        <MenuItem icon={<Play size={15} />} label={t('toolbar.addOperation')} onClick={() => onAddBlock('operation')} />
+      </ToolbarMenu>
+      <ToolbarMenu icon={<Sparkles size={18} />} label={t('toolbar.imageCreation')}>
+        <MenuItem icon={<Sparkles size={15} />} label={t('toolbar.textToImage')} onClick={onCreateTextToImage} />
+        <MenuItem icon={<ImageIcon size={15} />} label={t('toolbar.imageToImage')} onClick={onCreateImageToImage} />
+        <MenuItem disabled icon={<ImageIcon size={15} />} label={t('toolbar.multiImageToImage')} />
+        <MenuItem disabled icon={<Sparkles size={15} />} label={t('toolbar.styleTransfer')} />
+      </ToolbarMenu>
+      <ToolbarMenu icon={<Clapperboard size={18} />} label={t('toolbar.videoCreation')}>
+        <MenuItem disabled icon={<FileText size={15} />} label={t('toolbar.textToVideo')} />
+        <MenuItem disabled icon={<ImageIcon size={15} />} label={t('toolbar.imageToVideo')} />
+        <MenuItem disabled icon={<Clapperboard size={15} />} label={t('toolbar.firstLastFrameVideo')} />
+      </ToolbarMenu>
+      <div className="toolbar-divider" />
+      <ToolButton isPressed={activeTool === 'group'} label={t('toolbar.addGroup')} onClick={() => onAddBlock('group')}>
+        <Layers3 size={18} />
       </ToolButton>
     </nav>
+  );
+}
+
+function ToolbarMenu({
+  children,
+  icon,
+  label,
+}: {
+  children: ReactElement | ReactElement[];
+  icon: ReactElement;
+  label: string;
+}): ReactElement {
+  return (
+    <div className="floating-toolbar-menu">
+      <button type="button" className="floating-toolbar-menu-trigger" aria-label={label}>
+        {icon}
+      </button>
+      <div className="floating-toolbar-submenu" role="menu" aria-label={label}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function MenuItem({
+  disabled,
+  icon,
+  label,
+  onClick,
+}: {
+  disabled?: boolean;
+  icon: ReactElement;
+  label: string;
+  onClick?: () => void;
+}): ReactElement {
+  return (
+    <button type="button" className="floating-toolbar-menu-item" disabled={disabled} role="menuitem" onClick={onClick}>
+      {icon}
+      <span>{label}</span>
+    </button>
   );
 }
 
