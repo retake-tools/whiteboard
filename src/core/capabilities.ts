@@ -1,4 +1,4 @@
-import type { BlockRecord, BoardSnapshot, ExecutionInputRole, OperationReadinessIssue } from './types';
+import type { AdapterKind, BlockRecord, BoardSnapshot, ExecutionInputRole, OperationReadinessIssue } from './types';
 import { inputRoleDefinition } from './inputRoles';
 
 export type CapabilityInputRole = ExecutionInputRole;
@@ -34,13 +34,13 @@ export interface CapabilityParamSchema {
 
 export interface CapabilitySchema {
   capabilityId: string;
-  defaultAdapter: 'mcp_agent' | 'direct_api' | 'cli_agent' | 'manual_import' | 'mock';
+  defaultAdapter: AdapterKind;
   displayNameKey: string;
   inputContracts: CapabilityInputContract[];
   outputContracts: CapabilityOutputContract[];
   paramsSchema: CapabilityParamSchema;
   promptSource: PromptSource;
-  supportedAdapters: Array<'mcp_agent' | 'direct_api' | 'cli_agent' | 'manual_import' | 'mock'>;
+  supportedAdapters: AdapterKind[];
 }
 
 const capabilitySchemas: Record<string, CapabilitySchema> = {
@@ -118,13 +118,13 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
   },
   'image.local_adjust': {
     capabilityId: 'image.local_adjust',
-    defaultAdapter: 'manual_import',
+    defaultAdapter: 'local_canvas',
     displayNameKey: 'context.adjust',
     inputContracts: [{ type: 'image', required: true, source: 'block', role: 'source', min: 1, max: 1 }],
     outputContracts: [{ type: 'image' }],
-    paramsSchema: { strength: true },
+    paramsSchema: {},
     promptSource: 'inline',
-    supportedAdapters: ['manual_import', 'mock'],
+    supportedAdapters: ['local_canvas'],
   },
   'image.local_crop': {
     capabilityId: 'image.local_crop',
@@ -164,6 +164,10 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
 
 export function schemaForCapability(capabilityId: string): CapabilitySchema {
   return capabilitySchemas[capabilityId] ?? capabilitySchemas['image.text_to_image'];
+}
+
+export function isLocalCanvasCapability(capabilityId: unknown): boolean {
+  return typeof capabilityId === 'string' && capabilitySchemas[capabilityId]?.defaultAdapter === 'local_canvas';
 }
 
 export function capabilityForImageOperation(

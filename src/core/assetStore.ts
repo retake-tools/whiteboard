@@ -71,6 +71,7 @@ export async function createImageAssetFromDataUrl(input: {
   fileName?: string;
   width?: number;
   height?: number;
+  sourceExecutionId?: string;
 }): Promise<AssetRecord> {
   try {
     const response = await fetch('/api/local/assets/data-url', {
@@ -96,6 +97,7 @@ export async function createImageAssetFromDataUrl(input: {
     previewUrl: input.dataUrl,
     width: input.width,
     height: input.height,
+    sourceExecutionId: input.sourceExecutionId,
     createdAt: nowIso(),
   };
 }

@@ -200,6 +200,26 @@ const sourceAspectOperationMarkup = renderToStaticMarkup(
 );
 assert.match(sourceAspectOperationMarkup, /Source ratio \/ 1x/);
 
+const localAdjustOperationMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <OperationInlineControls
+      blockId="operation_local_adjust"
+      data={{
+        title: 'Adjust',
+        adapter: 'local_canvas',
+        capabilityId: 'image.local_adjust',
+        localEditParams: { brightness: 20, contrast: -10, saturation: 0 },
+        sourceExecutionId: 'exec_local_adjust',
+        status: 'succeeded',
+      }}
+    />
+  </I18nProvider>,
+);
+assert.match(localAdjustOperationMarkup, /Local processing/);
+assert.match(localAdjustOperationMarkup, /Brightness \+20 · Contrast -10 · Saturation 0/);
+assert.doesNotMatch(localAdjustOperationMarkup, /Codex Managed/);
+assert.doesNotMatch(localAdjustOperationMarkup, /Generate again/);
+
 const runningDisplayState = operationDisplayState({
   title: 'Text to image',
   operationCanRun: false,
@@ -378,6 +398,8 @@ const replaceableToolbarMarkup = renderToStaticMarkup(
   </I18nProvider>,
 );
 assert.match(replaceableToolbarMarkup, /aria-label="Replace image"/);
+assert.match(replaceableToolbarMarkup, /aria-label="Crop · Not available yet"/);
+assert.match(replaceableToolbarMarkup, /disabled=""/);
 const resultToolbarMarkup = renderToStaticMarkup(
   <I18nProvider>
     <ContextToolbar

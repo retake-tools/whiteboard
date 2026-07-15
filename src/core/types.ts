@@ -39,7 +39,7 @@ export type OperationReadinessIssue =
   | 'source_image_missing'
   | 'text_input_missing';
 
-export type AdapterKind = 'direct_api' | 'mcp_agent' | 'cli_agent' | 'manual_import' | 'mock';
+export type AdapterKind = 'direct_api' | 'mcp_agent' | 'cli_agent' | 'local_canvas' | 'manual_import' | 'mock';
 
 export type AgentHost = 'codex' | 'claude' | 'cursor' | 'other';
 
@@ -49,6 +49,7 @@ export type TriggerMode =
   | 'codex_cli'
   | 'acp'
   | 'server_worker'
+  | 'local_canvas'
   | 'manual_import'
   | 'local_mock';
 

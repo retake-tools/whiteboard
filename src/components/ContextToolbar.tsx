@@ -13,13 +13,18 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactElement, RefObject } from 'react';
+import {
+  hasImageAdjustments,
+  imageAdjustmentFilter,
+  type LocalImageAdjustments,
+} from '../core/localImageTransforms';
 import type { BlockRecord } from '../core/types';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
 import { ImageAnnotationEditor, type AnnotationComposite } from './ImageAnnotationEditor';
-import { TooltipIconButton } from './Tooltip';
+import { TooltipIconButton, TooltipWrapper } from './Tooltip';
 
-type ImageTool = 'quick-edit' | 'annotation-edit' | 'create-similar' | 'crop' | 'adjust' | 'more';
+type ImageTool = 'quick-edit' | 'annotation-edit' | 'create-similar' | 'adjust' | 'more';
 export type ExecutionRoute = 'codex_mcp';
 
 interface ContextToolbarProps {
@@ -28,8 +33,8 @@ interface ContextToolbarProps {
   selectedImageUrl?: string;
   onCreateLocalEdit: (input: {
     body: string;
-    capabilityId: 'image.local_adjust' | 'image.local_crop' | 'image.local_expand';
-    params?: Record<string, unknown>;
+    capabilityId: 'image.local_adjust';
+    params: LocalImageAdjustments;
     title: string;
   }) => void;
   onRunAnnotationEdit: (input: {
@@ -136,7 +141,7 @@ export function ContextToolbar({
   return (
     <div
       ref={dockRef}
-      className="context-dock"
+      className="context-dock nodrag nopan nowheel"
       style={{ '--context-popover-scale': popoverScale } as CSSProperties}
       aria-label={t('context.selectedTools')}
     >
@@ -150,7 +155,7 @@ export function ContextToolbar({
         <IconButton label={t('context.createSimilar')} onClick={() => toggleTool('create-similar')}>
           <ImagePlus size={16} />
         </IconButton>
-        <IconButton label={t('context.crop')} onClick={() => toggleTool('crop')}>
+        <IconButton disabled label={`${t('context.crop')} · ${t('context.unavailable')}`} onClick={() => undefined}>
           <Crop size={16} />
         </IconButton>
         <IconButton label={t('context.adjust')} onClick={() => toggleTool('adjust')}>
@@ -220,7 +225,7 @@ function ImageToolPopover({
 }: {
   annotationInstruction: string;
   executionRoute: ExecutionRoute;
-  adjustForm: { brightness: number; contrast: number; saturation: number };
+  adjustForm: LocalImageAdjustments;
   imageUrl?: string;
   popoverScale: number;
   popoverRef: RefObject<HTMLDivElement | null>;
@@ -231,11 +236,11 @@ function ImageToolPopover({
   onAnnotationInstructionChange: (instruction: string) => void;
   onAnnotationPanelPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onClose: () => void;
-  onAdjustFormChange: (form: { brightness: number; contrast: number; saturation: number }) => void;
+  onAdjustFormChange: (form: LocalImageAdjustments) => void;
   onCreateLocalEdit: (input: {
     body: string;
-    capabilityId: 'image.local_adjust' | 'image.local_crop' | 'image.local_expand';
-    params?: Record<string, unknown>;
+    capabilityId: 'image.local_adjust';
+    params: LocalImageAdjustments;
     title: string;
   }) => void;
   onCreateSimilar: () => void;
@@ -297,36 +302,15 @@ function ImageToolPopover({
     return createPortal(annotationEditor, document.body);
   }
 
-  if (tool === 'crop') {
-    return (
-      <div ref={popoverRef} className="context-popover" aria-label={t('context.crop')}>
-        <h2>{t('context.crop')}</h2>
-        <div className="tool-grid">
-          {['free', '1:1', '16:9', '9:16'].map((preset) => (
-            <button
-              key={preset}
-              type="button"
-              onClick={() =>
-                onCreateLocalEdit({
-                  capabilityId: 'image.local_crop',
-                  title: t('context.crop'),
-                  body: preset === 'free' ? t('context.free') : `${t('context.crop')} ${preset}`,
-                  params: { cropAspectRatio: preset },
-                })
-              }
-            >
-              {preset === 'free' ? t('context.free') : preset}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   if (tool === 'adjust') {
     return (
-      <div ref={popoverRef} className="context-popover" aria-label={t('context.adjust')}>
+      <div ref={popoverRef} className="context-popover nodrag nopan nowheel" aria-label={t('context.adjust')}>
         <h2>{t('context.adjust')}</h2>
+        {imageUrl ? (
+          <div className="local-adjust-preview">
+            <img alt="" src={imageUrl} style={{ filter: imageAdjustmentFilter(adjustForm) }} />
+          </div>
+        ) : null}
         <RangeControl
           label={t('context.brightness')}
           value={adjustForm.brightness}
@@ -345,6 +329,7 @@ function ImageToolPopover({
         <button
           type="button"
           className="primary-popover-button"
+          disabled={!hasImageAdjustments(adjustForm)}
           onClick={() =>
             onCreateLocalEdit({
               capabilityId: 'image.local_adjust',
@@ -364,22 +349,13 @@ function ImageToolPopover({
     <div ref={popoverRef} className="context-popover" aria-label={t('context.moreTools')}>
       <h2>{t('context.more')}</h2>
       <div className="tool-list">
-        <button
-          type="button"
-          onClick={() =>
-            onCreateLocalEdit({
-              capabilityId: 'image.local_expand',
-              title: t('context.expand'),
-              body: t('context.expand'),
-            })
-          }
-        >
+        <button type="button" disabled title={t('context.unavailable')}>
           <Maximize2 size={15} />
           {t('context.expand')}
         </button>
-        <button type="button">{t('context.relight')}</button>
-        <button type="button">{t('context.multiAngle')}</button>
-        <button type="button">{t('context.removeBackground')}</button>
+        <button type="button" disabled title={t('context.unavailable')}>{t('context.relight')}</button>
+        <button type="button" disabled title={t('context.unavailable')}>{t('context.multiAngle')}</button>
+        <button type="button" disabled title={t('context.unavailable')}>{t('context.removeBackground')}</button>
       </div>
     </div>
   );
@@ -399,31 +375,36 @@ function RangeControl({
   value: number;
 }): ReactElement {
   return (
-    <label className="range-control">
+    <label className="range-control nodrag nopan">
       <span>{label}</span>
       <input
+        className="nodrag nopan"
         type="range"
         min="-100"
         max="100"
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
       />
+      <output>{value > 0 ? `+${value}` : value}</output>
     </label>
   );
 }
 
 function IconButton({
   children,
+  disabled,
   onClick,
   label,
 }: {
   children: ReactElement;
+  disabled?: boolean;
   onClick: () => void;
   label: string;
 }): ReactElement {
-  return (
-    <TooltipIconButton label={label} onClick={onClick}>
+  const button = (
+    <TooltipIconButton disabled={disabled} label={label} onClick={onClick}>
       {children}
     </TooltipIconButton>
   );
+  return disabled ? <TooltipWrapper className="disabled-tool-wrapper" label={label}>{button}</TooltipWrapper> : button;
 }

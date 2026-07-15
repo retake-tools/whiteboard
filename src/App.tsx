@@ -95,14 +95,17 @@ import {
 import {
   addImageCodexOperation,
   addLocalImageOperation,
+  completeLocalImageOperation,
   createDraftImageToImageOperation,
   createDraftTextToImageOperation,
   displaySlotSizeForGenerationParams,
   executeExistingImageOperationBlock,
+  failLocalImageOperation,
   type ImageCodexOperation,
   type ImageGenerationParams,
   type SwitchableOperationMode,
 } from './core/imageOperations';
+import { renderAdjustedImage, type LocalImageAdjustments } from './core/localImageTransforms';
 import { imageOperationDefaultPrompt, imageOperationTitle } from './core/imageOperationText';
 import { createId, nowIso } from './core/id';
 import { arraysEqual, numberedDefaultName } from './core/listUtils';
@@ -1944,17 +1947,21 @@ export function App(): ReactElement {
     setSelectedBlocks(nextSnapshot, selectedWorkflowIds);
   }
 
-  function createLocalImageEditOperation(
+  async function createLocalImageEditOperation(
     block: BlockRecord,
     input: {
       body: string;
-      capabilityId: 'image.local_adjust' | 'image.local_crop' | 'image.local_expand';
-      params?: Record<string, unknown>;
+      capabilityId: 'image.local_adjust';
+      params: LocalImageAdjustments;
       title: string;
     },
-  ): void {
+  ): Promise<void> {
+    const sourceImageUrl = getAssetPreviewUrl(snapshotRef.current.assets, block.data.assetId);
+    if (!sourceImageUrl) return;
+    let executionId = '';
     let operationBlockId = '';
-    const nextSnapshot = updateSnapshot(
+    let resultBlockId = '';
+    const runningSnapshot = updateSnapshot(
       (current) => {
         const result = addLocalImageOperation(current, {
           body: input.body,
@@ -1963,14 +1970,54 @@ export function App(): ReactElement {
           sourceBlockId: block.blockId,
           title: input.title,
         });
+        executionId = result.execution.executionId;
         operationBlockId = result.operationBlock.blockId;
+        resultBlockId = result.resultBlock.blockId;
         return current;
       },
-      { persist: true, history: true },
+      { history: true },
     );
 
-    if (!operationBlockId) return;
-    setSelectedBlock(nextSnapshot, operationBlockId);
+    if (!executionId || !operationBlockId || !resultBlockId) return;
+    setSelectedBlock(runningSnapshot, operationBlockId);
+
+    try {
+      await persistSnapshot(runningSnapshot);
+      const rendered = await renderAdjustedImage(sourceImageUrl, input.params);
+      const asset = await createImageAssetFromDataUrl({
+        projectId: runningSnapshot.project.projectId,
+        dataUrl: rendered.dataUrl,
+        fileName: `adjusted-${block.blockId}.png`,
+        width: rendered.width,
+        height: rendered.height,
+        sourceExecutionId: executionId,
+      });
+      const completedSnapshot = updateSnapshot((current) => {
+        completeLocalImageOperation(current, { asset, executionId });
+        return current;
+      });
+      await persistSnapshot(completedSnapshot);
+      setSelectedBlock(completedSnapshot, resultBlockId);
+      setOperationToast({
+        id: executionId,
+        title: t('feedback.localEditCompleted'),
+        tone: 'success',
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : t('feedback.localEditFailed');
+      const failedSnapshot = updateSnapshot((current) => {
+        failLocalImageOperation(current, { errorMessage, executionId });
+        return current;
+      });
+      await persistSnapshot(failedSnapshot);
+      setSelectedBlock(failedSnapshot, operationBlockId);
+      setOperationToast({
+        id: executionId,
+        title: t('feedback.localEditFailed'),
+        body: errorMessage,
+        tone: 'error',
+      });
+    }
   }
 
   async function startExistingOperationBlock(input: {
@@ -2518,7 +2565,7 @@ export function App(): ReactElement {
                 }}
                 onCreateLocalEdit={(input) => {
                   if (!selectedBlock) return;
-                  createLocalImageEditOperation(selectedBlock, input);
+                  void createLocalImageEditOperation(selectedBlock, input);
                 }}
                 onDownloadImage={() => {
                   if (!selectedImageAsset) return;

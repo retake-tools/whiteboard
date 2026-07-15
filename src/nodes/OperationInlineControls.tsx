@@ -1,6 +1,6 @@
 import { AlertCircle, Check, ChevronRight, Clipboard, Loader2, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
-import { operationReadinessMessageKey, schemaForCapability } from '../core/capabilities';
+import { isLocalCanvasCapability, operationReadinessMessageKey, schemaForCapability } from '../core/capabilities';
 import {
   generationParameterSupport,
   generationParameterVisible,
@@ -29,6 +29,28 @@ const parameterKeys: GenerationParameterKey[] = [
 ];
 
 export function OperationInlineControls({ blockId, data }: { blockId: string; data: BlockData }): ReactElement {
+  if (isLocalCanvasCapability(data.capabilityId)) return <LocalCanvasOperationControls data={data} />;
+  return <GenerationOperationInlineControls blockId={blockId} data={data} />;
+}
+
+function LocalCanvasOperationControls({ data }: { data: BlockData }): ReactElement {
+  const { t } = useI18n();
+  const params = localAdjustmentParams(data.localEditParams);
+  return (
+    <div className="operation-inline-controls is-local-canvas" aria-label={t('operationToolbar.title')}>
+      <div className="operation-option-row is-read-only">
+        <span>{t('operationToolbar.executor')}</span>
+        <strong>{t('operationToolbar.localProcessing')}</strong>
+      </div>
+      <div className="operation-option-row is-read-only">
+        <span>{t('operationToolbar.params')}</span>
+        <strong>{localAdjustmentSummary(params, t)}</strong>
+      </div>
+    </div>
+  );
+}
+
+function GenerationOperationInlineControls({ blockId, data }: { blockId: string; data: BlockData }): ReactElement {
   const { t } = useI18n();
   const controlsRef = useRef<HTMLDivElement | null>(null);
   const [isParamsOpen, setIsParamsOpen] = useState(false);
@@ -315,6 +337,30 @@ export function OperationInlineControls({ blockId, data }: { blockId: string; da
       </button>
     </div>
   );
+}
+
+function localAdjustmentParams(value: unknown): { brightness: number; contrast: number; saturation: number } {
+  const record = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return {
+    brightness: finiteNumber(record.brightness) ?? 0,
+    contrast: finiteNumber(record.contrast) ?? 0,
+    saturation: finiteNumber(record.saturation) ?? 0,
+  };
+}
+
+function localAdjustmentSummary(
+  params: { brightness: number; contrast: number; saturation: number },
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  return [
+    `${t('context.brightness')} ${signedValue(params.brightness)}`,
+    `${t('context.contrast')} ${signedValue(params.contrast)}`,
+    `${t('context.saturation')} ${signedValue(params.saturation)}`,
+  ].join(' · ');
+}
+
+function signedValue(value: number): string {
+  return value > 0 ? `+${value}` : String(value);
 }
 
 function ParameterGroup({

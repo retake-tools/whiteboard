@@ -201,6 +201,10 @@ button {
   align-items: center;
 }
 
+.disabled-tool-wrapper {
+  display: inline-flex;
+}
+
 .context-dock > .context-popover {
   transform: scale(var(--context-popover-scale, 1));
   transform-origin: top center;
@@ -873,9 +877,32 @@ button {
   padding: 0 10px;
 }
 
+.tool-list button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.local-adjust-preview {
+  display: grid;
+  width: 100%;
+  height: 132px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #d8dee8;
+  border-radius: 6px;
+  background: #f7f8fa;
+}
+
+.local-adjust-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .range-control {
   display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
+  grid-template-columns: 70px minmax(0, 1fr) 32px;
   gap: 10px;
   align-items: center;
   color: #344054;
@@ -884,6 +911,12 @@ button {
 
 .range-control input {
   width: 100%;
+}
+
+.range-control output {
+  color: #667085;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .toolbar-divider {

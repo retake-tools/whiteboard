@@ -1,7 +1,7 @@
 import { Handle, NodeResizer, Position, type NodeProps, type ResizeParams } from '@xyflow/react';
 import { Check, ChevronDown, Clock, FileText, ImageIcon, Info, Layers3, LockKeyhole, Play, Plus, RefreshCw, Video } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
-import { schemaForCapability } from '../core/capabilities';
+import { isLocalCanvasCapability, schemaForCapability } from '../core/capabilities';
 import type { SwitchableOperationMode } from '../core/imageOperations';
 import { operationDisplayState } from '../core/operationDisplay';
 import type { BlockData, BlockType, ExecutionConfigurationChangeKind, ExecutionInputRole, RetakeNode } from '../core/types';
@@ -28,6 +28,7 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
   const showStatusBorder = blockType !== 'operation' && status;
   const hasImagePreview = blockType === 'image' && typeof (data as BlockData).previewUrl === 'string';
   const title = displayBlockTitle(data as BlockData, blockType, t);
+  const isLocalCanvasOperation = blockType === 'operation' && isLocalCanvasCapability(data.capabilityId);
   const [isHeadingHovered, setIsHeadingHovered] = useState(false);
 
   if (blockType === 'group') {
@@ -92,7 +93,7 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
       }}
     >
       <Handle type="target" position={Position.Left} />
-      {blockType === 'operation' ? <OperationInputQuickAdd data={data as BlockData} operationBlockId={id} /> : null}
+      {blockType === 'operation' && !isLocalCanvasOperation ? <OperationInputQuickAdd data={data as BlockData} operationBlockId={id} /> : null}
       {data.operationInputEdgeId ? (
         <OperationInputRoleBadge data={data as BlockData} />
       ) : null}
@@ -103,7 +104,7 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
       >
         <Icon size={16} />
         <span>{title}</span>
-        {blockType === 'operation' ? <OperationCapabilityControl blockId={id} data={data as BlockData} /> : null}
+        {blockType === 'operation' && !isLocalCanvasOperation ? <OperationCapabilityControl blockId={id} data={data as BlockData} /> : null}
         {operationDisplay?.executionBadge ? (
           <span
             className={`block-heading-status status-${operationDisplay.executionBadge.status} ${operationDisplay.executionBadge.historical ? 'is-history' : 'is-active'}`}
@@ -111,11 +112,11 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
             {t(operationDisplay.executionBadge.labelKey)}
           </span>
         ) : null}
-        {blockType === 'operation' && data.operationQueuedConfigurationStale ? (
+        {blockType === 'operation' && !isLocalCanvasOperation && data.operationQueuedConfigurationStale ? (
           <span className="block-heading-status operation-dirty-status">
             {t('operationStatus.executionContentUpdated')}
           </span>
-        ) : blockType === 'operation' && (data.operationChangeCount ?? 0) > 0 ? (
+        ) : blockType === 'operation' && !isLocalCanvasOperation && (data.operationChangeCount ?? 0) > 0 ? (
           <span className="block-heading-status operation-dirty-status">
             {data.operationChangeCount} {t('operationStatus.changes')}
           </span>

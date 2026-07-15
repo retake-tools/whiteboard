@@ -1,4 +1,4 @@
-import { connectedInputBlocks, promptTextFromInputs } from './capabilities';
+import { connectedInputBlocks, isLocalCanvasCapability, promptTextFromInputs } from './capabilities';
 import { sourceImageAspectRatio } from './operationAspectRatio';
 import type {
   BlockRecord,
@@ -76,7 +76,9 @@ export function currentOperationConfiguration(
         ? operationBlock.data.generationProfileId
         : undefined,
     imageInputs,
-    prompt: promptTextFromInputs(connectedInputBlocks(snapshot, operationBlock.blockId)) || operationBlock.data.body || '',
+    prompt: isLocalCanvasCapability(capabilityId)
+      ? ''
+      : promptTextFromInputs(connectedInputBlocks(snapshot, operationBlock.blockId)) || operationBlock.data.body || '',
   });
 }
 

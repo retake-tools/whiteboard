@@ -87,6 +87,7 @@ type TranslationKey =
   | 'context.strokeSize'
   | 'context.textMarkTool'
   | 'context.undoAnnotation'
+  | 'context.unavailable'
   | 'context.width'
   | 'context.pixels'
   | 'feedback.closePrompt'
@@ -108,6 +109,8 @@ type TranslationKey =
   | 'feedback.promptRequired'
   | 'feedback.promptRequiredBody'
   | 'feedback.localApiUnavailable'
+  | 'feedback.localEditCompleted'
+  | 'feedback.localEditFailed'
   | 'history.close'
   | 'history.collapse'
   | 'history.empty'
@@ -219,9 +222,11 @@ type TranslationKey =
   | 'operationToolbar.codexMcpHint'
   | 'operationToolbar.count'
   | 'operationToolbar.duration'
+  | 'operationToolbar.executor'
   | 'operationToolbar.generatePrompt'
   | 'operationToolbar.generateAgain'
   | 'operationToolbar.generator'
+  | 'operationToolbar.localProcessing'
   | 'operationToolbar.imageInputMissing'
   | 'operationToolbar.imageAssetMissing'
   | 'operationToolbar.model'
@@ -466,6 +471,7 @@ const translations: Record<Locale, Translations> = {
     'context.strokeSize': 'Stroke',
     'context.textMarkTool': 'Text note',
     'context.undoAnnotation': 'Undo annotation',
+    'context.unavailable': 'Not available yet',
     'context.width': 'W',
     'context.pixels': 'PX',
     'feedback.closePrompt': 'Close prompt preview',
@@ -487,6 +493,8 @@ const translations: Record<Locale, Translations> = {
     'feedback.promptRequired': 'Prompt required',
     'feedback.promptRequiredBody': 'Enter a prompt before running this operation.',
     'feedback.localApiUnavailable': 'The shared Retake workspace is unavailable. Open this board from the Retake dev or preview server, then try again.',
+    'feedback.localEditCompleted': 'Adjusted image created',
+    'feedback.localEditFailed': 'Local image adjustment failed',
     'history.close': 'Close history',
     'history.collapse': 'Collapse details',
     'history.empty': 'No history yet',
@@ -598,9 +606,11 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.codexMcpHint': 'Codex MCP',
     'operationToolbar.count': 'Count',
     'operationToolbar.duration': 'Duration',
+    'operationToolbar.executor': 'Executor',
     'operationToolbar.generatePrompt': 'Generate prompt',
     'operationToolbar.generateAgain': 'Generate again',
     'operationToolbar.generator': 'Generator',
+    'operationToolbar.localProcessing': 'Local processing',
     'operationToolbar.imageInputMissing': 'Connect an Image Block to provide the source image.',
     'operationToolbar.imageAssetMissing': 'Import an image into the connected Image Block.',
     'operationToolbar.model': 'Model',
@@ -840,6 +850,7 @@ const translations: Record<Locale, Translations> = {
     'context.strokeSize': '线宽',
     'context.textMarkTool': '文字标注',
     'context.undoAnnotation': '撤销标注',
+    'context.unavailable': '暂不可用',
     'context.width': 'W',
     'context.pixels': 'PX',
     'feedback.closePrompt': '关闭提示预览',
@@ -861,6 +872,8 @@ const translations: Record<Locale, Translations> = {
     'feedback.promptRequired': '请填写提示词',
     'feedback.promptRequiredBody': '请先填写这个操作要生成或修改的内容。',
     'feedback.localApiUnavailable': 'Retake 共享工作区当前不可用。请通过 Retake dev 或 preview 服务打开画板后重试。',
+    'feedback.localEditCompleted': '已生成调整后的图片',
+    'feedback.localEditFailed': '本地图片调整失败',
     'history.close': '关闭历史记录',
     'history.collapse': '收起详情',
     'history.empty': '暂无历史记录',
@@ -972,9 +985,11 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.codexMcpHint': 'Codex MCP',
     'operationToolbar.count': '数量',
     'operationToolbar.duration': '时长',
+    'operationToolbar.executor': '执行方式',
     'operationToolbar.generatePrompt': '生成 Prompt',
     'operationToolbar.generateAgain': '再次生成',
     'operationToolbar.generator': '生成方式',
+    'operationToolbar.localProcessing': '本地处理',
     'operationToolbar.imageInputMissing': '请连接一个图片块作为源图。',
     'operationToolbar.imageAssetMissing': '请先向已连接的图片块导入图片。',
     'operationToolbar.model': '模型',

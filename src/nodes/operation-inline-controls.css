@@ -61,6 +61,15 @@
   color: var(--retake-text-subtle);
 }
 
+.operation-option-row.is-read-only {
+  grid-template-columns: 62px minmax(0, 1fr);
+  cursor: default;
+}
+
+.operation-inline-controls.is-local-canvas .operation-option-row strong {
+  white-space: normal;
+}
+
 .operation-side-popover {
   position: absolute;
   top: 0;
