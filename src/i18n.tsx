@@ -46,8 +46,8 @@ type TranslationKey =
   | 'context.aspectRatio'
   | 'context.brightness'
   | 'context.annotationNoteMode'
-  | 'context.clearMarks'
-  | 'context.clearMarksConfirm'
+  | 'context.clearAnnotationDraft'
+  | 'context.clearAnnotationDraftConfirm'
   | 'context.close'
   | 'context.contrast'
   | 'context.createSimilar'
@@ -444,8 +444,8 @@ const translations: Record<Locale, Translations> = {
     'context.aspectRatio': 'Aspect ratio',
     'context.brightness': 'Brightness',
     'context.annotationNoteMode': 'Annotation note',
-    'context.clearMarks': 'Clear all marks',
-    'context.clearMarksConfirm': 'Clear all annotations? This cannot be undone except by annotation undo.',
+    'context.clearAnnotationDraft': 'Clear annotation draft',
+    'context.clearAnnotationDraftConfirm': 'Clear all marks and instructions? This cannot be undone.',
     'context.close': 'Close',
     'context.contrast': 'Contrast',
     'context.createSimilar': 'Create similar',
@@ -837,8 +837,8 @@ const translations: Record<Locale, Translations> = {
     'context.aspectRatio': '比例',
     'context.brightness': '亮度',
     'context.annotationNoteMode': '仅作批注',
-    'context.clearMarks': '清空所有标注',
-    'context.clearMarksConfirm': '确定要清空所有标注吗？清空后只能通过标注撤销恢复。',
+    'context.clearAnnotationDraft': '清空标注草稿',
+    'context.clearAnnotationDraftConfirm': '确定要清空所有标记和说明吗？此操作无法撤销。',
     'context.close': '关闭',
     'context.contrast': '对比度',
     'context.createSimilar': '生成同款',

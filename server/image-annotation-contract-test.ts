@@ -2,10 +2,15 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   annotationColorOptions,
+  annotationDraftContentEquals,
+  annotationDraftHasContent,
+  annotationDraftMatches,
+  annotationManifestFromDraft,
   annotationMarksMissingIntent,
   compileAnnotationInstruction,
   hasExecutableAnnotationIntent,
   nextAnnotationMarkId,
+  type AnnotationDraft,
   type AnnotationManifest,
 } from '../src/core/imageAnnotations';
 import { addImageCodexOperation } from '../src/core/imageOperations';
@@ -19,6 +24,8 @@ assert.deepEqual(
 assert.equal(new Set(annotationColorOptions.map((option) => option.value)).size, 5);
 
 const editorSource = await readFile('src/components/ImageAnnotationEditor.tsx', 'utf8');
+const appSource = await readFile('src/App.tsx', 'utf8');
+const toolbarSource = await readFile('src/components/ContextToolbar.tsx', 'utf8');
 assert.doesNotMatch(
   editorSource,
   /annotation-current-color/,
@@ -26,6 +33,11 @@ assert.doesNotMatch(
 );
 assert.match(editorSource, /fixedShapeYScale={renderMetrics\.displayWidth \/ renderMetrics\.displayHeight}/);
 assert.match(editorSource, /disabled={!selectedMark}/);
+assert.match(editorSource, /onDraftChangeRef\.current/);
+assert.match(editorSource, /onInstructionChange\(''\)/);
+assert.match(appSource, /function updateAnnotationDraft/);
+assert.match(appSource, /scheduleAnnotationDraftPersist\(\)/);
+assert.match(toolbarSource, /initialDraft={annotationDraft}/);
 
 const manifest: AnnotationManifest = {
   schemaVersion: 1,
@@ -62,6 +74,19 @@ assert.equal(hasExecutableAnnotationIntent(manifest), true);
 assert.deepEqual(annotationMarksMissingIntent(manifest), []);
 assert.equal(nextAnnotationMarkId(manifest.marks, 'rect'), 'R2');
 assert.equal(nextAnnotationMarkId(manifest.marks, 'brush'), 'B1');
+
+const draft: AnnotationDraft = {
+  ...annotationManifestFromDraft(manifest),
+  sourceAssetId: 'asset_annotation_source',
+  updatedAt: '2026-07-17T00:00:00.000Z',
+};
+assert.equal(annotationDraftHasContent(draft), true);
+assert.equal(annotationDraftMatches(draft, draft.sourceAssetId), true);
+assert.equal(annotationDraftMatches(draft, 'asset_replaced'), false);
+assert.equal(annotationDraftContentEquals(draft, manifest), true);
+const frozenManifest = annotationManifestFromDraft(draft);
+draft.marks[0].intent = 'This later draft edit must not mutate the execution snapshot.';
+assert.notEqual(draft.marks[0].intent, frozenManifest.marks[0].intent);
 
 const incomplete: AnnotationManifest = {
   schemaVersion: 1,
@@ -115,13 +140,13 @@ const sourceBlock: BlockRecord = {
   position: { x: 0, y: 0 },
   size: { width: 320, height: 240 },
   zIndex: 20,
-  data: { title: 'Source image', assetId: sourceAsset.assetId },
+  data: { title: 'Source image', assetId: sourceAsset.assetId, annotationDraft: draft },
   createdAt: sourceAsset.createdAt,
   updatedAt: sourceAsset.createdAt,
 };
 snapshot.assets.unshift(sourceAsset);
 snapshot.blocks.push(sourceBlock);
-const persistedManifest = { ...manifest, compositeAssetId: compositeAsset.assetId };
+const persistedManifest = { ...frozenManifest, compositeAssetId: compositeAsset.assetId };
 const operation = addImageCodexOperation(snapshot, {
   operation: 'annotation_edit',
   sourceBlockId: sourceBlock.blockId,
@@ -133,6 +158,11 @@ assert.deepEqual(operation.operationBlock.data.annotationManifest, persistedMani
 assert.deepEqual(operation.execution.params?.annotationManifest, persistedManifest);
 assert.match(operation.execution.prompt ?? '', /R1: red rectangle/);
 assert.match(operation.prompt, /annotated composite/);
+sourceBlock.data.annotationDraft!.marks[0].intent = 'Continue editing after execution.';
+assert.notEqual(
+  sourceBlock.data.annotationDraft!.marks[0].intent,
+  (operation.execution.params?.annotationManifest as AnnotationManifest).marks[0].intent,
+);
 
 console.log({
   markCount: manifest.marks.length,

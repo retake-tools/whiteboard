@@ -1,4 +1,5 @@
 import type { Edge, Node, Viewport } from '@xyflow/react';
+import type { AnnotationDraft } from './imageAnnotations';
 
 export type BlockType = 'text' | 'image' | 'video' | 'operation' | 'group';
 
@@ -234,6 +235,7 @@ export interface BlockData {
   title: string;
   body?: string;
   assetId?: string;
+  annotationDraft?: AnnotationDraft;
   previewUrl?: string;
   resultRetryMode?: 'codex_prompt' | 'direct_retry';
   status?: ExecutionStatus;

@@ -440,6 +440,20 @@ const replacementSnapshot = migrateBoardSnapshot(structuredClone(defaultSnapshot
 const replaceableBlock = createBlockRecord(replacementSnapshot, 'image');
 replaceableBlock.data.assetId = 'asset_before_replace';
 replaceableBlock.data.title = 'Before.png';
+replaceableBlock.data.annotationDraft = {
+  schemaVersion: 1,
+  sourceAssetId: 'asset_before_replace',
+  globalInstruction: '',
+  marks: [{
+    id: 'M1',
+    kind: 'marker',
+    color: '#dc2626',
+    strokeSize: 'm',
+    intent: 'Replace this point.',
+    point: { x: 0.5, y: 0.5 },
+  }],
+  updatedAt: '2026-07-11T00:59:00.000Z',
+};
 replacementSnapshot.blocks.push(replaceableBlock);
 const originalReplacementAsset = createTestAsset(replacementSnapshot, 'asset_before_replace');
 const nextReplacementAsset = createTestAsset(replacementSnapshot, 'asset_after_replace');
@@ -463,6 +477,7 @@ if (
   !replacement.changed ||
   replacement.previousAssetId !== originalReplacementAsset.assetId ||
   replaceableBlock.data.assetId !== nextReplacementAsset.assetId ||
+  replaceableBlock.data.annotationDraft !== undefined ||
   !replacementSnapshot.assets.some((asset) => asset.assetId === originalReplacementAsset.assetId) ||
   replacementSnapshot.historyEvents?.[0]?.type !== 'asset_replaced'
 ) {

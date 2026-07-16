@@ -80,6 +80,46 @@ export interface AnnotationManifest {
   marks: AnnotationMark[];
 }
 
+export interface AnnotationDraft {
+  schemaVersion: 1;
+  sourceAssetId: string;
+  globalInstruction: string;
+  marks: AnnotationMark[];
+  updatedAt: string;
+}
+
+export type AnnotationDraftContent = Pick<AnnotationManifest, 'globalInstruction' | 'marks' | 'schemaVersion'>;
+
+export function annotationDraftHasContent(draft: AnnotationDraftContent): boolean {
+  return Boolean(draft.globalInstruction.trim() || draft.marks.length);
+}
+
+export function annotationDraftMatches(
+  draft: AnnotationDraft | undefined,
+  sourceAssetId: string | undefined,
+): draft is AnnotationDraft {
+  return Boolean(draft && sourceAssetId && draft.sourceAssetId === sourceAssetId);
+}
+
+export function annotationDraftContentEquals(
+  draft: AnnotationDraft | undefined,
+  content: AnnotationDraftContent,
+): boolean {
+  return Boolean(
+    draft &&
+    draft.globalInstruction === content.globalInstruction &&
+    JSON.stringify(draft.marks) === JSON.stringify(content.marks)
+  );
+}
+
+export function annotationManifestFromDraft(draft: AnnotationDraftContent): AnnotationManifest {
+  return {
+    schemaVersion: 1,
+    globalInstruction: draft.globalInstruction,
+    marks: structuredClone(draft.marks),
+  };
+}
+
 const markPrefixes = {
   marker: 'M',
   arrow: 'A',

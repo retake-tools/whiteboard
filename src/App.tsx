@@ -127,7 +127,13 @@ import type {
   RetakeNode,
   WorkspaceSummary,
 } from './core/types';
-import type { AnnotationManifest } from './core/imageAnnotations';
+import {
+  annotationDraftContentEquals,
+  annotationDraftHasContent,
+  annotationDraftMatches,
+  type AnnotationDraftContent,
+  type AnnotationManifest,
+} from './core/imageAnnotations';
 import { BlockNode } from './nodes/BlockNode';
 
 const minCanvasZoom = 0.05;
@@ -161,6 +167,7 @@ export function App(): ReactElement {
   const pendingDirectImageImportBlockIdRef = useRef<string | undefined>(undefined);
   const reactFlowRef = useRef<ReactFlowInstance<RetakeNode, RetakeEdge> | null>(null);
   const pendingPersistCountRef = useRef(0);
+  const annotationDraftPersistTimerRef = useRef<number | undefined>(undefined);
   const selectedBlockIdsRef = useRef<string[]>([]);
   const textBlockDraftsRef = useRef<Map<string, string>>(new Map());
   const pendingFlowSelectionRef = useRef<string[] | undefined>(undefined);
@@ -841,6 +848,47 @@ export function App(): ReactElement {
       },
       { persist: true, history: true },
     );
+  }
+
+  function updateAnnotationDraft(blockId: string, content: AnnotationDraftContent): void {
+    const sourceBlock = snapshotRef.current.blocks.find(
+      (block) => block.blockId === blockId && block.type === 'image',
+    );
+    const sourceAssetId = typeof sourceBlock?.data.assetId === 'string' ? sourceBlock.data.assetId : undefined;
+    if (!sourceBlock || !sourceAssetId) return;
+
+    const existingDraft = annotationDraftMatches(sourceBlock.data.annotationDraft, sourceAssetId)
+      ? sourceBlock.data.annotationDraft
+      : undefined;
+    if (annotationDraftContentEquals(existingDraft, content)) return;
+    if (!annotationDraftHasContent(content) && !sourceBlock.data.annotationDraft) return;
+
+    updateSnapshot(
+      (current) => {
+        const block = current.blocks.find(
+          (candidate) => candidate.blockId === blockId && candidate.type === 'image',
+        );
+        if (!block || block.data.assetId !== sourceAssetId) return current;
+
+        const updatedAt = nowIso();
+        block.data = { ...block.data };
+        if (annotationDraftHasContent(content)) {
+          block.data.annotationDraft = {
+            schemaVersion: 1,
+            sourceAssetId,
+            globalInstruction: content.globalInstruction,
+            marks: structuredClone(content.marks),
+            updatedAt,
+          };
+        } else {
+          delete block.data.annotationDraft;
+        }
+        block.updatedAt = updatedAt;
+        return touchBoard(current);
+      },
+      { syncFlow: false },
+    );
+    scheduleAnnotationDraftPersist();
   }
 
   function addOperationInputBlock(operationBlockId: string, type: Extract<BlockType, 'image' | 'text' | 'video'>): void {
@@ -2308,6 +2356,23 @@ export function App(): ReactElement {
     }
   }
 
+  function scheduleAnnotationDraftPersist(): void {
+    if (annotationDraftPersistTimerRef.current !== undefined) {
+      window.clearTimeout(annotationDraftPersistTimerRef.current);
+    }
+    annotationDraftPersistTimerRef.current = window.setTimeout(() => {
+      annotationDraftPersistTimerRef.current = undefined;
+      void persistSnapshot(snapshotRef.current);
+    }, 300);
+  }
+
+  function flushAnnotationDraftPersist(): void {
+    if (annotationDraftPersistTimerRef.current === undefined) return;
+    window.clearTimeout(annotationDraftPersistTimerRef.current);
+    annotationDraftPersistTimerRef.current = undefined;
+    void persistSnapshot(snapshotRef.current);
+  }
+
   function undo(): void {
     const previous = history.current.past.pop();
     if (!previous) return;
@@ -2563,6 +2628,8 @@ export function App(): ReactElement {
                 canvasZoom={canvasZoom}
                 selectedBlock={selectedBlock}
                 selectedImageUrl={selectedImageUrl}
+                onAnnotationDraftChange={(draft) => updateAnnotationDraft(selectedBlock.blockId, draft)}
+                onAnnotationDraftFlush={flushAnnotationDraftPersist}
                 onCreateSimilar={() => {
                   if (selectedBlock) createImageToImageDraftOperation(selectedBlock, 'create_similar');
                 }}

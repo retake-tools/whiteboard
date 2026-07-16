@@ -22,7 +22,12 @@ import type { BlockRecord } from '../core/types';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
 import { ImageAnnotationEditor, type AnnotationComposite } from './ImageAnnotationEditor';
-import type { AnnotationManifest } from '../core/imageAnnotations';
+import {
+  annotationDraftMatches,
+  type AnnotationDraft,
+  type AnnotationDraftContent,
+  type AnnotationManifest,
+} from '../core/imageAnnotations';
 import { TooltipIconButton, TooltipWrapper } from './Tooltip';
 
 type ImageTool = 'quick-edit' | 'annotation-edit' | 'create-similar' | 'adjust' | 'more';
@@ -44,6 +49,8 @@ interface ContextToolbarProps {
     composite: AnnotationComposite;
     route: ExecutionRoute;
   }) => void;
+  onAnnotationDraftChange: (draft: AnnotationDraftContent) => void;
+  onAnnotationDraftFlush: () => void;
   onCreateSimilar: (input: { route: ExecutionRoute }) => void;
   onDownloadImage: () => void;
   onReplaceImage: () => void;
@@ -54,6 +61,8 @@ export function ContextToolbar({
   canvasZoom,
   selectedBlock,
   selectedImageUrl,
+  onAnnotationDraftChange,
+  onAnnotationDraftFlush,
   onRunAnnotationEdit,
   onCreateSimilar,
   onCreateLocalEdit,
@@ -62,12 +71,17 @@ export function ContextToolbar({
   onRunQuickEdit,
 }: ContextToolbarProps): ReactElement | null {
   const [activeTool, setActiveTool] = useState<ImageTool | null>(null);
-  const [annotationInstruction, setAnnotationInstruction] = useState('');
+  const initialAnnotationDraft = annotationDraftForBlock(selectedBlock);
+  const [annotationInstruction, setAnnotationInstruction] = useState(
+    () => initialAnnotationDraft?.globalInstruction ?? '',
+  );
   const [annotationOffset, setAnnotationOffset] = useState({ x: 0, y: 0 });
   const [adjustForm, setAdjustForm] = useState({ brightness: 0, contrast: 0, saturation: 0 });
   const [isAnnotationDragging, setIsAnnotationDragging] = useState(false);
   const [quickEditInstruction, setQuickEditInstruction] = useState('');
   const annotationDragRef = useRef({ startX: 0, startY: 0, baseX: 0, baseY: 0 });
+  const pendingAnnotationDraftRef = useRef<AnnotationDraftContent | undefined>(undefined);
+  const annotationDraftSaveTimerRef = useRef<number | undefined>(undefined);
   const dockRef = useRef<HTMLDivElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const { t } = useI18n();
@@ -75,10 +89,41 @@ export function ContextToolbar({
 
   useEffect(() => {
     if (!selectedBlock || selectedBlock.type !== 'image') return;
+    setAnnotationInstruction(annotationDraftForBlock(selectedBlock)?.globalInstruction ?? '');
     setActiveTool(null);
     setAdjustForm({ brightness: 0, contrast: 0, saturation: 0 });
     setAnnotationOffset({ x: 0, y: 0 });
   }, [selectedBlock?.blockId, selectedBlock?.type, selectedImageUrl]);
+
+  useEffect(() => () => {
+    if (annotationDraftSaveTimerRef.current !== undefined) {
+      window.clearTimeout(annotationDraftSaveTimerRef.current);
+    }
+  }, []);
+
+  function queueAnnotationDraftChange(draft: AnnotationDraftContent): void {
+    pendingAnnotationDraftRef.current = draft;
+    if (annotationDraftSaveTimerRef.current !== undefined) {
+      window.clearTimeout(annotationDraftSaveTimerRef.current);
+    }
+    annotationDraftSaveTimerRef.current = window.setTimeout(() => {
+      annotationDraftSaveTimerRef.current = undefined;
+      const pendingDraft = pendingAnnotationDraftRef.current;
+      pendingAnnotationDraftRef.current = undefined;
+      if (pendingDraft) onAnnotationDraftChange(pendingDraft);
+    }, 120);
+  }
+
+  function flushAnnotationDraft(): void {
+    if (annotationDraftSaveTimerRef.current !== undefined) {
+      window.clearTimeout(annotationDraftSaveTimerRef.current);
+      annotationDraftSaveTimerRef.current = undefined;
+    }
+    const pendingDraft = pendingAnnotationDraftRef.current;
+    pendingAnnotationDraftRef.current = undefined;
+    if (pendingDraft) onAnnotationDraftChange(pendingDraft);
+    onAnnotationDraftFlush();
+  }
 
   useEffect(() => {
     if (!isAnnotationDragging) return;
@@ -178,6 +223,7 @@ export function ContextToolbar({
       {visibleActiveTool ? (
         <ImageToolPopover
           annotationInstruction={annotationInstruction}
+          annotationDraft={annotationDraftForBlock(selectedBlock)}
           executionRoute={executionRoute}
           adjustForm={adjustForm}
           imageUrl={selectedImageUrl}
@@ -190,12 +236,19 @@ export function ContextToolbar({
             transform: `translate(calc(-50% + ${annotationOffset.x}px), ${annotationOffset.y}px)`,
           }}
           onAnnotationInstructionChange={setAnnotationInstruction}
+          onAnnotationDraftChange={queueAnnotationDraftChange}
           onAnnotationPanelPointerDown={beginAnnotationDrag}
-          onClose={() => setActiveTool(null)}
+          onClose={() => {
+            flushAnnotationDraft();
+            setActiveTool(null);
+          }}
           onAdjustFormChange={setAdjustForm}
           onCreateLocalEdit={onCreateLocalEdit}
           onCreateSimilar={() => onCreateSimilar({ route: executionRoute })}
-          onRunAnnotationEdit={(input) => onRunAnnotationEdit({ ...input, route: executionRoute })}
+          onRunAnnotationEdit={(input) => {
+            flushAnnotationDraft();
+            onRunAnnotationEdit({ ...input, route: executionRoute });
+          }}
           onQuickEditInstructionChange={setQuickEditInstruction}
           onRunQuickEdit={() => onRunQuickEdit({ instruction: quickEditInstruction, route: executionRoute })}
         />
@@ -206,6 +259,7 @@ export function ContextToolbar({
 
 function ImageToolPopover({
   annotationInstruction,
+  annotationDraft,
   executionRoute,
   adjustForm,
   imageUrl,
@@ -216,6 +270,7 @@ function ImageToolPopover({
   tool,
   annotationPopoverStyle,
   onAnnotationInstructionChange,
+  onAnnotationDraftChange,
   onAnnotationPanelPointerDown,
   onClose,
   onAdjustFormChange,
@@ -226,6 +281,7 @@ function ImageToolPopover({
   onRunQuickEdit,
 }: {
   annotationInstruction: string;
+  annotationDraft?: AnnotationDraft;
   executionRoute: ExecutionRoute;
   adjustForm: LocalImageAdjustments;
   imageUrl?: string;
@@ -236,6 +292,7 @@ function ImageToolPopover({
   tool: ImageTool;
   annotationPopoverStyle?: CSSProperties;
   onAnnotationInstructionChange: (instruction: string) => void;
+  onAnnotationDraftChange: (draft: AnnotationDraftContent) => void;
   onAnnotationPanelPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onClose: () => void;
   onAdjustFormChange: (form: LocalImageAdjustments) => void;
@@ -299,12 +356,14 @@ function ImageToolPopover({
           </div>
           <ImageAnnotationEditor
             imageUrl={imageUrl}
+            initialDraft={annotationDraft}
             instruction={annotationInstruction}
             placeholder={t('context.annotationNotePlaceholder')}
             runLabel={t('context.run')}
             title={t('context.annotateEdit')}
             unavailableLabel={t('context.annotationSourceMissing')}
             onInstructionChange={onAnnotationInstructionChange}
+            onDraftChange={onAnnotationDraftChange}
             onRun={onRunAnnotationEdit}
           />
         </div>
@@ -374,6 +433,14 @@ function ImageToolPopover({
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
+}
+
+function annotationDraftForBlock(block: BlockRecord | undefined): AnnotationDraft | undefined {
+  if (!block || block.type !== 'image') return undefined;
+  const sourceAssetId = typeof block.data.assetId === 'string' ? block.data.assetId : undefined;
+  return annotationDraftMatches(block.data.annotationDraft, sourceAssetId)
+    ? block.data.annotationDraft
+    : undefined;
 }
 
 function RangeControl({

@@ -26,6 +26,7 @@ export function attachImportedImageAsset(
     assetId: input.asset.assetId,
     previewUrl: input.asset.previewUrl,
   };
+  delete block.data.annotationDraft;
   block.size = fitImageBlockSize(input.asset.width, input.asset.height);
   block.updatedAt = input.updatedAt;
 

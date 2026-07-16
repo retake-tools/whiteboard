@@ -32,11 +32,14 @@ import {
 import {
   annotationColorName,
   annotationColorOptions,
+  annotationManifestFromDraft,
   annotationMarksMissingIntent,
   compileAnnotationInstruction,
   hasExecutableAnnotationIntent,
   nextAnnotationMarkId,
   type AnnotationColor,
+  type AnnotationDraft,
+  type AnnotationDraftContent,
   type AnnotationManifest,
   type AnnotationMark as CoreAnnotationMark,
   type AnnotationMarkKind,
@@ -61,12 +64,14 @@ export interface AnnotationComposite {
 
 interface ImageAnnotationEditorProps {
   imageUrl?: string;
+  initialDraft?: AnnotationDraft;
   instruction: string;
   placeholder: string;
   runLabel: string;
   title: string;
   unavailableLabel: string;
   onInstructionChange: (instruction: string) => void;
+  onDraftChange: (draft: AnnotationDraftContent) => void;
   onRun: (input: {
     instruction: string;
     manifest: AnnotationManifest;
@@ -117,11 +122,13 @@ const endpointHandleRadiusBySize = {
 
 export function ImageAnnotationEditor({
   imageUrl,
+  initialDraft,
   instruction,
   placeholder,
   runLabel,
   title,
   unavailableLabel,
+  onDraftChange,
   onInstructionChange,
   onRun,
 }: ImageAnnotationEditorProps): ReactElement {
@@ -134,7 +141,7 @@ export function ImageAnnotationEditor({
   const [selectedMarkId, setSelectedMarkId] = useState<string | null>(null);
   const [editingTextMarkId, setEditingTextMarkId] = useState<string | null>(null);
   const [dragTarget, setDragTarget] = useState<DragTarget>(null);
-  const [marks, setMarks] = useState<AnnotationMark[]>([]);
+  const [marks, setMarks] = useState<AnnotationMark[]>(() => structuredClone(initialDraft?.marks ?? []));
   const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
   const [historyRevision, setHistoryRevision] = useState(0);
   const [strokeSize, setStrokeSize] = useState<StrokeSize>('m');
@@ -146,9 +153,11 @@ export function ImageAnnotationEditor({
     past: [],
     future: [],
   });
+  const onDraftChangeRef = useRef(onDraftChange);
+  onDraftChangeRef.current = onDraftChange;
 
   useEffect(() => {
-    setMarks([]);
+    setMarks(structuredClone(initialDraft?.marks ?? []));
     setSelectedMarkId(null);
     setEditingTextMarkId(null);
     setDragTarget(null);
@@ -159,6 +168,14 @@ export function ImageAnnotationEditor({
     historyRef.current = { past: [], future: [] };
     setHistoryRevision((revision) => revision + 1);
   }, [imageUrl]);
+
+  useLayoutEffect(() => {
+    onDraftChangeRef.current({
+      schemaVersion: 1,
+      globalInstruction: instruction,
+      marks: structuredClone(marks),
+    });
+  }, [instruction, marks]);
 
   useEffect(() => {
     function preventBrowserHistorySwipe(event: globalThis.WheelEvent): void {
@@ -567,13 +584,15 @@ export function ImageAnnotationEditor({
     setEditingTextMarkId((current) => (current === markId ? null : current));
   }
 
-  function clearMarks(): void {
-    if (marks.length === 0) return;
-    if (!window.confirm(t('context.clearMarksConfirm'))) return;
-    recordHistory();
+  function clearAnnotationDraft(): void {
+    if (marks.length === 0 && !instruction.trim()) return;
+    if (!window.confirm(t('context.clearAnnotationDraftConfirm'))) return;
     setMarks([]);
+    onInstructionChange('');
     setSelectedMarkId(null);
     setEditingTextMarkId(null);
+    historyRef.current = { past: [], future: [] };
+    setHistoryRevision((revision) => revision + 1);
   }
 
   function handleStageWheel(event: WheelEvent<HTMLDivElement>): void {
@@ -623,8 +642,9 @@ export function ImageAnnotationEditor({
 
   async function runAnnotationEdit(): Promise<void> {
     if (!imageUrl) return;
+    const manifestSnapshot = annotationManifestFromDraft(manifest);
     const composite = await createAnnotatedComposite(imageUrl, marks);
-    onRun({ instruction: compiledInstruction, manifest, composite });
+    onRun({ instruction: compiledInstruction, manifest: manifestSnapshot, composite });
   }
 
   return (
@@ -670,7 +690,7 @@ export function ImageAnnotationEditor({
           <ToolButton disabled={!canRedo} label={t('context.redoAnnotation')} onClick={redoMarks}>
             <Redo2 size={15} />
           </ToolButton>
-          <ToolButton label={t('context.clearMarks')} onClick={clearMarks}>
+          <ToolButton label={t('context.clearAnnotationDraft')} onClick={clearAnnotationDraft}>
             <RotateCcw size={15} />
           </ToolButton>
         </div>
