@@ -568,60 +568,6 @@ button {
   background: #f8fafc;
 }
 
-.annotation-quick-color {
-  position: relative;
-  display: grid;
-  place-items: center;
-  padding-bottom: 5px;
-  border-bottom: 1px solid #d8dee8;
-}
-
-.annotation-current-color {
-  position: relative;
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border: 1px solid #cbd5e1;
-  border-radius: 7px;
-  background: #ffffff;
-  color: #344054;
-  cursor: pointer;
-}
-
-.annotation-current-color::after {
-  position: absolute;
-  right: 3px;
-  bottom: 3px;
-  width: 9px;
-  height: 9px;
-  border: 1.5px solid #ffffff;
-  border-radius: 999px;
-  background: var(--annotation-color);
-  box-shadow: 0 0 0 1px rgb(15 23 42 / 24%);
-  content: '';
-}
-
-.annotation-color-picker {
-  position: absolute;
-  top: 0;
-  left: calc(100% + 9px);
-  z-index: 12;
-  display: grid;
-  grid-template-columns: repeat(5, 22px);
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid #d8dee8;
-  border-radius: 9px;
-  background: rgb(255 255 255 / 98%);
-  box-shadow: 0 12px 28px rgb(15 23 42 / 18%);
-}
-
-.annotation-color-picker .annotation-swatch {
-  width: 20px;
-  height: 20px;
-}
-
 .annotation-tool-strip .tooltipped-button {
   display: grid;
   place-items: center;
@@ -773,10 +719,17 @@ button {
     drop-shadow(0 0 4px rgb(37 99 235 / 92%));
 }
 
+.annotation-marker-selection-outline {
+  fill: none;
+  stroke: #2563eb;
+  stroke-linejoin: round;
+  stroke-width: 0.01;
+}
+
 .annotation-selection-ring {
   fill: none;
   stroke: #2563eb;
-  stroke-width: 0.004;
+  stroke-width: 0.006;
 }
 
 .annotation-line-hitbox {
@@ -959,6 +912,16 @@ button {
   border: 1px solid #bfdbfe;
   border-radius: 8px;
   background: #eff6ff;
+}
+
+.annotation-selected-color-control.is-disabled {
+  border-color: #d8dee8;
+  background: #f8fafc;
+}
+
+.annotation-selected-color-control.is-disabled .annotation-swatch {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .annotation-intent-heading strong {

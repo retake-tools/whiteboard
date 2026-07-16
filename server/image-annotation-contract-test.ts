@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
   annotationColorOptions,
   annotationMarksMissingIntent,
@@ -16,6 +17,15 @@ assert.deepEqual(
   ['red', 'yellow', 'green', 'blue', 'purple'],
 );
 assert.equal(new Set(annotationColorOptions.map((option) => option.value)).size, 5);
+
+const editorSource = await readFile('src/components/ImageAnnotationEditor.tsx', 'utf8');
+assert.doesNotMatch(
+  editorSource,
+  /annotation-current-color/,
+  'annotation colors should only be edited from the selected-mark controls',
+);
+assert.match(editorSource, /fixedShapeYScale={renderMetrics\.displayWidth \/ renderMetrics\.displayHeight}/);
+assert.match(editorSource, /disabled={!selectedMark}/);
 
 const manifest: AnnotationManifest = {
   schemaVersion: 1,

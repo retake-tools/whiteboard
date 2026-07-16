@@ -48,7 +48,6 @@ type TranslationKey =
   | 'context.annotationNoteMode'
   | 'context.clearMarks'
   | 'context.clearMarksConfirm'
-  | 'context.colorPalette'
   | 'context.close'
   | 'context.contrast'
   | 'context.createSimilar'
@@ -70,7 +69,6 @@ type TranslationKey =
   | 'context.markColor'
   | 'context.markIntents'
   | 'context.markIntentPlaceholder'
-  | 'context.newMarkColor'
   | 'context.markerTool'
   | 'context.missingMarkIntent'
   | 'context.more'
@@ -448,7 +446,6 @@ const translations: Record<Locale, Translations> = {
     'context.annotationNoteMode': 'Annotation note',
     'context.clearMarks': 'Clear all marks',
     'context.clearMarksConfirm': 'Clear all annotations? This cannot be undone except by annotation undo.',
-    'context.colorPalette': 'Annotation color palette',
     'context.close': 'Close',
     'context.contrast': 'Contrast',
     'context.createSimilar': 'Create similar',
@@ -470,7 +467,6 @@ const translations: Record<Locale, Translations> = {
     'context.markColor': 'Color',
     'context.markIntents': 'Mark instructions',
     'context.markIntentPlaceholder': 'Describe what should change here...',
-    'context.newMarkColor': 'New mark color',
     'context.markerTool': 'Numbered marker',
     'context.missingMarkIntent': 'Add instructions for',
     'context.more': 'More',
@@ -843,7 +839,6 @@ const translations: Record<Locale, Translations> = {
     'context.annotationNoteMode': '仅作批注',
     'context.clearMarks': '清空所有标注',
     'context.clearMarksConfirm': '确定要清空所有标注吗？清空后只能通过标注撤销恢复。',
-    'context.colorPalette': '标注调色板',
     'context.close': '关闭',
     'context.contrast': '对比度',
     'context.createSimilar': '生成同款',
@@ -865,7 +860,6 @@ const translations: Record<Locale, Translations> = {
     'context.markColor': '颜色',
     'context.markIntents': '标记说明',
     'context.markIntentPlaceholder': '说明这里要怎么改...',
-    'context.newMarkColor': '新标记颜色',
     'context.markerTool': '编号标记',
     'context.missingMarkIntent': '请补充这些标记的说明',
     'context.more': '更多',
