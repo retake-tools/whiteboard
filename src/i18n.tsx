@@ -70,6 +70,7 @@ type TranslationKey =
   | 'context.markColor'
   | 'context.markIntents'
   | 'context.markIntentPlaceholder'
+  | 'context.newMarkColor'
   | 'context.markerTool'
   | 'context.missingMarkIntent'
   | 'context.more'
@@ -83,7 +84,6 @@ type TranslationKey =
   | 'context.referenceImages'
   | 'context.referenceImagesEmpty'
   | 'context.redoAnnotation'
-  | 'context.recentColors'
   | 'context.rectangleTool'
   | 'context.removeReferenceImage'
   | 'context.resolution'
@@ -95,6 +95,8 @@ type TranslationKey =
   | 'context.run'
   | 'context.saturation'
   | 'context.selectMarkTool'
+  | 'context.selectedMark'
+  | 'context.selectedMarkColor'
   | 'context.selectedTools'
   | 'context.strokeSize'
   | 'context.textMarkTool'
@@ -468,6 +470,7 @@ const translations: Record<Locale, Translations> = {
     'context.markColor': 'Color',
     'context.markIntents': 'Mark instructions',
     'context.markIntentPlaceholder': 'Describe what should change here...',
+    'context.newMarkColor': 'New mark color',
     'context.markerTool': 'Numbered marker',
     'context.missingMarkIntent': 'Add instructions for',
     'context.more': 'More',
@@ -481,7 +484,6 @@ const translations: Record<Locale, Translations> = {
     'context.referenceImages': 'Reference images',
     'context.referenceImagesEmpty': 'No reference images',
     'context.redoAnnotation': 'Redo annotation',
-    'context.recentColors': 'Recent colors',
     'context.rectangleTool': 'Rectangle',
     'context.removeReferenceImage': 'Remove',
     'context.resolution': 'Quality',
@@ -493,6 +495,8 @@ const translations: Record<Locale, Translations> = {
     'context.run': 'Run',
     'context.saturation': 'Saturation',
     'context.selectMarkTool': 'Select mark',
+    'context.selectedMark': 'Selected',
+    'context.selectedMarkColor': 'Selected mark color',
     'context.selectedTools': 'Selected block tools',
     'context.strokeSize': 'Stroke',
     'context.textMarkTool': 'Text note',
@@ -861,6 +865,7 @@ const translations: Record<Locale, Translations> = {
     'context.markColor': '颜色',
     'context.markIntents': '标记说明',
     'context.markIntentPlaceholder': '说明这里要怎么改...',
+    'context.newMarkColor': '新标记颜色',
     'context.markerTool': '编号标记',
     'context.missingMarkIntent': '请补充这些标记的说明',
     'context.more': '更多',
@@ -874,7 +879,6 @@ const translations: Record<Locale, Translations> = {
     'context.referenceImages': '参考图 / 风格图',
     'context.referenceImagesEmpty': '未添加参考图',
     'context.redoAnnotation': '重做标注',
-    'context.recentColors': '最近颜色',
     'context.rectangleTool': '矩形',
     'context.removeReferenceImage': '移除',
     'context.resolution': '画质',
@@ -886,6 +890,8 @@ const translations: Record<Locale, Translations> = {
     'context.run': '执行',
     'context.saturation': '饱和度',
     'context.selectMarkTool': '选择标注',
+    'context.selectedMark': '已选中',
+    'context.selectedMarkColor': '所选标记颜色',
     'context.selectedTools': '选中块工具',
     'context.strokeSize': '线宽',
     'context.textMarkTool': '文字标注',

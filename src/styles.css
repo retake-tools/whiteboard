@@ -565,7 +565,6 @@ button {
   position: relative;
   display: grid;
   place-items: center;
-  gap: 4px;
   padding-bottom: 5px;
   border-bottom: 1px solid #d8dee8;
 }
@@ -614,21 +613,6 @@ button {
 .annotation-color-picker .annotation-swatch {
   width: 20px;
   height: 20px;
-}
-
-.annotation-recent-colors {
-  display: flex;
-  gap: 4px;
-}
-
-.annotation-recent-colors button {
-  width: 10px;
-  height: 10px;
-  padding: 0;
-  border: 1px solid #ffffff;
-  border-radius: 999px;
-  box-shadow: 0 0 0 1px #cbd5e1;
-  cursor: pointer;
 }
 
 .annotation-tool-strip .tooltipped-button {
@@ -761,7 +745,9 @@ button {
 }
 
 .annotation-svg-mark.is-selected {
-  filter: none;
+  filter:
+    drop-shadow(0 0 1px #ffffff)
+    drop-shadow(0 0 4px rgb(37 99 235 / 92%));
 }
 
 .annotation-id-badge {
@@ -771,6 +757,19 @@ button {
 
 .annotation-location-pin {
   filter: drop-shadow(0 1px 2px rgb(15 23 42 / 30%));
+}
+
+.annotation-location-pin.is-selected,
+.annotation-id-badge.is-selected {
+  filter:
+    drop-shadow(0 0 1px #ffffff)
+    drop-shadow(0 0 4px rgb(37 99 235 / 92%));
+}
+
+.annotation-selection-ring {
+  fill: none;
+  stroke: #2563eb;
+  stroke-width: 0.004;
 }
 
 .annotation-line-hitbox {
@@ -918,13 +917,15 @@ button {
 }
 
 .annotation-intent-card.is-selected {
-  border-color: var(--retake-accent-border);
-  box-shadow: 0 0 0 2px var(--retake-accent-soft);
+  border-color: #60a5fa;
+  border-left-width: 3px;
+  background: #eff6ff;
+  box-shadow: 0 0 0 2px rgb(37 99 235 / 12%);
 }
 
 .annotation-intent-heading {
   display: grid;
-  grid-template-columns: 10px auto minmax(0, 1fr);
+  grid-template-columns: 10px auto minmax(0, 1fr) auto;
   gap: 6px;
   align-items: center;
   width: 100%;
@@ -935,6 +936,22 @@ button {
   cursor: pointer;
   font-size: 10px;
   text-align: left;
+}
+
+.annotation-intent-selected-label {
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 9px;
+  font-weight: 760;
+}
+
+.annotation-selected-color-control {
+  padding: 7px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
 }
 
 .annotation-intent-heading strong {

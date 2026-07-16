@@ -135,9 +135,8 @@ export function ImageAnnotationEditor({
   const [editingTextMarkId, setEditingTextMarkId] = useState<string | null>(null);
   const [dragTarget, setDragTarget] = useState<DragTarget>(null);
   const [marks, setMarks] = useState<AnnotationMark[]>([]);
-  const [color, setColor] = useState<MarkColor>('#dc2626');
+  const [drawColor, setDrawColor] = useState<MarkColor>('#dc2626');
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
-  const [recentColors, setRecentColors] = useState<MarkColor[]>(['#dc2626', '#2563eb']);
   const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
   const [historyRevision, setHistoryRevision] = useState(0);
   const [strokeSize, setStrokeSize] = useState<StrokeSize>('m');
@@ -354,7 +353,7 @@ export function ImageAnnotationEditor({
       return;
     }
 
-    const mark = createMark(activeTool, point, color, strokeSize, marks);
+    const mark = createMark(activeTool, point, drawColor, strokeSize, marks);
     if (!mark) return;
 
     recordHistory();
@@ -372,7 +371,7 @@ export function ImageAnnotationEditor({
 
     const point = mouseStagePoint(event, activeMetrics);
     if (!point) return;
-    const mark = createMark('text', point, color, strokeSize, marks);
+    const mark = createMark('text', point, drawColor, strokeSize, marks);
     if (!mark) return;
 
     recordHistory();
@@ -468,13 +467,11 @@ export function ImageAnnotationEditor({
   }
 
   function selectActiveColor(nextColor: MarkColor): void {
-    setColor(nextColor);
-    setRecentColors((current) => [nextColor, ...current.filter((candidate) => candidate !== nextColor)].slice(0, 2));
+    setDrawColor(nextColor);
     setColorPickerOpen(false);
   }
 
   function updateSelectedMarkColor(nextColor: MarkColor): void {
-    selectActiveColor(nextColor);
     if (!selectedMarkId) return;
     recordHistory();
     setMarks((current) =>
@@ -546,7 +543,6 @@ export function ImageAnnotationEditor({
     setSelectedMarkId(markId);
     setEditingTextMarkId(options.editing && mark?.kind === 'text' ? markId : null);
     if (!mark) return;
-    setColor(mark.color);
     setStrokeSize(mark.strokeSize);
   }
 
@@ -652,8 +648,9 @@ export function ImageAnnotationEditor({
             <button
               type="button"
               className="annotation-current-color"
-              style={{ '--annotation-color': color } as CSSProperties}
-              aria-label={`${t('context.markColor')}: ${annotationColorName(color)}`}
+              style={{ '--annotation-color': drawColor } as CSSProperties}
+              aria-label={`${t('context.newMarkColor')}: ${annotationColorName(drawColor)}`}
+              title={`${t('context.newMarkColor')}: ${annotationColorName(drawColor)}`}
               aria-expanded={colorPickerOpen}
               onClick={() => setColorPickerOpen((current) => !current)}
             >
@@ -665,7 +662,7 @@ export function ImageAnnotationEditor({
                   <button
                     key={option.value}
                     type="button"
-                    className={`annotation-swatch${color === option.value ? ' is-active' : ''}`}
+                    className={`annotation-swatch${drawColor === option.value ? ' is-active' : ''}`}
                     style={{ background: option.value }}
                     aria-label={option.name}
                     title={`${option.name} · ${option.value}`}
@@ -674,17 +671,6 @@ export function ImageAnnotationEditor({
                 ))}
               </div>
             ) : null}
-            <div className="annotation-recent-colors" aria-label={t('context.recentColors')}>
-              {recentColors.map((recentColor) => (
-                <button
-                  key={recentColor}
-                  type="button"
-                  style={{ background: recentColor }}
-                  aria-label={annotationColorName(recentColor)}
-                  onClick={() => selectActiveColor(recentColor)}
-                />
-              ))}
-            </div>
           </div>
           <ToolButton active={activeTool === 'select'} label={t('context.selectMarkTool')} onClick={() => setActiveTool('select')}>
             <MousePointer2 size={15} />
@@ -789,7 +775,11 @@ export function ImageAnnotationEditor({
                   />
                 ))}
                 {marks.map((mark) => (
-                  <AnnotationIdBadge key={`badge-${mark.id}`} mark={mark} />
+                  <AnnotationIdBadge
+                    key={`badge-${mark.id}`}
+                    mark={mark}
+                    selected={mark.id === selectedMarkId}
+                  />
                 ))}
               </svg>
             ) : null}
@@ -842,22 +832,24 @@ export function ImageAnnotationEditor({
         </div>
 
         <div className="annotation-side-panel">
-          <div className="annotation-control-group">
-            <span>{t('context.markColor')}</span>
-            <div className="annotation-swatch-row">
-              {colorOptions.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={`annotation-swatch${color === option ? ' is-active' : ''}`}
-                  style={{ background: option }}
-                  aria-label={annotationColorName(option)}
-                  title={`${annotationColorName(option)} · ${option}`}
-                  onClick={() => updateSelectedMarkColor(option)}
-                />
-              ))}
+          {selectedMark ? (
+            <div className="annotation-control-group annotation-selected-color-control">
+              <span>{selectedMark.id} · {t('context.selectedMarkColor')}</span>
+              <div className="annotation-swatch-row">
+                {colorOptions.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className={`annotation-swatch${selectedMark.color === option ? ' is-active' : ''}`}
+                    style={{ background: option }}
+                    aria-label={annotationColorName(option)}
+                    title={`${annotationColorName(option)} · ${option}`}
+                    onClick={() => updateSelectedMarkColor(option)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
+          ) : null}
           <div className="annotation-control-group">
             <span>{t('context.strokeSize')}</span>
             <div className="annotation-size-row">
@@ -882,6 +874,7 @@ export function ImageAnnotationEditor({
                     key={`intent-${mark.id}`}
                     className={`annotation-intent-card${selectedMarkId === mark.id ? ' is-selected' : ''}`}
                     onPointerDown={(event) => event.stopPropagation()}
+                    aria-current={selectedMarkId === mark.id ? 'true' : undefined}
                   >
                     <button
                       type="button"
@@ -891,6 +884,9 @@ export function ImageAnnotationEditor({
                       <span className="annotation-intent-color" style={{ background: mark.color }} />
                       <strong>{mark.id}</strong>
                       <span>{markKindLabel(mark.kind)}</span>
+                      {selectedMarkId === mark.id ? (
+                        <span className="annotation-intent-selected-label">{t('context.selectedMark')}</span>
+                      ) : null}
                     </button>
                     <input
                       data-mark-id={mark.id}
@@ -1112,11 +1108,22 @@ function AnnotationSvgMark({
   return null;
 }
 
-function AnnotationIdBadge({ mark }: { mark: AnnotationMark }): ReactElement | null {
+function AnnotationIdBadge({ mark, selected }: { mark: AnnotationMark; selected: boolean }): ReactElement | null {
   if (mark.kind === 'marker') return null;
   const anchor = annotationMarkAnchor(mark);
   return (
-    <g className="annotation-id-badge" transform={`translate(${anchor.x} ${anchor.y})`}>
+    <g
+      className={`annotation-id-badge${selected ? ' is-selected' : ''}`}
+      transform={`translate(${anchor.x} ${anchor.y})`}
+    >
+      {selected ? (
+        <circle
+          className="annotation-selection-ring"
+          cx={0}
+          cy={0}
+          r={0.029}
+        />
+      ) : null}
       <circle
         cx={0}
         cy={0}
