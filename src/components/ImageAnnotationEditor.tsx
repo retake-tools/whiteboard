@@ -95,6 +95,10 @@ type DragTarget =
 interface ImageDisplayMetrics {
   naturalWidth: number;
   naturalHeight: number;
+  stageLeft: number;
+  stageTop: number;
+  stageRight: number;
+  stageBottom: number;
   displayLeft: number;
   displayTop: number;
   displayWidth: number;
@@ -114,11 +118,11 @@ const strokeBySize = {
 } satisfies Record<StrokeSize, number>;
 
 const endpointHandleRadiusBySize = {
-  xs: 0.009,
-  s: 0.011,
-  m: 0.013,
-  l: 0.016,
-  xl: 0.019,
+  xs: 0.0065,
+  s: 0.0075,
+  m: 0.0085,
+  l: 0.01,
+  xl: 0.012,
 } satisfies Record<StrokeSize, number>;
 
 export function ImageAnnotationEditor({
@@ -173,12 +177,13 @@ export function ImageAnnotationEditor({
   }, [imageUrl]);
 
   useLayoutEffect(() => {
+    if (dragTarget) return;
     onDraftChangeRef.current({
       schemaVersion: 1,
       globalInstruction: instruction,
       marks: structuredClone(marks),
     });
-  }, [instruction, marks]);
+  }, [dragTarget, instruction, marks]);
 
   useEffect(() => {
     function preventBrowserHistorySwipe(event: globalThis.WheelEvent): void {
@@ -272,7 +277,7 @@ export function ImageAnnotationEditor({
   const canRun = Boolean(
     imageUrl && hasExecutableAnnotationIntent(manifest) && missingIntentIds.length === 0,
   );
-  const baseMetrics = readImageDisplayMetrics(stageRef.current, imageRef.current) ?? metrics;
+  const baseMetrics = metrics;
   const renderMetrics = baseMetrics ? transformImageDisplayMetrics(baseMetrics, viewZoom, viewPan) : null;
 
   useEffect(() => {
@@ -297,8 +302,7 @@ export function ImageAnnotationEditor({
   }, [editingTextMarkId, selectedMarkId, marks]);
 
   function currentMetrics(): ImageDisplayMetrics | null {
-    const currentBaseMetrics = readImageDisplayMetrics(stageRef.current, imageRef.current) ?? metrics;
-    return currentBaseMetrics ? transformImageDisplayMetrics(currentBaseMetrics, viewZoom, viewPan) : null;
+    return metrics ? transformImageDisplayMetrics(metrics, viewZoom, viewPan) : null;
   }
 
   function stagePoint(event: PointerEvent): Point | null {
@@ -626,7 +630,7 @@ export function ImageAnnotationEditor({
   }
 
   function zoomImageView(clientX: number, clientY: number, requestedZoom: number): void {
-    const currentBaseMetrics = readImageDisplayMetrics(stageRef.current, imageRef.current) ?? metrics;
+    const currentBaseMetrics = metrics;
     if (!currentBaseMetrics) return;
 
     const nextZoom = clamp(requestedZoom, 1, 5);
@@ -641,13 +645,13 @@ export function ImageAnnotationEditor({
     };
 
     setViewZoom(nextZoom);
-    setViewPan(clampImageViewPan(currentBaseMetrics, nextZoom, nextPan, stageRef.current));
+    setViewPan(clampImageViewPan(currentBaseMetrics, nextZoom, nextPan));
   }
 
   function panImageView(dx: number, dy: number): void {
-    const currentBaseMetrics = readImageDisplayMetrics(stageRef.current, imageRef.current) ?? metrics;
+    const currentBaseMetrics = metrics;
     if (!currentBaseMetrics || viewZoom <= 1) return;
-    setViewPan((current) => clampImageViewPan(currentBaseMetrics, viewZoom, { x: current.x + dx, y: current.y + dy }, stageRef.current));
+    setViewPan((current) => clampImageViewPan(currentBaseMetrics, viewZoom, { x: current.x + dx, y: current.y + dy }));
   }
 
   function resetImageView(): void {
@@ -723,7 +727,7 @@ export function ImageAnnotationEditor({
         <div ref={stageAreaRef} className="annotation-stage-column">
           <div
             ref={stageRef}
-            className={`annotation-stage nodrag nopan nowheel is-${activeTool}-tool${dragTarget?.type === 'pan' ? ' is-panning' : ''}${viewZoom > 1 ? ' is-zoomed' : ''}`}
+            className={`annotation-stage nodrag nopan nowheel is-${activeTool}-tool${dragTarget?.type === 'pan' ? ' is-panning' : ''}${dragTarget?.type === 'move' ? ' is-moving-mark' : ''}${dragTarget?.type === 'endpoint' ? ' is-resizing-mark' : ''}${viewZoom > 1 ? ' is-zoomed' : ''}`}
             style={annotationStageStyle(imageAspectRatio, stageSize)}
             onPointerDown={handleStagePointerDown}
             onPointerMove={handleStagePointerMove}
@@ -742,7 +746,7 @@ export function ImageAnnotationEditor({
                 src={imageUrl}
                 alt={title}
                 draggable={false}
-                style={renderMetrics ? overlayStyle(renderMetrics, stageRef.current) : undefined}
+                style={renderMetrics ? overlayStyle(renderMetrics) : undefined}
                 onDragStart={(event) => event.preventDefault()}
                 onLoad={() => {
                   const image = imageRef.current;
@@ -758,7 +762,7 @@ export function ImageAnnotationEditor({
             {imageUrl && renderMetrics ? (
               <svg
                 className="annotation-overlay nodrag nopan nowheel"
-                style={overlayStyle(renderMetrics, stageRef.current)}
+                style={overlayStyle(renderMetrics)}
                 viewBox="0 0 1 1"
                 preserveAspectRatio="none"
                 aria-hidden="true"
@@ -815,7 +819,7 @@ export function ImageAnnotationEditor({
                       className={`annotation-label-input nodrag nopan${mark.id === selectedMarkId || mark.id === hoveredMarkId ? ' is-selected' : ''}${mark.id === editingTextMarkId ? ' is-editing' : ''}`}
                       placeholder={placeholder}
                       readOnly={editingTextMarkId !== mark.id}
-                      style={labelStyle(mark, renderMetrics, stageRef.current)}
+                      style={labelStyle(mark, renderMetrics)}
                       value={mark.text}
                       onChange={(event) => updateTextMark(mark.id, { text: event.target.value })}
                       onDoubleClick={(event) => editTextMark(event, mark.id)}
@@ -839,11 +843,11 @@ export function ImageAnnotationEditor({
               : null}
             {imageUrl ? (
               <div className="annotation-zoom-controls nowheel" onPointerDown={stopCanvasGesture} onWheel={stopWheelGesture} onWheelCapture={stopWheelGesture}>
-                <TooltipIconButton label={t('toolbar.zoomOut')} onClick={() => zoomImageView(stageCenterX(stageRef.current), stageCenterY(stageRef.current), viewZoom / 1.2)}>
+                <TooltipIconButton label={t('toolbar.zoomOut')} onClick={() => zoomImageView(metricsStageCenterX(metrics), metricsStageCenterY(metrics), viewZoom / 1.2)}>
                   <ZoomOut size={14} />
                 </TooltipIconButton>
                 <span>{Math.round(viewZoom * 100)}%</span>
-                <TooltipIconButton label={t('toolbar.zoomIn')} onClick={() => zoomImageView(stageCenterX(stageRef.current), stageCenterY(stageRef.current), viewZoom * 1.2)}>
+                <TooltipIconButton label={t('toolbar.zoomIn')} onClick={() => zoomImageView(metricsStageCenterX(metrics), metricsStageCenterY(metrics), viewZoom * 1.2)}>
                   <ZoomIn size={14} />
                 </TooltipIconButton>
                 <TooltipIconButton label={t('toolbar.fitView')} onClick={resetImageView}>
@@ -1116,19 +1120,28 @@ function AnnotationSvgMark({
     const bounds = normalizedBounds(mark.start, mark.end);
     if (mark.kind === 'ellipse') {
       return (
-        <ellipse
-          className={className}
-          data-annotation-mark-id={mark.id}
-          cx={bounds.x + bounds.width / 2}
-          cy={bounds.y + bounds.height / 2}
-          rx={bounds.width / 2}
-          ry={bounds.height / 2}
-          fill="transparent"
-          stroke={mark.color}
-          strokeWidth={screenStrokeWidth}
-          vectorEffect="non-scaling-stroke"
-          onPointerDown={onPointerDown}
-        />
+        <g className={className} data-annotation-mark-id={mark.id} onPointerDown={onPointerDown}>
+          <ellipse
+            cx={bounds.x + bounds.width / 2}
+            cy={bounds.y + bounds.height / 2}
+            rx={bounds.width / 2}
+            ry={bounds.height / 2}
+            fill="none"
+            stroke={mark.color}
+            strokeWidth={screenStrokeWidth}
+            pointerEvents="stroke"
+            vectorEffect="non-scaling-stroke"
+          />
+          <ellipse
+            className="annotation-shape-hitbox"
+            cx={bounds.x + bounds.width / 2}
+            cy={bounds.y + bounds.height / 2}
+            rx={bounds.width / 2}
+            ry={bounds.height / 2}
+            fill="none"
+            vectorEffect="non-scaling-stroke"
+          />
+        </g>
       );
     }
 
@@ -1146,9 +1159,19 @@ function AnnotationSvgMark({
           y={bounds.y}
           width={bounds.width}
           height={bounds.height}
-          fill="transparent"
+          fill="none"
           stroke={mark.color}
           strokeWidth={screenStrokeWidth}
+          pointerEvents="stroke"
+          vectorEffect="non-scaling-stroke"
+        />
+        <rect
+          className="annotation-shape-hitbox"
+          x={bounds.x}
+          y={bounds.y}
+          width={bounds.width}
+          height={bounds.height}
+          fill="none"
           vectorEffect="non-scaling-stroke"
         />
         {selected ? corners.map((corner) => (
@@ -1225,10 +1248,11 @@ function AnnotationQuickDelete({
   mark: AnnotationMark;
   onPointerDown: (event: PointerEvent) => void;
 }): ReactElement {
-  const topRight = annotationMarkTopRight(mark);
+  const badgeCenter = annotationMarkBadgeCenter(mark);
+  const radius = 0.014;
   const anchor = {
-    x: clamp(topRight.x + 0.024, 0.024, 0.976),
-    y: clamp(topRight.y - 0.024 * fixedShapeYScale, 0.024 * fixedShapeYScale, 1 - 0.024 * fixedShapeYScale),
+    x: clamp(badgeCenter.x - 0.018, radius, 1 - radius),
+    y: clamp(badgeCenter.y - 0.018 * fixedShapeYScale, radius * fixedShapeYScale, 1 - radius * fixedShapeYScale),
   };
   return (
     <g
@@ -1239,12 +1263,12 @@ function AnnotationQuickDelete({
       <ellipse
         cx={anchor.x}
         cy={anchor.y}
-        rx={0.019}
-        ry={0.019 * fixedShapeYScale}
+        rx={radius}
+        ry={radius * fixedShapeYScale}
       />
       <line
-        x1={anchor.x - 0.008}
-        x2={anchor.x + 0.008}
+        x1={anchor.x - 0.006}
+        x2={anchor.x + 0.006}
         y1={anchor.y}
         y2={anchor.y}
       />
@@ -1309,7 +1333,8 @@ function hitTestMark(marks: AnnotationMark[], point: Point): AnnotationMark | un
     }
     if (mark.kind === 'arrow') return distanceToSegment(point, mark.start, mark.end) < 0.04;
     const bounds = normalizedBounds(mark.start, mark.end);
-    return point.x >= bounds.x && point.x <= bounds.x + bounds.width && point.y >= bounds.y && point.y <= bounds.y + bounds.height;
+    if (mark.kind === 'rect') return distanceToRectBorder(point, bounds) < 0.04;
+    return distanceToEllipseBorder(point, bounds) < 0.04;
   });
 }
 
@@ -1318,23 +1343,14 @@ function eventTargetMarkId(target: EventTarget): string | null {
   return target.closest('[data-annotation-mark-id]')?.getAttribute('data-annotation-mark-id') ?? null;
 }
 
-function annotationMarkTopRight(mark: AnnotationMark): Point {
-  if (mark.kind === 'marker') return { x: mark.point.x + 0.027, y: mark.point.y - 0.047 };
-  if (mark.kind === 'text') return { x: mark.point.x + 0.22, y: mark.point.y };
-  if (mark.kind === 'pen' || mark.kind === 'brush') {
-    return mark.points.reduce(
-      (anchor, point) => ({ x: Math.max(anchor.x, point.x), y: Math.min(anchor.y, point.y) }),
-      { x: mark.points[0]?.x ?? 0, y: mark.points[0]?.y ?? 0 },
-    );
-  }
-  const bounds = normalizedBounds(mark.start, mark.end);
-  return { x: bounds.x + bounds.width, y: bounds.y };
+function annotationMarkBadgeCenter(mark: AnnotationMark): Point {
+  if (mark.kind === 'marker') return { x: mark.point.x, y: mark.point.y - 0.04 };
+  return annotationMarkAnchor(mark);
 }
 
-function labelStyle(mark: TextAnnotationMark, metrics: ImageDisplayMetrics, stage: HTMLDivElement | null): CSSProperties {
-  const stageRect = stage?.getBoundingClientRect();
-  const originLeft = stageRect ? metrics.displayLeft - stageRect.left : 0;
-  const originTop = stageRect ? metrics.displayTop - stageRect.top : 0;
+function labelStyle(mark: TextAnnotationMark, metrics: ImageDisplayMetrics): CSSProperties {
+  const originLeft = metrics.displayLeft - metrics.stageLeft;
+  const originTop = metrics.displayTop - metrics.stageTop;
   const fontSize = clamp(metrics.displayWidth / 37.5, 13, 30);
   const maxWidth = Math.max(140, metrics.displayWidth * 0.62);
   const minWidth = Math.min(210, maxWidth);
@@ -1348,11 +1364,10 @@ function labelStyle(mark: TextAnnotationMark, metrics: ImageDisplayMetrics, stag
   };
 }
 
-function overlayStyle(metrics: ImageDisplayMetrics, stage: HTMLDivElement | null): CSSProperties {
-  const stageRect = stage?.getBoundingClientRect();
+function overlayStyle(metrics: ImageDisplayMetrics): CSSProperties {
   return {
-    left: stageRect ? metrics.displayLeft - stageRect.left : 0,
-    top: stageRect ? metrics.displayTop - stageRect.top : 0,
+    left: metrics.displayLeft - metrics.stageLeft,
+    top: metrics.displayTop - metrics.stageTop,
     width: metrics.displayWidth,
     height: metrics.displayHeight,
   };
@@ -1595,6 +1610,10 @@ function readImageDisplayMetrics(
   return {
     naturalWidth: image.naturalWidth,
     naturalHeight: image.naturalHeight,
+    stageLeft: stageRect.left,
+    stageTop: stageRect.top,
+    stageRight: stageRect.right,
+    stageBottom: stageRect.bottom,
     displayLeft: stageRect.left + (stageRect.width - displayWidth) / 2,
     displayTop: stageRect.top + (stageRect.height - displayHeight) / 2,
     displayWidth,
@@ -1616,23 +1635,14 @@ function transformImageDisplayMetrics(
   };
 }
 
-function clampImageViewPan(metrics: ImageDisplayMetrics, zoom: number, pan: Point, stage: HTMLDivElement | null): Point {
+function clampImageViewPan(metrics: ImageDisplayMetrics, zoom: number, pan: Point): Point {
   if (zoom <= 1) return { x: 0, y: 0 };
 
-  const stageRect = stage?.getBoundingClientRect();
-  const bounds = stageRect
-    ? { left: stageRect.left, right: stageRect.right, top: stageRect.top, bottom: stageRect.bottom }
-    : {
-        left: metrics.displayLeft,
-        right: metrics.displayLeft + metrics.displayWidth,
-        top: metrics.displayTop,
-        bottom: metrics.displayTop + metrics.displayHeight,
-      };
   const width = metrics.displayWidth * zoom;
   const height = metrics.displayHeight * zoom;
   return {
-    x: clampAxisPan(pan.x, bounds.left, bounds.right, metrics.displayLeft, width),
-    y: clampAxisPan(pan.y, bounds.top, bounds.bottom, metrics.displayTop, height),
+    x: clampAxisPan(pan.x, metrics.stageLeft, metrics.stageRight, metrics.displayLeft, width),
+    y: clampAxisPan(pan.y, metrics.stageTop, metrics.stageBottom, metrics.displayTop, height),
   };
 }
 
@@ -1650,14 +1660,12 @@ function mouseStagePoint(event: MouseEvent, metrics: ImageDisplayMetrics): Point
   return { x, y };
 }
 
-function stageCenterX(stage: HTMLDivElement | null): number {
-  const rect = stage?.getBoundingClientRect();
-  return rect ? rect.left + rect.width / 2 : 0;
+function metricsStageCenterX(metrics: ImageDisplayMetrics | null): number {
+  return metrics ? (metrics.stageLeft + metrics.stageRight) / 2 : 0;
 }
 
-function stageCenterY(stage: HTMLDivElement | null): number {
-  const rect = stage?.getBoundingClientRect();
-  return rect ? rect.top + rect.height / 2 : 0;
+function metricsStageCenterY(metrics: ImageDisplayMetrics | null): number {
+  return metrics ? (metrics.stageTop + metrics.stageBottom) / 2 : 0;
 }
 
 function stopCanvasGesture(
@@ -1739,6 +1747,34 @@ function distanceToSegment(point: Point, start: Point, end: Point): number {
     x: start.x + t * (end.x - start.x),
     y: start.y + t * (end.y - start.y),
   });
+}
+
+function distanceToRectBorder(
+  point: Point,
+  bounds: { x: number; y: number; width: number; height: number },
+): number {
+  const topLeft = { x: bounds.x, y: bounds.y };
+  const topRight = { x: bounds.x + bounds.width, y: bounds.y };
+  const bottomLeft = { x: bounds.x, y: bounds.y + bounds.height };
+  const bottomRight = { x: bounds.x + bounds.width, y: bounds.y + bounds.height };
+  return Math.min(
+    distanceToSegment(point, topLeft, topRight),
+    distanceToSegment(point, topRight, bottomRight),
+    distanceToSegment(point, bottomRight, bottomLeft),
+    distanceToSegment(point, bottomLeft, topLeft),
+  );
+}
+
+function distanceToEllipseBorder(
+  point: Point,
+  bounds: { x: number; y: number; width: number; height: number },
+): number {
+  const radiusX = Math.max(bounds.width / 2, Number.EPSILON);
+  const radiusY = Math.max(bounds.height / 2, Number.EPSILON);
+  const centerX = bounds.x + radiusX;
+  const centerY = bounds.y + radiusY;
+  const normalizedRadius = Math.hypot((point.x - centerX) / radiusX, (point.y - centerY) / radiusY);
+  return Math.abs(normalizedRadius - 1) * Math.min(radiusX, radiusY);
 }
 
 function clamp(value: number, min: number, max: number): number {

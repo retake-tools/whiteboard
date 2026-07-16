@@ -618,6 +618,16 @@ button {
   cursor: grabbing;
 }
 
+.annotation-stage.is-moving-mark,
+.annotation-stage.is-moving-mark * {
+  cursor: move !important;
+}
+
+.annotation-stage.is-resizing-mark,
+.annotation-stage.is-resizing-mark * {
+  cursor: pointer !important;
+}
+
 .annotation-stage.is-arrow-tool,
 .annotation-stage.is-marker-tool,
 .annotation-stage.is-pen-tool,
@@ -697,6 +707,7 @@ button {
   pointer-events: visiblePainted;
 }
 
+.annotation-svg-mark:hover,
 .annotation-svg-mark.is-selected {
   filter:
     drop-shadow(0 0 1px #ffffff)
@@ -737,6 +748,13 @@ button {
   pointer-events: stroke;
   stroke: transparent;
   stroke-linecap: round;
+  stroke-width: 12;
+}
+
+.annotation-shape-hitbox {
+  cursor: move;
+  pointer-events: stroke;
+  stroke: transparent;
   stroke-width: 12;
 }
 
