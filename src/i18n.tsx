@@ -109,6 +109,8 @@ type TranslationKey =
   | 'feedback.configurationRestored'
   | 'feedback.configurationRestoreMissingAssets'
   | 'feedback.configurationRestoreUnavailable'
+  | 'feedback.annotationDraftRestored'
+  | 'feedback.annotationDraftRestoreUnavailable'
   | 'feedback.copyPrompt'
   | 'feedback.promptTitle'
   | 'feedback.taskCreated'
@@ -130,6 +132,7 @@ type TranslationKey =
   | 'history.empty'
   | 'history.assetImported'
   | 'history.assetReplaced'
+  | 'history.annotationDraftRestored'
   | 'history.configurationRestored'
   | 'history.execution'
   | 'history.executionFailed'
@@ -196,6 +199,13 @@ type TranslationKey =
   | 'language.chinese'
   | 'inspector.adapter'
   | 'inspector.annotatedComposite'
+  | 'inspector.annotationDraftRestoreConfirm'
+  | 'inspector.annotationGlobalInstruction'
+  | 'inspector.annotationManifest'
+  | 'inspector.annotationManifestRaw'
+  | 'inspector.annotationMarks'
+  | 'inspector.annotationSourceChanged'
+  | 'inspector.annotationSourceMissing'
   | 'inspector.annotationText'
   | 'inspector.capability'
   | 'inspector.close'
@@ -219,6 +229,7 @@ type TranslationKey =
   | 'inspector.previousPreview'
   | 'inspector.prompt'
   | 'inspector.restoreConfiguration'
+  | 'inspector.restoreAnnotationDraft'
   | 'inspector.skill'
   | 'inspector.source'
   | 'inspector.status'
@@ -507,6 +518,8 @@ const translations: Record<Locale, Translations> = {
     'feedback.configurationRestored': 'Version configuration restored',
     'feedback.configurationRestoreMissingAssets': 'Missing assets:',
     'feedback.configurationRestoreUnavailable': 'This version cannot be restored',
+    'feedback.annotationDraftRestored': 'Annotation draft restored',
+    'feedback.annotationDraftRestoreUnavailable': 'This annotation draft cannot be restored',
     'feedback.copyPrompt': 'Copy prompt',
     'feedback.promptTitle': 'Codex prompt',
     'feedback.taskCreated': 'Codex operation created',
@@ -528,6 +541,7 @@ const translations: Record<Locale, Translations> = {
     'history.empty': 'No history yet',
     'history.assetImported': 'Asset imported',
     'history.assetReplaced': 'Image replaced',
+    'history.annotationDraftRestored': 'Annotation draft restored',
     'history.configurationRestored': 'Version configuration restored',
     'history.execution': 'Execution',
     'history.executionFailed': 'Execution failed',
@@ -594,6 +608,13 @@ const translations: Record<Locale, Translations> = {
     'language.chinese': '中文',
     'inspector.adapter': 'Adapter',
     'inspector.annotatedComposite': 'Annotated brief',
+    'inspector.annotationDraftRestoreConfirm': 'Replace the current annotation draft with this historical version?',
+    'inspector.annotationGlobalInstruction': 'Global instruction',
+    'inspector.annotationManifest': 'Annotation Manifest',
+    'inspector.annotationManifestRaw': 'View raw Manifest',
+    'inspector.annotationMarks': 'Marks',
+    'inspector.annotationSourceChanged': 'The source image has changed, so these coordinates cannot be restored safely.',
+    'inspector.annotationSourceMissing': 'The original source image block is no longer available.',
     'inspector.annotationText': 'Annotation notes',
     'inspector.capability': 'Capability',
     'inspector.close': 'Close inspector',
@@ -617,6 +638,7 @@ const translations: Record<Locale, Translations> = {
     'inspector.previousPreview': 'Previous image',
     'inspector.prompt': 'Prompt',
     'inspector.restoreConfiguration': 'Restore this version',
+    'inspector.restoreAnnotationDraft': 'Copy to annotation draft',
     'inspector.skill': 'Skill',
     'inspector.source': 'Source',
     'inspector.status': 'Status',
@@ -900,6 +922,8 @@ const translations: Record<Locale, Translations> = {
     'feedback.configurationRestored': '已恢复此版本配置',
     'feedback.configurationRestoreMissingAssets': '缺少素材：',
     'feedback.configurationRestoreUnavailable': '无法恢复此版本',
+    'feedback.annotationDraftRestored': '已恢复标注草稿',
+    'feedback.annotationDraftRestoreUnavailable': '无法恢复这份标注草稿',
     'feedback.copyPrompt': '复制提示',
     'feedback.promptTitle': 'Codex 提示',
     'feedback.taskCreated': '已创建 Codex 操作',
@@ -921,6 +945,7 @@ const translations: Record<Locale, Translations> = {
     'history.empty': '暂无历史记录',
     'history.assetImported': '素材已导入',
     'history.assetReplaced': '图片已替换',
+    'history.annotationDraftRestored': '已恢复标注草稿',
     'history.configurationRestored': '已恢复版本配置',
     'history.execution': '执行',
     'history.executionFailed': '执行失败',
@@ -987,6 +1012,13 @@ const translations: Record<Locale, Translations> = {
     'language.chinese': '中文',
     'inspector.adapter': '适配器',
     'inspector.annotatedComposite': '标注输入',
+    'inspector.annotationDraftRestoreConfirm': '用这个历史版本覆盖当前标注草稿吗？',
+    'inspector.annotationGlobalInstruction': '全局说明',
+    'inspector.annotationManifest': '标注 Manifest',
+    'inspector.annotationManifestRaw': '查看原始 Manifest',
+    'inspector.annotationMarks': '标记',
+    'inspector.annotationSourceChanged': '源图片已经变化，无法安全恢复这组坐标。',
+    'inspector.annotationSourceMissing': '原始源图片块已经不存在。',
     'inspector.annotationText': '标注文字',
     'inspector.capability': '能力',
     'inspector.close': '关闭执行记录',
@@ -1010,6 +1042,7 @@ const translations: Record<Locale, Translations> = {
     'inspector.previousPreview': '上一张图片',
     'inspector.prompt': '提示',
     'inspector.restoreConfiguration': '恢复此版本配置',
+    'inspector.restoreAnnotationDraft': '复制到标注草稿',
     'inspector.skill': '技能',
     'inspector.source': '来源',
     'inspector.status': '状态',

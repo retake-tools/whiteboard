@@ -252,12 +252,114 @@
 
 .execution-inspector-assets,
 .execution-inspector-image-comparison,
+.execution-annotation-manifest,
 .execution-inspector-annotation-text,
 .execution-inspector-prompt,
 .execution-detail-content {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.execution-annotation-manifest {
+  gap: 8px;
+}
+
+.execution-annotation-manifest h3,
+.execution-annotation-manifest p {
+  margin: 0;
+}
+
+.execution-annotation-manifest dl {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+}
+
+.execution-annotation-manifest dl > div {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.45fr) minmax(0, 1fr);
+  gap: 8px;
+  font-size: 10px;
+}
+
+.execution-annotation-manifest dt {
+  color: var(--retake-text-subtle);
+}
+
+.execution-annotation-manifest dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--retake-text);
+  overflow-wrap: anywhere;
+}
+
+.execution-annotation-manifest ol {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.execution-annotation-manifest li {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr);
+  gap: 3px 7px;
+  padding: 7px 8px;
+  border: 1px solid var(--retake-border);
+  border-radius: 6px;
+  background: var(--retake-surface-subtle);
+}
+
+.execution-annotation-color {
+  width: 9px;
+  height: 9px;
+  margin-top: 2px;
+  border: 1px solid rgb(15 23 42 / 18%);
+  border-radius: 50%;
+}
+
+.execution-annotation-manifest li strong {
+  color: var(--retake-text);
+  font-size: 10px;
+}
+
+.execution-annotation-manifest li p {
+  grid-column: 2;
+  color: var(--retake-text-subtle);
+  font-size: 10px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.execution-annotation-manifest details {
+  color: var(--retake-text-subtle);
+  font-size: 10px;
+}
+
+.execution-annotation-manifest summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.execution-annotation-manifest pre {
+  max-height: 220px;
+  margin: 7px 0 0;
+  padding: 8px;
+  overflow: auto;
+  border: 1px solid var(--retake-border);
+  border-radius: 6px;
+  background: var(--retake-surface-subtle);
+  color: var(--retake-text);
+  font: 9px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+.execution-annotation-manifest .execution-annotation-warning {
+  color: #b42318;
+  font-size: 10px;
+  line-height: 1.4;
 }
 
 .execution-configuration-changes {

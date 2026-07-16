@@ -209,6 +209,7 @@ export type BoardHistoryEventType =
   | 'asset_imported'
   | 'asset_replaced'
   | 'configuration_restored'
+  | 'annotation_draft_restored'
   | 'execution_started'
   | 'execution_succeeded'
   | 'execution_failed'

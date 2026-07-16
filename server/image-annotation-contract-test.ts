@@ -14,6 +14,10 @@ import {
   type AnnotationManifest,
 } from '../src/core/imageAnnotations';
 import { addImageCodexOperation } from '../src/core/imageOperations';
+import {
+  annotationDraftRestoreContext,
+  restoreExecutionAnnotationDraft,
+} from '../src/core/restoreAnnotationDraft';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import type { AssetRecord, BlockRecord } from '../src/core/types';
 
@@ -26,6 +30,8 @@ assert.equal(new Set(annotationColorOptions.map((option) => option.value)).size,
 const editorSource = await readFile('src/components/ImageAnnotationEditor.tsx', 'utf8');
 const appSource = await readFile('src/App.tsx', 'utf8');
 const toolbarSource = await readFile('src/components/ContextToolbar.tsx', 'utf8');
+const executionDetailSource = await readFile('src/components/ExecutionDetailContent.tsx', 'utf8');
+const historyPanelSource = await readFile('src/components/BoardHistoryPanel.tsx', 'utf8');
 assert.doesNotMatch(
   editorSource,
   /annotation-current-color/,
@@ -38,6 +44,9 @@ assert.match(editorSource, /onInstructionChange\(''\)/);
 assert.match(appSource, /function updateAnnotationDraft/);
 assert.match(appSource, /scheduleAnnotationDraftPersist\(\)/);
 assert.match(toolbarSource, /initialDraft={annotationDraft}/);
+assert.match(executionDetailSource, /function AnnotationManifestDetail/);
+assert.match(executionDetailSource, /inspector\.restoreAnnotationDraft/);
+assert.match(historyPanelSource, /onRestoreAnnotationDraft/);
 
 const manifest: AnnotationManifest = {
   schemaVersion: 1,
@@ -162,6 +171,31 @@ sourceBlock.data.annotationDraft!.marks[0].intent = 'Continue editing after exec
 assert.notEqual(
   sourceBlock.data.annotationDraft!.marks[0].intent,
   (operation.execution.params?.annotationManifest as AnnotationManifest).marks[0].intent,
+);
+
+const restoreContext = annotationDraftRestoreContext(snapshot, operation.execution);
+assert.equal(restoreContext.state, 'available');
+assert.equal(restoreContext.sourceBlock?.blockId, sourceBlock.blockId);
+const legacyManifestSnapshot = structuredClone(snapshot);
+delete legacyManifestSnapshot.executions[0].params!.annotationManifest;
+assert.equal(
+  annotationDraftRestoreContext(legacyManifestSnapshot, legacyManifestSnapshot.executions[0]).state,
+  'available',
+);
+const restoreSnapshot = structuredClone(snapshot);
+const restored = restoreExecutionAnnotationDraft(restoreSnapshot, operation.execution.executionId);
+assert.equal(restored.restored, true);
+assert.deepEqual(restored.sourceBlock?.data.annotationDraft?.marks, persistedManifest.marks);
+assert.equal(restoreSnapshot.historyEvents?.[0]?.type, 'annotation_draft_restored');
+restored.sourceBlock!.data.annotationDraft!.marks[0].intent = 'Draft remains independently editable.';
+assert.notEqual(
+  restored.sourceBlock!.data.annotationDraft!.marks[0].intent,
+  (restoreSnapshot.executions[0].params?.annotationManifest as AnnotationManifest).marks[0].intent,
+);
+restored.sourceBlock!.data.assetId = 'asset_replaced_after_execution';
+assert.equal(
+  annotationDraftRestoreContext(restoreSnapshot, restoreSnapshot.executions[0]).state,
+  'source_replaced',
 );
 
 console.log({

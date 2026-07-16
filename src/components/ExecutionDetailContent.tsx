@@ -23,6 +23,11 @@ import type {
   ExecutionRecord,
 } from '../core/types';
 import { useI18n } from '../i18n';
+import type { AnnotationManifest, AnnotationMarkKind } from '../core/imageAnnotations';
+import {
+  annotationDraftRestoreContext,
+  type AnnotationDraftRestoreState,
+} from '../core/restoreAnnotationDraft';
 import { TooltipIconButton } from './Tooltip';
 
 export type ExecutionDetailCopySource = 'execution_inspector' | 'group_inspector' | 'history_panel';
@@ -30,6 +35,8 @@ export type ExecutionDetailCopySource = 'execution_inspector' | 'group_inspector
 export interface ExecutionDetailContext {
   activity: ExecutionActivityItem[];
   annotatedCompositeAsset?: AssetRecord;
+  annotationDraftRestoreState?: AnnotationDraftRestoreState;
+  annotationManifest?: AnnotationManifest;
   annotationText?: string;
   execution: ExecutionRecord;
   inputImages: Array<{ asset: AssetRecord; inputRole?: ExecutionInputRole }>;
@@ -58,6 +65,7 @@ interface ExecutionDetailContentProps {
   copyKey: string;
   copySource: ExecutionDetailCopySource;
   onSelectAsset?: (asset: AssetRecord) => void;
+  onRestoreAnnotationDraft?: () => void;
   onRestoreConfiguration?: () => void;
   onCopyPrompt: (input: {
     blockIds?: string[];
@@ -85,6 +93,7 @@ export function ExecutionDetailContent({
   copyKey,
   copySource,
   onSelectAsset,
+  onRestoreAnnotationDraft,
   onRestoreConfiguration,
   onCopyPrompt,
 }: ExecutionDetailContentProps): ReactElement {
@@ -92,6 +101,8 @@ export function ExecutionDetailContent({
   const [previewImage, setPreviewImage] = useState<PreviewImage | undefined>();
   const {
     annotatedCompositeAsset,
+    annotationDraftRestoreState,
+    annotationManifest,
     activity,
     annotationText,
     currentDraftChanges,
@@ -190,6 +201,13 @@ export function ExecutionDetailContent({
         title={t('inspector.imageComparison')}
       />
       <AnnotationText emptyLabel={t('inspector.none')} text={annotationText} title={t('inspector.annotationText')} />
+      {annotationManifest ? (
+        <AnnotationManifestDetail
+          manifest={annotationManifest}
+          onRestore={onRestoreAnnotationDraft}
+          restoreState={annotationDraftRestoreState}
+        />
+      ) : null}
       <AssetList
         assets={outputAssets}
         emptyLabel={t('inspector.none')}
@@ -312,10 +330,13 @@ function createExecutionDetailContext(
     operationBlock && latestExecution?.executionId === execution.executionId
       ? configurationChanges(executionConfiguration(execution), currentOperationConfiguration(snapshot, operationBlock))
       : [];
+  const annotationRestore = annotationDraftRestoreContext(snapshot, execution);
 
   return {
     activity: executionActivity(snapshot, execution),
     annotatedCompositeAsset: snapshot.assets.find((asset) => asset.assetId === annotatedCompositeAssetId),
+    annotationDraftRestoreState: annotationRestore.state,
+    annotationManifest: annotationRestore.manifest,
     annotationText,
     execution,
     inputImages,
@@ -329,6 +350,72 @@ function createExecutionDetailContext(
     executionChanges,
     executionVersion: executionVersionFor(snapshot, execution),
   };
+}
+
+function AnnotationManifestDetail({
+  manifest,
+  onRestore,
+  restoreState,
+}: {
+  manifest: AnnotationManifest;
+  onRestore?: () => void;
+  restoreState?: AnnotationDraftRestoreState;
+}): ReactElement {
+  const { t } = useI18n();
+  const restoreUnavailable = restoreState !== 'available';
+  return (
+    <section className="execution-annotation-manifest">
+      <h3>{t('inspector.annotationManifest')}</h3>
+      <dl>
+        <div>
+          <dt>{t('inspector.annotationGlobalInstruction')}</dt>
+          <dd>{manifest.globalInstruction || t('inspector.none')}</dd>
+        </div>
+        <div>
+          <dt>{t('inspector.annotationMarks')}</dt>
+          <dd>{manifest.marks.length}</dd>
+        </div>
+      </dl>
+      {manifest.marks.length ? (
+        <ol>
+          {manifest.marks.map((mark) => (
+            <li key={mark.id}>
+              <span className="execution-annotation-color" style={{ backgroundColor: mark.color }} aria-hidden="true" />
+              <strong>{mark.id} · {t(annotationMarkLabelKey(mark.kind))}</strong>
+              <p>{mark.intent || (mark.kind === 'text' ? mark.text : t('inspector.none'))}</p>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+      <details>
+        <summary>{t('inspector.annotationManifestRaw')}</summary>
+        <pre>{JSON.stringify(manifest, null, 2)}</pre>
+      </details>
+      {restoreState === 'source_replaced' ? <p className="execution-annotation-warning">{t('inspector.annotationSourceChanged')}</p> : null}
+      {restoreState === 'source_missing' ? <p className="execution-annotation-warning">{t('inspector.annotationSourceMissing')}</p> : null}
+      {onRestore ? (
+        <button
+          type="button"
+          className="execution-restore-configuration"
+          disabled={restoreUnavailable}
+          onClick={onRestore}
+        >
+          <RotateCcw size={14} />
+          <span>{t('inspector.restoreAnnotationDraft')}</span>
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+function annotationMarkLabelKey(kind: AnnotationMarkKind) {
+  if (kind === 'marker') return 'context.markerTool' as const;
+  if (kind === 'arrow') return 'context.arrowTool' as const;
+  if (kind === 'pen') return 'context.penTool' as const;
+  if (kind === 'brush') return 'context.regionBrushTool' as const;
+  if (kind === 'rect') return 'context.rectangleTool' as const;
+  if (kind === 'ellipse') return 'context.ellipseTool' as const;
+  return 'context.textMarkTool' as const;
 }
 
 function executionActivity(snapshot: BoardSnapshot, execution: ExecutionRecord): ExecutionActivityItem[] {

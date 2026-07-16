@@ -371,10 +371,47 @@ const historyMarkup = renderToStaticMarkup(
       onClose={() => undefined}
       onCopyPrompt={() => undefined}
       onLocateBlock={() => undefined}
+      onRestoreAnnotationDraft={() => undefined}
     />
   </I18nProvider>,
 );
 assert.match(historyMarkup, /V2 · Prompt \+ Params/);
+
+const annotationManifestMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <ExecutionDetailContent
+      context={{
+        activity: [],
+        annotationDraftRestoreState: 'available',
+        annotationManifest: {
+          schemaVersion: 1,
+          globalInstruction: 'Preserve the background.',
+          marks: [{
+            id: 'M1',
+            kind: 'marker',
+            color: '#dc2626',
+            strokeSize: 'm',
+            intent: 'Replace the hat.',
+            point: { x: 0.5, y: 0.5 },
+          }],
+        },
+        currentDraftChanges: [],
+        execution: historySnapshot.executions[0],
+        executionChanges: [],
+        inputImages: [],
+        outputAssets: [],
+        sourceAssets: [],
+      }}
+      copyKey="annotation-manifest-render"
+      copySource="history_panel"
+      onCopyPrompt={() => undefined}
+      onRestoreAnnotationDraft={() => undefined}
+    />
+  </I18nProvider>,
+);
+assert.match(annotationManifestMarkup, /Annotation Manifest/);
+assert.match(annotationManifestMarkup, /M1 · Numbered marker/);
+assert.match(annotationManifestMarkup, /Copy to annotation draft/);
 
 const replaceableImageBlock: BlockRecord = {
   ...group,
@@ -391,6 +428,8 @@ const replaceableToolbarMarkup = renderToStaticMarkup(
       onCreateLocalEdit={() => undefined}
       onCreateSimilar={() => undefined}
       onDownloadImage={() => undefined}
+      onAnnotationDraftChange={() => undefined}
+      onAnnotationDraftFlush={() => undefined}
       onReplaceImage={() => undefined}
       onRunAnnotationEdit={() => undefined}
       onRunQuickEdit={() => undefined}
@@ -413,6 +452,8 @@ const resultToolbarMarkup = renderToStaticMarkup(
       onCreateLocalEdit={() => undefined}
       onCreateSimilar={() => undefined}
       onDownloadImage={() => undefined}
+      onAnnotationDraftChange={() => undefined}
+      onAnnotationDraftFlush={() => undefined}
       onReplaceImage={() => undefined}
       onRunAnnotationEdit={() => undefined}
       onRunQuickEdit={() => undefined}

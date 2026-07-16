@@ -31,6 +31,7 @@ interface BoardHistoryPanelProps {
   onClose: () => void;
   onCopyPrompt: (input: CopyPromptInput) => void | Promise<void>;
   onLocateBlock: (blockId: string) => void;
+  onRestoreAnnotationDraft: (executionId: string) => void;
 }
 
 interface HistoryEntry {
@@ -51,6 +52,7 @@ export function BoardHistoryPanel({
   onClose,
   onCopyPrompt,
   onLocateBlock,
+  onRestoreAnnotationDraft,
   snapshot,
 }: BoardHistoryPanelProps): ReactElement {
   const { locale, t } = useI18n();
@@ -146,6 +148,11 @@ export function BoardHistoryPanel({
                       copyKey={copyKey}
                       copySource="history_panel"
                       onCopyPrompt={onCopyPrompt}
+                      onRestoreAnnotationDraft={
+                        detailContext.annotationManifest
+                          ? () => onRestoreAnnotationDraft(detailContext.execution.executionId)
+                          : undefined
+                      }
                     />
                   </div>
                 ) : null}
@@ -216,6 +223,7 @@ function historyTitle(
   if (event.type === 'operation_created' && execution) return titleForExecution(execution, t);
   if (event.type === 'asset_imported') return t('history.assetImported');
   if (event.type === 'asset_replaced') return t('history.assetReplaced');
+  if (event.type === 'annotation_draft_restored') return t('history.annotationDraftRestored');
   if (event.type === 'configuration_restored') return t('history.configurationRestored');
   if (event.type === 'execution_started') return t('history.executionStarted');
   if (event.type === 'execution_succeeded') return t('history.executionSucceeded');

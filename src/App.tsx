@@ -112,6 +112,10 @@ import { arraysEqual, numberedDefaultName } from './core/listUtils';
 import { createImageResultRetryPrompt } from './core/prompts';
 import { loadUiPreferences, saveUiPreferences } from './core/uiPreferences';
 import { restoreExecutionConfiguration } from './core/restoreExecutionConfiguration';
+import {
+  annotationDraftRestoreContext,
+  restoreExecutionAnnotationDraft,
+} from './core/restoreAnnotationDraft';
 import { dismissPopoversEvent } from './hooks/useDismissiblePopover';
 import { useI18n } from './i18n';
 import type {
@@ -2280,6 +2284,55 @@ export function App(): ReactElement {
     });
   }
 
+  function restoreAnnotationDraftVersion(executionId: string): void {
+    const execution = snapshotRef.current.executions.find(
+      (candidate) => candidate.executionId === executionId,
+    );
+    const restoreContext = execution
+      ? annotationDraftRestoreContext(snapshotRef.current, execution)
+      : undefined;
+    if (
+      !restoreContext ||
+      restoreContext.state !== 'available' ||
+      !restoreContext.sourceBlock ||
+      !restoreContext.manifest
+    ) {
+      setOperationToast({
+        id: `annotation-draft-restore:${executionId}`,
+        title: t('feedback.annotationDraftRestoreUnavailable'),
+        body: restoreContext?.state === 'source_replaced'
+          ? t('inspector.annotationSourceChanged')
+          : restoreContext?.state === 'source_missing'
+            ? t('inspector.annotationSourceMissing')
+            : undefined,
+        tone: 'error',
+      });
+      return;
+    }
+
+    const currentDraft = restoreContext.sourceBlock.data.annotationDraft;
+    if (
+      currentDraft &&
+      !annotationDraftContentEquals(currentDraft, restoreContext.manifest) &&
+      !window.confirm(t('inspector.annotationDraftRestoreConfirm'))
+    ) {
+      return;
+    }
+
+    const candidate = structuredClone(snapshotRef.current);
+    const result = restoreExecutionAnnotationDraft(candidate, executionId);
+    if (!result.restored || !result.sourceBlock) return;
+    const nextSnapshot = updateSnapshot(() => candidate, { persist: true, history: true });
+    setSelectedBlock(nextSnapshot, result.sourceBlock.blockId);
+    setIsHistoryOpen(false);
+    setOperationToast({
+      id: `annotation-draft-restored:${executionId}`,
+      title: t('feedback.annotationDraftRestored'),
+      body: result.sourceBlock.data.title,
+      tone: 'success',
+    });
+  }
+
   function setSelectedBlocks(
     nextSnapshot: BoardSnapshot,
     blockIds: string[],
@@ -2586,6 +2639,7 @@ export function App(): ReactElement {
           onClose={() => setIsHistoryOpen(false)}
           onCopyPrompt={copyPromptWithHistory}
           onLocateBlock={locateBlock}
+          onRestoreAnnotationDraft={restoreAnnotationDraftVersion}
         />
       ) : null}
 
