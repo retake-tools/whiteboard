@@ -107,7 +107,7 @@ export function ContextToolbar({
   const visibleActiveTool = selectedBlock?.type === 'image' && hasImageAsset ? activeTool : null;
 
   useDismissiblePopover({
-    active: Boolean(visibleActiveTool),
+    active: Boolean(visibleActiveTool && visibleActiveTool !== 'annotation-edit'),
     additionalRefs: [popoverRef],
     onDismiss: () => {
       setActiveTool(null);
@@ -286,23 +286,28 @@ function ImageToolPopover({
 
   if (tool === 'annotation-edit') {
     const annotationEditor = (
-      <div ref={popoverRef} className="context-popover annotation-popover" style={annotationPopoverStyle} aria-label={t('context.annotateEdit')}>
-        <div className="context-popover-header annotation-popover-header" onPointerDown={onAnnotationPanelPointerDown}>
-          <h2>{t('context.annotateEdit')}</h2>
-          <IconButton label={t('context.close')} onClick={onClose}>
-            <X size={16} />
-          </IconButton>
+      <div
+        className="annotation-modal-layer nodrag nopan nowheel"
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <div ref={popoverRef} className="context-popover annotation-popover" style={annotationPopoverStyle} aria-label={t('context.annotateEdit')}>
+          <div className="context-popover-header annotation-popover-header" onPointerDown={onAnnotationPanelPointerDown}>
+            <h2>{t('context.annotateEdit')}</h2>
+            <IconButton label={t('context.close')} onClick={onClose}>
+              <X size={16} />
+            </IconButton>
+          </div>
+          <ImageAnnotationEditor
+            imageUrl={imageUrl}
+            instruction={annotationInstruction}
+            placeholder={t('context.annotationNotePlaceholder')}
+            runLabel={t('context.run')}
+            title={t('context.annotateEdit')}
+            unavailableLabel={t('context.annotationSourceMissing')}
+            onInstructionChange={onAnnotationInstructionChange}
+            onRun={onRunAnnotationEdit}
+          />
         </div>
-        <ImageAnnotationEditor
-          imageUrl={imageUrl}
-          instruction={annotationInstruction}
-          placeholder={t('context.annotationNotePlaceholder')}
-          runLabel={t('context.run')}
-          title={t('context.annotateEdit')}
-          unavailableLabel={t('context.annotationSourceMissing')}
-          onInstructionChange={onAnnotationInstructionChange}
-          onRun={onRunAnnotationEdit}
-        />
       </div>
     );
     return createPortal(annotationEditor, document.body);

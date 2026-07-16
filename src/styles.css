@@ -518,11 +518,18 @@ button {
   overscroll-behavior: contain;
 }
 
+.annotation-modal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+  background: rgb(15 23 42 / 6%);
+}
+
 .annotation-popover {
   position: fixed;
   top: 48px;
   left: 50%;
-  z-index: 30;
+  z-index: 1;
   width: min(1220px, calc(100vw - 36px));
   max-width: min(1220px, calc(100vw - 36px));
   height: min(760px, calc(100vh - 96px));
