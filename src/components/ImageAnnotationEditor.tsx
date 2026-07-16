@@ -1,6 +1,9 @@
 import {
   ArrowUpRight,
   Circle,
+  MapPin,
+  Paintbrush,
+  Palette,
   Eraser,
   Maximize2,
   MousePointer2,
@@ -27,6 +30,21 @@ import {
   type ReactElement,
   type WheelEvent,
 } from 'react';
+import {
+  annotationColorName,
+  annotationColorOptions,
+  annotationMarksMissingIntent,
+  compileAnnotationInstruction,
+  hasExecutableAnnotationIntent,
+  nextAnnotationMarkId,
+  type AnnotationColor,
+  type AnnotationManifest,
+  type AnnotationMark as CoreAnnotationMark,
+  type AnnotationMarkKind,
+  type AnnotationPoint,
+  type AnnotationStrokeSize,
+  type TextAnnotationMark,
+} from '../core/imageAnnotations';
 import { useI18n } from '../i18n';
 import { TooltipIconButton } from './Tooltip';
 
@@ -36,6 +54,12 @@ export interface AnnotationComposite {
   height: number;
 }
 
+// This interaction surface predates the structured annotation model and still
+// contains cohesive pointer, zoom, SVG, and canvas-export plumbing. The next
+// split should move the SVG/canvas renderers and geometry helpers into focused
+// modules; the provider-neutral model and prompt compiler have already moved to
+// core/imageAnnotations.ts so execution semantics no longer grow in this file.
+
 interface ImageAnnotationEditorProps {
   imageUrl?: string;
   instruction: string;
@@ -44,79 +68,24 @@ interface ImageAnnotationEditorProps {
   title: string;
   unavailableLabel: string;
   onInstructionChange: (instruction: string) => void;
-  onRun: (input: { instruction: string; composite: AnnotationComposite }) => void;
+  onRun: (input: {
+    instruction: string;
+    manifest: AnnotationManifest;
+    composite: AnnotationComposite;
+  }) => void;
 }
 
-type AnnotationTool = 'select' | 'arrow' | 'pen' | 'rect' | 'ellipse' | 'text' | 'eraser';
-type MarkKind = 'arrow' | 'pen' | 'rect' | 'ellipse' | 'text';
-type StrokeSize = 'xs' | 's' | 'm' | 'l' | 'xl';
-
-const colorOptions = [
-  '#111827',
-  '#64748b',
-  '#dc2626',
-  '#f97316',
-  '#f59e0b',
-  '#eab308',
-  '#22c55e',
-  '#14b8a6',
-  '#06b6d4',
-  '#2563eb',
-  '#a855f7',
-  '#ec4899',
-] as const;
-
-type MarkColor = (typeof colorOptions)[number];
-
-interface BaseMark {
-  id: string;
-  kind: MarkKind;
-  color: MarkColor;
-  strokeSize: StrokeSize;
-}
-
-interface ArrowMark extends BaseMark {
-  kind: 'arrow';
-  start: Point;
-  end: Point;
-  text: string;
-}
-
-interface PenMark extends BaseMark {
-  kind: 'pen';
-  points: Point[];
-}
-
-interface RectMark extends BaseMark {
-  kind: 'rect';
-  start: Point;
-  end: Point;
-}
-
-interface EllipseMark extends BaseMark {
-  kind: 'ellipse';
-  start: Point;
-  end: Point;
-}
-
-interface TextMark extends BaseMark {
-  kind: 'text';
-  point: Point;
-  text: string;
-}
-
-type AnnotationMark = ArrowMark | PenMark | RectMark | EllipseMark | TextMark;
+type AnnotationTool = 'select' | AnnotationMarkKind | 'eraser';
+type AnnotationMark = CoreAnnotationMark;
+type MarkColor = AnnotationColor;
+type StrokeSize = AnnotationStrokeSize;
+type Point = AnnotationPoint;
 type DragTarget =
   | { type: 'draw'; markId: string }
   | { type: 'endpoint'; markId: string; endpoint: 'start' | 'end' }
   | { type: 'move'; markId: string; lastPoint: Point }
   | { type: 'pan'; lastClientPoint: Point }
   | null;
-
-interface Point {
-  x: number;
-  y: number;
-}
 
 interface ImageDisplayMetrics {
   naturalWidth: number;
@@ -128,6 +97,7 @@ interface ImageDisplayMetrics {
 }
 
 const strokeOptions: StrokeSize[] = ['xs', 's', 'm', 'l'];
+const colorOptions = annotationColorOptions.map((option) => option.value);
 
 const strokeBySize = {
   xs: 0.8,
@@ -156,6 +126,7 @@ export function ImageAnnotationEditor({
   onRun,
 }: ImageAnnotationEditorProps): ReactElement {
   const { t } = useI18n();
+  const editorRef = useRef<HTMLDivElement | null>(null);
   const stageAreaRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
@@ -165,6 +136,8 @@ export function ImageAnnotationEditor({
   const [dragTarget, setDragTarget] = useState<DragTarget>(null);
   const [marks, setMarks] = useState<AnnotationMark[]>([]);
   const [color, setColor] = useState<MarkColor>('#dc2626');
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const [recentColors, setRecentColors] = useState<MarkColor[]>(['#dc2626', '#2563eb']);
   const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
   const [historyRevision, setHistoryRevision] = useState(0);
   const [strokeSize, setStrokeSize] = useState<StrokeSize>('m');
@@ -202,8 +175,8 @@ export function ImageAnnotationEditor({
   }, []);
 
   useLayoutEffect(() => {
-    const selectedInput = stageRef.current?.querySelector<HTMLInputElement>(
-      `.annotation-label-input[data-mark-id="${selectedMarkId ?? ''}"]`,
+    const selectedInput = editorRef.current?.querySelector<HTMLInputElement>(
+      `.annotation-intent-input[data-mark-id="${selectedMarkId ?? ''}"]`,
     );
     if (selectedInput && selectedInput.value.length === 0) {
       selectedInput.focus();
@@ -269,7 +242,15 @@ export function ImageAnnotationEditor({
   );
   const canRedo = historyRevision >= 0 && historyRef.current.future.length > 0;
   const canUndo = historyRevision >= 0 && historyRef.current.past.length > 0;
-  const canRun = Boolean(imageUrl && (marks.length > 0 || instruction.trim()));
+  const manifest = useMemo<AnnotationManifest>(
+    () => ({ schemaVersion: 1, globalInstruction: instruction, marks }),
+    [instruction, marks],
+  );
+  const compiledInstruction = useMemo(() => compileAnnotationInstruction(manifest), [manifest]);
+  const missingIntentIds = useMemo(() => annotationMarksMissingIntent(manifest), [manifest]);
+  const canRun = Boolean(
+    imageUrl && hasExecutableAnnotationIntent(manifest) && missingIntentIds.length === 0,
+  );
   const baseMetrics = readImageDisplayMetrics(stageRef.current, imageRef.current) ?? metrics;
   const renderMetrics = baseMetrics ? transformImageDisplayMetrics(baseMetrics, viewZoom, viewPan) : null;
 
@@ -326,7 +307,6 @@ export function ImageAnnotationEditor({
     };
     setMarks(structuredClone(previous));
     setSelectedMarkId(null);
-    onInstructionChange(marksToInstruction(previous));
     setHistoryRevision((revision) => revision + 1);
   }
 
@@ -339,7 +319,6 @@ export function ImageAnnotationEditor({
     };
     setMarks(structuredClone(next));
     setSelectedMarkId(null);
-    onInstructionChange(marksToInstruction(next));
     setHistoryRevision((revision) => revision + 1);
   }
 
@@ -375,7 +354,7 @@ export function ImageAnnotationEditor({
       return;
     }
 
-    const mark = createMark(activeTool, point, color, strokeSize);
+    const mark = createMark(activeTool, point, color, strokeSize, marks);
     if (!mark) return;
 
     recordHistory();
@@ -393,7 +372,7 @@ export function ImageAnnotationEditor({
 
     const point = mouseStagePoint(event, activeMetrics);
     if (!point) return;
-    const mark = createMark('text', point, color, strokeSize);
+    const mark = createMark('text', point, color, strokeSize, marks);
     if (!mark) return;
 
     recordHistory();
@@ -449,7 +428,8 @@ export function ImageAnnotationEditor({
     setMarks((current) =>
       current.map((mark) => {
         if (mark.id !== markId) return mark;
-        if (mark.kind === 'pen') return { ...mark, points: [...mark.points, point] };
+        if (mark.kind === 'pen' || mark.kind === 'brush') return { ...mark, points: [...mark.points, point] };
+        if (mark.kind === 'marker') return mark;
         if (mark.kind === 'text') return mark;
         if (mark.kind === 'arrow' || mark.kind === 'rect' || mark.kind === 'ellipse') {
           return { ...mark, end: point };
@@ -477,18 +457,20 @@ export function ImageAnnotationEditor({
         return mark;
       }).filter((mark) => {
         if (mark.kind === 'text') return true;
-        if (mark.kind === 'pen') return mark.points.length >= 2;
+        if (mark.kind === 'pen' || mark.kind === 'brush') return mark.points.length >= 2;
         if ('start' in mark && 'end' in mark) return distance(mark.start, mark.end) > 0.015;
         return true;
       }),
     );
-    if (activeTool !== 'pen') {
+    if (activeTool !== 'pen' && activeTool !== 'brush') {
       setActiveTool('select');
     }
   }
 
   function updateSelectedMarkColor(nextColor: MarkColor): void {
     setColor(nextColor);
+    setRecentColors((current) => [nextColor, ...current.filter((candidate) => candidate !== nextColor)].slice(0, 2));
+    setColorPickerOpen(false);
     if (!selectedMarkId) return;
     recordHistory();
     setMarks((current) =>
@@ -570,22 +552,19 @@ export function ImageAnnotationEditor({
     );
   }
 
-  function updateMarkText(markId: string, text: string): void {
+  function updateMarkIntent(markId: string, intent: string): void {
     setMarks((current) =>
       current.map((mark) => {
         if (mark.id !== markId) return mark;
-        if (mark.kind === 'arrow' || mark.kind === 'text') return { ...mark, text };
-        return mark;
+        return { ...mark, intent };
       }),
     );
-    const noteSummary = marksToInstruction(
-      marks.map((mark) => {
-        if (mark.id !== markId) return mark;
-        if (mark.kind === 'arrow' || mark.kind === 'text') return { ...mark, text };
-        return mark;
-      }),
+  }
+
+  function updateTextMark(markId: string, updates: Partial<Pick<TextAnnotationMark, 'text' | 'textMode'>>): void {
+    setMarks((current) =>
+      current.map((mark) => (mark.id === markId && mark.kind === 'text' ? { ...mark, ...updates } : mark)),
     );
-    onInstructionChange(noteSummary);
   }
 
   function removeMark(markId: string): void {
@@ -593,7 +572,6 @@ export function ImageAnnotationEditor({
     setMarks(nextMarks);
     setSelectedMarkId((current) => (current === markId ? null : current));
     setEditingTextMarkId((current) => (current === markId ? null : current));
-    onInstructionChange(marksToInstruction(nextMarks));
   }
 
   function clearMarks(): void {
@@ -603,7 +581,6 @@ export function ImageAnnotationEditor({
     setMarks([]);
     setSelectedMarkId(null);
     setEditingTextMarkId(null);
-    onInstructionChange('');
   }
 
   function handleStageWheel(event: WheelEvent<HTMLDivElement>): void {
@@ -641,14 +618,25 @@ export function ImageAnnotationEditor({
     setViewPan({ x: 0, y: 0 });
   }
 
+  function markKindLabel(kind: AnnotationMarkKind): string {
+    if (kind === 'marker') return t('context.markerTool');
+    if (kind === 'arrow') return t('context.arrowTool');
+    if (kind === 'pen') return t('context.penTool');
+    if (kind === 'brush') return t('context.regionBrushTool');
+    if (kind === 'rect') return t('context.rectangleTool');
+    if (kind === 'ellipse') return t('context.ellipseTool');
+    return t('context.textMarkTool');
+  }
+
   async function runAnnotationEdit(): Promise<void> {
     if (!imageUrl) return;
     const composite = await createAnnotatedComposite(imageUrl, marks);
-    onRun({ instruction: marksToInstruction(marks) || instruction, composite });
+    onRun({ instruction: compiledInstruction, manifest, composite });
   }
 
   return (
     <div
+      ref={editorRef}
       className="annotation-editor nodrag nopan nowheel"
       onPointerDown={stopCanvasGesture}
       onWheel={stopWheelGesture}
@@ -656,14 +644,58 @@ export function ImageAnnotationEditor({
     >
       <div className="annotation-editor-shell">
         <div className="annotation-tool-strip" aria-label={t('context.annotationTools')}>
+          <div className="annotation-quick-color">
+            <button
+              type="button"
+              className="annotation-current-color"
+              style={{ '--annotation-color': color } as CSSProperties}
+              aria-label={`${t('context.markColor')}: ${annotationColorName(color)}`}
+              aria-expanded={colorPickerOpen}
+              onClick={() => setColorPickerOpen((current) => !current)}
+            >
+              <Palette size={14} />
+            </button>
+            {colorPickerOpen ? (
+              <div className="annotation-color-picker" aria-label={t('context.colorPalette')}>
+                {annotationColorOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className={`annotation-swatch${color === option.value ? ' is-active' : ''}`}
+                    style={{ background: option.value }}
+                    aria-label={option.name}
+                    title={`${option.name} · ${option.value}`}
+                    onClick={() => updateSelectedMarkColor(option.value)}
+                  />
+                ))}
+              </div>
+            ) : null}
+            <div className="annotation-recent-colors" aria-label={t('context.recentColors')}>
+              {recentColors.map((recentColor) => (
+                <button
+                  key={recentColor}
+                  type="button"
+                  style={{ background: recentColor }}
+                  aria-label={annotationColorName(recentColor)}
+                  onClick={() => updateSelectedMarkColor(recentColor)}
+                />
+              ))}
+            </div>
+          </div>
           <ToolButton active={activeTool === 'select'} label={t('context.selectMarkTool')} onClick={() => setActiveTool('select')}>
             <MousePointer2 size={15} />
+          </ToolButton>
+          <ToolButton active={activeTool === 'marker'} label={t('context.markerTool')} onClick={() => setActiveTool('marker')}>
+            <MapPin size={15} />
           </ToolButton>
           <ToolButton active={activeTool === 'arrow'} label={t('context.arrowTool')} onClick={() => setActiveTool('arrow')}>
             <ArrowUpRight size={15} />
           </ToolButton>
           <ToolButton active={activeTool === 'pen'} label={t('context.penTool')} onClick={() => setActiveTool('pen')}>
             <PenLine size={15} />
+          </ToolButton>
+          <ToolButton active={activeTool === 'brush'} label={t('context.regionBrushTool')} onClick={() => setActiveTool('brush')}>
+            <Paintbrush size={15} />
           </ToolButton>
           <ToolButton active={activeTool === 'rect'} label={t('context.rectangleTool')} onClick={() => setActiveTool('rect')}>
             <RectangleHorizontal size={15} />
@@ -752,6 +784,9 @@ export function ImageAnnotationEditor({
                     onEndpointPointerDown={(event, endpoint) => startArrowEndpointDrag(event, mark.id, endpoint)}
                   />
                 ))}
+                {marks.map((mark) => (
+                  <AnnotationIdBadge key={`badge-${mark.id}`} mark={mark} />
+                ))}
               </svg>
             ) : null}
             {imageUrl && renderMetrics
@@ -765,7 +800,7 @@ export function ImageAnnotationEditor({
                       readOnly={editingTextMarkId !== mark.id}
                       style={labelStyle(mark, renderMetrics, stageRef.current)}
                       value={mark.text}
-                      onChange={(event) => updateMarkText(mark.id, event.target.value)}
+                      onChange={(event) => updateTextMark(mark.id, { text: event.target.value })}
                       onDoubleClick={(event) => editTextMark(event, mark.id)}
                       onFocus={() => {
                         if (activeTool === 'text' || editingTextMarkId === mark.id) {
@@ -812,7 +847,8 @@ export function ImageAnnotationEditor({
                   type="button"
                   className={`annotation-swatch${color === option ? ' is-active' : ''}`}
                   style={{ background: option }}
-                  aria-label={option}
+                  aria-label={annotationColorName(option)}
+                  title={`${annotationColorName(option)} · ${option}`}
                   onClick={() => updateSelectedMarkColor(option)}
                 />
               ))}
@@ -833,6 +869,74 @@ export function ImageAnnotationEditor({
               ))}
             </div>
           </div>
+          <div className="annotation-control-group annotation-intents-group">
+            <span>{t('context.markIntents')}</span>
+            {marks.length ? (
+              <div className="annotation-intent-list">
+                {marks.map((mark) => (
+                  <div
+                    key={`intent-${mark.id}`}
+                    className={`annotation-intent-card${selectedMarkId === mark.id ? ' is-selected' : ''}`}
+                    onPointerDown={(event) => event.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      className="annotation-intent-heading"
+                      onClick={() => selectExistingMark(mark.id, { editing: false })}
+                    >
+                      <span className="annotation-intent-color" style={{ background: mark.color }} />
+                      <strong>{mark.id}</strong>
+                      <span>{markKindLabel(mark.kind)}</span>
+                    </button>
+                    <input
+                      data-mark-id={mark.id}
+                      className="annotation-intent-input"
+                      placeholder={t('context.markIntentPlaceholder')}
+                      value={mark.intent}
+                      onChange={(event) => updateMarkIntent(mark.id, event.target.value)}
+                      onFocus={() => selectExistingMark(mark.id, { editing: false })}
+                    />
+                    {mark.kind === 'text' ? (
+                      <div className="annotation-text-options">
+                        <input
+                          placeholder={t('context.textContent')}
+                          value={mark.text}
+                          onChange={(event) => updateTextMark(mark.id, { text: event.target.value })}
+                        />
+                        <select
+                          value={mark.textMode}
+                          onChange={(event) => updateTextMark(mark.id, { textMode: event.target.value as TextAnnotationMark['textMode'] })}
+                        >
+                          <option value="annotation_note">{t('context.annotationNoteMode')}</option>
+                          <option value="render_text">{t('context.renderTextMode')}</option>
+                        </select>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="annotation-empty-intents">{t('context.noMarks')}</p>
+            )}
+          </div>
+          <label className="annotation-control-group">
+            <span>{t('context.globalInstruction')}</span>
+            <textarea
+              rows={3}
+              placeholder={t('context.globalInstructionPlaceholder')}
+              value={instruction}
+              onChange={(event) => onInstructionChange(event.target.value)}
+            />
+          </label>
+          {missingIntentIds.length ? (
+            <p className="annotation-missing-intent">
+              {t('context.missingMarkIntent')}: {missingIntentIds.join(', ')}
+            </p>
+          ) : null}
+          <details className="annotation-prompt-preview">
+            <summary>{t('context.executionInstructionPreview')}</summary>
+            <pre>{compiledInstruction}</pre>
+          </details>
           {selectedMark ? (
             <button
               type="button"
@@ -843,7 +947,7 @@ export function ImageAnnotationEditor({
               }}
             >
               <Trash2 size={13} />
-              {t('context.deleteMark')}
+              {t('context.deleteMark')} {selectedMark.id}
             </button>
           ) : null}
         </div>
@@ -874,6 +978,21 @@ function AnnotationSvgMark({
 }): ReactElement | null {
   const strokeWidth = strokeBySize[mark.strokeSize] / 420;
   const className = `annotation-svg-mark${selected ? ' is-selected' : ''}`;
+
+  if (mark.kind === 'marker') {
+    return (
+      <circle
+        className={className}
+        cx={mark.point.x}
+        cy={mark.point.y}
+        r={0.018}
+        fill={mark.color}
+        stroke="#ffffff"
+        strokeWidth={0.004}
+        onPointerDown={onPointerDown}
+      />
+    );
+  }
 
   if (mark.kind === 'arrow') {
     const handleRadius = endpointHandleRadiusBySize[mark.strokeSize];
@@ -924,7 +1043,7 @@ function AnnotationSvgMark({
     );
   }
 
-  if (mark.kind === 'pen') {
+  if (mark.kind === 'pen' || mark.kind === 'brush') {
     return (
       <polyline
         className={className}
@@ -933,7 +1052,8 @@ function AnnotationSvgMark({
         stroke={mark.color}
         strokeLinecap="round"
         strokeLinejoin="round"
-        strokeWidth={strokeWidth}
+        strokeWidth={mark.kind === 'brush' ? Math.max(strokeWidth * 9, 0.018) : strokeWidth}
+        opacity={mark.kind === 'brush' ? 0.38 : 1}
         onPointerDown={onPointerDown}
       />
     );
@@ -975,6 +1095,35 @@ function AnnotationSvgMark({
   return null;
 }
 
+function AnnotationIdBadge({ mark }: { mark: AnnotationMark }): ReactElement {
+  const anchor = annotationMarkAnchor(mark);
+  const width = Math.max(0.048, 0.018 + mark.id.length * 0.012);
+  return (
+    <g className="annotation-id-badge" transform={`translate(${anchor.x} ${anchor.y})`}>
+      <rect
+        x={-width / 2}
+        y={-0.018}
+        width={width}
+        height={0.036}
+        rx={0.012}
+        fill={mark.color}
+        stroke="#ffffff"
+        strokeWidth={0.004}
+      />
+      <text
+        x={0}
+        y={0.006}
+        fill="#ffffff"
+        fontSize={0.022}
+        fontWeight={800}
+        textAnchor="middle"
+      >
+        {mark.id}
+      </text>
+    </g>
+  );
+}
+
 function ToolButton({
   active,
   children,
@@ -1000,13 +1149,17 @@ function createMark(
   point: Point,
   color: MarkColor,
   strokeSize: StrokeSize,
+  marks: AnnotationMark[],
 ): AnnotationMark | null {
-  const id = `mark_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  if (tool === 'arrow') return { id, kind: 'arrow', color, strokeSize, start: point, end: point, text: '' };
-  if (tool === 'pen') return { id, kind: 'pen', color, strokeSize, points: [point] };
-  if (tool === 'rect') return { id, kind: 'rect', color, strokeSize, start: point, end: point };
-  if (tool === 'ellipse') return { id, kind: 'ellipse', color, strokeSize, start: point, end: point };
-  if (tool === 'text') return { id, kind: 'text', color, strokeSize, point, text: '' };
+  if (tool === 'select' || tool === 'eraser') return null;
+  const id = nextAnnotationMarkId(marks, tool);
+  const base = { id, color, strokeSize, intent: '' };
+  if (tool === 'marker') return { ...base, kind: 'marker', point };
+  if (tool === 'arrow') return { ...base, kind: 'arrow', start: point, end: point };
+  if (tool === 'pen' || tool === 'brush') return { ...base, kind: tool, points: [point] };
+  if (tool === 'rect') return { ...base, kind: 'rect', start: point, end: point };
+  if (tool === 'ellipse') return { ...base, kind: 'ellipse', start: point, end: point };
+  if (tool === 'text') return { ...base, kind: 'text', point, text: '', textMode: 'annotation_note' };
   return null;
 }
 
@@ -1014,21 +1167,25 @@ function translateMark(mark: AnnotationMark, dx: number, dy: number): Annotation
   if (mark.kind === 'arrow' || mark.kind === 'rect' || mark.kind === 'ellipse') {
     return { ...mark, start: clampPoint(addPoint(mark.start, dx, dy)), end: clampPoint(addPoint(mark.end, dx, dy)) };
   }
-  if (mark.kind === 'pen') return { ...mark, points: mark.points.map((point) => clampPoint(addPoint(point, dx, dy))) };
+  if (mark.kind === 'pen' || mark.kind === 'brush') {
+    return { ...mark, points: mark.points.map((point) => clampPoint(addPoint(point, dx, dy))) };
+  }
   return { ...mark, point: clampPoint(addPoint(mark.point, dx, dy)) };
 }
 
 function hitTestMark(marks: AnnotationMark[], point: Point): AnnotationMark | undefined {
   return [...marks].reverse().find((mark) => {
-    if (mark.kind === 'text') return distance(mark.point, point) < 0.06;
-    if (mark.kind === 'pen') return mark.points.some((candidate) => distance(candidate, point) < 0.04);
+    if (mark.kind === 'text' || mark.kind === 'marker') return distance(mark.point, point) < 0.06;
+    if (mark.kind === 'pen' || mark.kind === 'brush') {
+      return mark.points.some((candidate) => distance(candidate, point) < (mark.kind === 'brush' ? 0.07 : 0.04));
+    }
     if (mark.kind === 'arrow') return distanceToSegment(point, mark.start, mark.end) < 0.04;
     const bounds = normalizedBounds(mark.start, mark.end);
     return point.x >= bounds.x && point.x <= bounds.x + bounds.width && point.y >= bounds.y && point.y <= bounds.y + bounds.height;
   });
 }
 
-function labelStyle(mark: TextMark, metrics: ImageDisplayMetrics, stage: HTMLDivElement | null): CSSProperties {
+function labelStyle(mark: TextAnnotationMark, metrics: ImageDisplayMetrics, stage: HTMLDivElement | null): CSSProperties {
   const stageRect = stage?.getBoundingClientRect();
   const originLeft = stageRect ? metrics.displayLeft - stageRect.left : 0;
   const originTop = stageRect ? metrics.displayTop - stageRect.top : 0;
@@ -1100,9 +1257,21 @@ function drawMark(context: CanvasRenderingContext2D, mark: AnnotationMark, width
   context.lineCap = 'round';
   context.lineJoin = 'round';
 
-  if (mark.kind === 'arrow') {
+  if (mark.kind === 'marker') {
+    const point = scalePoint(mark.point, width, height);
+    context.beginPath();
+    context.arc(point.x, point.y, Math.max(8, context.lineWidth * 3), 0, Math.PI * 2);
+    context.fill();
+    context.strokeStyle = '#ffffff';
+    context.lineWidth = Math.max(2, context.lineWidth * 0.7);
+    context.stroke();
+  } else if (mark.kind === 'arrow') {
     drawCanvasArrow(context, scalePoint(mark.start, width, height), scalePoint(mark.end, width, height));
-  } else if (mark.kind === 'pen') {
+  } else if (mark.kind === 'pen' || mark.kind === 'brush') {
+    if (mark.kind === 'brush') {
+      context.globalAlpha = 0.38;
+      context.lineWidth = Math.max(context.lineWidth * 9, Math.max(width, height) * 0.018);
+    }
     context.beginPath();
     mark.points.forEach((point, index) => {
       const scaled = scalePoint(point, width, height);
@@ -1123,6 +1292,45 @@ function drawMark(context: CanvasRenderingContext2D, mark: AnnotationMark, width
     drawAnnotationLabel(context, mark.text, mark.point.x * width, mark.point.y * height, width, height, mark.color);
   }
 
+  context.restore();
+  drawAnnotationIdBadge(context, mark.id, annotationMarkAnchor(mark), width, height, mark.color);
+}
+
+function annotationMarkAnchor(mark: AnnotationMark): Point {
+  if (mark.kind === 'marker' || mark.kind === 'text') return mark.point;
+  if (mark.kind === 'arrow') return mark.start;
+  if (mark.kind === 'pen' || mark.kind === 'brush') return mark.points[0] ?? { x: 0.5, y: 0.5 };
+  const bounds = normalizedBounds(mark.start, mark.end);
+  return { x: bounds.x, y: bounds.y };
+}
+
+function drawAnnotationIdBadge(
+  context: CanvasRenderingContext2D,
+  id: string,
+  anchor: Point,
+  width: number,
+  height: number,
+  color: string,
+): void {
+  const fontSize = Math.max(16, Math.min(28, width / 42));
+  const x = anchor.x * width;
+  const y = anchor.y * height;
+  context.save();
+  context.font = `800 ${fontSize}px Inter, Arial, sans-serif`;
+  const badgeWidth = Math.max(fontSize * 2.2, context.measureText(id).width + fontSize * 0.9);
+  const badgeHeight = fontSize * 1.45;
+  const left = clamp(x - badgeWidth / 2, 4, width - badgeWidth - 4);
+  const top = clamp(y - badgeHeight / 2, 4, height - badgeHeight - 4);
+  context.fillStyle = color;
+  context.strokeStyle = '#ffffff';
+  context.lineWidth = Math.max(2, fontSize * 0.12);
+  roundRect(context, left, top, badgeWidth, badgeHeight, badgeHeight * 0.32);
+  context.fill();
+  context.stroke();
+  context.fillStyle = '#ffffff';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(id, left + badgeWidth / 2, top + badgeHeight / 2 + fontSize * 0.03);
   context.restore();
 }
 
@@ -1246,13 +1454,6 @@ function clampAxisPan(pan: number, stageStart: number, stageEnd: number, baseSta
   const max = stageStart - baseStart;
   if (min <= max) return clamp(pan, min, max);
   return (stageStart + stageEnd) / 2 - (baseStart + scaledSize / 2);
-}
-
-function marksToInstruction(marks: AnnotationMark[]): string {
-  return marks
-    .filter((mark): mark is TextMark => mark.kind === 'text' && mark.text.trim().length > 0)
-    .map((mark, index) => `${index + 1}. ${mark.text.trim()}`)
-    .join('\n');
 }
 
 function mouseStagePoint(event: MouseEvent, metrics: ImageDisplayMetrics): Point | null {

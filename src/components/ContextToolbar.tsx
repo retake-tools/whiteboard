@@ -22,6 +22,7 @@ import type { BlockRecord } from '../core/types';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
 import { ImageAnnotationEditor, type AnnotationComposite } from './ImageAnnotationEditor';
+import type { AnnotationManifest } from '../core/imageAnnotations';
 import { TooltipIconButton, TooltipWrapper } from './Tooltip';
 
 type ImageTool = 'quick-edit' | 'annotation-edit' | 'create-similar' | 'adjust' | 'more';
@@ -39,6 +40,7 @@ interface ContextToolbarProps {
   }) => void;
   onRunAnnotationEdit: (input: {
     instruction: string;
+    manifest: AnnotationManifest;
     composite: AnnotationComposite;
     route: ExecutionRoute;
   }) => void;
@@ -244,7 +246,11 @@ function ImageToolPopover({
     title: string;
   }) => void;
   onCreateSimilar: () => void;
-  onRunAnnotationEdit: (input: { instruction: string; composite: AnnotationComposite }) => void;
+  onRunAnnotationEdit: (input: {
+    instruction: string;
+    manifest: AnnotationManifest;
+    composite: AnnotationComposite;
+  }) => void;
   onQuickEditInstructionChange: (instruction: string) => void;
   onRunQuickEdit: () => void;
 }): ReactElement {

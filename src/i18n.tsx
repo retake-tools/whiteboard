@@ -45,8 +45,10 @@ type TranslationKey =
   | 'context.addReferenceImage'
   | 'context.aspectRatio'
   | 'context.brightness'
+  | 'context.annotationNoteMode'
   | 'context.clearMarks'
   | 'context.clearMarksConfirm'
+  | 'context.colorPalette'
   | 'context.close'
   | 'context.contrast'
   | 'context.createSimilar'
@@ -61,12 +63,19 @@ type TranslationKey =
   | 'context.executionRouteCodexMcp'
   | 'context.free'
   | 'context.generatePromptPlaceholder'
+  | 'context.globalInstruction'
+  | 'context.globalInstructionPlaceholder'
   | 'context.customSize'
   | 'context.height'
   | 'context.markColor'
+  | 'context.markIntents'
+  | 'context.markIntentPlaceholder'
+  | 'context.markerTool'
+  | 'context.missingMarkIntent'
   | 'context.more'
   | 'context.moreTools'
   | 'context.multiAngle'
+  | 'context.noMarks'
   | 'context.penTool'
   | 'context.quickEdit'
   | 'context.replaceImage'
@@ -74,11 +83,14 @@ type TranslationKey =
   | 'context.referenceImages'
   | 'context.referenceImagesEmpty'
   | 'context.redoAnnotation'
+  | 'context.recentColors'
   | 'context.rectangleTool'
   | 'context.removeReferenceImage'
   | 'context.resolution'
   | 'context.relight'
   | 'context.removeBackground'
+  | 'context.regionBrushTool'
+  | 'context.renderTextMode'
   | 'context.runWithCodex'
   | 'context.run'
   | 'context.saturation'
@@ -86,8 +98,10 @@ type TranslationKey =
   | 'context.selectedTools'
   | 'context.strokeSize'
   | 'context.textMarkTool'
+  | 'context.textContent'
   | 'context.undoAnnotation'
   | 'context.unavailable'
+  | 'context.executionInstructionPreview'
   | 'context.width'
   | 'context.pixels'
   | 'feedback.closePrompt'
@@ -429,8 +443,10 @@ const translations: Record<Locale, Translations> = {
     'context.addReferenceImage': 'Add reference',
     'context.aspectRatio': 'Aspect ratio',
     'context.brightness': 'Brightness',
+    'context.annotationNoteMode': 'Annotation note',
     'context.clearMarks': 'Clear all marks',
     'context.clearMarksConfirm': 'Clear all annotations? This cannot be undone except by annotation undo.',
+    'context.colorPalette': 'Annotation color palette',
     'context.close': 'Close',
     'context.contrast': 'Contrast',
     'context.createSimilar': 'Create similar',
@@ -445,12 +461,19 @@ const translations: Record<Locale, Translations> = {
     'context.executionRouteCodexMcp': 'Codex MCP',
     'context.free': 'Free',
     'context.generatePromptPlaceholder': 'Describe the image to generate...',
+    'context.globalInstruction': 'Global instruction',
+    'context.globalInstructionPlaceholder': 'Optional requirements shared by all marks...',
     'context.customSize': 'Output size',
     'context.height': 'H',
     'context.markColor': 'Color',
+    'context.markIntents': 'Mark instructions',
+    'context.markIntentPlaceholder': 'Describe what should change here...',
+    'context.markerTool': 'Numbered marker',
+    'context.missingMarkIntent': 'Add instructions for',
     'context.more': 'More',
     'context.moreTools': 'More image tools',
     'context.multiAngle': 'Multi-angle',
+    'context.noMarks': 'Add a mark on the image, then describe the change here.',
     'context.penTool': 'Pen',
     'context.quickEdit': 'Quick edit',
     'context.replaceImage': 'Replace image',
@@ -458,11 +481,14 @@ const translations: Record<Locale, Translations> = {
     'context.referenceImages': 'Reference images',
     'context.referenceImagesEmpty': 'No reference images',
     'context.redoAnnotation': 'Redo annotation',
+    'context.recentColors': 'Recent colors',
     'context.rectangleTool': 'Rectangle',
     'context.removeReferenceImage': 'Remove',
     'context.resolution': 'Quality',
     'context.relight': 'Relight',
     'context.removeBackground': 'Remove background',
+    'context.regionBrushTool': 'Region brush',
+    'context.renderTextMode': 'Render in final image',
     'context.runWithCodex': 'Run with Codex',
     'context.run': 'Run',
     'context.saturation': 'Saturation',
@@ -470,8 +496,10 @@ const translations: Record<Locale, Translations> = {
     'context.selectedTools': 'Selected block tools',
     'context.strokeSize': 'Stroke',
     'context.textMarkTool': 'Text note',
+    'context.textContent': 'Text content',
     'context.undoAnnotation': 'Undo annotation',
     'context.unavailable': 'Not available yet',
+    'context.executionInstructionPreview': 'Execution instruction preview',
     'context.width': 'W',
     'context.pixels': 'PX',
     'feedback.closePrompt': 'Close prompt preview',
@@ -808,8 +836,10 @@ const translations: Record<Locale, Translations> = {
     'context.addReferenceImage': '添加参考图',
     'context.aspectRatio': '比例',
     'context.brightness': '亮度',
+    'context.annotationNoteMode': '仅作批注',
     'context.clearMarks': '清空所有标注',
     'context.clearMarksConfirm': '确定要清空所有标注吗？清空后只能通过标注撤销恢复。',
+    'context.colorPalette': '标注调色板',
     'context.close': '关闭',
     'context.contrast': '对比度',
     'context.createSimilar': '生成同款',
@@ -824,12 +854,19 @@ const translations: Record<Locale, Translations> = {
     'context.executionRouteCodexMcp': 'Codex MCP',
     'context.free': '自由',
     'context.generatePromptPlaceholder': '描述要生成的图片...',
+    'context.globalInstruction': '全局补充说明',
+    'context.globalInstructionPlaceholder': '可选：所有标记共享的要求...',
     'context.customSize': '输出尺寸',
     'context.height': 'H',
     'context.markColor': '颜色',
+    'context.markIntents': '标记说明',
+    'context.markIntentPlaceholder': '说明这里要怎么改...',
+    'context.markerTool': '编号标记',
+    'context.missingMarkIntent': '请补充这些标记的说明',
     'context.more': '更多',
     'context.moreTools': '更多图片工具',
     'context.multiAngle': '多角度',
+    'context.noMarks': '先在图片上添加标记，再在这里说明修改内容。',
     'context.penTool': '画笔',
     'context.quickEdit': '快捷编辑',
     'context.replaceImage': '替换图片',
@@ -837,11 +874,14 @@ const translations: Record<Locale, Translations> = {
     'context.referenceImages': '参考图 / 风格图',
     'context.referenceImagesEmpty': '未添加参考图',
     'context.redoAnnotation': '重做标注',
+    'context.recentColors': '最近颜色',
     'context.rectangleTool': '矩形',
     'context.removeReferenceImage': '移除',
     'context.resolution': '画质',
     'context.relight': '重新打光',
     'context.removeBackground': '去背景',
+    'context.regionBrushTool': '区域笔刷',
+    'context.renderTextMode': '渲染到最终图片',
     'context.runWithCodex': '用 Codex 执行',
     'context.run': '执行',
     'context.saturation': '饱和度',
@@ -849,8 +889,10 @@ const translations: Record<Locale, Translations> = {
     'context.selectedTools': '选中块工具',
     'context.strokeSize': '线宽',
     'context.textMarkTool': '文字标注',
+    'context.textContent': '文字内容',
     'context.undoAnnotation': '撤销标注',
     'context.unavailable': '暂不可用',
+    'context.executionInstructionPreview': '执行说明预览',
     'context.width': 'W',
     'context.pixels': 'PX',
     'feedback.closePrompt': '关闭提示预览',

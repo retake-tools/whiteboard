@@ -127,6 +127,7 @@ import type {
   RetakeNode,
   WorkspaceSummary,
 } from './core/types';
+import type { AnnotationManifest } from './core/imageAnnotations';
 import { BlockNode } from './nodes/BlockNode';
 
 const minCanvasZoom = 0.05;
@@ -1773,6 +1774,7 @@ export function App(): ReactElement {
     instruction?: string,
     options: {
       annotatedCompositeAsset?: AssetRecord;
+      annotationManifest?: AnnotationManifest;
       generationParams?: ImageGenerationParams;
       referenceAssets?: AssetRecord[];
     } = {},
@@ -1803,6 +1805,7 @@ export function App(): ReactElement {
           waitingBody: t('operation.waitingBody'),
           defaultPrompt: imageOperationDefaultPrompt(operation, t),
           annotatedCompositeAsset: options.annotatedCompositeAsset,
+          annotationManifest: options.annotationManifest,
           generationParams: options.generationParams,
           referenceAssets: options.referenceAssets,
         });
@@ -2576,7 +2579,7 @@ export function App(): ReactElement {
                   pendingDirectImageImportBlockIdRef.current = selectedBlock.blockId;
                   directImageImportInputRef.current?.click();
                 }}
-                onRunAnnotationEdit={({ instruction, composite }) => {
+                onRunAnnotationEdit={({ instruction, manifest, composite }) => {
                   if (!selectedBlock) return;
                   void createImageAssetFromDataUrl({
                     projectId: snapshotRef.current.project.projectId,
@@ -2587,6 +2590,10 @@ export function App(): ReactElement {
                   }).then((annotatedCompositeAsset) => {
                     void startImageCodexOperation('annotation_edit', selectedBlock, instruction, {
                       annotatedCompositeAsset,
+                      annotationManifest: {
+                        ...manifest,
+                        compositeAssetId: annotatedCompositeAsset.assetId,
+                      },
                     });
                   });
                 }}

@@ -523,8 +523,8 @@ button {
   top: 48px;
   left: 50%;
   z-index: 30;
-  width: min(1040px, calc(100vw - 36px));
-  max-width: min(1040px, calc(100vw - 36px));
+  width: min(1220px, calc(100vw - 36px));
+  max-width: min(1220px, calc(100vw - 36px));
   height: min(760px, calc(100vh - 96px));
   max-height: calc(100vh - 96px);
   overflow: hidden;
@@ -544,13 +544,14 @@ button {
 .annotation-editor-shell {
   display: grid;
   flex: 1;
-  grid-template-columns: auto minmax(0, 1fr) 92px;
+  grid-template-columns: auto minmax(0, 1fr) minmax(260px, 310px);
   gap: 8px;
   align-items: stretch;
   min-height: 0;
 }
 
 .annotation-tool-strip {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -558,6 +559,76 @@ button {
   border: 1px solid #d8dee8;
   border-radius: 8px;
   background: #f8fafc;
+}
+
+.annotation-quick-color {
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #d8dee8;
+}
+
+.annotation-current-color {
+  position: relative;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #344054;
+  cursor: pointer;
+}
+
+.annotation-current-color::after {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid #ffffff;
+  border-radius: 999px;
+  background: var(--annotation-color);
+  box-shadow: 0 0 0 1px rgb(15 23 42 / 24%);
+  content: '';
+}
+
+.annotation-color-picker {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 9px);
+  z-index: 12;
+  display: grid;
+  grid-template-columns: repeat(4, 22px);
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d8dee8;
+  border-radius: 9px;
+  background: rgb(255 255 255 / 98%);
+  box-shadow: 0 12px 28px rgb(15 23 42 / 18%);
+}
+
+.annotation-color-picker .annotation-swatch {
+  width: 20px;
+  height: 20px;
+}
+
+.annotation-recent-colors {
+  display: flex;
+  gap: 4px;
+}
+
+.annotation-recent-colors button {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: 1px solid #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px #cbd5e1;
+  cursor: pointer;
 }
 
 .annotation-tool-strip .tooltipped-button {
@@ -611,7 +682,9 @@ button {
 }
 
 .annotation-stage.is-arrow-tool,
+.annotation-stage.is-marker-tool,
 .annotation-stage.is-pen-tool,
+.annotation-stage.is-brush-tool,
 .annotation-stage.is-rect-tool,
 .annotation-stage.is-ellipse-tool,
 .annotation-stage.is-text-tool {
@@ -689,6 +762,10 @@ button {
 
 .annotation-svg-mark.is-selected {
   filter: none;
+}
+
+.annotation-id-badge {
+  pointer-events: none;
 }
 
 .annotation-line-hitbox {
@@ -774,10 +851,15 @@ button {
   gap: 8px;
   padding: 8px;
   min-width: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   border: 1px solid #d8dee8;
   border-radius: 8px;
   background: #f8fafc;
+}
+
+.annotation-side-panel > * {
+  flex-shrink: 0;
 }
 
 .annotation-control-group {
@@ -790,6 +872,128 @@ button {
   color: #4b5563;
   font-size: 11px;
   font-weight: 720;
+}
+
+.annotation-control-group textarea,
+.annotation-intent-input,
+.annotation-text-options input,
+.annotation-text-options select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #d8dee8;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #202938;
+  font: inherit;
+}
+
+.annotation-control-group textarea {
+  min-height: 64px;
+  padding: 7px 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.annotation-intents-group {
+  min-height: 0;
+}
+
+.annotation-intent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.annotation-intent-card {
+  padding: 6px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.annotation-intent-card.is-selected {
+  border-color: var(--retake-accent-border);
+  box-shadow: 0 0 0 2px var(--retake-accent-soft);
+}
+
+.annotation-intent-heading {
+  display: grid;
+  grid-template-columns: 10px auto minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  padding: 0 0 5px;
+  border: 0;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  font-size: 10px;
+  text-align: left;
+}
+
+.annotation-intent-heading strong {
+  color: #111827;
+  font-size: 11px;
+}
+
+.annotation-intent-color {
+  width: 9px;
+  height: 9px;
+  border: 1px solid #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px #cbd5e1;
+}
+
+.annotation-intent-input,
+.annotation-text-options input,
+.annotation-text-options select {
+  min-height: 30px;
+  padding: 5px 7px;
+  font-size: 11px;
+}
+
+.annotation-text-options {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.annotation-empty-intents,
+.annotation-missing-intent {
+  margin: 0;
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.annotation-missing-intent {
+  color: #b45309;
+}
+
+.annotation-prompt-preview {
+  border-top: 1px solid #d8dee8;
+  padding-top: 7px;
+  color: #475569;
+  font-size: 10px;
+}
+
+.annotation-prompt-preview summary {
+  cursor: pointer;
+  font-weight: 720;
+}
+
+.annotation-prompt-preview pre {
+  max-height: 170px;
+  overflow: auto;
+  margin: 7px 0 0;
+  padding: 7px;
+  border-radius: 7px;
+  background: #eef2f7;
+  color: #334155;
+  font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
 }
 
 .annotation-swatch-row {
@@ -1064,8 +1268,8 @@ button {
   }
 
   .annotation-side-panel {
-    flex-direction: row;
-    flex-wrap: wrap;
+    flex-direction: column;
+    flex-wrap: nowrap;
   }
 
   .annotation-swatch-row {

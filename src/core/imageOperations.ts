@@ -1,4 +1,5 @@
 import { createId, nowIso } from './id';
+import type { AnnotationManifest } from './imageAnnotations';
 import type {
   AssetRecord,
   BlockRecord,
@@ -53,6 +54,7 @@ interface ImageCodexOperationInput {
   waitingBody?: string;
   defaultPrompt?: string;
   annotatedCompositeAsset?: AssetRecord;
+  annotationManifest?: AnnotationManifest;
   generationParams?: ImageGenerationParams;
   generationProfileId?: string;
   referenceAssets?: AssetRecord[];
@@ -178,6 +180,8 @@ export function addImageCodexOperation(
       annotationText: input.operation === 'annotation_edit' ? instruction : undefined,
       annotatedCompositeAssetId:
         input.operation === 'annotation_edit' ? input.annotatedCompositeAsset?.assetId : undefined,
+      annotationManifest:
+        input.operation === 'annotation_edit' ? input.annotationManifest : undefined,
       generationParams,
       generationProfileId,
       referenceAssetIds: referenceAssetIds.length ? referenceAssetIds : undefined,
@@ -239,6 +243,9 @@ export function addImageCodexOperation(
       operationBlockId: operationBlock.blockId,
       ...(generationParams ? { generation: generationParams } : {}),
       ...(referenceAssetIds.length ? { referenceAssetIds } : {}),
+      ...(input.operation === 'annotation_edit' && input.annotationManifest
+        ? { annotationManifest: input.annotationManifest }
+        : {}),
       ...(sourceInputRole
         ? {
             inputBindings: [
@@ -295,6 +302,7 @@ export function addImageCodexOperation(
     detail: {
       capabilityId,
       instruction,
+      annotationManifest: input.operation === 'annotation_edit' ? input.annotationManifest : undefined,
       prompt,
       generationParams,
       operationBlockId: operationBlock.blockId,
