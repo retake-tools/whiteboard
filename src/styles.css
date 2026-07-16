@@ -693,7 +693,7 @@ button {
 }
 
 .annotation-svg-mark {
-  cursor: grab;
+  cursor: move;
   pointer-events: visiblePainted;
 }
 
@@ -733,7 +733,7 @@ button {
 }
 
 .annotation-line-hitbox {
-  cursor: grab;
+  cursor: move;
   pointer-events: stroke;
   stroke: transparent;
   stroke-linecap: round;
@@ -741,9 +741,27 @@ button {
 }
 
 .annotation-endpoint-handle {
-  cursor: grab;
+  cursor: pointer;
+  filter: drop-shadow(0 1px 2px rgb(15 23 42 / 42%));
   pointer-events: all;
-  stroke-width: 0.006;
+}
+
+.annotation-quick-delete {
+  filter: drop-shadow(0 1px 3px rgb(15 23 42 / 38%));
+  pointer-events: none;
+}
+
+.annotation-quick-delete ellipse {
+  cursor: pointer;
+  fill: #ffffff;
+  pointer-events: all;
+}
+
+.annotation-quick-delete line {
+  pointer-events: none;
+  stroke: #475569;
+  stroke-linecap: round;
+  stroke-width: 0.0035;
 }
 
 .annotation-label-input {

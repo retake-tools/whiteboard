@@ -41,6 +41,11 @@ assert.match(editorSource, /fixedShapeYScale={renderMetrics\.displayWidth \/ ren
 assert.match(editorSource, /disabled={!selectedMark}/);
 assert.match(editorSource, /onDraftChangeRef\.current/);
 assert.match(editorSource, /onInstructionChange\(''\)/);
+assert.match(editorSource, /hoveredMarkId/);
+assert.match(editorSource, /function AnnotationQuickDelete/);
+assert.match(editorSource, /vectorEffect="non-scaling-stroke"/);
+assert.match(editorSource, /startXEndY/);
+assert.doesNotMatch(editorSource, /diamondPath/);
 assert.match(appSource, /function updateAnnotationDraft/);
 assert.match(appSource, /scheduleAnnotationDraftPersist\(\)/);
 assert.match(toolbarSource, /initialDraft={annotationDraft}/);
