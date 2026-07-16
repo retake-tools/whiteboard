@@ -467,10 +467,14 @@ export function ImageAnnotationEditor({
     }
   }
 
-  function updateSelectedMarkColor(nextColor: MarkColor): void {
+  function selectActiveColor(nextColor: MarkColor): void {
     setColor(nextColor);
     setRecentColors((current) => [nextColor, ...current.filter((candidate) => candidate !== nextColor)].slice(0, 2));
     setColorPickerOpen(false);
+  }
+
+  function updateSelectedMarkColor(nextColor: MarkColor): void {
+    selectActiveColor(nextColor);
     if (!selectedMarkId) return;
     recordHistory();
     setMarks((current) =>
@@ -665,7 +669,7 @@ export function ImageAnnotationEditor({
                     style={{ background: option.value }}
                     aria-label={option.name}
                     title={`${option.name} · ${option.value}`}
-                    onClick={() => updateSelectedMarkColor(option.value)}
+                    onClick={() => selectActiveColor(option.value)}
                   />
                 ))}
               </div>
@@ -677,7 +681,7 @@ export function ImageAnnotationEditor({
                   type="button"
                   style={{ background: recentColor }}
                   aria-label={annotationColorName(recentColor)}
-                  onClick={() => updateSelectedMarkColor(recentColor)}
+                  onClick={() => selectActiveColor(recentColor)}
                 />
               ))}
             </div>
@@ -981,16 +985,29 @@ function AnnotationSvgMark({
 
   if (mark.kind === 'marker') {
     return (
-      <circle
-        className={className}
-        cx={mark.point.x}
-        cy={mark.point.y}
-        r={0.018}
-        fill={mark.color}
-        stroke="#ffffff"
-        strokeWidth={0.004}
+      <g
+        className={`${className} annotation-location-pin`}
+        transform={`translate(${mark.point.x} ${mark.point.y})`}
         onPointerDown={onPointerDown}
-      />
+      >
+        <path
+          d="M 0 0 C -0.009 -0.014 -0.027 -0.028 -0.027 -0.047 A 0.027 0.027 0 1 1 0.027 -0.047 C 0.027 -0.028 0.009 -0.014 0 0 Z"
+          fill={mark.color}
+          stroke="#ffffff"
+          strokeLinejoin="round"
+          strokeWidth={0.004}
+        />
+        <text
+          x={0}
+          y={-0.04}
+          fill="#ffffff"
+          fontSize={mark.id.length > 2 ? 0.016 : 0.019}
+          fontWeight={850}
+          textAnchor="middle"
+        >
+          {mark.id}
+        </text>
+      </g>
     );
   }
 
@@ -1095,17 +1112,15 @@ function AnnotationSvgMark({
   return null;
 }
 
-function AnnotationIdBadge({ mark }: { mark: AnnotationMark }): ReactElement {
+function AnnotationIdBadge({ mark }: { mark: AnnotationMark }): ReactElement | null {
+  if (mark.kind === 'marker') return null;
   const anchor = annotationMarkAnchor(mark);
-  const width = Math.max(0.048, 0.018 + mark.id.length * 0.012);
   return (
     <g className="annotation-id-badge" transform={`translate(${anchor.x} ${anchor.y})`}>
-      <rect
-        x={-width / 2}
-        y={-0.018}
-        width={width}
-        height={0.036}
-        rx={0.012}
+      <circle
+        cx={0}
+        cy={0}
+        r={0.023}
         fill={mark.color}
         stroke="#ffffff"
         strokeWidth={0.004}
@@ -1114,8 +1129,8 @@ function AnnotationIdBadge({ mark }: { mark: AnnotationMark }): ReactElement {
         x={0}
         y={0.006}
         fill="#ffffff"
-        fontSize={0.022}
-        fontWeight={800}
+        fontSize={mark.id.length > 2 ? 0.016 : 0.019}
+        fontWeight={850}
         textAnchor="middle"
       >
         {mark.id}
@@ -1258,13 +1273,7 @@ function drawMark(context: CanvasRenderingContext2D, mark: AnnotationMark, width
   context.lineJoin = 'round';
 
   if (mark.kind === 'marker') {
-    const point = scalePoint(mark.point, width, height);
-    context.beginPath();
-    context.arc(point.x, point.y, Math.max(8, context.lineWidth * 3), 0, Math.PI * 2);
-    context.fill();
-    context.strokeStyle = '#ffffff';
-    context.lineWidth = Math.max(2, context.lineWidth * 0.7);
-    context.stroke();
+    drawAnnotationLocationPin(context, mark.id, mark.point, width, height, mark.color);
   } else if (mark.kind === 'arrow') {
     drawCanvasArrow(context, scalePoint(mark.start, width, height), scalePoint(mark.end, width, height));
   } else if (mark.kind === 'pen' || mark.kind === 'brush') {
@@ -1293,7 +1302,9 @@ function drawMark(context: CanvasRenderingContext2D, mark: AnnotationMark, width
   }
 
   context.restore();
-  drawAnnotationIdBadge(context, mark.id, annotationMarkAnchor(mark), width, height, mark.color);
+  if (mark.kind !== 'marker') {
+    drawAnnotationIdBadge(context, mark.id, annotationMarkAnchor(mark), width, height, mark.color);
+  }
 }
 
 function annotationMarkAnchor(mark: AnnotationMark): Point {
@@ -1313,24 +1324,69 @@ function drawAnnotationIdBadge(
   color: string,
 ): void {
   const fontSize = Math.max(16, Math.min(28, width / 42));
-  const x = anchor.x * width;
-  const y = anchor.y * height;
+  const radius = fontSize * 1.12;
+  const x = clamp(anchor.x * width, radius + 4, width - radius - 4);
+  const y = clamp(anchor.y * height, radius + 4, height - radius - 4);
   context.save();
-  context.font = `800 ${fontSize}px Inter, Arial, sans-serif`;
-  const badgeWidth = Math.max(fontSize * 2.2, context.measureText(id).width + fontSize * 0.9);
-  const badgeHeight = fontSize * 1.45;
-  const left = clamp(x - badgeWidth / 2, 4, width - badgeWidth - 4);
-  const top = clamp(y - badgeHeight / 2, 4, height - badgeHeight - 4);
   context.fillStyle = color;
   context.strokeStyle = '#ffffff';
   context.lineWidth = Math.max(2, fontSize * 0.12);
-  roundRect(context, left, top, badgeWidth, badgeHeight, badgeHeight * 0.32);
+  context.shadowColor = 'rgba(15, 23, 42, 0.28)';
+  context.shadowBlur = fontSize * 0.35;
+  context.shadowOffsetY = fontSize * 0.12;
+  context.beginPath();
+  context.arc(x, y, radius, 0, Math.PI * 2);
   context.fill();
   context.stroke();
+  context.shadowColor = 'transparent';
   context.fillStyle = '#ffffff';
+  context.font = `850 ${id.length > 2 ? fontSize * 0.78 : fontSize}px Inter, Arial, sans-serif`;
   context.textAlign = 'center';
   context.textBaseline = 'middle';
-  context.fillText(id, left + badgeWidth / 2, top + badgeHeight / 2 + fontSize * 0.03);
+  context.fillText(id, x, y + fontSize * 0.04);
+  context.restore();
+}
+
+function drawAnnotationLocationPin(
+  context: CanvasRenderingContext2D,
+  id: string,
+  anchor: Point,
+  width: number,
+  height: number,
+  color: string,
+): void {
+  const radius = Math.max(18, Math.min(32, width / 34));
+  const tip = {
+    x: clamp(anchor.x * width, radius + 4, width - radius - 4),
+    y: clamp(anchor.y * height, radius * 2.9 + 4, height - 4),
+  };
+  const center = { x: tip.x, y: tip.y - radius * 1.7 };
+  context.save();
+  context.fillStyle = color;
+  context.strokeStyle = '#ffffff';
+  context.lineWidth = Math.max(2.5, radius * 0.12);
+  context.lineJoin = 'round';
+  context.shadowColor = 'rgba(15, 23, 42, 0.3)';
+  context.shadowBlur = radius * 0.45;
+  context.shadowOffsetY = radius * 0.18;
+  context.beginPath();
+  context.moveTo(tip.x, tip.y);
+  context.lineTo(center.x - radius * 0.62, center.y + radius * 0.5);
+  context.lineTo(center.x + radius * 0.62, center.y + radius * 0.5);
+  context.closePath();
+  context.fill();
+  context.stroke();
+  context.beginPath();
+  context.arc(center.x, center.y, radius, 0, Math.PI * 2);
+  context.fill();
+  context.stroke();
+  context.shadowColor = 'transparent';
+  const fontSize = radius * (id.length > 2 ? 0.68 : 0.82);
+  context.fillStyle = '#ffffff';
+  context.font = `850 ${fontSize}px Inter, Arial, sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(id, center.x, center.y + fontSize * 0.04);
   context.restore();
 }
 
@@ -1586,25 +1642,4 @@ function wrapText(text: string, maxChars: number): string[] {
   }
   if (current) lines.push(current);
   return lines.length ? lines : [''];
-}
-
-function roundRect(
-  context: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-): void {
-  context.beginPath();
-  context.moveTo(x + radius, y);
-  context.lineTo(x + width - radius, y);
-  context.quadraticCurveTo(x + width, y, x + width, y + radius);
-  context.lineTo(x + width, y + height - radius);
-  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-  context.lineTo(x + radius, y + height);
-  context.quadraticCurveTo(x, y + height, x, y + height - radius);
-  context.lineTo(x, y + radius);
-  context.quadraticCurveTo(x, y, x + radius, y);
-  context.closePath();
 }

@@ -1,16 +1,9 @@
 export const annotationColorOptions = [
-  { name: 'black', value: '#111827' },
-  { name: 'gray', value: '#64748b' },
   { name: 'red', value: '#dc2626' },
-  { name: 'orange', value: '#f97316' },
-  { name: 'amber', value: '#f59e0b' },
-  { name: 'yellow', value: '#eab308' },
+  { name: 'yellow', value: '#facc15' },
   { name: 'green', value: '#22c55e' },
-  { name: 'teal', value: '#14b8a6' },
-  { name: 'cyan', value: '#06b6d4' },
   { name: 'blue', value: '#2563eb' },
   { name: 'purple', value: '#a855f7' },
-  { name: 'pink', value: '#ec4899' },
 ] as const;
 
 export type AnnotationColor = (typeof annotationColorOptions)[number]['value'];

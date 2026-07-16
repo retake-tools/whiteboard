@@ -602,7 +602,7 @@ button {
   left: calc(100% + 9px);
   z-index: 12;
   display: grid;
-  grid-template-columns: repeat(4, 22px);
+  grid-template-columns: repeat(5, 22px);
   gap: 8px;
   padding: 10px;
   border: 1px solid #d8dee8;
@@ -765,7 +765,12 @@ button {
 }
 
 .annotation-id-badge {
+  filter: drop-shadow(0 1px 2px rgb(15 23 42 / 28%));
   pointer-events: none;
+}
+
+.annotation-location-pin {
+  filter: drop-shadow(0 1px 2px rgb(15 23 42 / 30%));
 }
 
 .annotation-line-hitbox {
@@ -998,7 +1003,7 @@ button {
 
 .annotation-swatch-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 7px 6px;
 }
 
@@ -1273,7 +1278,7 @@ button {
   }
 
   .annotation-swatch-row {
-    grid-template-columns: repeat(6, 16px);
+    grid-template-columns: repeat(5, 16px);
   }
 
   .annotation-size-row {

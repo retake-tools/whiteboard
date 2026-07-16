@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  annotationColorOptions,
   annotationMarksMissingIntent,
   compileAnnotationInstruction,
   hasExecutableAnnotationIntent,
@@ -9,6 +10,12 @@ import {
 import { addImageCodexOperation } from '../src/core/imageOperations';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import type { AssetRecord, BlockRecord } from '../src/core/types';
+
+assert.deepEqual(
+  annotationColorOptions.map((option) => option.name),
+  ['red', 'yellow', 'green', 'blue', 'purple'],
+);
+assert.equal(new Set(annotationColorOptions.map((option) => option.value)).size, 5);
 
 const manifest: AnnotationManifest = {
   schemaVersion: 1,
