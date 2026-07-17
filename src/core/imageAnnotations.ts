@@ -160,11 +160,18 @@ export function annotationMarkDescription(mark: AnnotationMark): string {
 
 export function annotationMarkIntent(mark: AnnotationMark): string {
   const explicitIntent = mark.intent.trim();
-  if (explicitIntent) return explicitIntent;
-  if (mark.kind !== 'text' || !mark.text.trim()) return '';
-  return mark.textMode === 'render_text'
-    ? `Render this exact text in the final image: ${JSON.stringify(mark.text.trim())}`
-    : mark.text.trim();
+  if (mark.kind !== 'text') return explicitIntent;
+
+  const text = mark.text.trim();
+  if (mark.textMode === 'render_text') {
+    const exactTextInstruction = text
+      ? `Render this exact text in the final image: ${JSON.stringify(text)}.`
+      : '';
+    return [exactTextInstruction, explicitIntent].filter(Boolean).join(' ');
+  }
+
+  const annotationNote = text ? `Annotation note text: ${JSON.stringify(text)}.` : '';
+  return [annotationNote, explicitIntent].filter(Boolean).join(' ');
 }
 
 export function annotationMarksMissingIntent(manifest: AnnotationManifest): string[] {
@@ -190,12 +197,20 @@ export function compileAnnotationInstruction(manifest: AnnotationManifest): stri
     return `- ${mark.id}: ${annotationColorName(mark.color)} ${annotationMarkDescription(mark)}${textMode}. ${intent || fallback}`;
   });
   const globalInstruction = manifest.globalInstruction.trim();
+  const hasDirectionalArrow = manifest.marks.some((mark) => mark.kind === 'arrow');
 
   return [
     'Edit the clean source image using the visible annotations in the annotated composite as spatial references.',
     markLines.length ? '' : undefined,
     markLines.length ? 'Annotation legend:' : undefined,
     ...markLines,
+    markLines.length ? '' : undefined,
+    markLines.length
+      ? 'Annotation colors identify marks only. Do not use a mark color as the requested output color unless its instruction explicitly says so.'
+      : undefined,
+    hasDirectionalArrow
+      ? 'For directional arrows, the tail is the start and the arrowhead is the destination or direction. Use the mark instruction to decide whether the arrow means move, point, extend, connect, or orient.'
+      : undefined,
     globalInstruction ? '' : undefined,
     globalInstruction ? 'Global instruction:' : undefined,
     globalInstruction || undefined,

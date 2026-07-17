@@ -83,6 +83,8 @@ assert.match(prompt, /R1: red rectangle/);
 assert.match(prompt, /A1: blue directional arrow/);
 assert.match(prompt, /Replace the cup with a small green plant/);
 assert.match(prompt, /Keep the surrounding room unchanged/);
+assert.match(prompt, /Annotation colors identify marks only/);
+assert.match(prompt, /the tail is the start and the arrowhead is the destination or direction/);
 assert.match(prompt, /without annotation IDs/);
 assert.equal(hasExecutableAnnotationIntent(manifest), true);
 assert.deepEqual(annotationMarksMissingIntent(manifest), []);
@@ -126,6 +128,30 @@ const renderText: AnnotationManifest = {
 };
 assert.equal(hasExecutableAnnotationIntent(renderText), true);
 assert.match(compileAnnotationInstruction(renderText), /Render this exact text/);
+
+const positionedRenderText: AnnotationManifest = {
+  ...renderText,
+  marks: [{
+    ...renderText.marks[0],
+    intent: 'Place it on the existing sign and preserve the sign material.',
+  }],
+};
+const positionedRenderTextPrompt = compileAnnotationInstruction(positionedRenderText);
+assert.match(positionedRenderTextPrompt, /Render this exact text in the final image: "Retake Studio"/);
+assert.match(positionedRenderTextPrompt, /Place it on the existing sign/);
+
+const annotationNoteWithIntent: AnnotationManifest = {
+  ...renderText,
+  marks: [{
+    ...renderText.marks[0],
+    textMode: 'annotation_note',
+    text: 'make this warmer',
+    intent: 'Adjust only the marked light source.',
+  }],
+};
+const annotationNotePrompt = compileAnnotationInstruction(annotationNoteWithIntent);
+assert.match(annotationNotePrompt, /Annotation note text: "make this warmer"/);
+assert.match(annotationNotePrompt, /Adjust only the marked light source/);
 
 const snapshot = structuredClone(defaultSnapshot);
 const sourceAsset: AssetRecord = {
