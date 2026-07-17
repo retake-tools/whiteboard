@@ -707,27 +707,18 @@ button {
   pointer-events: visiblePainted;
 }
 
-.annotation-svg-mark:hover,
-.annotation-svg-mark.is-selected {
-  filter:
-    drop-shadow(0 0 1px #ffffff)
-    drop-shadow(0 0 4px rgb(37 99 235 / 92%));
-}
-
 .annotation-id-badge {
-  filter: drop-shadow(0 1px 2px rgb(15 23 42 / 28%));
+  cursor: move;
+  pointer-events: visiblePainted;
+}
+
+.annotation-selection-halo {
+  fill: none;
+  opacity: 0.72;
   pointer-events: none;
-}
-
-.annotation-location-pin {
-  filter: drop-shadow(0 1px 2px rgb(15 23 42 / 30%));
-}
-
-.annotation-location-pin.is-selected,
-.annotation-id-badge.is-selected {
-  filter:
-    drop-shadow(0 0 1px #ffffff)
-    drop-shadow(0 0 4px rgb(37 99 235 / 92%));
+  stroke: #2563eb;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .annotation-marker-selection-outline {
@@ -760,12 +751,13 @@ button {
 
 .annotation-endpoint-handle {
   cursor: pointer;
-  filter: drop-shadow(0 1px 2px rgb(15 23 42 / 42%));
   pointer-events: all;
+  stroke: #2563eb;
+  stroke-width: 1.25;
+  vector-effect: non-scaling-stroke;
 }
 
 .annotation-quick-delete {
-  filter: drop-shadow(0 1px 3px rgb(15 23 42 / 38%));
   pointer-events: none;
 }
 
@@ -773,6 +765,9 @@ button {
   cursor: pointer;
   fill: #ffffff;
   pointer-events: all;
+  stroke: #cbd5e1;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .annotation-quick-delete line {

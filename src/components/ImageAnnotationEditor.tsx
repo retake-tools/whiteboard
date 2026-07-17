@@ -87,7 +87,7 @@ type Point = AnnotationPoint;
 type EndpointHandle = 'start' | 'end' | 'startXEndY' | 'endXStartY';
 type DragTarget =
   | { type: 'draw'; markId: string }
-  | { type: 'endpoint'; markId: string; endpoint: EndpointHandle }
+  | { type: 'endpoint'; markId: string; endpoint: EndpointHandle; lastPoint: Point }
   | { type: 'move'; markId: string; lastPoint: Point }
   | { type: 'pan'; lastClientPoint: Point }
   | null;
@@ -159,6 +159,8 @@ export function ImageAnnotationEditor({
     past: [],
     future: [],
   });
+  const gestureDirtyRef = useRef(false);
+  const suppressNextIdleDraftPublishRef = useRef(false);
   const onDraftChangeRef = useRef(onDraftChange);
   onDraftChangeRef.current = onDraftChange;
 
@@ -172,12 +174,18 @@ export function ImageAnnotationEditor({
     setImageAspectRatio(null);
     setViewPan({ x: 0, y: 0 });
     setViewZoom(1);
+    gestureDirtyRef.current = false;
+    suppressNextIdleDraftPublishRef.current = false;
     historyRef.current = { past: [], future: [] };
     setHistoryRevision((revision) => revision + 1);
   }, [imageUrl]);
 
   useLayoutEffect(() => {
     if (dragTarget) return;
+    if (suppressNextIdleDraftPublishRef.current) {
+      suppressNextIdleDraftPublishRef.current = false;
+      return;
+    }
     onDraftChangeRef.current({
       schemaVersion: 1,
       globalInstruction: instruction,
@@ -266,6 +274,7 @@ export function ImageAnnotationEditor({
     () => marks.find((mark) => mark.id === (hoveredMarkId ?? selectedMarkId)),
     [hoveredMarkId, marks, selectedMarkId],
   );
+  const displayedSelectedMarkId = hoveredMarkId ?? selectedMarkId;
   const canRedo = historyRevision >= 0 && historyRef.current.future.length > 0;
   const canUndo = historyRevision >= 0 && historyRef.current.past.length > 0;
   const manifest = useMemo<AnnotationManifest>(
@@ -359,6 +368,7 @@ export function ImageAnnotationEditor({
       safeSetPointerCapture(stageRef.current ?? event.currentTarget, event.pointerId);
       setSelectedMarkId(null);
       setEditingTextMarkId(null);
+      gestureDirtyRef.current = false;
       setDragTarget({ type: 'pan', lastClientPoint: { x: event.clientX, y: event.clientY } });
       return;
     }
@@ -383,6 +393,7 @@ export function ImageAnnotationEditor({
     if (!mark) return;
 
     recordHistory();
+    gestureDirtyRef.current = true;
     safeSetPointerCapture(stageRef.current ?? event.currentTarget, event.pointerId);
     setMarks((current) => [...current, mark]);
     setSelectedMarkId(mark.id);
@@ -434,12 +445,17 @@ export function ImageAnnotationEditor({
     }
 
     if (dragTarget.type === 'endpoint') {
+      if (point.x === dragTarget.lastPoint.x && point.y === dragTarget.lastPoint.y) return;
+      markGestureDirty();
       updateMarkEndpoint(dragTarget.markId, dragTarget.endpoint, point);
+      setDragTarget({ ...dragTarget, lastPoint: point });
       return;
     }
 
     const dx = point.x - dragTarget.lastPoint.x;
     const dy = point.y - dragTarget.lastPoint.y;
+    if (dx === 0 && dy === 0) return;
+    markGestureDirty();
     moveMark(dragTarget.markId, dx, dy);
     setDragTarget({ ...dragTarget, lastPoint: point });
   }
@@ -452,7 +468,17 @@ export function ImageAnnotationEditor({
     if (dragTarget?.type === 'draw') {
       finalizeDrawingMark();
     }
+    if (!gestureDirtyRef.current) {
+      suppressNextIdleDraftPublishRef.current = true;
+    }
+    gestureDirtyRef.current = false;
     setDragTarget(null);
+  }
+
+  function markGestureDirty(): void {
+    if (gestureDirtyRef.current) return;
+    recordHistory();
+    gestureDirtyRef.current = true;
   }
 
   function updateDrawingMark(markId: string, point: Point): void {
@@ -532,7 +558,7 @@ export function ImageAnnotationEditor({
     if (!point) return;
 
     safeSetPointerCapture(stageRef.current ?? event.currentTarget, event.pointerId);
-    recordHistory();
+    gestureDirtyRef.current = false;
     selectExistingMark(markId, { editing: false });
     setDragTarget({ type: 'move', markId, lastPoint: point });
   }
@@ -564,10 +590,12 @@ export function ImageAnnotationEditor({
 
   function startEndpointDrag(event: PointerEvent, markId: string, endpoint: EndpointHandle): void {
     stopCanvasGesture(event);
-    recordHistory();
+    const point = stagePoint(event);
+    if (!point) return;
     safeSetPointerCapture(stageRef.current ?? event.currentTarget, event.pointerId);
+    gestureDirtyRef.current = false;
     selectExistingMark(markId, { editing: false });
-    setDragTarget({ type: 'endpoint', markId, endpoint });
+    setDragTarget({ type: 'endpoint', markId, endpoint, lastPoint: point });
   }
 
   function selectExistingMark(markId: string, options: { editing: boolean }): void {
@@ -798,6 +826,7 @@ export function ImageAnnotationEditor({
                     mark={mark}
                     selected={mark.id === selectedMarkId || mark.id === hoveredMarkId}
                     fixedShapeYScale={renderMetrics.displayWidth / renderMetrics.displayHeight}
+                    onPointerDown={(event) => startMoveMark(event, mark.id)}
                   />
                 ))}
                 {overlayActionMark ? (
@@ -898,7 +927,7 @@ export function ImageAnnotationEditor({
                 {marks.map((mark) => (
                   <div
                     key={`intent-${mark.id}`}
-                    className={`annotation-intent-card${selectedMarkId === mark.id ? ' is-selected' : ''}`}
+                    className={`annotation-intent-card${displayedSelectedMarkId === mark.id ? ' is-selected' : ''}`}
                     onPointerDown={(event) => event.stopPropagation()}
                     aria-current={selectedMarkId === mark.id ? 'true' : undefined}
                   >
@@ -910,7 +939,7 @@ export function ImageAnnotationEditor({
                       <span className="annotation-intent-color" style={{ background: mark.color }} />
                       <strong>{mark.id}</strong>
                       <span>{markKindLabel(mark.kind)}</span>
-                      {selectedMarkId === mark.id ? (
+                      {displayedSelectedMarkId === mark.id ? (
                         <span className="annotation-intent-selected-label">{t('context.selectedMark')}</span>
                       ) : null}
                     </button>
@@ -1047,6 +1076,17 @@ function AnnotationSvgMark({
 
     return (
       <g className={className} data-annotation-mark-id={mark.id} onPointerDown={onPointerDown}>
+        {selected ? (
+          <line
+            className="annotation-selection-halo"
+            x1={mark.start.x}
+            x2={mark.end.x}
+            y1={mark.start.y}
+            y2={mark.end.y}
+            strokeWidth={screenStrokeWidth + 4}
+            vectorEffect="non-scaling-stroke"
+          />
+        ) : null}
         <line
           x1={mark.start.x}
           x2={mark.end.x}
@@ -1094,15 +1134,25 @@ function AnnotationSvgMark({
   }
 
   if (mark.kind === 'pen' || mark.kind === 'brush') {
+    const markStrokeWidth = mark.kind === 'brush' ? screenStrokeWidth * 9 : screenStrokeWidth;
     return (
       <g className={className} data-annotation-mark-id={mark.id} onPointerDown={onPointerDown}>
+        {selected ? (
+          <polyline
+            className="annotation-selection-halo"
+            points={mark.points.map((point) => `${point.x},${point.y}`).join(' ')}
+            fill="none"
+            strokeWidth={markStrokeWidth + 4}
+            vectorEffect="non-scaling-stroke"
+          />
+        ) : null}
         <polyline
           points={mark.points.map((point) => `${point.x},${point.y}`).join(' ')}
           fill="none"
           stroke={mark.color}
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth={mark.kind === 'brush' ? screenStrokeWidth * 9 : screenStrokeWidth}
+          strokeWidth={markStrokeWidth}
           vectorEffect="non-scaling-stroke"
           opacity={mark.kind === 'brush' ? 0.38 : 1}
         />
@@ -1121,6 +1171,17 @@ function AnnotationSvgMark({
     if (mark.kind === 'ellipse') {
       return (
         <g className={className} data-annotation-mark-id={mark.id} onPointerDown={onPointerDown}>
+          {selected ? (
+            <ellipse
+              className="annotation-selection-halo"
+              cx={bounds.x + bounds.width / 2}
+              cy={bounds.y + bounds.height / 2}
+              rx={bounds.width / 2}
+              ry={bounds.height / 2}
+              strokeWidth={screenStrokeWidth + 4}
+              vectorEffect="non-scaling-stroke"
+            />
+          ) : null}
           <ellipse
             cx={bounds.x + bounds.width / 2}
             cy={bounds.y + bounds.height / 2}
@@ -1154,6 +1215,17 @@ function AnnotationSvgMark({
     ];
     return (
       <g className={className} data-annotation-mark-id={mark.id} onPointerDown={onPointerDown}>
+        {selected ? (
+          <rect
+            className="annotation-selection-halo"
+            x={bounds.x}
+            y={bounds.y}
+            width={bounds.width}
+            height={bounds.height}
+            strokeWidth={screenStrokeWidth + 4}
+            vectorEffect="non-scaling-stroke"
+          />
+        ) : null}
         <rect
           x={bounds.x}
           y={bounds.y}
@@ -1196,10 +1268,12 @@ function AnnotationSvgMark({
 function AnnotationIdBadge({
   fixedShapeYScale,
   mark,
+  onPointerDown,
   selected,
 }: {
   fixedShapeYScale: number;
   mark: AnnotationMark;
+  onPointerDown: (event: PointerEvent) => void;
   selected: boolean;
 }): ReactElement | null {
   if (mark.kind === 'marker') return null;
@@ -1207,7 +1281,9 @@ function AnnotationIdBadge({
   return (
     <g
       className={`annotation-id-badge${selected ? ' is-selected' : ''}`}
+      data-annotation-mark-id={mark.id}
       transform={`translate(${anchor.x} ${anchor.y}) scale(1 ${fixedShapeYScale})`}
+      onPointerDown={onPointerDown}
     >
       {selected ? (
         <circle
