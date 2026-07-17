@@ -39,13 +39,11 @@ type TranslationKey =
   | 'context.arrowTool'
   | 'context.annotateForCodex'
   | 'context.annotateEdit'
-  | 'context.annotationNotePlaceholder'
   | 'context.annotationSourceMissing'
   | 'context.annotationTools'
   | 'context.addReferenceImage'
   | 'context.aspectRatio'
   | 'context.brightness'
-  | 'context.annotationNoteMode'
   | 'context.annotationColorBlue'
   | 'context.annotationColorGreen'
   | 'context.annotationColorPurple'
@@ -93,7 +91,6 @@ type TranslationKey =
   | 'context.relight'
   | 'context.removeBackground'
   | 'context.regionBrushTool'
-  | 'context.renderTextMode'
   | 'context.runWithCodex'
   | 'context.run'
   | 'context.saturation'
@@ -102,8 +99,6 @@ type TranslationKey =
   | 'context.selectedMarkColor'
   | 'context.selectedTools'
   | 'context.strokeSize'
-  | 'context.textMarkTool'
-  | 'context.textContent'
   | 'context.undoAnnotation'
   | 'context.unavailable'
   | 'context.executionInstructionPreview'
@@ -453,13 +448,11 @@ const translations: Record<Locale, Translations> = {
     'context.arrowTool': 'Arrow',
     'context.annotateForCodex': 'Annotation Edit',
     'context.annotateEdit': 'Annotate edit',
-    'context.annotationNotePlaceholder': 'Describe the marked change for this image...',
     'context.annotationSourceMissing': 'Attach or generate an image asset before annotating.',
     'context.annotationTools': 'Annotation tools',
     'context.addReferenceImage': 'Add reference',
     'context.aspectRatio': 'Aspect ratio',
     'context.brightness': 'Brightness',
-    'context.annotationNoteMode': 'Annotation note',
     'context.annotationColorBlue': 'Blue',
     'context.annotationColorGreen': 'Green',
     'context.annotationColorPurple': 'Purple',
@@ -507,7 +500,6 @@ const translations: Record<Locale, Translations> = {
     'context.relight': 'Relight',
     'context.removeBackground': 'Remove background',
     'context.regionBrushTool': 'Region brush',
-    'context.renderTextMode': 'Render in final image',
     'context.runWithCodex': 'Run with Codex',
     'context.run': 'Run',
     'context.saturation': 'Saturation',
@@ -516,8 +508,6 @@ const translations: Record<Locale, Translations> = {
     'context.selectedMarkColor': 'Selected mark color',
     'context.selectedTools': 'Selected block tools',
     'context.strokeSize': 'Stroke',
-    'context.textMarkTool': 'Text note',
-    'context.textContent': 'Text content',
     'context.undoAnnotation': 'Undo annotation',
     'context.unavailable': 'Not available yet',
     'context.executionInstructionPreview': 'Execution instruction preview',
@@ -862,13 +852,11 @@ const translations: Record<Locale, Translations> = {
     'context.arrowTool': '箭头',
     'context.annotateForCodex': '标注编辑',
     'context.annotateEdit': '标注编辑',
-    'context.annotationNotePlaceholder': '描述这张图需要标注修改的内容...',
     'context.annotationSourceMissing': '请先给当前图片块绑定或生成图片素材。',
     'context.annotationTools': '标注工具',
     'context.addReferenceImage': '添加参考图',
     'context.aspectRatio': '比例',
     'context.brightness': '亮度',
-    'context.annotationNoteMode': '仅作批注',
     'context.annotationColorBlue': '蓝色',
     'context.annotationColorGreen': '绿色',
     'context.annotationColorPurple': '紫色',
@@ -916,7 +904,6 @@ const translations: Record<Locale, Translations> = {
     'context.relight': '重新打光',
     'context.removeBackground': '去背景',
     'context.regionBrushTool': '区域笔刷',
-    'context.renderTextMode': '渲染到最终图片',
     'context.runWithCodex': '用 Codex 执行',
     'context.run': '执行',
     'context.saturation': '饱和度',
@@ -925,8 +912,6 @@ const translations: Record<Locale, Translations> = {
     'context.selectedMarkColor': '所选标记颜色',
     'context.selectedTools': '选中块工具',
     'context.strokeSize': '线宽',
-    'context.textMarkTool': '文字标注',
-    'context.textContent': '文字内容',
     'context.undoAnnotation': '撤销标注',
     'context.unavailable': '暂不可用',
     'context.executionInstructionPreview': '执行说明预览',

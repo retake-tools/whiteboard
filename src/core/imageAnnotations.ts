@@ -7,9 +7,8 @@ export const annotationColorOptions = [
 ] as const;
 
 export type AnnotationColor = (typeof annotationColorOptions)[number]['value'];
-export type AnnotationMarkKind = 'marker' | 'arrow' | 'pen' | 'brush' | 'rect' | 'ellipse' | 'text';
+export type AnnotationMarkKind = 'marker' | 'arrow' | 'pen' | 'brush' | 'rect' | 'ellipse';
 export type AnnotationStrokeSize = 'xs' | 's' | 'm' | 'l' | 'xl';
-export type AnnotationTextMode = 'annotation_note' | 'render_text';
 
 export interface AnnotationPoint {
   x: number;
@@ -57,21 +56,13 @@ export interface EllipseAnnotationMark extends BaseAnnotationMark {
   end: AnnotationPoint;
 }
 
-export interface TextAnnotationMark extends BaseAnnotationMark {
-  kind: 'text';
-  point: AnnotationPoint;
-  text: string;
-  textMode: AnnotationTextMode;
-}
-
 export type AnnotationMark =
   | MarkerAnnotationMark
   | ArrowAnnotationMark
   | PenAnnotationMark
   | BrushAnnotationMark
   | RectAnnotationMark
-  | EllipseAnnotationMark
-  | TextAnnotationMark;
+  | EllipseAnnotationMark;
 
 export interface AnnotationManifest {
   schemaVersion: 1;
@@ -127,7 +118,6 @@ const markPrefixes = {
   brush: 'B',
   rect: 'R',
   ellipse: 'C',
-  text: 'T',
 } satisfies Record<AnnotationMarkKind, string>;
 
 const markDescriptions = {
@@ -137,7 +127,6 @@ const markDescriptions = {
   brush: 'semi-transparent brushed region',
   rect: 'rectangle',
   ellipse: 'ellipse',
-  text: 'text annotation',
 } satisfies Record<AnnotationMarkKind, string>;
 
 export function nextAnnotationMarkId(marks: AnnotationMark[], kind: AnnotationMarkKind): string {
@@ -159,19 +148,7 @@ export function annotationMarkDescription(mark: AnnotationMark): string {
 }
 
 export function annotationMarkIntent(mark: AnnotationMark): string {
-  const explicitIntent = mark.intent.trim();
-  if (mark.kind !== 'text') return explicitIntent;
-
-  const text = mark.text.trim();
-  if (mark.textMode === 'render_text') {
-    const exactTextInstruction = text
-      ? `Render this exact text in the final image: ${JSON.stringify(text)}.`
-      : '';
-    return [exactTextInstruction, explicitIntent].filter(Boolean).join(' ');
-  }
-
-  const annotationNote = text ? `Annotation note text: ${JSON.stringify(text)}.` : '';
-  return [annotationNote, explicitIntent].filter(Boolean).join(' ');
+  return mark.intent.trim();
 }
 
 export function annotationMarksMissingIntent(manifest: AnnotationManifest): string[] {
@@ -193,8 +170,7 @@ export function compileAnnotationInstruction(manifest: AnnotationManifest): stri
     const fallback = manifest.globalInstruction.trim()
       ? 'Apply the global instruction to this marked location.'
       : 'No edit instruction was provided for this mark.';
-    const textMode = mark.kind === 'text' ? `, mode=${mark.textMode}` : '';
-    return `- ${mark.id}: ${annotationColorName(mark.color)} ${annotationMarkDescription(mark)}${textMode}. ${intent || fallback}`;
+    return `- ${mark.id}: ${annotationColorName(mark.color)} ${annotationMarkDescription(mark)}. ${intent || fallback}`;
   });
   const globalInstruction = manifest.globalInstruction.trim();
   const hasDirectionalArrow = manifest.marks.some((mark) => mark.kind === 'arrow');

@@ -633,8 +633,7 @@ button {
 .annotation-stage.is-pen-tool,
 .annotation-stage.is-brush-tool,
 .annotation-stage.is-rect-tool,
-.annotation-stage.is-ellipse-tool,
-.annotation-stage.is-text-tool {
+.annotation-stage.is-ellipse-tool {
   cursor: crosshair;
 }
 
@@ -777,67 +776,64 @@ button {
   stroke-width: 0.0035;
 }
 
-.annotation-label-input {
+.annotation-hover-prompt {
   position: absolute;
-  z-index: 3;
-  min-height: 31px;
-  padding: 2px 4px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  appearance: none;
-  caret-color: currentColor;
-  font-family:
-    "PingFang SC",
-    "Microsoft YaHei",
-    "Noto Sans CJK SC",
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    sans-serif;
-  font-weight: 720;
-  line-height: 1.25;
-  outline: none;
-  resize: none;
-  text-shadow: none;
-  user-select: text;
-  -webkit-user-select: text;
+  z-index: 4;
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  width: max-content;
+  max-width: min(280px, calc(100% - 24px));
+  max-height: 120px;
+  padding: 7px 9px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 8px;
+  background: rgb(15 23 42 / 72%);
+  box-shadow: 0 8px 22px rgb(15 23 42 / 20%);
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 1.42;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
 }
 
-.annotation-label-input.is-selected {
-  outline: 1px dashed rgb(37 99 235 / 64%);
-  outline-offset: 2px;
-  background: rgb(255 255 255 / 18%);
-  box-shadow: 0 0 0 3px rgb(37 99 235 / 8%);
+.annotation-hover-prompt strong {
+  flex: none;
+  color: #bfdbfe;
 }
 
-.annotation-label-input.is-editing {
-  outline: 1px solid rgb(37 99 235 / 72%);
-  outline-offset: 2px;
-  background: rgb(255 255 255 / 26%);
-  box-shadow: 0 0 0 3px rgb(37 99 235 / 10%);
+.annotation-hover-prompt span {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
 }
 
-.annotation-label-input:focus:not(.is-selected):not(.is-editing) {
-  outline: none;
+.annotation-hover-prompt.is-right.is-centered {
+  transform: translate(12px, -50%);
 }
 
-.annotation-label-input::placeholder {
-  color: rgb(220 38 38 / 88%);
-  text-shadow: none;
+.annotation-hover-prompt.is-left.is-centered {
+  transform: translate(calc(-100% - 12px), -50%);
 }
 
-.annotation-stage.is-select-tool .annotation-label-input {
-  cursor: grab;
+.annotation-hover-prompt.is-right.is-below {
+  transform: translate(12px, 12px);
 }
 
-.annotation-stage.is-select-tool .annotation-label-input:active {
-  cursor: grabbing;
+.annotation-hover-prompt.is-left.is-below {
+  transform: translate(calc(-100% - 12px), 12px);
 }
 
-.annotation-label-input:focus {
-  cursor: text;
+.annotation-hover-prompt.is-right.is-above {
+  transform: translate(12px, calc(-100% - 12px));
+}
+
+.annotation-hover-prompt.is-left.is-above {
+  transform: translate(calc(-100% - 12px), calc(-100% - 12px));
 }
 
 .annotation-side-panel {
@@ -846,8 +842,10 @@ button {
   gap: 8px;
   padding: 8px;
   min-width: 0;
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid #d8dee8;
   border-radius: 8px;
   background: #f8fafc;
@@ -870,9 +868,7 @@ button {
 }
 
 .annotation-control-group textarea,
-.annotation-intent-input,
-.annotation-text-options input,
-.annotation-text-options select {
+.annotation-intent-input {
   width: 100%;
   min-width: 0;
   border: 1px solid #d8dee8;
@@ -968,19 +964,10 @@ button {
   box-shadow: 0 0 0 1px #cbd5e1;
 }
 
-.annotation-intent-input,
-.annotation-text-options input,
-.annotation-text-options select {
+.annotation-intent-input {
   min-height: 30px;
   padding: 5px 7px;
   font-size: 11px;
-}
-
-.annotation-text-options {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 112px;
-  gap: 5px;
-  margin-top: 5px;
 }
 
 .annotation-empty-intents,

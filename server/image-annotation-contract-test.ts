@@ -32,6 +32,7 @@ const appSource = await readFile('src/App.tsx', 'utf8');
 const toolbarSource = await readFile('src/components/ContextToolbar.tsx', 'utf8');
 const executionDetailSource = await readFile('src/components/ExecutionDetailContent.tsx', 'utf8');
 const historyPanelSource = await readFile('src/components/BoardHistoryPanel.tsx', 'utf8');
+const stylesSource = await readFile('src/styles.css', 'utf8');
 assert.doesNotMatch(
   editorSource,
   /annotation-current-color/,
@@ -50,7 +51,20 @@ assert.match(editorSource, /aria-label={`\$\{markColorLabel\(option\)\} · \$\{o
 assert.match(editorSource, /setViewPan\(clampImageViewPan\(metrics, viewZoom, nextPan\)\)/);
 assert.match(editorSource, /vectorEffect="non-scaling-stroke"/);
 assert.match(editorSource, /startXEndY/);
+assert.match(editorSource, /function supportedInitialMarks/);
+assert.match(editorSource, /function annotationHoverPromptStyle/);
+assert.match(editorSource, /function annotationBrushStrokeWidthPixels/);
+assert.match(editorSource, /brushStrokeWidth={annotationBrushStrokeWidthPixels\(/);
+assert.match(editorSource, /context\.lineWidth = annotationBrushStrokeWidthPixels\(mark\.strokeSize, width, height\)/);
+assert.doesNotMatch(editorSource, /mark\.kind === 'brush' \? screenStrokeWidth \* 9/);
+assert.doesNotMatch(editorSource, /Math\.max\(context\.lineWidth \* 9/);
+assert.match(editorSource, /hoveredMark\?\.intent\.trim\(\)/);
+assert.match(editorSource, /closest\('\.annotation-stage'\)/);
+assert.doesNotMatch(editorSource, /closest\('\.annotation-editor'\).*preventDefault/);
+assert.match(stylesSource, /\.annotation-hover-prompt \{[\s\S]*?pointer-events: none;/);
+assert.match(stylesSource, /\.annotation-side-panel \{[\s\S]*?min-height: 0;[\s\S]*?overflow-y: auto;/);
 assert.doesNotMatch(editorSource, /diamondPath/);
+assert.doesNotMatch(editorSource, /handleStageDoubleClick|createMark\('text'|annotation-label-input|textMarkTool/);
 assert.match(appSource, /function updateAnnotationDraft/);
 assert.match(appSource, /scheduleAnnotationDraftPersist\(\)/);
 assert.match(toolbarSource, /initialDraft={annotationDraft}/);
@@ -117,46 +131,22 @@ const incomplete: AnnotationManifest = {
 assert.equal(hasExecutableAnnotationIntent(incomplete), false);
 assert.deepEqual(annotationMarksMissingIntent(incomplete), ['R1']);
 
-const renderText: AnnotationManifest = {
+const addExactText: AnnotationManifest = {
   schemaVersion: 1,
   globalInstruction: '',
   marks: [{
-    id: 'T1',
-    kind: 'text',
+    id: 'R2',
+    kind: 'rect',
     color: '#a855f7',
     strokeSize: 'm',
-    intent: '',
-    point: { x: 0.5, y: 0.5 },
-    text: 'Retake Studio',
-    textMode: 'render_text',
+    intent: 'Add the exact text "Retake Studio" inside this sign and preserve the sign material.',
+    start: { x: 0.35, y: 0.4 },
+    end: { x: 0.65, y: 0.6 },
   }],
 };
-assert.equal(hasExecutableAnnotationIntent(renderText), true);
-assert.match(compileAnnotationInstruction(renderText), /Render this exact text/);
-
-const positionedRenderText: AnnotationManifest = {
-  ...renderText,
-  marks: [{
-    ...renderText.marks[0],
-    intent: 'Place it on the existing sign and preserve the sign material.',
-  }],
-};
-const positionedRenderTextPrompt = compileAnnotationInstruction(positionedRenderText);
-assert.match(positionedRenderTextPrompt, /Render this exact text in the final image: "Retake Studio"/);
-assert.match(positionedRenderTextPrompt, /Place it on the existing sign/);
-
-const annotationNoteWithIntent: AnnotationManifest = {
-  ...renderText,
-  marks: [{
-    ...renderText.marks[0],
-    textMode: 'annotation_note',
-    text: 'make this warmer',
-    intent: 'Adjust only the marked light source.',
-  }],
-};
-const annotationNotePrompt = compileAnnotationInstruction(annotationNoteWithIntent);
-assert.match(annotationNotePrompt, /Annotation note text: "make this warmer"/);
-assert.match(annotationNotePrompt, /Adjust only the marked light source/);
+assert.equal(hasExecutableAnnotationIntent(addExactText), true);
+assert.match(compileAnnotationInstruction(addExactText), /Add the exact text "Retake Studio"/);
+assert.match(compileAnnotationInstruction(addExactText), /preserve the sign material/);
 
 const snapshot = structuredClone(defaultSnapshot);
 const sourceAsset: AssetRecord = {
@@ -212,6 +202,27 @@ assert.notEqual(
 const restoreContext = annotationDraftRestoreContext(snapshot, operation.execution);
 assert.equal(restoreContext.state, 'available');
 assert.equal(restoreContext.sourceBlock?.blockId, sourceBlock.blockId);
+const retiredTextExecution = structuredClone(operation.execution);
+retiredTextExecution.executionId = 'execution_retired_text_annotation';
+retiredTextExecution.params = {
+  ...retiredTextExecution.params,
+  operationBlockId: 'missing_operation_block',
+  annotationManifest: {
+    schemaVersion: 1,
+    globalInstruction: '',
+    marks: [{
+      id: 'T1',
+      kind: 'text',
+      color: '#dc2626',
+      strokeSize: 'm',
+      intent: 'Legacy text note',
+      point: { x: 0.5, y: 0.5 },
+      text: 'Legacy text note',
+      textMode: 'annotation_note',
+    }],
+  },
+};
+assert.equal(annotationDraftRestoreContext(snapshot, retiredTextExecution).state, 'manifest_missing');
 const legacyManifestSnapshot = structuredClone(snapshot);
 delete legacyManifestSnapshot.executions[0].params!.annotationManifest;
 assert.equal(

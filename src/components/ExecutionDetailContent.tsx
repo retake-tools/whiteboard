@@ -382,7 +382,7 @@ function AnnotationManifestDetail({
             <li key={mark.id}>
               <span className="execution-annotation-color" style={{ backgroundColor: mark.color }} aria-hidden="true" />
               <strong>{mark.id} · {t(annotationMarkLabelKey(mark.kind))}</strong>
-              <p>{mark.intent || (mark.kind === 'text' ? mark.text : t('inspector.none'))}</p>
+              <p>{mark.intent || t('inspector.none')}</p>
             </li>
           ))}
         </ol>
@@ -414,8 +414,7 @@ function annotationMarkLabelKey(kind: AnnotationMarkKind) {
   if (kind === 'pen') return 'context.penTool' as const;
   if (kind === 'brush') return 'context.regionBrushTool' as const;
   if (kind === 'rect') return 'context.rectangleTool' as const;
-  if (kind === 'ellipse') return 'context.ellipseTool' as const;
-  return 'context.textMarkTool' as const;
+  return 'context.ellipseTool' as const;
 }
 
 function executionActivity(snapshot: BoardSnapshot, execution: ExecutionRecord): ExecutionActivityItem[] {

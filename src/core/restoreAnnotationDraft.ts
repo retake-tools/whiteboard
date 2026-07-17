@@ -21,7 +21,7 @@ export interface RestoreAnnotationDraftResult extends AnnotationDraftRestoreCont
   restored: boolean;
 }
 
-const annotationKinds = new Set(['marker', 'arrow', 'pen', 'brush', 'rect', 'ellipse', 'text']);
+const annotationKinds = new Set(['marker', 'arrow', 'pen', 'brush', 'rect', 'ellipse']);
 const annotationColors = new Set(annotationColorOptions.map((option) => option.value));
 const strokeSizes = new Set(['xs', 's', 'm', 'l', 'xl']);
 
@@ -165,8 +165,7 @@ function isAnnotationMark(value: unknown): value is AnnotationMark {
   if (mark.kind === 'pen' || mark.kind === 'brush') {
     return Array.isArray(mark.points) && mark.points.every(isPoint);
   }
-  return isPoint(mark.point) && typeof mark.text === 'string' &&
-    (mark.textMode === 'annotation_note' || mark.textMode === 'render_text');
+  return false;
 }
 
 function isPoint(value: unknown): boolean {

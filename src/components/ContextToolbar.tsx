@@ -358,7 +358,6 @@ function ImageToolPopover({
             imageUrl={imageUrl}
             initialDraft={annotationDraft}
             instruction={annotationInstruction}
-            placeholder={t('context.annotationNotePlaceholder')}
             runLabel={t('context.run')}
             title={t('context.annotateEdit')}
             unavailableLabel={t('context.annotationSourceMissing')}

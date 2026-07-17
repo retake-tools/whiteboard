@@ -11,7 +11,6 @@ import {
   RotateCcw,
   Redo2,
   Trash2,
-  Type,
   Undo2,
   ZoomIn,
   ZoomOut,
@@ -44,7 +43,6 @@ import {
   type AnnotationMarkKind,
   type AnnotationPoint,
   type AnnotationStrokeSize,
-  type TextAnnotationMark,
 } from '../core/imageAnnotations';
 import { useI18n } from '../i18n';
 import { TooltipIconButton } from './Tooltip';
@@ -65,7 +63,6 @@ interface ImageAnnotationEditorProps {
   imageUrl?: string;
   initialDraft?: AnnotationDraft;
   instruction: string;
-  placeholder: string;
   runLabel: string;
   title: string;
   unavailableLabel: string;
@@ -107,6 +104,7 @@ interface ImageDisplayMetrics {
 const strokeOptions: StrokeSize[] = ['xs', 's', 'm', 'l'];
 const colorOptions = annotationColorOptions.map((option) => option.value);
 const defaultMarkColor: MarkColor = annotationColorOptions[0].value;
+const supportedMarkKinds = new Set<AnnotationMarkKind>(['marker', 'arrow', 'pen', 'brush', 'rect', 'ellipse']);
 
 const strokeBySize = {
   xs: 0.8,
@@ -128,7 +126,6 @@ export function ImageAnnotationEditor({
   imageUrl,
   initialDraft,
   instruction,
-  placeholder,
   runLabel,
   title,
   unavailableLabel,
@@ -144,9 +141,8 @@ export function ImageAnnotationEditor({
   const [activeTool, setActiveTool] = useState<AnnotationTool>('select');
   const [selectedMarkId, setSelectedMarkId] = useState<string | null>(null);
   const [hoveredMarkId, setHoveredMarkId] = useState<string | null>(null);
-  const [editingTextMarkId, setEditingTextMarkId] = useState<string | null>(null);
   const [dragTarget, setDragTarget] = useState<DragTarget>(null);
-  const [marks, setMarks] = useState<AnnotationMark[]>(() => structuredClone(initialDraft?.marks ?? []));
+  const [marks, setMarks] = useState<AnnotationMark[]>(() => supportedInitialMarks(initialDraft));
   const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
   const [historyRevision, setHistoryRevision] = useState(0);
   const [strokeSize, setStrokeSize] = useState<StrokeSize>('m');
@@ -164,10 +160,9 @@ export function ImageAnnotationEditor({
   onDraftChangeRef.current = onDraftChange;
 
   useEffect(() => {
-    setMarks(structuredClone(initialDraft?.marks ?? []));
+    setMarks(supportedInitialMarks(initialDraft));
     setSelectedMarkId(null);
     setHoveredMarkId(null);
-    setEditingTextMarkId(null);
     setDragTarget(null);
     setActiveTool('select');
     setImageAspectRatio(null);
@@ -195,7 +190,7 @@ export function ImageAnnotationEditor({
   useEffect(() => {
     function preventBrowserHistorySwipe(event: globalThis.WheelEvent): void {
       if (!(event.target instanceof Element)) return;
-      if (!event.target.closest('.annotation-editor')) return;
+      if (!event.target.closest('.annotation-stage')) return;
       event.preventDefault();
     }
 
@@ -269,6 +264,10 @@ export function ImageAnnotationEditor({
     () => marks.find((mark) => mark.id === selectedMarkId),
     [marks, selectedMarkId],
   );
+  const hoveredMark = useMemo(
+    () => marks.find((mark) => mark.id === hoveredMarkId),
+    [hoveredMarkId, marks],
+  );
   const overlayActionMark = useMemo(
     () => marks.find((mark) => mark.id === (hoveredMarkId ?? selectedMarkId)),
     [hoveredMarkId, marks, selectedMarkId],
@@ -291,10 +290,7 @@ export function ImageAnnotationEditor({
   useEffect(() => {
     function onKeyDown(event: globalThis.KeyboardEvent): void {
       if (event.key !== 'Delete' && event.key !== 'Backspace') return;
-      const shouldKeepEditingText =
-        isEditableKeyboardTarget(event.target) &&
-        !(isAnnotationLabelInput(event.target) && editingTextMarkId !== selectedMarkId);
-      if (shouldKeepEditingText) return;
+      if (isEditableKeyboardTarget(event.target)) return;
 
       event.preventDefault();
       event.stopPropagation();
@@ -307,7 +303,7 @@ export function ImageAnnotationEditor({
 
     window.addEventListener('keydown', onKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
-  }, [editingTextMarkId, selectedMarkId, marks]);
+  }, [selectedMarkId, marks]);
 
   function currentMetrics(): ImageDisplayMetrics | null {
     return metrics ? transformImageDisplayMetrics(metrics, viewZoom, viewPan) : null;
@@ -366,7 +362,6 @@ export function ImageAnnotationEditor({
       event.preventDefault();
       safeSetPointerCapture(stageRef.current ?? event.currentTarget, event.pointerId);
       setSelectedMarkId(null);
-      setEditingTextMarkId(null);
       gestureDirtyRef.current = false;
       setDragTarget({ type: 'pan', lastClientPoint: { x: event.clientX, y: event.clientY } });
       return;
@@ -376,7 +371,6 @@ export function ImageAnnotationEditor({
 
     if (activeTool === 'select') {
       setSelectedMarkId(null);
-      setEditingTextMarkId(null);
       return;
     }
 
@@ -396,25 +390,7 @@ export function ImageAnnotationEditor({
     safeSetPointerCapture(stageRef.current ?? event.currentTarget, event.pointerId);
     setMarks((current) => [...current, mark]);
     setSelectedMarkId(mark.id);
-    setEditingTextMarkId(mark.kind === 'text' ? mark.id : null);
     setDragTarget({ type: 'draw', markId: mark.id });
-  }
-
-  function handleStageDoubleClick(event: MouseEvent<HTMLDivElement>): void {
-    stopCanvasGesture(event);
-    const activeMetrics = currentMetrics();
-    if (!imageUrl || !activeMetrics) return;
-
-    const point = mouseStagePoint(event, activeMetrics);
-    if (!point) return;
-    const mark = createMark('text', point, defaultMarkColor, strokeSize, marks);
-    if (!mark) return;
-
-    recordHistory();
-    setMarks((current) => [...current, mark]);
-    setSelectedMarkId(mark.id);
-    setEditingTextMarkId(mark.id);
-    setActiveTool('select');
   }
 
   function handleStagePointerMove(event: PointerEvent<HTMLDivElement>): void {
@@ -486,7 +462,6 @@ export function ImageAnnotationEditor({
         if (mark.id !== markId) return mark;
         if (mark.kind === 'pen' || mark.kind === 'brush') return { ...mark, points: [...mark.points, point] };
         if (mark.kind === 'marker') return mark;
-        if (mark.kind === 'text') return mark;
         if (mark.kind === 'arrow' || mark.kind === 'rect' || mark.kind === 'ellipse') {
           return { ...mark, end: point };
         }
@@ -517,7 +492,6 @@ export function ImageAnnotationEditor({
         }
         return mark;
       }).filter((mark) => {
-        if (mark.kind === 'text') return true;
         if (mark.kind === 'pen' || mark.kind === 'brush') return mark.points.length >= 2;
         if ('start' in mark && 'end' in mark) return distance(mark.start, mark.end) > 0.015;
         return true;
@@ -558,33 +532,8 @@ export function ImageAnnotationEditor({
 
     safeSetPointerCapture(stageRef.current ?? event.currentTarget, event.pointerId);
     gestureDirtyRef.current = false;
-    selectExistingMark(markId, { editing: false });
+    selectExistingMark(markId);
     setDragTarget({ type: 'move', markId, lastPoint: point });
-  }
-
-  function startTextMarkPointerDown(event: PointerEvent<HTMLInputElement>, markId: string): void {
-    if (activeTool === 'eraser') {
-      stopCanvasGesture(event);
-      recordHistory();
-      removeMark(markId);
-      return;
-    }
-
-    if (activeTool === 'select') {
-      event.preventDefault();
-      startMoveMark(event, markId);
-      return;
-    }
-
-    stopCanvasGesture(event);
-    selectExistingMark(markId, { editing: activeTool === 'text' });
-  }
-
-  function editTextMark(event: MouseEvent<HTMLInputElement>, markId: string): void {
-    stopCanvasGesture(event);
-    selectExistingMark(markId, { editing: true });
-    event.currentTarget.focus();
-    event.currentTarget.select();
   }
 
   function startEndpointDrag(event: PointerEvent, markId: string, endpoint: EndpointHandle): void {
@@ -593,20 +542,19 @@ export function ImageAnnotationEditor({
     if (!point) return;
     safeSetPointerCapture(stageRef.current ?? event.currentTarget, event.pointerId);
     gestureDirtyRef.current = false;
-    selectExistingMark(markId, { editing: false });
+    selectExistingMark(markId);
     setDragTarget({ type: 'endpoint', markId, endpoint, lastPoint: point });
   }
 
-  function selectExistingMark(markId: string, options: { editing: boolean }): void {
+  function selectExistingMark(markId: string): void {
     const mark = marks.find((candidate) => candidate.id === markId);
     setSelectedMarkId(markId);
-    setEditingTextMarkId(options.editing && mark?.kind === 'text' ? markId : null);
     if (!mark) return;
     setStrokeSize(mark.strokeSize);
   }
 
   function selectMarkFromList(markId: string): void {
-    selectExistingMark(markId, { editing: false });
+    selectExistingMark(markId);
     if (viewZoom <= 1 || !metrics) return;
 
     const mark = marks.find((candidate) => candidate.id === markId);
@@ -639,18 +587,11 @@ export function ImageAnnotationEditor({
     );
   }
 
-  function updateTextMark(markId: string, updates: Partial<Pick<TextAnnotationMark, 'text' | 'textMode'>>): void {
-    setMarks((current) =>
-      current.map((mark) => (mark.id === markId && mark.kind === 'text' ? { ...mark, ...updates } : mark)),
-    );
-  }
-
   function removeMark(markId: string): void {
     const nextMarks = marks.filter((mark) => mark.id !== markId);
     setMarks(nextMarks);
     setSelectedMarkId((current) => (current === markId ? null : current));
     setHoveredMarkId((current) => (current === markId ? null : current));
-    setEditingTextMarkId((current) => (current === markId ? null : current));
   }
 
   function removeMarkFromOverlay(event: PointerEvent, markId: string): void {
@@ -665,7 +606,6 @@ export function ImageAnnotationEditor({
     setMarks([]);
     onInstructionChange('');
     setSelectedMarkId(null);
-    setEditingTextMarkId(null);
     historyRef.current = { past: [], future: [] };
     setHistoryRevision((revision) => revision + 1);
   }
@@ -712,7 +652,7 @@ export function ImageAnnotationEditor({
     if (kind === 'brush') return t('context.regionBrushTool');
     if (kind === 'rect') return t('context.rectangleTool');
     if (kind === 'ellipse') return t('context.ellipseTool');
-    return t('context.textMarkTool');
+    return t('context.ellipseTool');
   }
 
   function markColorLabel(color: MarkColor): string {
@@ -761,9 +701,6 @@ export function ImageAnnotationEditor({
           <ToolButton active={activeTool === 'ellipse'} label={t('context.ellipseTool')} onClick={() => setActiveTool('ellipse')}>
             <Circle size={15} />
           </ToolButton>
-          <ToolButton active={activeTool === 'text'} label={t('context.textMarkTool')} onClick={() => setActiveTool('text')}>
-            <Type size={15} />
-          </ToolButton>
           <ToolButton active={activeTool === 'eraser'} label={t('context.eraserTool')} onClick={() => setActiveTool('eraser')}>
             <Eraser size={15} />
           </ToolButton>
@@ -790,7 +727,6 @@ export function ImageAnnotationEditor({
             onPointerLeave={() => {
               if (!dragTarget) setHoveredMarkId(null);
             }}
-            onDoubleClick={handleStageDoubleClick}
             onWheelCapture={handleStageWheel}
           >
             {imageUrl ? (
@@ -842,6 +778,11 @@ export function ImageAnnotationEditor({
                     mark={mark}
                     selected={mark.id === selectedMarkId || mark.id === hoveredMarkId}
                     fixedShapeYScale={renderMetrics.displayWidth / renderMetrics.displayHeight}
+                    brushStrokeWidth={annotationBrushStrokeWidthPixels(
+                      mark.strokeSize,
+                      renderMetrics.displayWidth,
+                      renderMetrics.displayHeight,
+                    )}
                     onPointerDown={(event) => startMoveMark(event, mark.id)}
                     onEndpointPointerDown={(event, endpoint) => startEndpointDrag(event, mark.id, endpoint)}
                   />
@@ -864,38 +805,16 @@ export function ImageAnnotationEditor({
                 ) : null}
               </svg>
             ) : null}
-            {imageUrl && renderMetrics
-              ? marks.map((mark) =>
-                  mark.kind === 'text' ? (
-                    <input
-                      key={mark.id}
-                      data-mark-id={mark.id}
-                      data-annotation-mark-id={mark.id}
-                      className={`annotation-label-input nodrag nopan${mark.id === selectedMarkId || mark.id === hoveredMarkId ? ' is-selected' : ''}${mark.id === editingTextMarkId ? ' is-editing' : ''}`}
-                      placeholder={placeholder}
-                      readOnly={editingTextMarkId !== mark.id}
-                      style={labelStyle(mark, renderMetrics)}
-                      value={mark.text}
-                      onChange={(event) => updateTextMark(mark.id, { text: event.target.value })}
-                      onDoubleClick={(event) => editTextMark(event, mark.id)}
-                      onFocus={() => {
-                        if (activeTool === 'text' || editingTextMarkId === mark.id) {
-                          selectExistingMark(mark.id, { editing: true });
-                          return;
-                        }
-                        selectExistingMark(mark.id, { editing: false });
-                      }}
-                      onBlur={() => {
-                        setEditingTextMarkId((current) => (current === mark.id ? null : current));
-                      }}
-                      onKeyDown={stopCanvasGesture}
-                      onPointerDown={(event) => startTextMarkPointerDown(event, mark.id)}
-                      onWheel={stopWheelGesture}
-                      onWheelCapture={stopWheelGesture}
-                    />
-                  ) : null,
-                )
-              : null}
+            {hoveredMark?.intent.trim() && renderMetrics ? (
+              <div
+                className={`annotation-hover-prompt ${annotationHoverPromptPlacement(hoveredMark)}`}
+                style={annotationHoverPromptStyle(hoveredMark, renderMetrics)}
+                role="tooltip"
+              >
+                <strong>{hoveredMark.id}</strong>
+                <span>{hoveredMark.intent.trim()}</span>
+              </div>
+            ) : null}
             {imageUrl ? (
               <div className="annotation-zoom-controls nowheel" onPointerDown={stopCanvasGesture} onWheel={stopWheelGesture} onWheelCapture={stopWheelGesture}>
                 <TooltipIconButton label={t('toolbar.zoomOut')} onClick={() => zoomImageView(metricsStageCenterX(metrics), metricsStageCenterY(metrics), viewZoom / 1.2)}>
@@ -975,24 +894,8 @@ export function ImageAnnotationEditor({
                       placeholder={t('context.markIntentPlaceholder')}
                       value={mark.intent}
                       onChange={(event) => updateMarkIntent(mark.id, event.target.value)}
-                      onFocus={() => selectExistingMark(mark.id, { editing: false })}
+                      onFocus={() => selectExistingMark(mark.id)}
                     />
-                    {mark.kind === 'text' ? (
-                      <div className="annotation-text-options">
-                        <input
-                          placeholder={t('context.textContent')}
-                          value={mark.text}
-                          onChange={(event) => updateTextMark(mark.id, { text: event.target.value })}
-                        />
-                        <select
-                          value={mark.textMode}
-                          onChange={(event) => updateTextMark(mark.id, { textMode: event.target.value as TextAnnotationMark['textMode'] })}
-                        >
-                          <option value="annotation_note">{t('context.annotationNoteMode')}</option>
-                          <option value="render_text">{t('context.renderTextMode')}</option>
-                        </select>
-                      </div>
-                    ) : null}
                   </div>
                 ))}
               </div>
@@ -1047,12 +950,14 @@ export function ImageAnnotationEditor({
 }
 
 function AnnotationSvgMark({
+  brushStrokeWidth,
   fixedShapeYScale,
   mark,
   onEndpointPointerDown,
   onPointerDown,
   selected,
 }: {
+  brushStrokeWidth: number;
   fixedShapeYScale: number;
   mark: AnnotationMark;
   onEndpointPointerDown: (event: PointerEvent, endpoint: EndpointHandle) => void;
@@ -1160,7 +1065,7 @@ function AnnotationSvgMark({
   }
 
   if (mark.kind === 'pen' || mark.kind === 'brush') {
-    const markStrokeWidth = mark.kind === 'brush' ? screenStrokeWidth * 9 : screenStrokeWidth;
+    const markStrokeWidth = mark.kind === 'brush' ? brushStrokeWidth : screenStrokeWidth;
     return (
       <g className={className} data-annotation-mark-id={mark.id} onPointerDown={onPointerDown}>
         {selected ? (
@@ -1413,8 +1318,13 @@ function createMark(
   if (tool === 'pen' || tool === 'brush') return { ...base, kind: tool, points: [point] };
   if (tool === 'rect') return { ...base, kind: 'rect', start: point, end: point };
   if (tool === 'ellipse') return { ...base, kind: 'ellipse', start: point, end: point };
-  if (tool === 'text') return { ...base, kind: 'text', point, text: '', textMode: 'annotation_note' };
   return null;
+}
+
+function supportedInitialMarks(draft: AnnotationDraft | undefined): AnnotationMark[] {
+  if (!Array.isArray(draft?.marks)) return [];
+  const supported = draft.marks.filter((mark) => supportedMarkKinds.has(mark.kind));
+  return structuredClone(supported);
 }
 
 function translateMark(mark: AnnotationMark, dx: number, dy: number): AnnotationMark {
@@ -1429,7 +1339,7 @@ function translateMark(mark: AnnotationMark, dx: number, dy: number): Annotation
 
 function hitTestMark(marks: AnnotationMark[], point: Point): AnnotationMark | undefined {
   return [...marks].reverse().find((mark) => {
-    if (mark.kind === 'text' || mark.kind === 'marker') return distance(mark.point, point) < 0.06;
+    if (mark.kind === 'marker') return distance(mark.point, point) < 0.06;
     if (mark.kind === 'pen' || mark.kind === 'brush') {
       return mark.points.some((candidate) => distance(candidate, point) < (mark.kind === 'brush' ? 0.07 : 0.04));
     }
@@ -1450,22 +1360,6 @@ function annotationMarkBadgeCenter(mark: AnnotationMark): Point {
   return annotationMarkAnchor(mark);
 }
 
-function labelStyle(mark: TextAnnotationMark, metrics: ImageDisplayMetrics): CSSProperties {
-  const originLeft = metrics.displayLeft - metrics.stageLeft;
-  const originTop = metrics.displayTop - metrics.stageTop;
-  const fontSize = clamp(metrics.displayWidth / 37.5, 13, 30);
-  const maxWidth = Math.max(140, metrics.displayWidth * 0.62);
-  const minWidth = Math.min(210, maxWidth);
-  const width = clamp(metrics.displayWidth * 0.42, minWidth, maxWidth);
-  return {
-    left: originLeft + mark.point.x * metrics.displayWidth,
-    top: originTop + mark.point.y * metrics.displayHeight,
-    color: mark.color,
-    fontSize,
-    width,
-  };
-}
-
 function overlayStyle(metrics: ImageDisplayMetrics): CSSProperties {
   return {
     left: metrics.displayLeft - metrics.stageLeft,
@@ -1473,6 +1367,22 @@ function overlayStyle(metrics: ImageDisplayMetrics): CSSProperties {
     width: metrics.displayWidth,
     height: metrics.displayHeight,
   };
+}
+
+function annotationHoverPromptStyle(mark: AnnotationMark, metrics: ImageDisplayMetrics): CSSProperties {
+  const anchor = annotationMarkFocusPoint(mark);
+  return {
+    left: metrics.displayLeft - metrics.stageLeft + anchor.x * metrics.displayWidth,
+    top: metrics.displayTop - metrics.stageTop + anchor.y * metrics.displayHeight,
+  };
+}
+
+function annotationHoverPromptPlacement(mark: AnnotationMark): string {
+  const anchor = annotationMarkFocusPoint(mark);
+  const horizontal = anchor.x > 0.62 ? 'is-left' : 'is-right';
+  if (anchor.y < 0.18) return `${horizontal} is-below`;
+  if (anchor.y > 0.82) return `${horizontal} is-above`;
+  return `${horizontal} is-centered`;
 }
 
 function annotationStageStyle(
@@ -1527,7 +1437,7 @@ function drawMark(context: CanvasRenderingContext2D, mark: AnnotationMark, width
   } else if (mark.kind === 'pen' || mark.kind === 'brush') {
     if (mark.kind === 'brush') {
       context.globalAlpha = 0.38;
-      context.lineWidth = Math.max(context.lineWidth * 9, Math.max(width, height) * 0.018);
+      context.lineWidth = annotationBrushStrokeWidthPixels(mark.strokeSize, width, height);
     }
     context.beginPath();
     mark.points.forEach((point, index) => {
@@ -1536,7 +1446,7 @@ function drawMark(context: CanvasRenderingContext2D, mark: AnnotationMark, width
       else context.lineTo(scaled.x, scaled.y);
     });
     context.stroke();
-  } else if (mark.kind === 'rect' || mark.kind === 'ellipse') {
+  } else {
     const bounds = normalizedBounds(scalePoint(mark.start, width, height), scalePoint(mark.end, width, height));
     if (mark.kind === 'ellipse') {
       context.beginPath();
@@ -1545,8 +1455,6 @@ function drawMark(context: CanvasRenderingContext2D, mark: AnnotationMark, width
     } else {
       context.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
     }
-  } else if (mark.text.trim()) {
-    drawAnnotationLabel(context, mark.text, mark.point.x * width, mark.point.y * height, width, height, mark.color);
   }
 
   context.restore();
@@ -1555,8 +1463,16 @@ function drawMark(context: CanvasRenderingContext2D, mark: AnnotationMark, width
   }
 }
 
+function annotationBrushStrokeWidthPixels(
+  strokeSize: StrokeSize,
+  imageWidth: number,
+  imageHeight: number,
+): number {
+  return strokeBySize[strokeSize] * 9 * Math.max(imageWidth, imageHeight) / 900;
+}
+
 function annotationMarkAnchor(mark: AnnotationMark): Point {
-  if (mark.kind === 'marker' || mark.kind === 'text') return mark.point;
+  if (mark.kind === 'marker') return mark.point;
   if (mark.kind === 'arrow') return mark.start;
   if (mark.kind === 'pen' || mark.kind === 'brush') return mark.points[0] ?? { x: 0.5, y: 0.5 };
   const bounds = normalizedBounds(mark.start, mark.end);
@@ -1564,7 +1480,7 @@ function annotationMarkAnchor(mark: AnnotationMark): Point {
 }
 
 function annotationMarkFocusPoint(mark: AnnotationMark): Point {
-  if (mark.kind === 'marker' || mark.kind === 'text') return mark.point;
+  if (mark.kind === 'marker') return mark.point;
   if (mark.kind === 'arrow' || mark.kind === 'rect' || mark.kind === 'ellipse') {
     return {
       x: (mark.start.x + mark.end.x) / 2,
@@ -1779,13 +1695,6 @@ function clampAxisPan(pan: number, stageStart: number, stageEnd: number, baseSta
   return (stageStart + stageEnd) / 2 - (baseStart + scaledSize / 2);
 }
 
-function mouseStagePoint(event: MouseEvent, metrics: ImageDisplayMetrics): Point | null {
-  const x = (event.clientX - metrics.displayLeft) / metrics.displayWidth;
-  const y = (event.clientY - metrics.displayTop) / metrics.displayHeight;
-  if (x < 0 || x > 1 || y < 0 || y > 1) return null;
-  return { x, y };
-}
-
 function metricsStageCenterX(metrics: ImageDisplayMetrics | null): number {
   return metrics ? (metrics.stageLeft + metrics.stageRight) / 2 : 0;
 }
@@ -1808,10 +1717,6 @@ function isEditableKeyboardTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;
   return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement;
-}
-
-function isAnnotationLabelInput(target: EventTarget | null): boolean {
-  return target instanceof HTMLInputElement && target.classList.contains('annotation-label-input');
 }
 
 function safeSetPointerCapture(target: Element, pointerId: number): void {
