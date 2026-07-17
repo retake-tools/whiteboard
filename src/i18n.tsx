@@ -46,6 +46,11 @@ type TranslationKey =
   | 'context.aspectRatio'
   | 'context.brightness'
   | 'context.annotationNoteMode'
+  | 'context.annotationColorBlue'
+  | 'context.annotationColorGreen'
+  | 'context.annotationColorPurple'
+  | 'context.annotationColorRed'
+  | 'context.annotationColorYellow'
   | 'context.clearAnnotationDraft'
   | 'context.clearAnnotationDraftConfirm'
   | 'context.close'
@@ -455,6 +460,11 @@ const translations: Record<Locale, Translations> = {
     'context.aspectRatio': 'Aspect ratio',
     'context.brightness': 'Brightness',
     'context.annotationNoteMode': 'Annotation note',
+    'context.annotationColorBlue': 'Blue',
+    'context.annotationColorGreen': 'Green',
+    'context.annotationColorPurple': 'Purple',
+    'context.annotationColorRed': 'Red',
+    'context.annotationColorYellow': 'Yellow',
     'context.clearAnnotationDraft': 'Clear annotation draft',
     'context.clearAnnotationDraftConfirm': 'Clear all marks and instructions? This cannot be undone.',
     'context.close': 'Close',
@@ -859,6 +869,11 @@ const translations: Record<Locale, Translations> = {
     'context.aspectRatio': '比例',
     'context.brightness': '亮度',
     'context.annotationNoteMode': '仅作批注',
+    'context.annotationColorBlue': '蓝色',
+    'context.annotationColorGreen': '绿色',
+    'context.annotationColorPurple': '紫色',
+    'context.annotationColorRed': '红色',
+    'context.annotationColorYellow': '黄色',
     'context.clearAnnotationDraft': '清空标注草稿',
     'context.clearAnnotationDraftConfirm': '确定要清空所有标记和说明吗？此操作无法撤销。',
     'context.close': '关闭',

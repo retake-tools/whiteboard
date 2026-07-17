@@ -30,7 +30,6 @@ import {
   type WheelEvent,
 } from 'react';
 import {
-  annotationColorName,
   annotationColorOptions,
   annotationManifestFromDraft,
   annotationMarksMissingIntent,
@@ -606,6 +605,25 @@ export function ImageAnnotationEditor({
     setStrokeSize(mark.strokeSize);
   }
 
+  function selectMarkFromList(markId: string): void {
+    selectExistingMark(markId, { editing: false });
+    if (viewZoom <= 1 || !metrics) return;
+
+    const mark = marks.find((candidate) => candidate.id === markId);
+    if (!mark) return;
+
+    const focus = annotationMarkFocusPoint(mark);
+    const nextPan = {
+      x: (metrics.stageLeft + metrics.stageRight) / 2
+        - metrics.displayLeft
+        - focus.x * metrics.displayWidth * viewZoom,
+      y: (metrics.stageTop + metrics.stageBottom) / 2
+        - metrics.displayTop
+        - focus.y * metrics.displayHeight * viewZoom,
+    };
+    setViewPan(clampImageViewPan(metrics, viewZoom, nextPan));
+  }
+
   function moveMark(markId: string, dx: number, dy: number): void {
     setMarks((current) =>
       current.map((mark) => (mark.id === markId ? translateMark(mark, dx, dy) : mark)),
@@ -695,6 +713,14 @@ export function ImageAnnotationEditor({
     if (kind === 'rect') return t('context.rectangleTool');
     if (kind === 'ellipse') return t('context.ellipseTool');
     return t('context.textMarkTool');
+  }
+
+  function markColorLabel(color: MarkColor): string {
+    if (color === '#dc2626') return t('context.annotationColorRed');
+    if (color === '#facc15') return t('context.annotationColorYellow');
+    if (color === '#22c55e') return t('context.annotationColorGreen');
+    if (color === '#2563eb') return t('context.annotationColorBlue');
+    return t('context.annotationColorPurple');
   }
 
   async function runAnnotationEdit(): Promise<void> {
@@ -898,8 +924,8 @@ export function ImageAnnotationEditor({
                   disabled={!selectedMark}
                   className={`annotation-swatch${selectedMark?.color === option ? ' is-active' : ''}`}
                   style={{ background: option }}
-                  aria-label={annotationColorName(option)}
-                  title={`${annotationColorName(option)} · ${option}`}
+                  aria-label={`${markColorLabel(option)} · ${option}`}
+                  title={`${markColorLabel(option)} · ${option}`}
                   onClick={() => updateSelectedMarkColor(option)}
                 />
               ))}
@@ -934,7 +960,7 @@ export function ImageAnnotationEditor({
                     <button
                       type="button"
                       className="annotation-intent-heading"
-                      onClick={() => selectExistingMark(mark.id, { editing: false })}
+                      onClick={() => selectMarkFromList(mark.id)}
                     >
                       <span className="annotation-intent-color" style={{ background: mark.color }} />
                       <strong>{mark.id}</strong>
@@ -1535,6 +1561,30 @@ function annotationMarkAnchor(mark: AnnotationMark): Point {
   if (mark.kind === 'pen' || mark.kind === 'brush') return mark.points[0] ?? { x: 0.5, y: 0.5 };
   const bounds = normalizedBounds(mark.start, mark.end);
   return { x: bounds.x, y: bounds.y };
+}
+
+function annotationMarkFocusPoint(mark: AnnotationMark): Point {
+  if (mark.kind === 'marker' || mark.kind === 'text') return mark.point;
+  if (mark.kind === 'arrow' || mark.kind === 'rect' || mark.kind === 'ellipse') {
+    return {
+      x: (mark.start.x + mark.end.x) / 2,
+      y: (mark.start.y + mark.end.y) / 2,
+    };
+  }
+  if (!mark.points.length) return { x: 0.5, y: 0.5 };
+  const bounds = mark.points.reduce(
+    (current, point) => ({
+      minX: Math.min(current.minX, point.x),
+      minY: Math.min(current.minY, point.y),
+      maxX: Math.max(current.maxX, point.x),
+      maxY: Math.max(current.maxY, point.y),
+    }),
+    { minX: mark.points[0].x, minY: mark.points[0].y, maxX: mark.points[0].x, maxY: mark.points[0].y },
+  );
+  return {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: (bounds.minY + bounds.maxY) / 2,
+  };
 }
 
 function drawAnnotationIdBadge(
