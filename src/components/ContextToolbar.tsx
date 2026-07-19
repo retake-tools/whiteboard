@@ -1,6 +1,7 @@
 import {
   Crop,
   Download,
+  History,
   ImagePlus,
   ImageUp,
   Maximize2,
@@ -250,6 +251,7 @@ export function ContextToolbar({
         <ImageToolPopover
           annotationInstruction={annotationInstruction}
           annotationDraft={activeAnnotationDraft}
+          isHistoricalAnnotationSession={Boolean(historicalAnnotationDraft)}
           executionRoute={executionRoute}
           adjustForm={adjustForm}
           imageUrl={selectedImageUrl}
@@ -294,6 +296,7 @@ export function ContextToolbar({
 function ImageToolPopover({
   annotationInstruction,
   annotationDraft,
+  isHistoricalAnnotationSession,
   executionRoute,
   adjustForm,
   imageUrl,
@@ -316,6 +319,7 @@ function ImageToolPopover({
 }: {
   annotationInstruction: string;
   annotationDraft?: AnnotationDraft;
+  isHistoricalAnnotationSession: boolean;
   executionRoute: ExecutionRoute;
   adjustForm: LocalImageAdjustments;
   imageUrl?: string;
@@ -388,6 +392,15 @@ function ImageToolPopover({
               <X size={16} />
             </IconButton>
           </div>
+          {isHistoricalAnnotationSession ? (
+            <div className="annotation-history-session-notice" role="status">
+              <History aria-hidden="true" size={16} />
+              <div>
+                <strong>{t('context.historicalAnnotationSession')}</strong>
+                <span>{t('context.historicalAnnotationSessionBody')}</span>
+              </div>
+            </div>
+          ) : null}
           <ImageAnnotationEditor
             imageUrl={imageUrl}
             initialDraft={annotationDraft}

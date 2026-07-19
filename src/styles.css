@@ -548,6 +548,40 @@ button {
   cursor: grabbing;
 }
 
+.annotation-history-session-notice {
+  display: flex;
+  flex: none;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 9px 11px;
+  border: 1px solid #f2c66d;
+  border-radius: 8px;
+  background: #fff8e6;
+  color: #6b4708;
+}
+
+.annotation-history-session-notice > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.annotation-history-session-notice > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.annotation-history-session-notice strong {
+  color: #523400;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.annotation-history-session-notice span {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .annotation-editor-shell {
   display: grid;
   flex: 1;

@@ -69,6 +69,8 @@ type TranslationKey =
   | 'context.globalInstructionPlaceholder'
   | 'context.customSize'
   | 'context.height'
+  | 'context.historicalAnnotationSession'
+  | 'context.historicalAnnotationSessionBody'
   | 'context.markColor'
   | 'context.markIntents'
   | 'context.markIntentPlaceholder'
@@ -477,6 +479,8 @@ const translations: Record<Locale, Translations> = {
     'context.globalInstructionPlaceholder': 'Optional requirements shared by all marks...',
     'context.customSize': 'Output size',
     'context.height': 'H',
+    'context.historicalAnnotationSession': 'Historical annotation · Temporary session',
+    'context.historicalAnnotationSessionBody': 'Closing keeps the current draft unchanged. Running creates a new branch from this historical input.',
     'context.markColor': 'Color',
     'context.markIntents': 'Mark instructions',
     'context.markIntentPlaceholder': 'Describe what should change here...',
@@ -880,6 +884,8 @@ const translations: Record<Locale, Translations> = {
     'context.globalInstructionPlaceholder': '可选：所有标记共享的要求...',
     'context.customSize': '输出尺寸',
     'context.height': 'H',
+    'context.historicalAnnotationSession': '历史标注 · 临时会话',
+    'context.historicalAnnotationSessionBody': '关闭不会影响当前草稿；执行会从这份历史输入创建新分支。',
     'context.markColor': '颜色',
     'context.markIntents': '标记说明',
     'context.markIntentPlaceholder': '说明这里要怎么改...',

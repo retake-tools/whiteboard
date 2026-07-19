@@ -85,6 +85,9 @@ assert.match(appSource, /setAnnotationEditorOpenRequest\(/);
 assert.doesNotMatch(appSource, /window\.confirm\(t\('inspector\.annotationDraftRestoreConfirm'\)\)/);
 assert.match(toolbarSource, /historicalAnnotationDraft \?\? annotationDraftForBlock/);
 assert.match(toolbarSource, /if \(historicalAnnotationDraft\)[\s\S]*?setHistoricalAnnotationDraft/);
+assert.match(toolbarSource, /isHistoricalAnnotationSession=\{Boolean\(historicalAnnotationDraft\)\}/);
+assert.match(toolbarSource, /annotation-history-session-notice/);
+assert.match(toolbarSource, /context\.historicalAnnotationSessionBody/);
 assert.match(historyPanelSource, /onOpenAnnotationEditor/);
 
 const manifest: AnnotationManifest = {
