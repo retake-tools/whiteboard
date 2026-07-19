@@ -35,7 +35,10 @@ export type ExecutionRoute = 'codex_mcp';
 
 interface ContextToolbarProps {
   canvasZoom: number;
-  annotationEditorOpenRequestId?: number;
+  annotationEditorOpenRequest?: {
+    draft: AnnotationDraft;
+    requestId: number;
+  };
   selectedBlock?: BlockRecord;
   selectedImageUrl?: string;
   onCreateLocalEdit: (input: {
@@ -61,7 +64,7 @@ interface ContextToolbarProps {
 
 export function ContextToolbar({
   canvasZoom,
-  annotationEditorOpenRequestId,
+  annotationEditorOpenRequest,
   selectedBlock,
   selectedImageUrl,
   onAnnotationDraftChange,
@@ -76,6 +79,7 @@ export function ContextToolbar({
 }: ContextToolbarProps): ReactElement | null {
   const [activeTool, setActiveTool] = useState<ImageTool | null>(null);
   const initialAnnotationDraft = annotationDraftForBlock(selectedBlock);
+  const [historicalAnnotationDraft, setHistoricalAnnotationDraft] = useState<AnnotationDraft | undefined>();
   const [annotationInstruction, setAnnotationInstruction] = useState(
     () => initialAnnotationDraft?.globalInstruction ?? '',
   );
@@ -93,6 +97,7 @@ export function ContextToolbar({
 
   useEffect(() => {
     if (!selectedBlock || selectedBlock.type !== 'image') return;
+    setHistoricalAnnotationDraft(undefined);
     setAnnotationInstruction(annotationDraftForBlock(selectedBlock)?.globalInstruction ?? '');
     setActiveTool(null);
     setAdjustForm({ brightness: 0, contrast: 0, saturation: 0 });
@@ -100,10 +105,12 @@ export function ContextToolbar({
   }, [selectedBlock?.blockId, selectedBlock?.type, selectedImageUrl]);
 
   useEffect(() => {
-    if (annotationEditorOpenRequestId === undefined || selectedBlock?.type !== 'image' || !selectedImageUrl) return;
+    if (!annotationEditorOpenRequest || selectedBlock?.type !== 'image' || !selectedImageUrl) return;
+    setHistoricalAnnotationDraft(structuredClone(annotationEditorOpenRequest.draft));
+    setAnnotationInstruction(annotationEditorOpenRequest.draft.globalInstruction);
     setActiveTool('annotation-edit');
     onAnnotationEditorOpenRequestHandled();
-  }, [annotationEditorOpenRequestId, onAnnotationEditorOpenRequestHandled, selectedBlock?.type, selectedImageUrl]);
+  }, [annotationEditorOpenRequest, onAnnotationEditorOpenRequestHandled, selectedBlock?.type, selectedImageUrl]);
 
   useEffect(() => () => {
     if (annotationDraftSaveTimerRef.current !== undefined) {
@@ -112,6 +119,14 @@ export function ContextToolbar({
   }, []);
 
   function queueAnnotationDraftChange(draft: AnnotationDraftContent): void {
+    if (historicalAnnotationDraft) {
+      setHistoricalAnnotationDraft((current) => current ? {
+        ...current,
+        globalInstruction: draft.globalInstruction,
+        marks: structuredClone(draft.marks),
+      } : current);
+      return;
+    }
     pendingAnnotationDraftRef.current = draft;
     if (annotationDraftSaveTimerRef.current !== undefined) {
       window.clearTimeout(annotationDraftSaveTimerRef.current);
@@ -159,6 +174,7 @@ export function ContextToolbar({
   }, [isAnnotationDragging]);
 
   const hasImageAsset = Boolean(selectedImageUrl);
+  const activeAnnotationDraft = historicalAnnotationDraft ?? annotationDraftForBlock(selectedBlock);
   const visibleActiveTool = selectedBlock?.type === 'image' && hasImageAsset ? activeTool : null;
 
   useDismissiblePopover({
@@ -233,7 +249,7 @@ export function ContextToolbar({
       {visibleActiveTool ? (
         <ImageToolPopover
           annotationInstruction={annotationInstruction}
-          annotationDraft={annotationDraftForBlock(selectedBlock)}
+          annotationDraft={activeAnnotationDraft}
           executionRoute={executionRoute}
           adjustForm={adjustForm}
           imageUrl={selectedImageUrl}
@@ -249,14 +265,22 @@ export function ContextToolbar({
           onAnnotationDraftChange={queueAnnotationDraftChange}
           onAnnotationPanelPointerDown={beginAnnotationDrag}
           onClose={() => {
-            flushAnnotationDraft();
+            if (historicalAnnotationDraft) {
+              setHistoricalAnnotationDraft(undefined);
+            } else {
+              flushAnnotationDraft();
+            }
             setActiveTool(null);
           }}
           onAdjustFormChange={setAdjustForm}
           onCreateLocalEdit={onCreateLocalEdit}
           onCreateSimilar={() => onCreateSimilar({ route: executionRoute })}
           onRunAnnotationEdit={(input) => {
-            flushAnnotationDraft();
+            if (historicalAnnotationDraft) {
+              setHistoricalAnnotationDraft(undefined);
+            } else {
+              flushAnnotationDraft();
+            }
             onRunAnnotationEdit({ ...input, route: executionRoute });
           }}
           onQuickEditInstructionChange={setQuickEditInstruction}

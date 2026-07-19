@@ -109,7 +109,7 @@ type TranslationKey =
   | 'feedback.configurationRestored'
   | 'feedback.configurationRestoreMissingAssets'
   | 'feedback.configurationRestoreUnavailable'
-  | 'feedback.annotationDraftRestored'
+  | 'feedback.historicalAnnotationOpened'
   | 'feedback.annotationDraftRestoreUnavailable'
   | 'feedback.copyPrompt'
   | 'feedback.promptTitle'
@@ -199,7 +199,6 @@ type TranslationKey =
   | 'language.chinese'
   | 'inspector.adapter'
   | 'inspector.annotatedComposite'
-  | 'inspector.annotationDraftRestoreConfirm'
   | 'inspector.annotationGlobalInstruction'
   | 'inspector.annotationManifest'
   | 'inspector.annotationManifestRaw'
@@ -518,7 +517,7 @@ const translations: Record<Locale, Translations> = {
     'feedback.configurationRestored': 'Version configuration restored',
     'feedback.configurationRestoreMissingAssets': 'Missing assets:',
     'feedback.configurationRestoreUnavailable': 'This version cannot be restored',
-    'feedback.annotationDraftRestored': 'Annotation draft restored',
+    'feedback.historicalAnnotationOpened': 'Historical annotations opened without changing the current draft',
     'feedback.annotationDraftRestoreUnavailable': 'This annotation draft cannot be restored',
     'feedback.copyPrompt': 'Copy prompt',
     'feedback.promptTitle': 'Codex prompt',
@@ -608,7 +607,6 @@ const translations: Record<Locale, Translations> = {
     'language.chinese': '中文',
     'inspector.adapter': 'Adapter',
     'inspector.annotatedComposite': 'Annotated brief',
-    'inspector.annotationDraftRestoreConfirm': 'Replace the current annotation draft with this historical version?',
     'inspector.annotationGlobalInstruction': 'Global instruction',
     'inspector.annotationManifest': 'Annotation Manifest',
     'inspector.annotationManifestRaw': 'View raw Manifest',
@@ -922,7 +920,7 @@ const translations: Record<Locale, Translations> = {
     'feedback.configurationRestored': '已恢复此版本配置',
     'feedback.configurationRestoreMissingAssets': '缺少素材：',
     'feedback.configurationRestoreUnavailable': '无法恢复此版本',
-    'feedback.annotationDraftRestored': '已恢复标注草稿',
+    'feedback.historicalAnnotationOpened': '已打开历史标注，当前草稿保持不变',
     'feedback.annotationDraftRestoreUnavailable': '无法恢复这份标注草稿',
     'feedback.copyPrompt': '复制提示',
     'feedback.promptTitle': 'Codex 提示',
@@ -1012,7 +1010,6 @@ const translations: Record<Locale, Translations> = {
     'language.chinese': '中文',
     'inspector.adapter': '适配器',
     'inspector.annotatedComposite': '标注输入',
-    'inspector.annotationDraftRestoreConfirm': '用这个历史版本覆盖当前标注草稿吗？',
     'inspector.annotationGlobalInstruction': '全局说明',
     'inspector.annotationManifest': '标注 Manifest',
     'inspector.annotationManifestRaw': '查看原始 Manifest',

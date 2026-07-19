@@ -20,7 +20,6 @@ import {
 import { addImageCodexOperation } from '../src/core/imageOperations';
 import {
   annotationDraftRestoreContext,
-  restoreExecutionAnnotationDraft,
 } from '../src/core/restoreAnnotationDraft';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import type { AssetRecord, BlockRecord } from '../src/core/types';
@@ -83,7 +82,10 @@ assert.match(executionDetailSource, /inspector\.restoreAnnotationDraft/);
 assert.match(executionInspectorSource, /onOpenAnnotationEditor\(context\.execution\.executionId\)/);
 assert.match(toolbarSource, /setActiveTool\('annotation-edit'\)/);
 assert.match(appSource, /setAnnotationEditorOpenRequest\(/);
-assert.match(historyPanelSource, /onRestoreAnnotationDraft/);
+assert.doesNotMatch(appSource, /window\.confirm\(t\('inspector\.annotationDraftRestoreConfirm'\)\)/);
+assert.match(toolbarSource, /historicalAnnotationDraft \?\? annotationDraftForBlock/);
+assert.match(toolbarSource, /if \(historicalAnnotationDraft\)[\s\S]*?setHistoricalAnnotationDraft/);
+assert.match(historyPanelSource, /onOpenAnnotationEditor/);
 
 const manifest: AnnotationManifest = {
   schemaVersion: 1,
@@ -315,16 +317,8 @@ assert.equal(
   'available',
 );
 const restoreSnapshot = structuredClone(snapshot);
-const restored = restoreExecutionAnnotationDraft(restoreSnapshot, operation.execution.executionId);
-assert.equal(restored.restored, true);
-assert.deepEqual(restored.sourceBlock?.data.annotationDraft?.marks, persistedManifest.marks);
-assert.equal(restoreSnapshot.historyEvents?.[0]?.type, 'annotation_draft_restored');
-restored.sourceBlock!.data.annotationDraft!.marks[0].intent = 'Draft remains independently editable.';
-assert.notEqual(
-  restored.sourceBlock!.data.annotationDraft!.marks[0].intent,
-  (restoreSnapshot.executions[0].params?.annotationManifest as AnnotationManifest).marks[0].intent,
-);
-restored.sourceBlock!.data.assetId = 'asset_replaced_after_execution';
+const restoredSourceBlock = restoreSnapshot.blocks.find((block) => block.blockId === sourceBlock.blockId)!;
+restoredSourceBlock.data.assetId = 'asset_replaced_after_execution';
 assert.equal(
   annotationDraftRestoreContext(restoreSnapshot, restoreSnapshot.executions[0]).state,
   'source_replaced',

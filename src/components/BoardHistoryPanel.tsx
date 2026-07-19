@@ -31,7 +31,7 @@ interface BoardHistoryPanelProps {
   onClose: () => void;
   onCopyPrompt: (input: CopyPromptInput) => void | Promise<void>;
   onLocateBlock: (blockId: string) => void;
-  onRestoreAnnotationDraft: (executionId: string) => void;
+  onOpenAnnotationEditor: (executionId: string) => void;
 }
 
 interface HistoryEntry {
@@ -52,7 +52,7 @@ export function BoardHistoryPanel({
   onClose,
   onCopyPrompt,
   onLocateBlock,
-  onRestoreAnnotationDraft,
+  onOpenAnnotationEditor,
   snapshot,
 }: BoardHistoryPanelProps): ReactElement {
   const { locale, t } = useI18n();
@@ -148,9 +148,9 @@ export function BoardHistoryPanel({
                       copyKey={copyKey}
                       copySource="history_panel"
                       onCopyPrompt={onCopyPrompt}
-                      onRestoreAnnotationDraft={
+                      onOpenAnnotationEditor={
                         detailContext.annotationManifest
-                          ? () => onRestoreAnnotationDraft(detailContext.execution.executionId)
+                          ? () => onOpenAnnotationEditor(detailContext.execution.executionId)
                           : undefined
                       }
                     />

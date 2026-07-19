@@ -65,7 +65,7 @@ interface ExecutionDetailContentProps {
   copyKey: string;
   copySource: ExecutionDetailCopySource;
   onSelectAsset?: (asset: AssetRecord) => void;
-  onRestoreAnnotationDraft?: () => void;
+  onOpenAnnotationEditor?: () => void;
   onRestoreConfiguration?: () => void;
   onCopyPrompt: (input: {
     blockIds?: string[];
@@ -93,7 +93,7 @@ export function ExecutionDetailContent({
   copyKey,
   copySource,
   onSelectAsset,
-  onRestoreAnnotationDraft,
+  onOpenAnnotationEditor,
   onRestoreConfiguration,
   onCopyPrompt,
 }: ExecutionDetailContentProps): ReactElement {
@@ -200,12 +200,12 @@ export function ExecutionDetailContent({
         sourceLabel={t('inspector.inputAssets')}
         title={t('inspector.imageComparison')}
       />
-      {annotationManifest && onRestoreAnnotationDraft ? (
+      {annotationManifest && onOpenAnnotationEditor ? (
         <button
           type="button"
           className="execution-restore-configuration"
           disabled={annotationDraftRestoreState !== 'available'}
-          onClick={onRestoreAnnotationDraft}
+          onClick={onOpenAnnotationEditor}
         >
           <MessageSquareText size={14} />
           <span>{t('inspector.restoreAnnotationDraft')}</span>

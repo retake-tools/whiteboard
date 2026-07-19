@@ -180,7 +180,7 @@ export function ImageAnnotationEditor({
   }, []);
 
   useLayoutEffect(() => {
-    const selectedInput = editorRef.current?.querySelector<HTMLInputElement>(
+    const selectedInput = editorRef.current?.querySelector<HTMLTextAreaElement>(
       `.annotation-intent-input[data-mark-id="${selectedMarkId ?? ''}"]`,
     );
     if (selectedInput && selectedInput.value.length === 0) {

@@ -182,7 +182,7 @@ export function ExecutionInspector({
               copyKey={`inspector:${context.execution.executionId}`}
               copySource="execution_inspector"
               onCopyPrompt={onCopyPrompt}
-              onRestoreAnnotationDraft={
+              onOpenAnnotationEditor={
                 context.annotationManifest
                   ? () => onOpenAnnotationEditor(context.execution.executionId)
                   : undefined

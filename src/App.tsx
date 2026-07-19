@@ -114,7 +114,6 @@ import { loadUiPreferences, saveUiPreferences } from './core/uiPreferences';
 import { restoreExecutionConfiguration } from './core/restoreExecutionConfiguration';
 import {
   annotationDraftRestoreContext,
-  restoreExecutionAnnotationDraft,
 } from './core/restoreAnnotationDraft';
 import { dismissPopoversEvent } from './hooks/useDismissiblePopover';
 import { useI18n } from './i18n';
@@ -135,6 +134,7 @@ import {
   annotationDraftContentEquals,
   annotationDraftHasContent,
   annotationDraftMatches,
+  type AnnotationDraft,
   type AnnotationDraftContent,
   type AnnotationManifest,
 } from './core/imageAnnotations';
@@ -193,6 +193,7 @@ export function App(): ReactElement {
   const [inspectorBlockId, setInspectorBlockId] = useState<string | undefined>();
   const [annotationEditorOpenRequest, setAnnotationEditorOpenRequest] = useState<{
     blockId: string;
+    draft: AnnotationDraft;
     requestId: number;
   }>();
   const annotationEditorOpenRequestCounterRef = useRef(0);
@@ -2291,7 +2292,7 @@ export function App(): ReactElement {
     });
   }
 
-  function restoreAnnotationDraftVersion(executionId: string): void {
+  function openHistoricalAnnotationVersion(executionId: string): void {
     const execution = snapshotRef.current.executions.find(
       (candidate) => candidate.executionId === executionId,
     );
@@ -2317,31 +2318,25 @@ export function App(): ReactElement {
       return;
     }
 
-    const currentDraft = restoreContext.sourceBlock.data.annotationDraft;
-    if (
-      currentDraft &&
-      !annotationDraftContentEquals(currentDraft, restoreContext.manifest) &&
-      !window.confirm(t('inspector.annotationDraftRestoreConfirm'))
-    ) {
-      return;
-    }
-
-    const candidate = structuredClone(snapshotRef.current);
-    const result = restoreExecutionAnnotationDraft(candidate, executionId);
-    if (!result.restored || !result.sourceBlock) return;
-    const nextSnapshot = updateSnapshot(() => candidate, { persist: true, history: true });
-    setSelectedBlock(nextSnapshot, result.sourceBlock.blockId);
+    setSelectedBlock(snapshotRef.current, restoreContext.sourceBlock.blockId);
     annotationEditorOpenRequestCounterRef.current += 1;
     setAnnotationEditorOpenRequest({
-      blockId: result.sourceBlock.blockId,
+      blockId: restoreContext.sourceBlock.blockId,
+      draft: {
+        schemaVersion: 1,
+        sourceAssetId: restoreContext.sourceAssetId!,
+        globalInstruction: restoreContext.manifest.globalInstruction,
+        marks: structuredClone(restoreContext.manifest.marks),
+        updatedAt: nowIso(),
+      },
       requestId: annotationEditorOpenRequestCounterRef.current,
     });
     setInspectorBlockId(undefined);
     setIsHistoryOpen(false);
     setOperationToast({
-      id: `annotation-draft-restored:${executionId}`,
-      title: t('feedback.annotationDraftRestored'),
-      body: result.sourceBlock.data.title,
+      id: `historical-annotation-opened:${executionId}`,
+      title: t('feedback.historicalAnnotationOpened'),
+      body: restoreContext.sourceBlock.data.title,
       tone: 'success',
     });
   }
@@ -2636,7 +2631,7 @@ export function App(): ReactElement {
         snapshot={snapshot}
         onClose={() => setInspectorBlockId(undefined)}
         onCopyPrompt={copyPromptWithHistory}
-        onOpenAnnotationEditor={restoreAnnotationDraftVersion}
+        onOpenAnnotationEditor={openHistoricalAnnotationVersion}
         onRestoreConfiguration={restoreConfigurationVersion}
       />
       <GroupInspector
@@ -2654,7 +2649,7 @@ export function App(): ReactElement {
           onClose={() => setIsHistoryOpen(false)}
           onCopyPrompt={copyPromptWithHistory}
           onLocateBlock={locateBlock}
-          onRestoreAnnotationDraft={restoreAnnotationDraftVersion}
+          onOpenAnnotationEditor={openHistoricalAnnotationVersion}
         />
       ) : null}
 
@@ -2695,9 +2690,9 @@ export function App(): ReactElement {
             <NodeToolbar nodeId={selectedBlock.blockId} position={Position.Top} offset={12} isVisible>
               <ContextToolbar
                 canvasZoom={canvasZoom}
-                annotationEditorOpenRequestId={
+                annotationEditorOpenRequest={
                   annotationEditorOpenRequest?.blockId === selectedBlock.blockId
-                    ? annotationEditorOpenRequest.requestId
+                    ? annotationEditorOpenRequest
                     : undefined
                 }
                 selectedBlock={selectedBlock}

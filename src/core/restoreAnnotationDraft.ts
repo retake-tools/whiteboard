@@ -1,8 +1,6 @@
-import { touchBoard } from './blockFactory';
 import { annotationColorOptions, type AnnotationManifest, type AnnotationMark } from './imageAnnotations';
-import { createId, nowIso } from './id';
 import { executionSourceLineage } from './executionLineage';
-import type { BlockRecord, BoardHistoryEvent, BoardSnapshot, ExecutionRecord } from './types';
+import type { BlockRecord, BoardSnapshot, ExecutionRecord } from './types';
 
 export type AnnotationDraftRestoreState =
   | 'available'
@@ -15,10 +13,6 @@ export interface AnnotationDraftRestoreContext {
   sourceBlock?: BlockRecord;
   sourceAssetId?: string;
   state: AnnotationDraftRestoreState;
-}
-
-export interface RestoreAnnotationDraftResult extends AnnotationDraftRestoreContext {
-  restored: boolean;
 }
 
 const annotationKinds = new Set(['marker', 'arrow', 'pen', 'brush', 'rect', 'ellipse']);
@@ -53,50 +47,6 @@ export function annotationDraftRestoreContext(
     return { manifest, sourceAssetId, sourceBlock, state: 'source_replaced' };
   }
   return { manifest, sourceAssetId, sourceBlock, state: 'available' };
-}
-
-export function restoreExecutionAnnotationDraft(
-  snapshot: BoardSnapshot,
-  executionId: string,
-): RestoreAnnotationDraftResult {
-  const execution = snapshot.executions.find((candidate) => candidate.executionId === executionId);
-  if (!execution) return { restored: false, state: 'manifest_missing' };
-
-  const context = annotationDraftRestoreContext(snapshot, execution);
-  if (context.state !== 'available' || !context.manifest || !context.sourceBlock || !context.sourceAssetId) {
-    return { ...context, restored: false };
-  }
-
-  const updatedAt = nowIso();
-  context.sourceBlock.data = {
-    ...context.sourceBlock.data,
-    annotationDraft: {
-      schemaVersion: 1,
-      sourceAssetId: context.sourceAssetId,
-      globalInstruction: context.manifest.globalInstruction,
-      marks: structuredClone(context.manifest.marks),
-      updatedAt,
-    },
-  };
-  context.sourceBlock.updatedAt = updatedAt;
-
-  const historyEvent: BoardHistoryEvent = {
-    eventId: createId('history'),
-    type: 'annotation_draft_restored',
-    createdAt: updatedAt,
-    actor: 'user',
-    executionId,
-    blockIds: [context.sourceBlock.blockId],
-    assetIds: [context.sourceAssetId],
-    summary: 'Restored annotation draft',
-    detail: {
-      markCount: context.manifest.marks.length,
-      sourceBlockId: context.sourceBlock.blockId,
-    },
-  };
-  snapshot.historyEvents = [historyEvent, ...(snapshot.historyEvents ?? [])].slice(0, 200);
-  touchBoard(snapshot);
-  return { ...context, restored: true };
 }
 
 function historicalSourceAssetId(

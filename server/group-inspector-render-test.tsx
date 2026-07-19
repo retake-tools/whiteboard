@@ -371,7 +371,7 @@ const historyMarkup = renderToStaticMarkup(
       onClose={() => undefined}
       onCopyPrompt={() => undefined}
       onLocateBlock={() => undefined}
-      onRestoreAnnotationDraft={() => undefined}
+      onOpenAnnotationEditor={() => undefined}
     />
   </I18nProvider>,
 );
@@ -405,7 +405,7 @@ const annotationManifestMarkup = renderToStaticMarkup(
       copyKey="annotation-manifest-render"
       copySource="history_panel"
       onCopyPrompt={() => undefined}
-      onRestoreAnnotationDraft={() => undefined}
+      onOpenAnnotationEditor={() => undefined}
     />
   </I18nProvider>,
 );
