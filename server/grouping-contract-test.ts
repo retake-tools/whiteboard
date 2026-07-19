@@ -15,9 +15,10 @@ import {
 } from '../src/core/grouping';
 import { connectedWorkflowBlockIds } from '../src/core/workflowSelection';
 
-const appSource = await readFile('src/App.tsx', 'utf8');
-assert.match(appSource, /zoomOnDoubleClick=\{false\}/);
-assert.match(appSource, /function selectConnectedWorkflow[\s\S]*?window\.requestAnimationFrame/);
+const canvasSource = await readFile('src/app/useCanvasController.ts', 'utf8');
+const canvasViewSource = await readFile('src/app/WhiteboardCanvas.tsx', 'utf8');
+assert.match(canvasViewSource, /zoomOnDoubleClick=\{false\}/);
+assert.match(canvasSource, /function selectConnectedWorkflow[\s\S]*?window\.requestAnimationFrame/);
 import type { BlockRecord, BoardSnapshot } from '../src/core/types';
 
 const createdAt = '2026-07-10T00:00:00.000Z';

@@ -35,7 +35,7 @@ const geometrySource = await readFile('src/components/imageAnnotationGeometry.ts
 const compositeSource = await readFile('src/components/imageAnnotationComposite.ts', 'utf8');
 const overlaySource = await readFile('src/components/ImageAnnotationOverlay.tsx', 'utf8');
 const controlsSource = await readFile('src/components/ImageAnnotationControls.tsx', 'utf8');
-const appSource = await readFile('src/App.tsx', 'utf8');
+const annotationControllerSource = await readFile('src/app/useAnnotationController.ts', 'utf8');
 const toolbarSource = await readFile('src/components/ContextToolbar.tsx', 'utf8');
 const executionDetailSource = await readFile('src/components/ExecutionDetailContent.tsx', 'utf8');
 const executionInspectorSource = await readFile('src/components/ExecutionInspector.tsx', 'utf8');
@@ -74,15 +74,15 @@ assert.match(stylesSource, /\.annotation-hover-prompt \{[\s\S]*?pointer-events: 
 assert.match(stylesSource, /\.annotation-side-panel \{[\s\S]*?min-height: 0;[\s\S]*?overflow-y: auto;/);
 assert.doesNotMatch(editorSource, /diamondPath/);
 assert.doesNotMatch(editorSource, /handleStageDoubleClick|createMark\('text'|annotation-label-input|textMarkTool/);
-assert.match(appSource, /function updateAnnotationDraft/);
-assert.match(appSource, /scheduleAnnotationDraftPersist\(\)/);
+assert.match(annotationControllerSource, /function updateAnnotationDraft/);
+assert.match(annotationControllerSource, /scheduleAnnotationDraftPersist\(\)/);
 assert.match(toolbarSource, /initialDraft={annotationDraft}/);
 assert.match(executionDetailSource, /function AnnotationManifestDetail/);
 assert.match(executionDetailSource, /inspector\.restoreAnnotationDraft/);
 assert.match(executionInspectorSource, /onOpenAnnotationEditor\(context\.execution\.executionId\)/);
 assert.match(toolbarSource, /setActiveTool\('annotation-edit'\)/);
-assert.match(appSource, /setAnnotationEditorOpenRequest\(/);
-assert.doesNotMatch(appSource, /window\.confirm\(t\('inspector\.annotationDraftRestoreConfirm'\)\)/);
+assert.match(annotationControllerSource, /setAnnotationEditorOpenRequest\(/);
+assert.doesNotMatch(annotationControllerSource, /window\.confirm\(t\('inspector\.annotationDraftRestoreConfirm'\)\)/);
 assert.match(toolbarSource, /historicalAnnotationDraft \?\? annotationDraftForBlock/);
 assert.match(toolbarSource, /if \(historicalAnnotationDraft\)[\s\S]*?setHistoricalAnnotationDraft/);
 assert.match(toolbarSource, /isHistoricalAnnotationSession=\{Boolean\(historicalAnnotationDraft\)\}/);
