@@ -191,6 +191,11 @@ export function App(): ReactElement {
   const [promptPreview, setPromptPreview] = useState<PromptPreview | undefined>();
   const [copiedPromptKey, setCopiedPromptKey] = useState<string | undefined>();
   const [inspectorBlockId, setInspectorBlockId] = useState<string | undefined>();
+  const [annotationEditorOpenRequest, setAnnotationEditorOpenRequest] = useState<{
+    blockId: string;
+    requestId: number;
+  }>();
+  const annotationEditorOpenRequestCounterRef = useRef(0);
   const [activeCanvasTool, setActiveCanvasTool] = useState<CanvasTool>('pan');
   const [, setDropTargetGroupId] = useState<string | undefined>();
   const [canvasZoom, setCanvasZoom] = useState(() => currentViewportRef.current.zoom);
@@ -2326,6 +2331,12 @@ export function App(): ReactElement {
     if (!result.restored || !result.sourceBlock) return;
     const nextSnapshot = updateSnapshot(() => candidate, { persist: true, history: true });
     setSelectedBlock(nextSnapshot, result.sourceBlock.blockId);
+    annotationEditorOpenRequestCounterRef.current += 1;
+    setAnnotationEditorOpenRequest({
+      blockId: result.sourceBlock.blockId,
+      requestId: annotationEditorOpenRequestCounterRef.current,
+    });
+    setInspectorBlockId(undefined);
     setIsHistoryOpen(false);
     setOperationToast({
       id: `annotation-draft-restored:${executionId}`,
@@ -2625,6 +2636,7 @@ export function App(): ReactElement {
         snapshot={snapshot}
         onClose={() => setInspectorBlockId(undefined)}
         onCopyPrompt={copyPromptWithHistory}
+        onOpenAnnotationEditor={restoreAnnotationDraftVersion}
         onRestoreConfiguration={restoreConfigurationVersion}
       />
       <GroupInspector
@@ -2683,10 +2695,16 @@ export function App(): ReactElement {
             <NodeToolbar nodeId={selectedBlock.blockId} position={Position.Top} offset={12} isVisible>
               <ContextToolbar
                 canvasZoom={canvasZoom}
+                annotationEditorOpenRequestId={
+                  annotationEditorOpenRequest?.blockId === selectedBlock.blockId
+                    ? annotationEditorOpenRequest.requestId
+                    : undefined
+                }
                 selectedBlock={selectedBlock}
                 selectedImageUrl={selectedImageUrl}
                 onAnnotationDraftChange={(draft) => updateAnnotationDraft(selectedBlock.blockId, draft)}
                 onAnnotationDraftFlush={flushAnnotationDraftPersist}
+                onAnnotationEditorOpenRequestHandled={() => setAnnotationEditorOpenRequest(undefined)}
                 onCreateSimilar={() => {
                   if (selectedBlock) createImageToImageDraftOperation(selectedBlock, 'create_similar');
                 }}

@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Clipboard, ImageIcon, RotateCcw, X } from 'lucide-react';
+import { Check, ChevronRight, Clipboard, ImageIcon, MessageSquareText, RotateCcw, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useEffect, useState, type ReactElement } from 'react';
 import { inputRoleDefinition, isExecutionInputRole } from '../core/inputRoles';
@@ -200,11 +200,21 @@ export function ExecutionDetailContent({
         sourceLabel={t('inspector.inputAssets')}
         title={t('inspector.imageComparison')}
       />
+      {annotationManifest && onRestoreAnnotationDraft ? (
+        <button
+          type="button"
+          className="execution-restore-configuration"
+          disabled={annotationDraftRestoreState !== 'available'}
+          onClick={onRestoreAnnotationDraft}
+        >
+          <MessageSquareText size={14} />
+          <span>{t('inspector.restoreAnnotationDraft')}</span>
+        </button>
+      ) : null}
       <AnnotationText emptyLabel={t('inspector.none')} text={annotationText} title={t('inspector.annotationText')} />
       {annotationManifest ? (
         <AnnotationManifestDetail
           manifest={annotationManifest}
-          onRestore={onRestoreAnnotationDraft}
           restoreState={annotationDraftRestoreState}
         />
       ) : null}
@@ -354,15 +364,12 @@ function createExecutionDetailContext(
 
 function AnnotationManifestDetail({
   manifest,
-  onRestore,
   restoreState,
 }: {
   manifest: AnnotationManifest;
-  onRestore?: () => void;
   restoreState?: AnnotationDraftRestoreState;
 }): ReactElement {
   const { t } = useI18n();
-  const restoreUnavailable = restoreState !== 'available';
   return (
     <section className="execution-annotation-manifest">
       <h3>{t('inspector.annotationManifest')}</h3>
@@ -393,17 +400,6 @@ function AnnotationManifestDetail({
       </details>
       {restoreState === 'source_replaced' ? <p className="execution-annotation-warning">{t('inspector.annotationSourceChanged')}</p> : null}
       {restoreState === 'source_missing' ? <p className="execution-annotation-warning">{t('inspector.annotationSourceMissing')}</p> : null}
-      {onRestore ? (
-        <button
-          type="button"
-          className="execution-restore-configuration"
-          disabled={restoreUnavailable}
-          onClick={onRestore}
-        >
-          <RotateCcw size={14} />
-          <span>{t('inspector.restoreAnnotationDraft')}</span>
-        </button>
-      ) : null}
     </section>
   );
 }

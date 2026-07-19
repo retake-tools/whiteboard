@@ -35,6 +35,7 @@ export type ExecutionRoute = 'codex_mcp';
 
 interface ContextToolbarProps {
   canvasZoom: number;
+  annotationEditorOpenRequestId?: number;
   selectedBlock?: BlockRecord;
   selectedImageUrl?: string;
   onCreateLocalEdit: (input: {
@@ -51,6 +52,7 @@ interface ContextToolbarProps {
   }) => void;
   onAnnotationDraftChange: (draft: AnnotationDraftContent) => void;
   onAnnotationDraftFlush: () => void;
+  onAnnotationEditorOpenRequestHandled: () => void;
   onCreateSimilar: (input: { route: ExecutionRoute }) => void;
   onDownloadImage: () => void;
   onReplaceImage: () => void;
@@ -59,10 +61,12 @@ interface ContextToolbarProps {
 
 export function ContextToolbar({
   canvasZoom,
+  annotationEditorOpenRequestId,
   selectedBlock,
   selectedImageUrl,
   onAnnotationDraftChange,
   onAnnotationDraftFlush,
+  onAnnotationEditorOpenRequestHandled,
   onRunAnnotationEdit,
   onCreateSimilar,
   onCreateLocalEdit,
@@ -94,6 +98,12 @@ export function ContextToolbar({
     setAdjustForm({ brightness: 0, contrast: 0, saturation: 0 });
     setAnnotationOffset({ x: 0, y: 0 });
   }, [selectedBlock?.blockId, selectedBlock?.type, selectedImageUrl]);
+
+  useEffect(() => {
+    if (annotationEditorOpenRequestId === undefined || selectedBlock?.type !== 'image' || !selectedImageUrl) return;
+    setActiveTool('annotation-edit');
+    onAnnotationEditorOpenRequestHandled();
+  }, [annotationEditorOpenRequestId, onAnnotationEditorOpenRequestHandled, selectedBlock?.type, selectedImageUrl]);
 
   useEffect(() => () => {
     if (annotationDraftSaveTimerRef.current !== undefined) {

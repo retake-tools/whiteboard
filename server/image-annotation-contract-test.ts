@@ -39,6 +39,7 @@ const controlsSource = await readFile('src/components/ImageAnnotationControls.ts
 const appSource = await readFile('src/App.tsx', 'utf8');
 const toolbarSource = await readFile('src/components/ContextToolbar.tsx', 'utf8');
 const executionDetailSource = await readFile('src/components/ExecutionDetailContent.tsx', 'utf8');
+const executionInspectorSource = await readFile('src/components/ExecutionInspector.tsx', 'utf8');
 const historyPanelSource = await readFile('src/components/BoardHistoryPanel.tsx', 'utf8');
 const stylesSource = await readFile('src/styles.css', 'utf8');
 assert.doesNotMatch(
@@ -78,6 +79,9 @@ assert.match(appSource, /scheduleAnnotationDraftPersist\(\)/);
 assert.match(toolbarSource, /initialDraft={annotationDraft}/);
 assert.match(executionDetailSource, /function AnnotationManifestDetail/);
 assert.match(executionDetailSource, /inspector\.restoreAnnotationDraft/);
+assert.match(executionInspectorSource, /onOpenAnnotationEditor\(context\.execution\.executionId\)/);
+assert.match(toolbarSource, /setActiveTool\('annotation-edit'\)/);
+assert.match(appSource, /setAnnotationEditorOpenRequest\(/);
 assert.match(historyPanelSource, /onRestoreAnnotationDraft/);
 
 const manifest: AnnotationManifest = {

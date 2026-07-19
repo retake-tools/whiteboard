@@ -411,7 +411,7 @@ const annotationManifestMarkup = renderToStaticMarkup(
 );
 assert.match(annotationManifestMarkup, /Annotation Manifest/);
 assert.match(annotationManifestMarkup, /M1 · Numbered marker/);
-assert.match(annotationManifestMarkup, /Copy to annotation draft/);
+assert.match(annotationManifestMarkup, /Open in annotation editor/);
 
 const replaceableImageBlock: BlockRecord = {
   ...group,

@@ -24,6 +24,7 @@ interface ExecutionInspectorProps {
   snapshot: BoardSnapshot;
   onClose: () => void;
   onCopyPrompt: (input: CopyPromptInput) => void | Promise<void>;
+  onOpenAnnotationEditor: (executionId: string) => void;
   onRestoreConfiguration: (executionId: string) => void;
 }
 
@@ -33,6 +34,7 @@ export function ExecutionInspector({
   selectedBlock,
   snapshot,
   onCopyPrompt,
+  onOpenAnnotationEditor,
   onRestoreConfiguration,
 }: ExecutionInspectorProps): ReactElement | null {
   const { t } = useI18n();
@@ -180,6 +182,11 @@ export function ExecutionInspector({
               copyKey={`inspector:${context.execution.executionId}`}
               copySource="execution_inspector"
               onCopyPrompt={onCopyPrompt}
+              onRestoreAnnotationDraft={
+                context.annotationManifest
+                  ? () => onOpenAnnotationEditor(context.execution.executionId)
+                  : undefined
+              }
               onRestoreConfiguration={
                 typeof context.executionVersion === 'number'
                   ? () => onRestoreConfiguration(context.execution.executionId)
