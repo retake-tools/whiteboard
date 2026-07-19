@@ -49,6 +49,7 @@ assert.doesNotMatch(
 );
 assert.match(editorSource, /fixedShapeYScale={renderMetrics\.displayWidth \/ renderMetrics\.displayHeight}/);
 assert.match(controlsSource, /disabled={!selectedMark}/);
+assert.match(controlsSource, /<textarea[\s\S]*?data-mark-id=\{mark\.id\}[\s\S]*?rows=\{2\}/);
 assert.match(editorSource, /onDraftChangeRef\.current/);
 assert.match(editorSource, /onInstructionChange\(''\)/);
 assert.match(editorSource, /hoveredMarkId/);

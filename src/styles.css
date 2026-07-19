@@ -965,9 +965,13 @@ button {
 }
 
 .annotation-intent-input {
-  min-height: 30px;
-  padding: 5px 7px;
+  min-height: 48px;
+  max-height: 144px;
+  padding: 6px 7px;
   font-size: 11px;
+  line-height: 1.45;
+  resize: vertical;
+  field-sizing: content;
 }
 
 .annotation-empty-intents,

@@ -177,10 +177,11 @@ export function AnnotationSidePanel({
                     <span className="annotation-intent-selected-label">{t('context.selectedMark')}</span>
                   ) : null}
                 </button>
-                <input
+                <textarea
                   data-mark-id={mark.id}
                   className="annotation-intent-input"
                   placeholder={t('context.markIntentPlaceholder')}
+                  rows={2}
                   value={mark.intent}
                   onChange={(event) => onMarkIntentChange(mark.id, event.target.value)}
                   onFocus={() => onMarkFocus(mark.id)}
