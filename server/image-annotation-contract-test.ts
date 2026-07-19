@@ -28,6 +28,10 @@ assert.deepEqual(
 assert.equal(new Set(annotationColorOptions.map((option) => option.value)).size, 5);
 
 const editorSource = await readFile('src/components/ImageAnnotationEditor.tsx', 'utf8');
+const geometrySource = await readFile('src/components/imageAnnotationGeometry.ts', 'utf8');
+const compositeSource = await readFile('src/components/imageAnnotationComposite.ts', 'utf8');
+const overlaySource = await readFile('src/components/ImageAnnotationOverlay.tsx', 'utf8');
+const controlsSource = await readFile('src/components/ImageAnnotationControls.tsx', 'utf8');
 const appSource = await readFile('src/App.tsx', 'utf8');
 const toolbarSource = await readFile('src/components/ContextToolbar.tsx', 'utf8');
 const executionDetailSource = await readFile('src/components/ExecutionDetailContent.tsx', 'utf8');
@@ -39,23 +43,23 @@ assert.doesNotMatch(
   'annotation colors should only be edited from the selected-mark controls',
 );
 assert.match(editorSource, /fixedShapeYScale={renderMetrics\.displayWidth \/ renderMetrics\.displayHeight}/);
-assert.match(editorSource, /disabled={!selectedMark}/);
+assert.match(controlsSource, /disabled={!selectedMark}/);
 assert.match(editorSource, /onDraftChangeRef\.current/);
 assert.match(editorSource, /onInstructionChange\(''\)/);
 assert.match(editorSource, /hoveredMarkId/);
-assert.match(editorSource, /function AnnotationQuickDelete/);
+assert.match(overlaySource, /function AnnotationQuickDelete/);
 assert.match(editorSource, /function selectMarkFromList/);
-assert.match(editorSource, /function annotationMarkFocusPoint/);
-assert.match(editorSource, /function markColorLabel/);
-assert.match(editorSource, /aria-label={`\$\{markColorLabel\(option\)\} · \$\{option\}`}/);
+assert.match(geometrySource, /function annotationMarkFocusPoint/);
+assert.match(controlsSource, /function markColorLabel/);
+assert.match(controlsSource, /aria-label={`\$\{markColorLabel\(option, t\)\} · \$\{option\}`}/);
 assert.match(editorSource, /setViewPan\(clampImageViewPan\(metrics, viewZoom, nextPan\)\)/);
-assert.match(editorSource, /vectorEffect="non-scaling-stroke"/);
-assert.match(editorSource, /startXEndY/);
+assert.match(overlaySource, /vectorEffect="non-scaling-stroke"/);
+assert.match(overlaySource, /startXEndY/);
 assert.match(editorSource, /function supportedInitialMarks/);
 assert.match(editorSource, /function annotationHoverPromptStyle/);
-assert.match(editorSource, /function annotationBrushStrokeWidthPixels/);
+assert.match(geometrySource, /function annotationBrushStrokeWidthPixels/);
 assert.match(editorSource, /brushStrokeWidth={annotationBrushStrokeWidthPixels\(/);
-assert.match(editorSource, /context\.lineWidth = annotationBrushStrokeWidthPixels\(mark\.strokeSize, width, height\)/);
+assert.match(compositeSource, /context\.lineWidth = annotationBrushStrokeWidthPixels\(mark\.strokeSize, width, height\)/);
 assert.doesNotMatch(editorSource, /mark\.kind === 'brush' \? screenStrokeWidth \* 9/);
 assert.doesNotMatch(editorSource, /Math\.max\(context\.lineWidth \* 9/);
 assert.match(editorSource, /hoveredMark\?\.intent\.trim\(\)/);

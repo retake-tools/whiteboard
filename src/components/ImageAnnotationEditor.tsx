@@ -1,17 +1,5 @@
 import {
-  ArrowUpRight,
-  Circle,
-  MapPin,
-  Paintbrush,
-  Eraser,
   Maximize2,
-  MousePointer2,
-  PenLine,
-  RectangleHorizontal,
-  RotateCcw,
-  Redo2,
-  Trash2,
-  Undo2,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
@@ -45,19 +33,44 @@ import {
   type AnnotationStrokeSize,
 } from '../core/imageAnnotations';
 import { useI18n } from '../i18n';
+import {
+  createAnnotatedComposite,
+  type AnnotationComposite,
+} from './imageAnnotationComposite';
+import {
+  annotationBrushStrokeWidthPixels,
+  annotationMarkFocusPoint,
+  clamp,
+  clampImageViewPan,
+  defaultArrowEnd,
+  distance,
+  hitTestAnnotationMark,
+  metricsStageCenterX,
+  metricsStageCenterY,
+  readImageDisplayMetrics,
+  transformImageDisplayMetrics,
+  translateAnnotationMark,
+  type ImageDisplayMetrics,
+} from './imageAnnotationGeometry';
+import {
+  AnnotationIdBadge,
+  AnnotationQuickDelete,
+  AnnotationSvgMark,
+  type EndpointHandle,
+} from './ImageAnnotationOverlay';
+import {
+  AnnotationSidePanel,
+  AnnotationToolStrip,
+  type AnnotationTool,
+} from './ImageAnnotationControls';
 import { TooltipIconButton } from './Tooltip';
 
-export interface AnnotationComposite {
-  dataUrl: string;
-  width: number;
-  height: number;
-}
+export type { AnnotationComposite } from './imageAnnotationComposite';
 
 // This interaction surface predates the structured annotation model and still
-// contains cohesive pointer, zoom, SVG, and canvas-export plumbing. The next
-// split should move the SVG/canvas renderers and geometry helpers into focused
-// modules; the provider-neutral model and prompt compiler have already moved to
-// core/imageAnnotations.ts so execution semantics no longer grow in this file.
+// contains cohesive pointer, zoom, and panel plumbing. Geometry, SVG rendering,
+// canvas export, and provider-neutral prompt semantics now live in focused
+// modules so those responsibilities no longer grow in this file.
 
 interface ImageAnnotationEditorProps {
   imageUrl?: string;
@@ -75,12 +88,10 @@ interface ImageAnnotationEditorProps {
   }) => void;
 }
 
-type AnnotationTool = 'select' | AnnotationMarkKind | 'eraser';
 type AnnotationMark = CoreAnnotationMark;
 type MarkColor = AnnotationColor;
 type StrokeSize = AnnotationStrokeSize;
 type Point = AnnotationPoint;
-type EndpointHandle = 'start' | 'end' | 'startXEndY' | 'endXStartY';
 type DragTarget =
   | { type: 'draw'; markId: string }
   | { type: 'endpoint'; markId: string; endpoint: EndpointHandle; lastPoint: Point }
@@ -88,39 +99,9 @@ type DragTarget =
   | { type: 'pan'; lastClientPoint: Point }
   | null;
 
-interface ImageDisplayMetrics {
-  naturalWidth: number;
-  naturalHeight: number;
-  stageLeft: number;
-  stageTop: number;
-  stageRight: number;
-  stageBottom: number;
-  displayLeft: number;
-  displayTop: number;
-  displayWidth: number;
-  displayHeight: number;
-}
-
-const strokeOptions: StrokeSize[] = ['xs', 's', 'm', 'l'];
 const colorOptions = annotationColorOptions.map((option) => option.value);
 const defaultMarkColor: MarkColor = annotationColorOptions[0].value;
 const supportedMarkKinds = new Set<AnnotationMarkKind>(['marker', 'arrow', 'pen', 'brush', 'rect', 'ellipse']);
-
-const strokeBySize = {
-  xs: 0.8,
-  s: 1.2,
-  m: 1.8,
-  l: 2.8,
-  xl: 4,
-} satisfies Record<StrokeSize, number>;
-
-const endpointHandleRadiusBySize = {
-  xs: 0.0065,
-  s: 0.0075,
-  m: 0.0085,
-  l: 0.01,
-  xl: 0.012,
-} satisfies Record<StrokeSize, number>;
 
 export function ImageAnnotationEditor({
   imageUrl,
@@ -260,10 +241,6 @@ export function ImageAnnotationEditor({
     setMetrics(readImageDisplayMetrics(stageRef.current, imageRef.current));
   }, [imageAspectRatio, stageSize]);
 
-  const selectedMark = useMemo(
-    () => marks.find((mark) => mark.id === selectedMarkId),
-    [marks, selectedMarkId],
-  );
   const hoveredMark = useMemo(
     () => marks.find((mark) => mark.id === hoveredMarkId),
     [hoveredMarkId, marks],
@@ -356,7 +333,7 @@ export function ImageAnnotationEditor({
     if (!imageUrl || !currentMetrics()) return;
 
     const point = stagePoint(event);
-    const hitMark = point ? hitTestMark(marks, point) : undefined;
+    const hitMark = point ? hitTestAnnotationMark(marks, point) : undefined;
 
     if (event.button === 1 || (activeTool === 'select' && viewZoom > 1 && !hitMark)) {
       event.preventDefault();
@@ -574,7 +551,7 @@ export function ImageAnnotationEditor({
 
   function moveMark(markId: string, dx: number, dy: number): void {
     setMarks((current) =>
-      current.map((mark) => (mark.id === markId ? translateMark(mark, dx, dy) : mark)),
+      current.map((mark) => (mark.id === markId ? translateAnnotationMark(mark, dx, dy) : mark)),
     );
   }
 
@@ -645,24 +622,6 @@ export function ImageAnnotationEditor({
     setViewPan({ x: 0, y: 0 });
   }
 
-  function markKindLabel(kind: AnnotationMarkKind): string {
-    if (kind === 'marker') return t('context.markerTool');
-    if (kind === 'arrow') return t('context.arrowTool');
-    if (kind === 'pen') return t('context.penTool');
-    if (kind === 'brush') return t('context.regionBrushTool');
-    if (kind === 'rect') return t('context.rectangleTool');
-    if (kind === 'ellipse') return t('context.ellipseTool');
-    return t('context.ellipseTool');
-  }
-
-  function markColorLabel(color: MarkColor): string {
-    if (color === '#dc2626') return t('context.annotationColorRed');
-    if (color === '#facc15') return t('context.annotationColorYellow');
-    if (color === '#22c55e') return t('context.annotationColorGreen');
-    if (color === '#2563eb') return t('context.annotationColorBlue');
-    return t('context.annotationColorPurple');
-  }
-
   async function runAnnotationEdit(): Promise<void> {
     if (!imageUrl) return;
     const manifestSnapshot = annotationManifestFromDraft(manifest);
@@ -679,41 +638,15 @@ export function ImageAnnotationEditor({
       onDoubleClick={stopCanvasGesture}
     >
       <div className="annotation-editor-shell">
-        <div className="annotation-tool-strip" aria-label={t('context.annotationTools')}>
-          <ToolButton active={activeTool === 'select'} label={t('context.selectMarkTool')} onClick={() => setActiveTool('select')}>
-            <MousePointer2 size={15} />
-          </ToolButton>
-          <ToolButton active={activeTool === 'marker'} label={t('context.markerTool')} onClick={() => setActiveTool('marker')}>
-            <MapPin size={15} />
-          </ToolButton>
-          <ToolButton active={activeTool === 'arrow'} label={t('context.arrowTool')} onClick={() => setActiveTool('arrow')}>
-            <ArrowUpRight size={15} />
-          </ToolButton>
-          <ToolButton active={activeTool === 'pen'} label={t('context.penTool')} onClick={() => setActiveTool('pen')}>
-            <PenLine size={15} />
-          </ToolButton>
-          <ToolButton active={activeTool === 'brush'} label={t('context.regionBrushTool')} onClick={() => setActiveTool('brush')}>
-            <Paintbrush size={15} />
-          </ToolButton>
-          <ToolButton active={activeTool === 'rect'} label={t('context.rectangleTool')} onClick={() => setActiveTool('rect')}>
-            <RectangleHorizontal size={15} />
-          </ToolButton>
-          <ToolButton active={activeTool === 'ellipse'} label={t('context.ellipseTool')} onClick={() => setActiveTool('ellipse')}>
-            <Circle size={15} />
-          </ToolButton>
-          <ToolButton active={activeTool === 'eraser'} label={t('context.eraserTool')} onClick={() => setActiveTool('eraser')}>
-            <Eraser size={15} />
-          </ToolButton>
-          <ToolButton disabled={!canUndo} label={t('context.undoAnnotation')} onClick={undoMarks}>
-            <Undo2 size={15} />
-          </ToolButton>
-          <ToolButton disabled={!canRedo} label={t('context.redoAnnotation')} onClick={redoMarks}>
-            <Redo2 size={15} />
-          </ToolButton>
-          <ToolButton label={t('context.clearAnnotationDraft')} onClick={clearAnnotationDraft}>
-            <RotateCcw size={15} />
-          </ToolButton>
-        </div>
+        <AnnotationToolStrip
+          activeTool={activeTool}
+          canRedo={canRedo}
+          canUndo={canUndo}
+          onActiveToolChange={setActiveTool}
+          onClear={clearAnnotationDraft}
+          onRedo={redoMarks}
+          onUndo={undoMarks}
+        />
 
         <div ref={stageAreaRef} className="annotation-stage-column">
           <div
@@ -832,109 +765,26 @@ export function ImageAnnotationEditor({
           </div>
         </div>
 
-        <div className="annotation-side-panel">
-          <div className={`annotation-control-group annotation-selected-color-control${selectedMark ? '' : ' is-disabled'}`}>
-            <span>{selectedMark ? `${selectedMark.id} · ` : ''}{t('context.selectedMarkColor')}</span>
-            <div className="annotation-swatch-row">
-              {colorOptions.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  disabled={!selectedMark}
-                  className={`annotation-swatch${selectedMark?.color === option ? ' is-active' : ''}`}
-                  style={{ background: option }}
-                  aria-label={`${markColorLabel(option)} · ${option}`}
-                  title={`${markColorLabel(option)} · ${option}`}
-                  onClick={() => updateSelectedMarkColor(option)}
-                />
-              ))}
-            </div>
-          </div>
-          <div className="annotation-control-group">
-            <span>{t('context.strokeSize')}</span>
-            <div className="annotation-size-row">
-              {strokeOptions.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={strokeSize === option ? 'is-active' : ''}
-                  onClick={() => updateSelectedMarkStrokeSize(option)}
-                >
-                  {option.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="annotation-control-group annotation-intents-group">
-            <span>{t('context.markIntents')}</span>
-            {marks.length ? (
-              <div className="annotation-intent-list">
-                {marks.map((mark) => (
-                  <div
-                    key={`intent-${mark.id}`}
-                    className={`annotation-intent-card${displayedSelectedMarkId === mark.id ? ' is-selected' : ''}`}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    aria-current={selectedMarkId === mark.id ? 'true' : undefined}
-                  >
-                    <button
-                      type="button"
-                      className="annotation-intent-heading"
-                      onClick={() => selectMarkFromList(mark.id)}
-                    >
-                      <span className="annotation-intent-color" style={{ background: mark.color }} />
-                      <strong>{mark.id}</strong>
-                      <span>{markKindLabel(mark.kind)}</span>
-                      {displayedSelectedMarkId === mark.id ? (
-                        <span className="annotation-intent-selected-label">{t('context.selectedMark')}</span>
-                      ) : null}
-                    </button>
-                    <input
-                      data-mark-id={mark.id}
-                      className="annotation-intent-input"
-                      placeholder={t('context.markIntentPlaceholder')}
-                      value={mark.intent}
-                      onChange={(event) => updateMarkIntent(mark.id, event.target.value)}
-                      onFocus={() => selectExistingMark(mark.id)}
-                    />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="annotation-empty-intents">{t('context.noMarks')}</p>
-            )}
-          </div>
-          <label className="annotation-control-group">
-            <span>{t('context.globalInstruction')}</span>
-            <textarea
-              rows={3}
-              placeholder={t('context.globalInstructionPlaceholder')}
-              value={instruction}
-              onChange={(event) => onInstructionChange(event.target.value)}
-            />
-          </label>
-          {missingIntentIds.length ? (
-            <p className="annotation-missing-intent">
-              {t('context.missingMarkIntent')}: {missingIntentIds.join(', ')}
-            </p>
-          ) : null}
-          <details className="annotation-prompt-preview">
-            <summary>{t('context.executionInstructionPreview')}</summary>
-            <pre>{compiledInstruction}</pre>
-          </details>
-          {selectedMark ? (
-            <button
-              type="button"
-              className="secondary-popover-button"
-              onClick={() => {
-                recordHistory();
-                removeMark(selectedMark.id);
-              }}
-            >
-              <Trash2 size={13} />
-              {t('context.deleteMark')} {selectedMark.id}
-            </button>
-          ) : null}
-        </div>
+        <AnnotationSidePanel
+          colors={colorOptions}
+          compiledInstruction={compiledInstruction}
+          displayedSelectedMarkId={displayedSelectedMarkId}
+          instruction={instruction}
+          marks={marks}
+          missingIntentIds={missingIntentIds}
+          selectedMarkId={selectedMarkId}
+          strokeSize={strokeSize}
+          onDeleteMark={(markId) => {
+            recordHistory();
+            removeMark(markId);
+          }}
+          onInstructionChange={onInstructionChange}
+          onMarkFocus={selectExistingMark}
+          onMarkIntentChange={updateMarkIntent}
+          onMarkSelect={selectMarkFromList}
+          onSelectedMarkColorChange={updateSelectedMarkColor}
+          onStrokeSizeChange={updateSelectedMarkStrokeSize}
+        />
       </div>
 
       <button
@@ -946,360 +796,6 @@ export function ImageAnnotationEditor({
         {runLabel}
       </button>
     </div>
-  );
-}
-
-function AnnotationSvgMark({
-  brushStrokeWidth,
-  fixedShapeYScale,
-  mark,
-  onEndpointPointerDown,
-  onPointerDown,
-  selected,
-}: {
-  brushStrokeWidth: number;
-  fixedShapeYScale: number;
-  mark: AnnotationMark;
-  onEndpointPointerDown: (event: PointerEvent, endpoint: EndpointHandle) => void;
-  onPointerDown: (event: PointerEvent) => void;
-  selected: boolean;
-}): ReactElement | null {
-  const screenStrokeWidth = strokeBySize[mark.strokeSize];
-  const className = `annotation-svg-mark${selected ? ' is-selected' : ''}`;
-
-  if (mark.kind === 'marker') {
-    return (
-      <g
-        className={`${className} annotation-location-pin`}
-        data-annotation-mark-id={mark.id}
-        transform={`translate(${mark.point.x} ${mark.point.y}) scale(1 ${fixedShapeYScale})`}
-        onPointerDown={onPointerDown}
-      >
-        {selected ? (
-          <path
-            className="annotation-marker-selection-outline"
-            d="M 0 0 C -0.009 -0.014 -0.027 -0.028 -0.027 -0.047 A 0.027 0.027 0 1 1 0.027 -0.047 C 0.027 -0.028 0.009 -0.014 0 0 Z"
-          />
-        ) : null}
-        <path
-          d="M 0 0 C -0.009 -0.014 -0.027 -0.028 -0.027 -0.047 A 0.027 0.027 0 1 1 0.027 -0.047 C 0.027 -0.028 0.009 -0.014 0 0 Z"
-          fill={mark.color}
-          stroke="#ffffff"
-          strokeLinejoin="round"
-          strokeWidth={0.004}
-        />
-        <text
-          x={0}
-          y={-0.04}
-          fill="#ffffff"
-          fontSize={mark.id.length > 2 ? 0.016 : 0.019}
-          fontWeight={850}
-          textAnchor="middle"
-        >
-          {mark.id}
-        </text>
-      </g>
-    );
-  }
-
-  if (mark.kind === 'arrow') {
-    const handleRadius = endpointHandleRadiusBySize[mark.strokeSize];
-
-    return (
-      <g className={className} data-annotation-mark-id={mark.id} onPointerDown={onPointerDown}>
-        {selected ? (
-          <line
-            className="annotation-selection-halo"
-            x1={mark.start.x}
-            x2={mark.end.x}
-            y1={mark.start.y}
-            y2={mark.end.y}
-            strokeWidth={screenStrokeWidth + 4}
-            vectorEffect="non-scaling-stroke"
-          />
-        ) : null}
-        <line
-          x1={mark.start.x}
-          x2={mark.end.x}
-          y1={mark.start.y}
-          y2={mark.end.y}
-          stroke={mark.color}
-          strokeLinecap="round"
-          strokeWidth={screenStrokeWidth}
-          vectorEffect="non-scaling-stroke"
-          markerEnd={`url(#annotation-arrowhead-${mark.color.slice(1)})`}
-        />
-        <line
-          x1={mark.start.x}
-          x2={mark.end.x}
-          y1={mark.start.y}
-          y2={mark.end.y}
-          className="annotation-line-hitbox"
-          pointerEvents="stroke"
-          vectorEffect="non-scaling-stroke"
-        />
-        {selected ? (
-          <>
-            <ellipse
-              className="annotation-endpoint-handle"
-              cx={mark.start.x}
-              cy={mark.start.y}
-              rx={handleRadius}
-              ry={handleRadius * fixedShapeYScale}
-              fill="#ffffff"
-              onPointerDown={(event) => onEndpointPointerDown(event, 'start')}
-            />
-            <ellipse
-              className="annotation-endpoint-handle"
-              cx={mark.end.x}
-              cy={mark.end.y}
-              rx={handleRadius}
-              ry={handleRadius * fixedShapeYScale}
-              fill="#ffffff"
-              onPointerDown={(event) => onEndpointPointerDown(event, 'end')}
-            />
-          </>
-        ) : null}
-      </g>
-    );
-  }
-
-  if (mark.kind === 'pen' || mark.kind === 'brush') {
-    const markStrokeWidth = mark.kind === 'brush' ? brushStrokeWidth : screenStrokeWidth;
-    return (
-      <g className={className} data-annotation-mark-id={mark.id} onPointerDown={onPointerDown}>
-        {selected ? (
-          <polyline
-            className="annotation-selection-halo"
-            points={mark.points.map((point) => `${point.x},${point.y}`).join(' ')}
-            fill="none"
-            strokeWidth={markStrokeWidth + 4}
-            vectorEffect="non-scaling-stroke"
-          />
-        ) : null}
-        <polyline
-          points={mark.points.map((point) => `${point.x},${point.y}`).join(' ')}
-          fill="none"
-          stroke={mark.color}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={markStrokeWidth}
-          vectorEffect="non-scaling-stroke"
-          opacity={mark.kind === 'brush' ? 0.38 : 1}
-        />
-        <polyline
-          className="annotation-line-hitbox"
-          points={mark.points.map((point) => `${point.x},${point.y}`).join(' ')}
-          fill="none"
-          vectorEffect="non-scaling-stroke"
-        />
-      </g>
-    );
-  }
-
-  if (mark.kind === 'rect' || mark.kind === 'ellipse') {
-    const bounds = normalizedBounds(mark.start, mark.end);
-    if (mark.kind === 'ellipse') {
-      return (
-        <g className={className} data-annotation-mark-id={mark.id} onPointerDown={onPointerDown}>
-          {selected ? (
-            <ellipse
-              className="annotation-selection-halo"
-              cx={bounds.x + bounds.width / 2}
-              cy={bounds.y + bounds.height / 2}
-              rx={bounds.width / 2}
-              ry={bounds.height / 2}
-              strokeWidth={screenStrokeWidth + 4}
-              vectorEffect="non-scaling-stroke"
-            />
-          ) : null}
-          <ellipse
-            cx={bounds.x + bounds.width / 2}
-            cy={bounds.y + bounds.height / 2}
-            rx={bounds.width / 2}
-            ry={bounds.height / 2}
-            fill="none"
-            stroke={mark.color}
-            strokeWidth={screenStrokeWidth}
-            pointerEvents="stroke"
-            vectorEffect="non-scaling-stroke"
-          />
-          <ellipse
-            className="annotation-shape-hitbox"
-            cx={bounds.x + bounds.width / 2}
-            cy={bounds.y + bounds.height / 2}
-            rx={bounds.width / 2}
-            ry={bounds.height / 2}
-            fill="none"
-            vectorEffect="non-scaling-stroke"
-          />
-        </g>
-      );
-    }
-
-    const handleRadius = endpointHandleRadiusBySize[mark.strokeSize];
-    const corners: Array<{ endpoint: EndpointHandle; point: Point }> = [
-      { endpoint: 'start', point: mark.start },
-      { endpoint: 'end', point: mark.end },
-      { endpoint: 'startXEndY', point: { x: mark.start.x, y: mark.end.y } },
-      { endpoint: 'endXStartY', point: { x: mark.end.x, y: mark.start.y } },
-    ];
-    return (
-      <g className={className} data-annotation-mark-id={mark.id} onPointerDown={onPointerDown}>
-        {selected ? (
-          <rect
-            className="annotation-selection-halo"
-            x={bounds.x}
-            y={bounds.y}
-            width={bounds.width}
-            height={bounds.height}
-            strokeWidth={screenStrokeWidth + 4}
-            vectorEffect="non-scaling-stroke"
-          />
-        ) : null}
-        <rect
-          x={bounds.x}
-          y={bounds.y}
-          width={bounds.width}
-          height={bounds.height}
-          fill="none"
-          stroke={mark.color}
-          strokeWidth={screenStrokeWidth}
-          pointerEvents="stroke"
-          vectorEffect="non-scaling-stroke"
-        />
-        <rect
-          className="annotation-shape-hitbox"
-          x={bounds.x}
-          y={bounds.y}
-          width={bounds.width}
-          height={bounds.height}
-          fill="none"
-          vectorEffect="non-scaling-stroke"
-        />
-        {selected ? corners.map((corner) => (
-          <ellipse
-            key={corner.endpoint}
-            className="annotation-endpoint-handle"
-            cx={corner.point.x}
-            cy={corner.point.y}
-            rx={handleRadius}
-            ry={handleRadius * fixedShapeYScale}
-            fill="#ffffff"
-            onPointerDown={(event) => onEndpointPointerDown(event, corner.endpoint)}
-          />
-        )) : null}
-      </g>
-    );
-  }
-
-  return null;
-}
-
-function AnnotationIdBadge({
-  fixedShapeYScale,
-  mark,
-  onPointerDown,
-  selected,
-}: {
-  fixedShapeYScale: number;
-  mark: AnnotationMark;
-  onPointerDown: (event: PointerEvent) => void;
-  selected: boolean;
-}): ReactElement | null {
-  if (mark.kind === 'marker') return null;
-  const anchor = annotationMarkAnchor(mark);
-  return (
-    <g
-      className={`annotation-id-badge${selected ? ' is-selected' : ''}`}
-      data-annotation-mark-id={mark.id}
-      transform={`translate(${anchor.x} ${anchor.y}) scale(1 ${fixedShapeYScale})`}
-      onPointerDown={onPointerDown}
-    >
-      {selected ? (
-        <circle
-          className="annotation-selection-ring"
-          cx={0}
-          cy={0}
-          r={0.029}
-        />
-      ) : null}
-      <circle
-        cx={0}
-        cy={0}
-        r={0.023}
-        fill={mark.color}
-        stroke="#ffffff"
-        strokeWidth={0.004}
-      />
-      <text
-        x={0}
-        y={0.006}
-        fill="#ffffff"
-        fontSize={mark.id.length > 2 ? 0.016 : 0.019}
-        fontWeight={850}
-        textAnchor="middle"
-      >
-        {mark.id}
-      </text>
-    </g>
-  );
-}
-
-function AnnotationQuickDelete({
-  fixedShapeYScale,
-  mark,
-  onPointerDown,
-}: {
-  fixedShapeYScale: number;
-  mark: AnnotationMark;
-  onPointerDown: (event: PointerEvent) => void;
-}): ReactElement {
-  const badgeCenter = annotationMarkBadgeCenter(mark);
-  const radius = 0.014;
-  const anchor = {
-    x: clamp(badgeCenter.x - 0.018, radius, 1 - radius),
-    y: clamp(badgeCenter.y - 0.018 * fixedShapeYScale, radius * fixedShapeYScale, 1 - radius * fixedShapeYScale),
-  };
-  return (
-    <g
-      className="annotation-quick-delete"
-      data-annotation-mark-id={mark.id}
-      onPointerDown={onPointerDown}
-    >
-      <ellipse
-        cx={anchor.x}
-        cy={anchor.y}
-        rx={radius}
-        ry={radius * fixedShapeYScale}
-      />
-      <line
-        x1={anchor.x - 0.006}
-        x2={anchor.x + 0.006}
-        y1={anchor.y}
-        y2={anchor.y}
-      />
-    </g>
-  );
-}
-
-function ToolButton({
-  active,
-  children,
-  disabled,
-  label,
-  onClick,
-}: {
-  active?: boolean;
-  children: ReactElement;
-  disabled?: boolean;
-  label: string;
-  onClick: () => void;
-}): ReactElement {
-  return (
-    <TooltipIconButton disabled={disabled} isPressed={active} label={label} onClick={onClick}>
-      {children}
-    </TooltipIconButton>
   );
 }
 
@@ -1327,37 +823,9 @@ function supportedInitialMarks(draft: AnnotationDraft | undefined): AnnotationMa
   return structuredClone(supported);
 }
 
-function translateMark(mark: AnnotationMark, dx: number, dy: number): AnnotationMark {
-  if (mark.kind === 'arrow' || mark.kind === 'rect' || mark.kind === 'ellipse') {
-    return { ...mark, start: clampPoint(addPoint(mark.start, dx, dy)), end: clampPoint(addPoint(mark.end, dx, dy)) };
-  }
-  if (mark.kind === 'pen' || mark.kind === 'brush') {
-    return { ...mark, points: mark.points.map((point) => clampPoint(addPoint(point, dx, dy))) };
-  }
-  return { ...mark, point: clampPoint(addPoint(mark.point, dx, dy)) };
-}
-
-function hitTestMark(marks: AnnotationMark[], point: Point): AnnotationMark | undefined {
-  return [...marks].reverse().find((mark) => {
-    if (mark.kind === 'marker') return distance(mark.point, point) < 0.06;
-    if (mark.kind === 'pen' || mark.kind === 'brush') {
-      return mark.points.some((candidate) => distance(candidate, point) < (mark.kind === 'brush' ? 0.07 : 0.04));
-    }
-    if (mark.kind === 'arrow') return distanceToSegment(point, mark.start, mark.end) < 0.04;
-    const bounds = normalizedBounds(mark.start, mark.end);
-    if (mark.kind === 'rect') return distanceToRectBorder(point, bounds) < 0.04;
-    return distanceToEllipseBorder(point, bounds) < 0.04;
-  });
-}
-
 function eventTargetMarkId(target: EventTarget): string | null {
   if (!(target instanceof Element)) return null;
   return target.closest('[data-annotation-mark-id]')?.getAttribute('data-annotation-mark-id') ?? null;
-}
-
-function annotationMarkBadgeCenter(mark: AnnotationMark): Point {
-  if (mark.kind === 'marker') return { x: mark.point.x, y: mark.point.y - 0.04 };
-  return annotationMarkAnchor(mark);
 }
 
 function overlayStyle(metrics: ImageDisplayMetrics): CSSProperties {
@@ -1397,312 +865,6 @@ function annotationStageStyle(
   } as CSSProperties;
 }
 
-async function createAnnotatedComposite(
-  imageUrl: string,
-  marks: AnnotationMark[],
-): Promise<AnnotationComposite> {
-  const image = await loadImage(imageUrl);
-  const width = image.naturalWidth || 1024;
-  const height = image.naturalHeight || 768;
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext('2d');
-  if (!context) throw new Error('Could not create annotation canvas.');
-
-  context.drawImage(image, 0, 0, width, height);
-  for (const mark of marks) {
-    drawMark(context, mark, width, height);
-  }
-
-  return {
-    dataUrl: canvas.toDataURL('image/png'),
-    width,
-    height,
-  };
-}
-
-function drawMark(context: CanvasRenderingContext2D, mark: AnnotationMark, width: number, height: number): void {
-  context.save();
-  context.strokeStyle = mark.color;
-  context.fillStyle = mark.color;
-  context.lineWidth = strokeBySize[mark.strokeSize] * Math.max(width, height) / 900;
-  context.lineCap = 'round';
-  context.lineJoin = 'round';
-
-  if (mark.kind === 'marker') {
-    drawAnnotationLocationPin(context, mark.id, mark.point, width, height, mark.color);
-  } else if (mark.kind === 'arrow') {
-    drawCanvasArrow(context, scalePoint(mark.start, width, height), scalePoint(mark.end, width, height));
-  } else if (mark.kind === 'pen' || mark.kind === 'brush') {
-    if (mark.kind === 'brush') {
-      context.globalAlpha = 0.38;
-      context.lineWidth = annotationBrushStrokeWidthPixels(mark.strokeSize, width, height);
-    }
-    context.beginPath();
-    mark.points.forEach((point, index) => {
-      const scaled = scalePoint(point, width, height);
-      if (index === 0) context.moveTo(scaled.x, scaled.y);
-      else context.lineTo(scaled.x, scaled.y);
-    });
-    context.stroke();
-  } else {
-    const bounds = normalizedBounds(scalePoint(mark.start, width, height), scalePoint(mark.end, width, height));
-    if (mark.kind === 'ellipse') {
-      context.beginPath();
-      context.ellipse(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2, bounds.width / 2, bounds.height / 2, 0, 0, Math.PI * 2);
-      context.stroke();
-    } else {
-      context.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
-    }
-  }
-
-  context.restore();
-  if (mark.kind !== 'marker') {
-    drawAnnotationIdBadge(context, mark.id, annotationMarkAnchor(mark), width, height, mark.color);
-  }
-}
-
-function annotationBrushStrokeWidthPixels(
-  strokeSize: StrokeSize,
-  imageWidth: number,
-  imageHeight: number,
-): number {
-  return strokeBySize[strokeSize] * 9 * Math.max(imageWidth, imageHeight) / 900;
-}
-
-function annotationMarkAnchor(mark: AnnotationMark): Point {
-  if (mark.kind === 'marker') return mark.point;
-  if (mark.kind === 'arrow') return mark.start;
-  if (mark.kind === 'pen' || mark.kind === 'brush') return mark.points[0] ?? { x: 0.5, y: 0.5 };
-  const bounds = normalizedBounds(mark.start, mark.end);
-  return { x: bounds.x, y: bounds.y };
-}
-
-function annotationMarkFocusPoint(mark: AnnotationMark): Point {
-  if (mark.kind === 'marker') return mark.point;
-  if (mark.kind === 'arrow' || mark.kind === 'rect' || mark.kind === 'ellipse') {
-    return {
-      x: (mark.start.x + mark.end.x) / 2,
-      y: (mark.start.y + mark.end.y) / 2,
-    };
-  }
-  if (!mark.points.length) return { x: 0.5, y: 0.5 };
-  const bounds = mark.points.reduce(
-    (current, point) => ({
-      minX: Math.min(current.minX, point.x),
-      minY: Math.min(current.minY, point.y),
-      maxX: Math.max(current.maxX, point.x),
-      maxY: Math.max(current.maxY, point.y),
-    }),
-    { minX: mark.points[0].x, minY: mark.points[0].y, maxX: mark.points[0].x, maxY: mark.points[0].y },
-  );
-  return {
-    x: (bounds.minX + bounds.maxX) / 2,
-    y: (bounds.minY + bounds.maxY) / 2,
-  };
-}
-
-function drawAnnotationIdBadge(
-  context: CanvasRenderingContext2D,
-  id: string,
-  anchor: Point,
-  width: number,
-  height: number,
-  color: string,
-): void {
-  const fontSize = Math.max(16, Math.min(28, width / 42));
-  const radius = fontSize * 1.12;
-  const x = clamp(anchor.x * width, radius + 4, width - radius - 4);
-  const y = clamp(anchor.y * height, radius + 4, height - radius - 4);
-  context.save();
-  context.fillStyle = color;
-  context.strokeStyle = '#ffffff';
-  context.lineWidth = Math.max(2, fontSize * 0.12);
-  context.shadowColor = 'rgba(15, 23, 42, 0.28)';
-  context.shadowBlur = fontSize * 0.35;
-  context.shadowOffsetY = fontSize * 0.12;
-  context.beginPath();
-  context.arc(x, y, radius, 0, Math.PI * 2);
-  context.fill();
-  context.stroke();
-  context.shadowColor = 'transparent';
-  context.fillStyle = '#ffffff';
-  context.font = `850 ${id.length > 2 ? fontSize * 0.78 : fontSize}px Inter, Arial, sans-serif`;
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.fillText(id, x, y + fontSize * 0.04);
-  context.restore();
-}
-
-function drawAnnotationLocationPin(
-  context: CanvasRenderingContext2D,
-  id: string,
-  anchor: Point,
-  width: number,
-  height: number,
-  color: string,
-): void {
-  const radius = Math.max(18, Math.min(32, width / 34));
-  const tip = {
-    x: clamp(anchor.x * width, radius + 4, width - radius - 4),
-    y: clamp(anchor.y * height, radius * 2.9 + 4, height - 4),
-  };
-  const center = { x: tip.x, y: tip.y - radius * 1.7 };
-  context.save();
-  context.fillStyle = color;
-  context.strokeStyle = '#ffffff';
-  context.lineWidth = Math.max(2.5, radius * 0.12);
-  context.lineJoin = 'round';
-  context.shadowColor = 'rgba(15, 23, 42, 0.3)';
-  context.shadowBlur = radius * 0.45;
-  context.shadowOffsetY = radius * 0.18;
-  context.beginPath();
-  context.moveTo(tip.x, tip.y);
-  context.lineTo(center.x - radius * 0.62, center.y + radius * 0.5);
-  context.lineTo(center.x + radius * 0.62, center.y + radius * 0.5);
-  context.closePath();
-  context.fill();
-  context.stroke();
-  context.beginPath();
-  context.arc(center.x, center.y, radius, 0, Math.PI * 2);
-  context.fill();
-  context.stroke();
-  context.shadowColor = 'transparent';
-  const fontSize = radius * (id.length > 2 ? 0.68 : 0.82);
-  context.fillStyle = '#ffffff';
-  context.font = `850 ${fontSize}px Inter, Arial, sans-serif`;
-  context.textAlign = 'center';
-  context.textBaseline = 'middle';
-  context.fillText(id, center.x, center.y + fontSize * 0.04);
-  context.restore();
-}
-
-function drawCanvasArrow(context: CanvasRenderingContext2D, start: Point, end: Point): void {
-  const angle = Math.atan2(end.y - start.y, end.x - start.x);
-  const headLength = Math.max(14, context.lineWidth * 4);
-
-  context.beginPath();
-  context.moveTo(start.x, start.y);
-  context.lineTo(end.x, end.y);
-  context.stroke();
-
-  context.beginPath();
-  context.moveTo(end.x, end.y);
-  context.lineTo(end.x - headLength * Math.cos(angle - Math.PI / 6), end.y - headLength * Math.sin(angle - Math.PI / 6));
-  context.lineTo(end.x - headLength * Math.cos(angle + Math.PI / 6), end.y - headLength * Math.sin(angle + Math.PI / 6));
-  context.closePath();
-  context.fill();
-}
-
-function drawAnnotationLabel(
-  context: CanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  color: string,
-): void {
-  const lines = wrapText(text, Math.max(12, Math.floor(width / 26)));
-  const fontSize = Math.max(18, Math.min(34, width / 28));
-  const paddingX = fontSize * 0.5;
-  const paddingY = fontSize * 0.36;
-  const lineHeight = fontSize * 1.24;
-  context.font = `700 ${fontSize}px Inter, Arial, sans-serif`;
-  const boxWidth = Math.min(width * 0.48, Math.max(...lines.map((line) => context.measureText(line).width), fontSize * 5) + paddingX * 2);
-  const boxHeight = lines.length * lineHeight + paddingY * 2;
-  const left = clamp(x, 8, width - boxWidth - 8);
-  const top = clamp(y, 8, height - boxHeight - 8);
-
-  context.save();
-  context.font = `700 ${fontSize}px Inter, Arial, sans-serif`;
-  context.lineWidth = Math.max(3, fontSize * 0.12);
-  context.strokeStyle = 'rgba(255,255,255,0.92)';
-  context.fillStyle = color;
-  lines.forEach((line, index) => {
-    const textX = left + paddingX;
-    const textY = top + paddingY + fontSize + index * lineHeight;
-    context.strokeText(line, textX, textY);
-    context.fillText(line, textX, textY);
-  });
-  context.restore();
-}
-
-function readImageDisplayMetrics(
-  stage: HTMLDivElement | null,
-  image: HTMLImageElement | null,
-): ImageDisplayMetrics | null {
-  if (!stage || !image || !image.naturalWidth || !image.naturalHeight) return null;
-
-  const stageRect = stage.getBoundingClientRect();
-  const imageRatio = image.naturalWidth / image.naturalHeight;
-  const stageRatio = stageRect.width / stageRect.height;
-  let displayWidth = stageRect.width;
-  let displayHeight = stageRect.height;
-
-  if (stageRatio > imageRatio) {
-    displayHeight = stageRect.height;
-    displayWidth = displayHeight * imageRatio;
-  } else {
-    displayWidth = stageRect.width;
-    displayHeight = displayWidth / imageRatio;
-  }
-
-  return {
-    naturalWidth: image.naturalWidth,
-    naturalHeight: image.naturalHeight,
-    stageLeft: stageRect.left,
-    stageTop: stageRect.top,
-    stageRight: stageRect.right,
-    stageBottom: stageRect.bottom,
-    displayLeft: stageRect.left + (stageRect.width - displayWidth) / 2,
-    displayTop: stageRect.top + (stageRect.height - displayHeight) / 2,
-    displayWidth,
-    displayHeight,
-  };
-}
-
-function transformImageDisplayMetrics(
-  metrics: ImageDisplayMetrics,
-  zoom: number,
-  pan: Point,
-): ImageDisplayMetrics {
-  return {
-    ...metrics,
-    displayLeft: metrics.displayLeft + pan.x,
-    displayTop: metrics.displayTop + pan.y,
-    displayWidth: metrics.displayWidth * zoom,
-    displayHeight: metrics.displayHeight * zoom,
-  };
-}
-
-function clampImageViewPan(metrics: ImageDisplayMetrics, zoom: number, pan: Point): Point {
-  if (zoom <= 1) return { x: 0, y: 0 };
-
-  const width = metrics.displayWidth * zoom;
-  const height = metrics.displayHeight * zoom;
-  return {
-    x: clampAxisPan(pan.x, metrics.stageLeft, metrics.stageRight, metrics.displayLeft, width),
-    y: clampAxisPan(pan.y, metrics.stageTop, metrics.stageBottom, metrics.displayTop, height),
-  };
-}
-
-function clampAxisPan(pan: number, stageStart: number, stageEnd: number, baseStart: number, scaledSize: number): number {
-  const min = stageEnd - baseStart - scaledSize;
-  const max = stageStart - baseStart;
-  if (min <= max) return clamp(pan, min, max);
-  return (stageStart + stageEnd) / 2 - (baseStart + scaledSize / 2);
-}
-
-function metricsStageCenterX(metrics: ImageDisplayMetrics | null): number {
-  return metrics ? (metrics.stageLeft + metrics.stageRight) / 2 : 0;
-}
-
-function metricsStageCenterY(metrics: ImageDisplayMetrics | null): number {
-  return metrics ? (metrics.stageTop + metrics.stageBottom) / 2 : 0;
-}
-
 function stopCanvasGesture(
   event: PointerEvent | WheelEvent | MouseEvent | KeyboardEvent,
 ): void {
@@ -1727,107 +889,4 @@ function safeSetPointerCapture(target: Element, pointerId: number): void {
     // pointer at handler time. Drawing still works without capture while the
     // pointer remains over the annotation stage.
   }
-}
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.crossOrigin = 'anonymous';
-    image.addEventListener('load', () => resolve(image));
-    image.addEventListener('error', () => reject(new Error('Could not load annotation source image.')));
-    image.src = src;
-  });
-}
-
-function normalizedBounds(start: Point, end: Point): { x: number; y: number; width: number; height: number } {
-  const x = Math.min(start.x, end.x);
-  const y = Math.min(start.y, end.y);
-  return {
-    x,
-    y,
-    width: Math.abs(end.x - start.x),
-    height: Math.abs(end.y - start.y),
-  };
-}
-
-function addPoint(point: Point, dx: number, dy: number): Point {
-  return { x: point.x + dx, y: point.y + dy };
-}
-
-function clampPoint(point: Point): Point {
-  return { x: clamp(point.x, 0, 1), y: clamp(point.y, 0, 1) };
-}
-
-function scalePoint(point: Point, width: number, height: number): Point {
-  return { x: point.x * width, y: point.y * height };
-}
-
-function defaultArrowEnd(start: Point): Point {
-  return clampPoint({ x: start.x + 0.16, y: start.y - 0.08 });
-}
-
-function distance(left: Point, right: Point): number {
-  return Math.hypot(left.x - right.x, left.y - right.y);
-}
-
-function distanceToSegment(point: Point, start: Point, end: Point): number {
-  const lengthSquared = (end.x - start.x) ** 2 + (end.y - start.y) ** 2;
-  if (lengthSquared === 0) return distance(point, start);
-  const t = clamp(((point.x - start.x) * (end.x - start.x) + (point.y - start.y) * (end.y - start.y)) / lengthSquared, 0, 1);
-  return distance(point, {
-    x: start.x + t * (end.x - start.x),
-    y: start.y + t * (end.y - start.y),
-  });
-}
-
-function distanceToRectBorder(
-  point: Point,
-  bounds: { x: number; y: number; width: number; height: number },
-): number {
-  const topLeft = { x: bounds.x, y: bounds.y };
-  const topRight = { x: bounds.x + bounds.width, y: bounds.y };
-  const bottomLeft = { x: bounds.x, y: bounds.y + bounds.height };
-  const bottomRight = { x: bounds.x + bounds.width, y: bounds.y + bounds.height };
-  return Math.min(
-    distanceToSegment(point, topLeft, topRight),
-    distanceToSegment(point, topRight, bottomRight),
-    distanceToSegment(point, bottomRight, bottomLeft),
-    distanceToSegment(point, bottomLeft, topLeft),
-  );
-}
-
-function distanceToEllipseBorder(
-  point: Point,
-  bounds: { x: number; y: number; width: number; height: number },
-): number {
-  const radiusX = Math.max(bounds.width / 2, Number.EPSILON);
-  const radiusY = Math.max(bounds.height / 2, Number.EPSILON);
-  const centerX = bounds.x + radiusX;
-  const centerY = bounds.y + radiusY;
-  const normalizedRadius = Math.hypot((point.x - centerX) / radiusX, (point.y - centerY) / radiusY);
-  return Math.abs(normalizedRadius - 1) * Math.min(radiusX, radiusY);
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
-
-function wrapText(text: string, maxChars: number): string[] {
-  const words = text.trim().split(/\s+/);
-  const lines: string[] = [];
-  let current = '';
-  for (const word of words) {
-    if (!current) {
-      current = word;
-      continue;
-    }
-    if (`${current} ${word}`.length > maxChars) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = `${current} ${word}`;
-    }
-  }
-  if (current) lines.push(current);
-  return lines.length ? lines : [''];
 }
