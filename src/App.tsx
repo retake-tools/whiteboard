@@ -171,6 +171,7 @@ export function App(): ReactElement {
   const pendingDirectImageImportBlockIdRef = useRef<string | undefined>(undefined);
   const reactFlowRef = useRef<ReactFlowInstance<RetakeNode, RetakeEdge> | null>(null);
   const pendingPersistCountRef = useRef(0);
+  const initialSnapshotLoadedRef = useRef(false);
   const annotationDraftPersistTimerRef = useRef<number | undefined>(undefined);
   const selectedBlockIdsRef = useRef<string[]>([]);
   const textBlockDraftsRef = useRef<Map<string, string>>(new Map());
@@ -208,6 +209,7 @@ export function App(): ReactElement {
 
     void loadBoardSnapshot().then((loadedSnapshot) => {
       if (cancelled) return;
+      initialSnapshotLoadedRef.current = true;
       snapshotRef.current = loadedSnapshot;
       restoreViewport(loadedSnapshot.viewport);
       setSnapshot(loadedSnapshot);
@@ -2393,6 +2395,7 @@ export function App(): ReactElement {
     nextSnapshot: BoardSnapshot,
     options: { requireLocalApi?: boolean } = {},
   ): Promise<void> {
+    if (!initialSnapshotLoadedRef.current) return;
     pendingPersistCountRef.current += 1;
     setAutosaveStatus('saving');
     try {
