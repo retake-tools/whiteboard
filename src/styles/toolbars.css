@@ -1,0 +1,333 @@
+.floating-toolbar {
+  position: absolute;
+  right: auto;
+  bottom: 18px;
+  left: 50%;
+  z-index: 10;
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 10px 26px rgb(16 24 40 / 12%);
+  transform: translateX(-50%);
+  backdrop-filter: blur(12px);
+}
+
+.context-dock {
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.disabled-tool-wrapper {
+  display: inline-flex;
+}
+
+.context-dock > .context-popover {
+  transform: scale(var(--context-popover-scale, 1));
+  transform-origin: top center;
+}
+
+.context-toolbar {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 10px 26px rgb(16 24 40 / 12%);
+  backdrop-filter: blur(12px);
+}
+
+.operation-toolbar {
+  display: flex;
+  width: 360px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  background: rgb(248 255 253 / 96%);
+  box-shadow: 0 12px 28px rgb(15 118 110 / 14%);
+  backdrop-filter: blur(12px);
+}
+
+.operation-toolbar-row,
+.operation-toolbar-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.operation-toolbar-row select {
+  min-width: 0;
+  flex: 1;
+  height: 32px;
+  border: 1px solid #99f6e4;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #134e4a;
+  font: inherit;
+  font-size: 13px;
+  padding: 0 8px;
+}
+
+.operation-toolbar-params {
+  display: grid;
+  grid-template-columns: 1fr 1fr 72px;
+  gap: 6px;
+}
+
+.operation-toolbar-params label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  color: #0f766e;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.operation-toolbar-params select {
+  width: 100%;
+  height: 30px;
+  border: 1px solid #99f6e4;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #134e4a;
+  font: inherit;
+  font-size: 12px;
+  padding: 0 6px;
+}
+
+.operation-toolbar-param-note {
+  margin: -4px 0 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.operation-toolbar textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #99f6e4;
+  border-radius: 7px;
+  padding: 8px;
+  color: #172033;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.operation-toolbar-prompt-summary {
+  min-height: 56px;
+  padding: 8px;
+  border: 1px solid #99f6e4;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.operation-toolbar-prompt-summary > span {
+  display: block;
+  margin-bottom: 4px;
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.operation-toolbar-prompt-summary p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.operation-toolbar-prompt-summary.is-missing {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.operation-toolbar-prompt-summary.is-missing > span,
+.operation-toolbar-prompt-summary.is-missing p {
+  color: #c2410c;
+}
+
+.operation-toolbar-actions {
+  justify-content: space-between;
+}
+
+.operation-toolbar-actions > span {
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.operation-toolbar-actions .primary-popover-button {
+  width: auto;
+  gap: 6px;
+  padding: 0 12px;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.context-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 280px;
+  max-height: min(620px, calc(100vh - 120px));
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 16px 34px rgb(16 24 40 / 15%);
+}
+
+.context-popover h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.context-popover-header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.context-popover textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid #d8dee8;
+  border-radius: 6px;
+  padding: 8px;
+  color: #172033;
+  font: inherit;
+  font-size: 13px;
+}
+
+.execution-route-control {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  color: #475467;
+  font-size: 12px;
+}
+
+.floating-toolbar-menu {
+  position: relative;
+}
+
+.floating-toolbar-menu::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: -8px;
+  width: calc(100% + 16px);
+  height: 12px;
+}
+
+.floating-toolbar button.floating-toolbar-menu-trigger {
+  color: #334155;
+}
+
+.floating-toolbar-submenu {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  z-index: 20;
+  display: none;
+  min-width: 190px;
+  padding: 6px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 16px 34px rgb(16 24 40 / 16%);
+  transform: translateX(-50%);
+  backdrop-filter: blur(12px);
+}
+
+.floating-toolbar-menu:focus-within .floating-toolbar-submenu,
+.floating-toolbar-menu:hover .floating-toolbar-submenu {
+  display: grid;
+  gap: 4px;
+}
+
+.floating-toolbar button.floating-toolbar-menu-item {
+  display: flex;
+  width: 100%;
+  height: 34px;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #202938;
+  font-size: 13px;
+  text-align: left;
+}
+
+.floating-toolbar button.floating-toolbar-menu-item:hover {
+  background: #f1f5f9;
+}
+
+.floating-toolbar button.floating-toolbar-menu-item:disabled {
+  color: #94a3b8;
+  opacity: 1;
+}
+
+.floating-toolbar-menu-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.execution-route-control select {
+  min-width: 0;
+  height: 32px;
+  border: 1px solid #d8dee8;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #202938;
+  font: inherit;
+  padding: 0 8px;
+}
+
+.primary-popover-button,
+.tool-grid button,
+.tool-list button {
+  min-height: 32px;
+  border: 1px solid #d8dee8;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #202938;
+  cursor: pointer;
+}
+
+.primary-popover-button {
+  background: #202938;
+  color: #ffffff;
+}
+
+.primary-popover-button:disabled {
+  opacity: 0.46;
+  cursor: default;
+}

@@ -1,0 +1,68 @@
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tool-list button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  justify-content: flex-start;
+  padding: 0 10px;
+}
+
+.tool-list button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.local-adjust-preview {
+  display: grid;
+  width: 100%;
+  height: 132px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #d8dee8;
+  border-radius: 6px;
+  background: #f7f8fa;
+}
+
+.local-adjust-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.range-control {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr) 32px;
+  gap: 10px;
+  align-items: center;
+  color: #344054;
+  font-size: 12px;
+}
+
+.range-control input {
+  width: 100%;
+}
+
+.range-control output {
+  color: #667085;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  margin: 0 3px;
+  background: #d8dee8;
+}

@@ -1,0 +1,175 @@
+:root {
+  color-scheme: light;
+  color: #172033;
+  background: #f4f5f7;
+  --retake-accent: #1677ff;
+  --retake-accent-strong: #0f63d8;
+  --retake-accent-soft: #eaf3ff;
+  --retake-accent-border: #a8cfff;
+  --retake-accent-ring: rgb(22 119 255 / 10%);
+  --retake-accent-shadow: rgb(22 119 255 / 18%);
+  --retake-accent-shadow-strong: rgb(22 119 255 / 24%);
+  --retake-on-accent: #ffffff;
+  --retake-surface: #ffffff;
+  --retake-surface-elevated: rgb(255 255 255 / 98%);
+  --retake-surface-subtle: #f8fafc;
+  --retake-surface-hover: #f1f5f9;
+  --retake-border: #d8dee8;
+  --retake-border-subtle: #e5eaf1;
+  --retake-text: #172033;
+  --retake-text-secondary: #344054;
+  --retake-text-muted: #667085;
+  --retake-text-subtle: #98a2b3;
+  --retake-success: #027a48;
+  --retake-success-soft: #ecfdf3;
+  --retake-warning: #b54708;
+  --retake-warning-soft: #fff4e5;
+  --retake-shadow-popover: 0 16px 34px rgb(16 24 40 / 18%);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-x: none;
+}
+
+/* Dark values are ready for the future theme switch; no partial dark mode is exposed yet. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  color: #f4f7fb;
+  background: #111318;
+  --retake-accent: #4d9aff;
+  --retake-accent-strong: #73b0ff;
+  --retake-accent-soft: #172d49;
+  --retake-accent-border: #315f93;
+  --retake-accent-ring: rgb(77 154 255 / 14%);
+  --retake-accent-shadow: rgb(0 0 0 / 28%);
+  --retake-accent-shadow-strong: rgb(0 0 0 / 38%);
+  --retake-on-accent: #ffffff;
+  --retake-surface: #181b21;
+  --retake-surface-elevated: rgb(28 32 40 / 98%);
+  --retake-surface-subtle: #20242c;
+  --retake-surface-hover: #292e38;
+  --retake-border: #3a424f;
+  --retake-border-subtle: #303743;
+  --retake-text: #f4f7fb;
+  --retake-text-secondary: #d8dee8;
+  --retake-text-muted: #aab2bf;
+  --retake-text-subtle: #7f8998;
+  --retake-success: #68d49b;
+  --retake-success-soft: #173426;
+  --retake-warning: #ffc070;
+  --retake-warning-soft: #3a2b18;
+  --retake-shadow-popover: 0 18px 42px rgb(0 0 0 / 38%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  overscroll-behavior-x: none;
+}
+
+button {
+  border: 0;
+  font: inherit;
+}
+
+.app-shell {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.icon-button,
+.floating-toolbar button {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #202938;
+}
+
+.icon-button,
+.floating-toolbar button {
+  cursor: pointer;
+}
+
+.tooltipped-button {
+  position: relative;
+}
+
+.icon-button:hover,
+.floating-toolbar button:hover {
+  background: #f1f5f9;
+}
+
+.icon-button.is-active {
+  border-color: var(--retake-accent-border);
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
+}
+
+.icon-tooltip {
+  position: fixed;
+  top: var(--tooltip-top);
+  left: var(--tooltip-left);
+  z-index: 1000;
+  max-width: min(320px, calc(100vw - 24px));
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  transition:
+    opacity 90ms ease,
+    transform 90ms ease;
+  overflow-wrap: anywhere;
+  text-align: left;
+  white-space: normal;
+}
+
+.icon-tooltip.is-bottom {
+  transform: translate(-50%, 0);
+}
+
+.icon-tooltip.is-right {
+  transform: translate(0, -50%);
+}
+
+.icon-tooltip.is-left {
+  transform: translate(-100%, -50%);
+}
+
+.icon-tooltip.is-top {
+  opacity: 1;
+}
+
+.icon-button:disabled,
+.floating-toolbar button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.icon-button.is-success {
+  border-color: #bbf7d0;
+  color: #047857;
+}
+
+.icon-button.is-warning {
+  border-color: #fed7aa;
+  color: #c2410c;
+}

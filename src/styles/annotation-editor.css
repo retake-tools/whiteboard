@@ -1,0 +1,363 @@
+.annotation-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
+.annotation-modal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+  background: rgb(15 23 42 / 6%);
+}
+
+.annotation-popover {
+  position: fixed;
+  top: 48px;
+  left: 50%;
+  z-index: 1;
+  width: min(1220px, calc(100vw - 36px));
+  max-width: min(1220px, calc(100vw - 36px));
+  height: min(760px, calc(100vh - 96px));
+  max-height: calc(100vh - 96px);
+  overflow: hidden;
+  transform: translateX(-50%);
+  transform-origin: top center;
+}
+
+.annotation-popover-header {
+  cursor: grab;
+  user-select: none;
+}
+
+.annotation-popover-header:active {
+  cursor: grabbing;
+}
+
+.annotation-history-session-notice {
+  display: flex;
+  flex: none;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 9px 11px;
+  border: 1px solid #f2c66d;
+  border-radius: 8px;
+  background: #fff8e6;
+  color: #6b4708;
+}
+
+.annotation-history-session-notice > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.annotation-history-session-notice > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.annotation-history-session-notice strong {
+  color: #523400;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.annotation-history-session-notice span {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.annotation-editor-shell {
+  display: grid;
+  flex: 1;
+  grid-template-columns: auto minmax(0, 1fr) minmax(260px, 310px);
+  gap: 8px;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.annotation-tool-strip {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.annotation-tool-strip .tooltipped-button {
+  display: grid;
+  place-items: center;
+}
+
+.annotation-tool-strip .icon-tooltip {
+  top: 50%;
+  bottom: auto;
+  left: calc(100% + 8px);
+  transform: translate(-4px, -50%);
+}
+
+.annotation-tool-strip .tooltipped-button:hover .icon-tooltip,
+.annotation-tool-strip .tooltipped-button:focus-visible .icon-tooltip {
+  transform: translate(0, -50%);
+}
+
+.annotation-stage-column {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.annotation-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  border: 1px solid #d8dee8;
+  border-radius: 6px;
+  background: #f8fafc;
+  overscroll-behavior: contain;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.annotation-stage.is-select-tool.is-zoomed {
+  cursor: grab;
+}
+
+.annotation-stage.is-panning {
+  cursor: grabbing;
+}
+
+.annotation-stage.is-moving-mark,
+.annotation-stage.is-moving-mark * {
+  cursor: move !important;
+}
+
+.annotation-stage.is-resizing-mark,
+.annotation-stage.is-resizing-mark * {
+  cursor: pointer !important;
+}
+
+.annotation-stage.is-arrow-tool,
+.annotation-stage.is-marker-tool,
+.annotation-stage.is-pen-tool,
+.annotation-stage.is-brush-tool,
+.annotation-stage.is-rect-tool,
+.annotation-stage.is-ellipse-tool {
+  cursor: crosshair;
+}
+
+.annotation-stage.is-eraser-tool {
+  cursor: not-allowed;
+}
+
+.annotation-source-image {
+  position: absolute;
+  z-index: 0;
+  display: block;
+  object-fit: fill;
+  user-select: none;
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
+}
+
+.annotation-stage-placeholder {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  padding: 18px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.annotation-zoom-controls {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 8px 22px rgb(16 24 40 / 14%);
+  backdrop-filter: blur(10px);
+}
+
+.annotation-zoom-controls .icon-button {
+  width: 28px;
+  height: 28px;
+}
+
+.annotation-zoom-controls > span {
+  min-width: 42px;
+  color: #344054;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 760;
+  text-align: center;
+}
+
+.annotation-overlay {
+  position: absolute;
+  z-index: 1;
+  overflow: visible;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.annotation-svg-mark {
+  cursor: move;
+  pointer-events: visiblePainted;
+}
+
+.annotation-id-badge {
+  cursor: move;
+  pointer-events: visiblePainted;
+}
+
+.annotation-selection-halo {
+  fill: none;
+  opacity: 0.72;
+  pointer-events: none;
+  stroke: #2563eb;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.annotation-marker-selection-outline {
+  fill: none;
+  stroke: #2563eb;
+  stroke-linejoin: round;
+  stroke-width: 0.01;
+}
+
+.annotation-selection-ring {
+  fill: none;
+  stroke: #2563eb;
+  stroke-width: 0.006;
+}
+
+.annotation-line-hitbox {
+  cursor: move;
+  pointer-events: stroke;
+  stroke: transparent;
+  stroke-linecap: round;
+  stroke-width: 12;
+}
+
+.annotation-shape-hitbox {
+  cursor: move;
+  pointer-events: stroke;
+  stroke: transparent;
+  stroke-width: 12;
+}
+
+.annotation-endpoint-handle {
+  cursor: pointer;
+  pointer-events: all;
+  stroke: #2563eb;
+  stroke-width: 1.25;
+  vector-effect: non-scaling-stroke;
+}
+
+.annotation-quick-delete {
+  pointer-events: none;
+}
+
+.annotation-quick-delete ellipse {
+  cursor: pointer;
+  fill: #ffffff;
+  pointer-events: all;
+  stroke: #cbd5e1;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.annotation-quick-delete line {
+  pointer-events: none;
+  stroke: #475569;
+  stroke-linecap: round;
+  stroke-width: 0.0035;
+}
+
+.annotation-hover-prompt {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  width: max-content;
+  max-width: min(280px, calc(100% - 24px));
+  max-height: 120px;
+  padding: 7px 9px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 8px;
+  background: rgb(15 23 42 / 72%);
+  box-shadow: 0 8px 22px rgb(15 23 42 / 20%);
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 1.42;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+
+.annotation-hover-prompt strong {
+  flex: none;
+  color: #bfdbfe;
+}
+
+.annotation-hover-prompt span {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+}
+
+.annotation-hover-prompt.is-right.is-centered {
+  transform: translate(12px, -50%);
+}
+
+.annotation-hover-prompt.is-left.is-centered {
+  transform: translate(calc(-100% - 12px), -50%);
+}
+
+.annotation-hover-prompt.is-right.is-below {
+  transform: translate(12px, 12px);
+}
+
+.annotation-hover-prompt.is-left.is-below {
+  transform: translate(calc(-100% - 12px), 12px);
+}
+
+.annotation-hover-prompt.is-right.is-above {
+  transform: translate(12px, calc(-100% - 12px));
+}
+
+.annotation-hover-prompt.is-left.is-above {
+  transform: translate(calc(-100% - 12px), calc(-100% - 12px));
+}
+
+

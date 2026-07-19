@@ -40,7 +40,8 @@ const toolbarSource = await readFile('src/components/ContextToolbar.tsx', 'utf8'
 const executionDetailSource = await readFile('src/components/ExecutionDetailContent.tsx', 'utf8');
 const executionInspectorSource = await readFile('src/components/ExecutionInspector.tsx', 'utf8');
 const historyPanelSource = await readFile('src/components/BoardHistoryPanel.tsx', 'utf8');
-const stylesSource = await readFile('src/styles.css', 'utf8');
+const annotationEditorStylesSource = await readFile('src/styles/annotation-editor.css', 'utf8');
+const annotationControlStylesSource = await readFile('src/styles/annotation-controls.css', 'utf8');
 assert.doesNotMatch(
   editorSource,
   /annotation-current-color/,
@@ -70,8 +71,8 @@ assert.doesNotMatch(editorSource, /Math\.max\(context\.lineWidth \* 9/);
 assert.match(editorSource, /hoveredMark\?\.intent\.trim\(\)/);
 assert.match(editorSource, /closest\('\.annotation-stage'\)/);
 assert.doesNotMatch(editorSource, /closest\('\.annotation-editor'\).*preventDefault/);
-assert.match(stylesSource, /\.annotation-hover-prompt \{[\s\S]*?pointer-events: none;/);
-assert.match(stylesSource, /\.annotation-side-panel \{[\s\S]*?min-height: 0;[\s\S]*?overflow-y: auto;/);
+assert.match(annotationEditorStylesSource, /\.annotation-hover-prompt \{[\s\S]*?pointer-events: none;/);
+assert.match(annotationControlStylesSource, /\.annotation-side-panel \{[\s\S]*?min-height: 0;[\s\S]*?overflow-y: auto;/);
 assert.doesNotMatch(editorSource, /diamondPath/);
 assert.doesNotMatch(editorSource, /handleStageDoubleClick|createMark\('text'|annotation-label-input|textMarkTool/);
 assert.match(annotationControllerSource, /function updateAnnotationDraft/);

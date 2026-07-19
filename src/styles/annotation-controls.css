@@ -1,0 +1,239 @@
+.annotation-side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.annotation-side-panel > * {
+  flex-shrink: 0;
+}
+
+.annotation-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.annotation-control-group > span {
+  color: #4b5563;
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.annotation-control-group textarea,
+.annotation-intent-input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #d8dee8;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #202938;
+  font: inherit;
+}
+
+.annotation-control-group textarea {
+  min-height: 64px;
+  padding: 7px 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.annotation-intents-group {
+  min-height: 0;
+}
+
+.annotation-intent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.annotation-intent-card {
+  padding: 6px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.annotation-intent-card.is-selected {
+  border-color: #60a5fa;
+  border-left-width: 3px;
+  background: #eff6ff;
+  box-shadow: 0 0 0 2px rgb(37 99 235 / 12%);
+}
+
+.annotation-intent-heading {
+  display: grid;
+  grid-template-columns: 10px auto minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  padding: 0 0 5px;
+  border: 0;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  font-size: 10px;
+  text-align: left;
+}
+
+.annotation-intent-selected-label {
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 9px;
+  font-weight: 760;
+}
+
+.annotation-selected-color-control {
+  padding: 7px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
+.annotation-selected-color-control.is-disabled {
+  border-color: #d8dee8;
+  background: #f8fafc;
+}
+
+.annotation-selected-color-control.is-disabled .annotation-swatch {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.annotation-intent-heading strong {
+  color: #111827;
+  font-size: 11px;
+}
+
+.annotation-intent-color {
+  width: 9px;
+  height: 9px;
+  border: 1px solid #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px #cbd5e1;
+}
+
+.annotation-intent-input {
+  min-height: 48px;
+  max-height: 144px;
+  padding: 6px 7px;
+  font-size: 11px;
+  line-height: 1.45;
+  resize: vertical;
+  field-sizing: content;
+}
+
+.annotation-empty-intents,
+.annotation-missing-intent {
+  margin: 0;
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.annotation-missing-intent {
+  color: #b45309;
+}
+
+.annotation-prompt-preview {
+  border-top: 1px solid #d8dee8;
+  padding-top: 7px;
+  color: #475569;
+  font-size: 10px;
+}
+
+.annotation-prompt-preview summary {
+  cursor: pointer;
+  font-weight: 720;
+}
+
+.annotation-prompt-preview pre {
+  max-height: 170px;
+  overflow: auto;
+  margin: 7px 0 0;
+  padding: 7px;
+  border-radius: 7px;
+  background: #eef2f7;
+  color: #334155;
+  font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+}
+
+.annotation-swatch-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 7px 6px;
+}
+
+.annotation-size-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(30px, 1fr));
+  gap: 5px;
+}
+
+.annotation-swatch {
+  width: 16px;
+  height: 16px;
+  justify-self: center;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px #cbd5e1;
+  cursor: pointer;
+}
+
+.annotation-swatch.is-active {
+  box-shadow:
+    0 0 0 2px #2563eb,
+    0 0 0 4px #dbeafe;
+}
+
+.annotation-size-row button,
+.secondary-popover-button {
+  min-height: 28px;
+  padding: 0 7px;
+  border: 1px solid #d8dee8;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #202938;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.annotation-size-row button.is-active {
+  border-color: var(--retake-accent-border);
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
+}
+
+.secondary-popover-button {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  justify-content: center;
+  margin-top: auto;
+  width: 100%;
+  border-color: #fecaca;
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.secondary-popover-button:hover {
+  border-color: #fda4af;
+  background: #ffe4e6;
+}
+
