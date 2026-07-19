@@ -1,5 +1,6 @@
 import { createId, nowIso } from './id';
 import type { AnnotationManifest } from './imageAnnotations';
+import { annotationEditControlsFromManifest } from './annotationEditControls';
 import type {
   AssetRecord,
   BlockRecord,
@@ -150,6 +151,9 @@ export function addImageCodexOperation(
     }
   }
   const referenceAssetIds = input.referenceAssets?.map((asset) => asset.assetId) ?? [];
+  const annotationEditControls = input.operation === 'annotation_edit' && input.annotationManifest
+    ? annotationEditControlsFromManifest(input.annotationManifest)
+    : undefined;
 
   const operationBlock: BlockRecord = {
     blockId: createId('block'),
@@ -246,6 +250,7 @@ export function addImageCodexOperation(
       ...(input.operation === 'annotation_edit' && input.annotationManifest
         ? { annotationManifest: input.annotationManifest }
         : {}),
+      ...(annotationEditControls ? { annotationEditControls } : {}),
       ...(sourceInputRole
         ? {
             inputBindings: [
@@ -303,6 +308,7 @@ export function addImageCodexOperation(
       capabilityId,
       instruction,
       annotationManifest: input.operation === 'annotation_edit' ? input.annotationManifest : undefined,
+      annotationEditControls,
       prompt,
       generationParams,
       operationBlockId: operationBlock.blockId,

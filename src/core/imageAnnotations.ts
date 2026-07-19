@@ -1,3 +1,8 @@
+import {
+  annotationEditControlDescription,
+  annotationEditControlsFromManifest,
+} from './annotationEditControls';
+
 export const annotationColorOptions = [
   { name: 'red', value: '#dc2626' },
   { name: 'yellow', value: '#facc15' },
@@ -165,12 +170,14 @@ export function hasExecutableAnnotationIntent(manifest: AnnotationManifest): boo
 }
 
 export function compileAnnotationInstruction(manifest: AnnotationManifest): string {
-  const markLines = manifest.marks.map((mark) => {
+  const editControls = annotationEditControlsFromManifest(manifest);
+  const markLines = manifest.marks.map((mark, index) => {
     const intent = annotationMarkIntent(mark);
     const fallback = manifest.globalInstruction.trim()
       ? 'Apply the global instruction to this marked location.'
       : 'No edit instruction was provided for this mark.';
-    return `- ${mark.id}: ${annotationColorName(mark.color)} ${annotationMarkDescription(mark)}. ${intent || fallback}`;
+    const geometry = annotationEditControlDescription(editControls.controls[index]);
+    return `- ${mark.id}: ${annotationColorName(mark.color)} ${annotationMarkDescription(mark)}; geometry: ${geometry}. ${intent || fallback}`;
   });
   const globalInstruction = manifest.globalInstruction.trim();
   const hasDirectionalArrow = manifest.marks.some((mark) => mark.kind === 'arrow');
@@ -181,6 +188,9 @@ export function compileAnnotationInstruction(manifest: AnnotationManifest): stri
     markLines.length ? 'Annotation legend:' : undefined,
     ...markLines,
     markLines.length ? '' : undefined,
+    markLines.length
+      ? 'Geometry coordinates are normalized to the clean source image: x runs left-to-right and y runs top-to-bottom. Use them to keep position, size, and movement precise; use the visible composite for the exact contour.'
+      : undefined,
     markLines.length
       ? 'Annotation colors identify marks only. Do not use a mark color as the requested output color unless its instruction explicitly says so.'
       : undefined,

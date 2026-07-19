@@ -13,6 +13,10 @@ import {
   type AnnotationDraft,
   type AnnotationManifest,
 } from '../src/core/imageAnnotations';
+import {
+  annotationEditControlsFromManifest,
+  readAnnotationEditControlManifest,
+} from '../src/core/annotationEditControls';
 import { addImageCodexOperation } from '../src/core/imageOperations';
 import {
   annotationDraftRestoreContext,
@@ -104,6 +108,12 @@ const manifest: AnnotationManifest = {
 const prompt = compileAnnotationInstruction(manifest);
 assert.match(prompt, /R1: red rectangle/);
 assert.match(prompt, /A1: blue directional arrow/);
+assert.match(prompt, /R1:[\s\S]*geometry: rectangle region; center \(x 30\.0%, y 45\.0%\)/);
+assert.match(
+  prompt,
+  /A1:[\s\S]*start \(x 40\.0%, y 50\.0%\); end \(x 70\.0%, y 50\.0%\); delta \(\+30\.0% x, \+0\.0% y\)/,
+);
+assert.match(prompt, /Geometry coordinates are normalized to the clean source image/);
 assert.match(prompt, /Replace the cup with a small green plant/);
 assert.match(prompt, /Keep the surrounding room unchanged/);
 assert.match(prompt, /Annotation colors identify marks only/);
@@ -113,6 +123,71 @@ assert.equal(hasExecutableAnnotationIntent(manifest), true);
 assert.deepEqual(annotationMarksMissingIntent(manifest), []);
 assert.equal(nextAnnotationMarkId(manifest.marks, 'rect'), 'R2');
 assert.equal(nextAnnotationMarkId(manifest.marks, 'brush'), 'B1');
+
+const editControls = annotationEditControlsFromManifest(manifest);
+assert.equal(editControls.coordinateSpace, 'normalized_source_image');
+assert.deepEqual(editControls.controls[0], {
+  markId: 'R1',
+  sourceKind: 'rect',
+  controlType: 'region',
+  shape: 'rectangle',
+  bounds: { x: 0.2, y: 0.3, width: 0.2, height: 0.3 },
+  center: { x: 0.3, y: 0.45 },
+});
+assert.deepEqual(editControls.controls[1], {
+  markId: 'A1',
+  sourceKind: 'arrow',
+  controlType: 'vector',
+  start: { x: 0.4, y: 0.5 },
+  end: { x: 0.7, y: 0.5 },
+  delta: { x: 0.3, y: 0 },
+});
+assert.deepEqual(readAnnotationEditControlManifest(JSON.parse(JSON.stringify(editControls))), editControls);
+assert.equal(
+  readAnnotationEditControlManifest({ ...editControls, coordinateSpace: 'display_pixels' }),
+  undefined,
+);
+
+const mixedGeometryControls = annotationEditControlsFromManifest({
+  schemaVersion: 1,
+  globalInstruction: '',
+  marks: [
+    {
+      id: 'M1', kind: 'marker', color: '#facc15', strokeSize: 'm', intent: '',
+      point: { x: 0.1, y: 0.2 },
+    },
+    {
+      id: 'C1', kind: 'ellipse', color: '#22c55e', strokeSize: 'm', intent: '',
+      start: { x: 0.8, y: 0.7 }, end: { x: 0.4, y: 0.3 },
+    },
+    {
+      id: 'B1', kind: 'brush', color: '#a855f7', strokeSize: 'l', intent: '',
+      points: [{ x: 0.2, y: 0.4 }, { x: 0.5, y: 0.8 }],
+    },
+  ],
+});
+assert.deepEqual(
+  mixedGeometryControls.controls.map((control) => control.controlType),
+  ['point', 'region', 'region'],
+);
+assert.deepEqual(mixedGeometryControls.controls[1], {
+  markId: 'C1',
+  sourceKind: 'ellipse',
+  controlType: 'region',
+  shape: 'ellipse',
+  bounds: { x: 0.4, y: 0.3, width: 0.4, height: 0.4 },
+  center: { x: 0.6, y: 0.5 },
+});
+assert.deepEqual(mixedGeometryControls.controls[2], {
+  markId: 'B1',
+  sourceKind: 'brush',
+  controlType: 'region',
+  shape: 'brush',
+  bounds: { x: 0.2, y: 0.4, width: 0.3, height: 0.4 },
+  center: { x: 0.35, y: 0.6 },
+  points: [{ x: 0.2, y: 0.4 }, { x: 0.5, y: 0.8 }],
+  strokeSize: 'l',
+});
 
 const draft: AnnotationDraft = {
   ...annotationManifestFromDraft(manifest),
@@ -195,6 +270,7 @@ const operation = addImageCodexOperation(snapshot, {
 });
 assert.deepEqual(operation.operationBlock.data.annotationManifest, persistedManifest);
 assert.deepEqual(operation.execution.params?.annotationManifest, persistedManifest);
+assert.deepEqual(operation.execution.params?.annotationEditControls, editControls);
 assert.match(operation.execution.prompt ?? '', /R1: red rectangle/);
 assert.match(operation.prompt, /annotated composite/);
 sourceBlock.data.annotationDraft!.marks[0].intent = 'Continue editing after execution.';
