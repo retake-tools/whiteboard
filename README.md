@@ -119,3 +119,7 @@ direct API execution must converge on the same Asset and Execution records.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for repository boundaries, verification,
 and safe UI testing guidance.
+
+## License
+
+Retake Whiteboard is available under the [MIT License](./LICENSE).
