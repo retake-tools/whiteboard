@@ -44,7 +44,7 @@ When the prompt contains an existing `executionId`:
    - For `image.text_to_image`, create a new image from the connected Text Block prompt and target aspect ratio.
    - For `image.image_to_image`, edit or reinterpret the connected Image Block using the connected Text Block prompt.
    - For `image.annotation_edit`, use the clean source asset as the visual base and the annotated composite as the authoritative edit brief.
-   - Read visible arrows, freehand marks, rectangles, circles, and text notes from the annotated composite.
+   - Read visible marker pins, arrows, freehand brush strokes, rectangles, and circles from the annotated composite.
    - Do not include annotation text, arrows, selection outlines, UI chrome, or editor controls in the final image.
    - Preserve source composition, subject, aspect ratio, and style unless the instruction asks otherwise.
    - When multiple result block assignments are present, spawn one subagent per variant when subagent image generation is available.
