@@ -19,6 +19,7 @@ try {
     '.mcp.json',
     pluginSourceMarker,
     'LICENSE',
+    'README.en.md',
     'README.md',
     'scripts',
     'skills',
