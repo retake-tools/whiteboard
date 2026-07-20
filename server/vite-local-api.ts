@@ -57,6 +57,11 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
           const url = new URL(req.url ?? '/', 'http://localhost');
           const method = req.method ?? 'GET';
 
+          if (method === 'GET' && url.pathname === '/health') {
+            sendJson(res, { ok: true, service: 'retake-whiteboard' });
+            return;
+          }
+
           if (method === 'GET' && url.pathname === '/snapshot') {
             const projectId = url.searchParams.get('projectId') ?? undefined;
             const boardId = url.searchParams.get('boardId') ?? undefined;

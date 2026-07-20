@@ -43,25 +43,51 @@ https://github.com/retake-tools/whiteboard.git.
 Clone the repository into ~/src/retake-whiteboard, run npm install,
 then run npm run mcp:test and npm run codex:install.
 
-After installation, validate the plugin, Skill, and MCP tools, and tell me
-whether I need to start a new Codex task. Do not copy or modify any user data
-under the repository's .retake/ directory.
+The codex:install command must build the web app and start its background
+production server. After installation, validate the plugin, Skill, MCP tools,
+and production server; tell me to open http://127.0.0.1:18771 and whether I
+need to start a new Codex task. Do not copy or modify any user data under the
+repository's .retake/ directory.
 ```
 
 This installs the complete plugin, including the Retake Skill and MCP tools.
 Copying only the Skill is not enough because Execution, Asset, and result Block
 writeback depends on MCP.
 
-### Manual installation
+`npm run codex:install` builds the app, installs the Codex plugin, and starts a
+background production server. When it finishes, open
+<http://127.0.0.1:18771>. Keep the checkout and `node_modules` in place so both
+the web app and MCP bridge remain available.
+
+Manage the background server from the checkout with:
+
+```bash
+npm run production:status
+npm run production:restart
+npm run production:stop
+```
+
+The background server continues after the installing Codex task exits. After a
+computer restart, run `npm run production:start` from the checkout if the
+server is not available.
+
+### Manual source setup
 
 ```bash
 mkdir -p ~/src
 git clone https://github.com/retake-tools/whiteboard.git ~/src/retake-whiteboard
 cd ~/src/retake-whiteboard
 npm install
-npm run mcp:test
-npm run codex:install
+npm run dev
 ```
+
+Open <http://127.0.0.1:18770>. This is the foreground development server with
+live reload; stop it with `Ctrl+C`.
+
+To add the Codex Plugin after a manual source setup, stop the development
+server in that terminal, optionally run `npm run mcp:test`, and then run
+`npm run codex:install`. The install command switches to the background
+production workflow at <http://127.0.0.1:18771>.
 
 The installer registers this checkout in the default personal Codex
 marketplace and stages a minimal plugin package. The package contains only the
@@ -72,9 +98,8 @@ research, or test artifacts into the Codex plugin cache.
 Keep the repository checkout outside `~/plugins/retake-whiteboard`. That path
 is reserved for the installer-managed minimal plugin source package.
 
-The MCP bridge continues to execute from this checkout, so keep the repository
-and `node_modules` in place. Start a new Codex task after installation to load
-the new Skill and MCP tools.
+The MCP bridge continues to execute from this checkout. Start a new Codex task
+after plugin installation to load the new Skill and MCP tools.
 
 ## Local Development
 
@@ -130,6 +155,7 @@ npm run typecheck
 npm run build
 npm run mcp:test
 npm run plugin:package:test
+npm run production:test
 npm run skill:validate
 ```
 

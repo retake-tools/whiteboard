@@ -39,23 +39,44 @@ Retake 插件负责读取 Operation、组织执行上下文和写回结果，不
 请 clone 仓库到 ~/src/retake-whiteboard，运行 npm install，
 再运行 npm run mcp:test 和 npm run codex:install。
 
-安装完成后请校验插件、Skill 和 MCP 工具，并告诉我是否需要开启一个新的 Codex 任务。
-不要复制或修改仓库中的 .retake/ 用户数据。
+codex:install 命令必须构建 Web App 并启动后台 production 服务。安装完成后请校验插件、
+Skill、MCP 工具和 production 服务，告诉我打开 http://127.0.0.1:18771，并说明是否需要
+开启一个新的 Codex 任务。不要复制或修改仓库中的 .retake/ 用户数据。
 ```
 
 这会安装包含 Retake Skill 和 MCP 工具的完整插件。仅复制 Skill 不足以运行完整流程，
 因为 Execution、Asset 和结果 Block 都需要通过 MCP 写回。
 
-### 手动安装
+`npm run codex:install` 会构建 Web App、安装 Codex Plugin，并启动后台 production 服务。
+命令完成后请打开 <http://127.0.0.1:18771>。请保留 checkout 和 `node_modules`，以便网页与
+MCP bridge 持续可用。
+
+可以在 checkout 中管理后台服务：
+
+```bash
+npm run production:status
+npm run production:restart
+npm run production:stop
+```
+
+安装 Codex 的任务结束后，后台服务仍会继续运行。电脑重启后如果服务不可访问，请在
+checkout 中运行 `npm run production:start`。
+
+### 手动源码安装
 
 ```bash
 mkdir -p ~/src
 git clone https://github.com/retake-tools/whiteboard.git ~/src/retake-whiteboard
 cd ~/src/retake-whiteboard
 npm install
-npm run mcp:test
-npm run codex:install
+npm run dev
 ```
+
+然后打开 <http://127.0.0.1:18770>。这是带热更新的前台开发服务，可用 `Ctrl+C` 停止。
+
+如果手动源码安装后还要加入 Codex Plugin，请先停止该终端中的开发服务，可选运行
+`npm run mcp:test`，再运行 `npm run codex:install`。安装命令会切换到后台 production
+流程，并使用 <http://127.0.0.1:18771>。
 
 安装脚本会把此 checkout 注册到默认的 personal Codex marketplace，并制作一个最小插件包。
 该插件包只包含 manifest、MCP 配置、Skill、启动桥接脚本、README 和许可证；不会把
@@ -63,8 +84,8 @@ npm run codex:install
 
 仓库 checkout 不要放在 `~/plugins/retake-whiteboard`；该路径保留给安装器管理的最小插件源包。
 
-MCP bridge 仍从此 checkout 执行，因此安装后需要保留仓库和 `node_modules`。安装完成后，
-请新建一个 Codex 任务，以加载新的 Skill 和 MCP 工具。
+MCP bridge 仍从此 checkout 执行。安装 Plugin 后请新建一个 Codex 任务，以加载新的 Skill
+和 MCP 工具。
 
 ## 本地开发
 
@@ -113,6 +134,7 @@ npm run typecheck
 npm run build
 npm run mcp:test
 npm run plugin:package:test
+npm run production:test
 npm run skill:validate
 ```
 

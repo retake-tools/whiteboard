@@ -36,6 +36,7 @@ npm run typecheck
 npm run build
 npm run mcp:test
 npm run plugin:package:test
+npm run production:test
 git diff --check
 ```
 
