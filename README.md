@@ -1,52 +1,58 @@
 # Retake Whiteboard
 
-[English](./README.en.md)
+[简体中文](./README.zh-CN.md)
 
-Retake Whiteboard 是面向 Retake 视频创作工作流的无限画布。当前 MVP
-聚焦图片阶段：图片 Block、标注驱动的图片编辑，以及通过 Codex/MCP
-执行和写回结果。
+Retake Whiteboard is an infinite-canvas workspace for Retake video creation
+workflows. The current MVP focuses on the image stage: image blocks,
+annotation-driven image edits, and Codex/MCP execution and writeback.
 
-## 当前范围
+## Current Scope
 
-图片阶段 MVP 已包括：
+The image-stage MVP includes:
 
-- 文生图和图生图 Operation 流程；
-- 带可视化标记和逐项说明的标注编辑；
-- 预先创建一到四个结果 Block，并支持逐张写回；
-- Project、Board、Asset、Execution、Group 和轻量 History 记录；
-- Codex/MCP 执行，并复用未来 Direct API Adapter 所需的同一套数据模型。
+- text-to-image and image-to-image Operation flows;
+- annotation-driven edits with visual marks and per-mark instructions;
+- one to four pre-created result Blocks with progressive writeback;
+- Project, Board, Asset, Execution, Group, and lightweight History records;
+- Codex/MCP execution through the same data model intended for future direct
+  API Adapters.
 
-视频生成、在线协作、Direct Provider API 和动态插件发现目前还不是完整的产品流程。
+Video generation, hosted collaboration, direct provider APIs, and dynamic
+plugin discovery are not complete product flows yet.
 
-## 环境要求
+## Requirements
 
-- Node.js 20.19 或更高版本（使用 Node.js 22 时需 22.12 或更高版本）；
-- npm；
-- 已安装 Codex CLI，并可使用 Codex Plugin；
-- Codex 环境中可用的真实图片生成或编辑能力。
+- Node.js 20.19 or later (22.12 or later when using Node.js 22);
+- npm;
+- Codex CLI with Codex Plugin support;
+- a real image generation or editing capability available to Codex.
 
-Retake 插件负责读取 Operation、组织执行上下文和写回结果，不会自行提供图片生成模型。
+The Retake plugin reads Operations, assembles execution context, and writes
+results back. It does not provide an image generation model by itself.
 
-## 安装
+## Installation
 
-### 让 Codex 自动安装（推荐）
+### Ask Codex to install it (recommended)
 
-把下面这段发给 Codex：
+Send the following prompt to Codex:
 
 ```text
-请从 https://github.com/retake-tools/whiteboard.git 安装 Retake Whiteboard Codex 插件。
+Install the Retake Whiteboard Codex plugin from
+https://github.com/retake-tools/whiteboard.git.
 
-请 clone 仓库到 ~/plugins/retake-whiteboard，运行 npm install，
-再运行 npm run mcp:test 和 npm run codex:install。
+Clone the repository into ~/plugins/retake-whiteboard, run npm install,
+then run npm run mcp:test and npm run codex:install.
 
-安装完成后请校验插件、Skill 和 MCP 工具，并告诉我是否需要开启一个新的 Codex 任务。
-不要复制或修改仓库中的 .retake/ 用户数据。
+After installation, validate the plugin, Skill, and MCP tools, and tell me
+whether I need to start a new Codex task. Do not copy or modify any user data
+under the repository's .retake/ directory.
 ```
 
-这会安装包含 Retake Skill 和 MCP 工具的完整插件。仅复制 Skill 不足以运行完整流程，
-因为 Execution、Asset 和结果 Block 都需要通过 MCP 写回。
+This installs the complete plugin, including the Retake Skill and MCP tools.
+Copying only the Skill is not enough because Execution, Asset, and result Block
+writeback depends on MCP.
 
-### 手动安装
+### Manual installation
 
 ```bash
 mkdir -p ~/plugins
@@ -57,54 +63,64 @@ npm run mcp:test
 npm run codex:install
 ```
 
-安装脚本会把此 checkout 注册到默认的 personal Codex marketplace，并制作一个最小插件包。
-该插件包只包含 manifest、MCP 配置、Skill、启动桥接脚本、README 和许可证；不会把
-`.retake/` 白板数据、依赖、构建产物、内部调研或测试产物复制到 Codex 插件缓存。
+The installer registers this checkout in the default personal Codex
+marketplace and stages a minimal plugin package. The package contains only the
+manifest, MCP configuration, Skill, startup bridge, READMEs, and license. It
+does not copy `.retake/` board data, dependencies, build output, internal
+research, or test artifacts into the Codex plugin cache.
 
-MCP bridge 仍从此 checkout 执行，因此安装后需要保留仓库和 `node_modules`。安装完成后，
-请新建一个 Codex 任务，以加载新的 Skill 和 MCP 工具。
+The MCP bridge continues to execute from this checkout, so keep the repository
+and `node_modules` in place. Start a new Codex task after installation to load
+the new Skill and MCP tools.
 
-## 本地开发
+## Local Development
 
-安装依赖并启动网页：
+Install dependencies and start the web app:
 
 ```bash
 npm install
 npm run dev
 ```
 
-开发服务默认运行在 `http://127.0.0.1:18770`。
+The development server starts at `http://127.0.0.1:18770` by default.
 
-白板内容保存在 Git 忽略的 `.retake/` 目录中。不要直接修改快照 JSON；应通过白板 UI、
-local service 或 MCP 工具操作，以保持 Asset 和 Execution 血缘关系一致。
+Board content is stored locally under `.retake/`, which is ignored by Git. Do
+not edit snapshot JSON files directly; use the whiteboard UI, local service, or
+MCP tools so Asset and Execution lineage stays consistent.
 
-如需与日常开发端口分离的稳定 release-style preview：
+For a stable release-style preview port separate from daily development, use:
 
 ```bash
 npm run production
 ```
 
-该命令会先构建，然后在 `http://127.0.0.1:18771` 启动 production preview。
-`npm run preview` 保留为预览已有 `dist/` 的 Vite 兼容别名。
+This builds the app and starts the production preview at
+`http://127.0.0.1:18771`. `npm run preview` remains the Vite-compatible alias
+for previewing an existing `dist/` directory.
 
-## Codex 使用流程
+## Codex Workflow
 
-1. 启动 Retake Whiteboard 网页，并创建或打开一个 Project 和 Board。
-2. 创建文生图、图生图或标注编辑 Operation。
-3. 第一次使用时，将当前 Codex workspace 绑定到对应的 Retake Project 和 Board。
-4. 在 Operation Block 中生成 Codex Prompt，并在一个新的 Codex 任务中执行。
-5. Codex 使用可用的真实图片能力生成或编辑图片，再通过 Retake MCP 工具写回 Asset、
-   Execution 和结果 Block。
+1. Start the Retake Whiteboard web app and create or open a Project and Board.
+2. Create a text-to-image, image-to-image, or annotation-edit Operation.
+3. On first use, bind the current Codex workspace to that Retake Project and
+   Board.
+4. Generate the Codex Prompt from the Operation Block and run it in a new Codex
+   task.
+5. Codex uses a real image capability to generate or edit the image, then
+   writes the Asset, Execution, and result Blocks back through Retake MCP tools.
 
-`Codex Managed` 是内置执行配置，不需要配置独立的模型 Provider 或 API Key；但当前
-Codex 环境仍必须具备真实图片生成或编辑能力。Direct API、ACP 和第三方模型配置属于
-可选的用户本地设置，不随项目默认值分发。
+`Codex Managed` is the built-in execution profile and does not require a
+separate model provider or API key. The current Codex environment must still
+provide a real image generation or editing capability. Direct API, ACP, and
+third-party model profiles are optional user-local settings and are not
+distributed with project defaults.
 
-Codex 只是一个执行通道，不是 Retake 的产品后端。插件负责执行和打包，独立 Web App
-仍是主要产品界面，从而让未来 Direct API、Hosted Web 和商业版本可以复用同一套
-Project、Board、Asset 和 Execution 模型。
+Codex is one execution route, not the Retake backend. The plugin is an
+execution and packaging layer, while the standalone web app remains the main
+product surface. Future direct API, hosted web, and commercial versions can
+therefore share the same Project, Board, Asset, and Execution model.
 
-## 验证
+## Verification
 
 ```bash
 npm run typecheck
@@ -114,25 +130,29 @@ npm run plugin:package:test
 npm run skill:validate
 ```
 
-`npm run mcp:test` 必须顺序运行，因为契约测试共享并重置 Git 忽略的 `.retake-test/`
-工作区；它不会重置真实的 `.retake/`。视觉或交互改动还应在命名清晰的临时 Project
-和 Board 中验证，不要使用已有的用户 Board。
+`npm run mcp:test` must run sequentially because contract tests share and reset
+the ignored `.retake-test/` workspace; it does not reset the real `.retake/`.
+Visual or interactive changes should also be tested in a clearly named
+disposable Project and Board rather than an existing user Board.
 
-## 架构边界
+## Architecture Boundaries
 
-- `Block` 管理用户可见的画布状态和位置；
-- `AssetRecord` 管理资产元数据和存储引用；
-- `ExecutionRecord` 管理一次能力执行，包括 route、status、input、output、
-  provider/model 元数据和错误；
-- `Plugin` 定义能力，`Adapter` 执行能力，`Skill` 定义可兼容的创作或流程行为；
-- Canvas 协调工作流，但不持有 Provider 专属逻辑。
+- `Block` owns user-visible canvas state and placement.
+- `AssetRecord` owns asset metadata and storage references.
+- `ExecutionRecord` owns one capability run, including route, status, inputs,
+  outputs, provider/model metadata, and errors.
+- `Plugin` defines capabilities; an `Adapter` executes them; a `Skill` defines
+  compatible creative or process behavior.
+- The canvas coordinates workflows but does not own provider-specific logic.
 
-MCP 写回和未来 Direct API 执行必须汇合到同一套 Asset 与 Execution 记录。
+MCP writeback and future direct API execution must converge on the same Asset
+and Execution records.
 
-## 参与贡献
+## Contributing
 
-仓库边界、验证方式和安全 UI 测试说明请参阅 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for repository boundaries,
+verification, and safe UI testing guidance.
 
-## 许可证
+## License
 
-Retake Whiteboard 使用 [MIT License](./LICENSE)。
+Retake Whiteboard is available under the [MIT License](./LICENSE).

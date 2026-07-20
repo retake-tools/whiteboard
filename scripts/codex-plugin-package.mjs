@@ -8,8 +8,8 @@ const packagedEntries = [
   '.codex-plugin',
   '.mcp.json',
   'LICENSE',
-  'README.en.md',
   'README.md',
+  'README.zh-CN.md',
   'skills',
   'scripts/start-mcp.mjs',
 ];

@@ -19,8 +19,8 @@ try {
     '.mcp.json',
     pluginSourceMarker,
     'LICENSE',
-    'README.en.md',
     'README.md',
+    'README.zh-CN.md',
     'scripts',
     'skills',
   ].sort());
