@@ -26,6 +26,7 @@ try {
     'LICENSE',
     'README.md',
     'README.zh-CN.md',
+    'assets',
     'scripts',
     'skills',
   ].sort());

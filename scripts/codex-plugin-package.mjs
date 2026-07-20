@@ -10,6 +10,7 @@ const packagedEntries = [
   'LICENSE',
   'README.md',
   'README.zh-CN.md',
+  'assets/readme',
   'skills',
   'scripts/start-mcp.mjs',
 ];
