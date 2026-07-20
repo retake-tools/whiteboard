@@ -130,6 +130,13 @@ optionally add one global instruction before running the edit.
 
 ![Annotation editor with a rectangle, arrow, region brush, and per-mark instructions](./assets/readme/annotation-edit.jpg)
 
+After Codex completes the Operation, the clean source, Annotation Edit
+Operation, and generated result remain connected on the canvas. In this
+example, the sofa becomes forest-green velvet, the floor lamp moves beside the
+sofa, and coral clouds are added without changing the room composition.
+
+![Completed annotation-edit workflow showing the clean source and generated result](./assets/readme/annotation-edit-result.jpg)
+
 ## Local Development
 
 Install dependencies and start the web app:

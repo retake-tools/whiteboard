@@ -113,6 +113,11 @@ Retake 会把提示词、原图、Operation 和生成结果保留在同一张无
 
 ![带矩形、箭头、区域笔刷和逐项说明的标注编辑器](./assets/readme/annotation-edit.jpg)
 
+Codex 完成 Operation 后，原图、标注编辑 Operation 和最终结果会继续连接在画布上。本例中，
+沙发被改为森林绿色天鹅绒，落地灯移动到沙发旁，并在不改变房间构图的情况下加入珊瑚色云层。
+
+![标注编辑完成后连接在画布上的原图和生成结果](./assets/readme/annotation-edit-result.jpg)
+
 ## 本地开发
 
 安装依赖并启动网页：
