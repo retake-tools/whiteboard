@@ -17,6 +17,11 @@ export interface ImageBranchDraftLayout {
   textPosition: Position;
 }
 
+export interface ImageOperationResultRowLayout {
+  x: number;
+  y: number;
+}
+
 export function imageBranchDraftSelectionBlockIds(
   sourceBlock: BlockRecord,
   textBlock: BlockRecord,
@@ -33,6 +38,8 @@ export function imageBranchDraftSelectionBlockIds(
 const branchGap = 64;
 const branchLaneOutputClearance = 160;
 const collisionGap = 28;
+const resultHorizontalGap = 32;
+const resultGroupPadding = { top: 48, right: 28, bottom: 28, left: 28 };
 
 export function imageBranchDraftLayout(
   snapshot: BoardSnapshot,
@@ -80,6 +87,45 @@ export function imageBranchDraftLayout(
     parentGroupId,
     textPosition: { x: textX, y: anchorBottom + branchGap },
   };
+}
+
+export function imageOperationResultRowLayout(
+  snapshot: BoardSnapshot,
+  operationBlock: BlockRecord,
+  resultSize: Size,
+  count: number,
+  excludedBlockIds: readonly string[] = [],
+): ImageOperationResultRowLayout {
+  const excluded = new Set([operationBlock.blockId, ...excludedBlockIds]);
+  const scopeBlocks = snapshot.blocks.filter(
+    (block) => block.parentGroupId === operationBlock.parentGroupId && !excluded.has(block.blockId),
+  );
+  const rowWidth = count * resultSize.width + Math.max(0, count - 1) * resultHorizontalGap;
+  const grouped = count > 1;
+  const candidateSize = {
+    width: rowWidth + (grouped ? resultGroupPadding.left + resultGroupPadding.right : 0),
+    height: resultSize.height + (grouped ? resultGroupPadding.top + resultGroupPadding.bottom : 0),
+  };
+  const baseX = operationBlock.position.x + operationBlock.size.width + 80;
+  const baseY = operationBlock.position.y;
+  const laneStep = candidateSize.height + 72;
+
+  for (let lane = 0; lane < 200; lane += 1) {
+    const direction = lane === 0 ? 0 : lane % 2 === 1 ? 1 : -1;
+    const distance = Math.ceil(lane / 2);
+    const resultY = baseY + direction * distance * laneStep;
+    const candidatePosition = {
+      x: baseX - (grouped ? resultGroupPadding.left : 0),
+      y: resultY - (grouped ? resultGroupPadding.top : 0),
+    };
+    if (scopeBlocks.every(
+      (block) => !rectanglesOverlap(candidatePosition, candidateSize, block.position, block.size, collisionGap),
+    )) {
+      return { x: baseX, y: resultY };
+    }
+  }
+
+  return { x: baseX, y: baseY + laneStep };
 }
 
 function rectanglesOverlap(

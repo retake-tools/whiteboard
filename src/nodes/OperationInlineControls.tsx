@@ -82,7 +82,7 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
   const readinessId = `${blockId}-operation-readiness`;
 
   function updateParams(nextParams: ImageGenerationParams): void {
-    dispatchUpdateOperationGenerationParams(blockId, nextParams);
+    dispatchUpdateOperationGenerationParams(blockId, generationParamsForSchema(nextParams, paramsSchema));
   }
 
   function updateAspectPreset(aspectRatioPreset: AspectPreset): void {
@@ -506,6 +506,29 @@ function normalizeOperationParams(
         : finiteNumber(record.targetWidth) ?? presetParams.targetWidth ?? 2048,
     variationCount: clampVariationCount(record.variationCount),
   };
+}
+
+export function generationParamsForSchema(
+  params: ImageGenerationParams,
+  schema: ReturnType<typeof schemaForCapability>['paramsSchema'],
+): ImageGenerationParams {
+  const supported: ImageGenerationParams = {
+    ...(schema.aspectRatio ? {
+      aspectRatioPreset: params.aspectRatioPreset,
+      targetAspectRatio: params.targetAspectRatio,
+      targetHeight: params.targetHeight,
+      targetWidth: params.targetWidth,
+    } : {}),
+    ...(schema.count ? { variationCount: params.variationCount } : {}),
+    ...(schema.duration ? { durationSeconds: params.durationSeconds } : {}),
+    ...(schema.model ? { model: params.model } : {}),
+    ...(schema.motion ? { motion: params.motion } : {}),
+    ...(schema.resolution ? { targetResolution: params.targetResolution } : {}),
+    ...(schema.strength ? { strength: params.strength } : {}),
+  };
+  return Object.fromEntries(
+    Object.entries(supported).filter(([, value]) => value !== undefined),
+  ) as ImageGenerationParams;
 }
 
 function paramsForPreset(

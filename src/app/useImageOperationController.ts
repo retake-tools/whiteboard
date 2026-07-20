@@ -188,12 +188,12 @@ export function useImageOperationController(options: ImageOperationControllerOpt
       generationParams?: ImageGenerationParams;
       referenceAssets?: AssetRecord[];
     } = {},
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
       await persistSnapshot(snapshotRef.current, { requireLocalApi: true });
     } catch (error) {
       setOperationToast({ id: `handoff:${block.blockId}`, title: t('feedback.handoffUnavailable'), body: error instanceof Error ? error.message : t('feedback.localApiUnavailable'), tone: 'error' });
-      return;
+      return false;
     }
     let operationPrompt = '';
     let resultBlockIds: string[] = [];
@@ -225,7 +225,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
       await persistSnapshot(nextSnapshot, { requireLocalApi: true });
     } catch (error) {
       setOperationToast({ id: operationBlockId, title: t('feedback.handoffUnavailable'), body: error instanceof Error ? error.message : t('feedback.localApiUnavailable'), tone: 'error' });
-      return;
+      return false;
     }
     setPromptPreview({ title: t('feedback.promptTitle'), prompt: operationPrompt, copyKey, executionId, blockIds });
     try {
@@ -235,6 +235,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     } catch {
       setOperationToast({ id: operationBlockId, title: t('feedback.taskCreated'), body: t('feedback.taskCreatedCopyFailed'), tone: 'error' });
     }
+    return true;
   }
 
   function createImageToImageDraftOperation(

@@ -85,6 +85,7 @@ interface ImageAnnotationEditorProps {
     instruction: string;
     manifest: AnnotationManifest;
     composite: AnnotationComposite;
+    variationCount: number;
   }) => void;
 }
 
@@ -131,6 +132,7 @@ export function ImageAnnotationEditor({
   const [stageSize, setStageSize] = useState<{ width: number; height: number } | null>(null);
   const [viewPan, setViewPan] = useState<Point>({ x: 0, y: 0 });
   const [viewZoom, setViewZoom] = useState(1);
+  const [variationCount, setVariationCount] = useState(1);
   const historyRef = useRef<{ past: AnnotationMark[][]; future: AnnotationMark[][] }>({
     past: [],
     future: [],
@@ -149,6 +151,7 @@ export function ImageAnnotationEditor({
     setImageAspectRatio(null);
     setViewPan({ x: 0, y: 0 });
     setViewZoom(1);
+    setVariationCount(1);
     gestureDirtyRef.current = false;
     suppressNextIdleDraftPublishRef.current = false;
     historyRef.current = { past: [], future: [] };
@@ -626,7 +629,7 @@ export function ImageAnnotationEditor({
     if (!imageUrl) return;
     const manifestSnapshot = annotationManifestFromDraft(manifest);
     const composite = await createAnnotatedComposite(imageUrl, marks);
-    onRun({ instruction: compiledInstruction, manifest: manifestSnapshot, composite });
+    onRun({ instruction: compiledInstruction, manifest: manifestSnapshot, composite, variationCount });
   }
 
   return (
@@ -787,14 +790,30 @@ export function ImageAnnotationEditor({
         />
       </div>
 
-      <button
-        type="button"
-        className="primary-popover-button"
-        disabled={!canRun}
-        onClick={() => void runAnnotationEdit()}
-      >
-        {runLabel}
-      </button>
+      <div className="annotation-run-controls">
+        <div className="annotation-result-count" aria-label={t('operationToolbar.count')}>
+          <span>{t('operationToolbar.count')}</span>
+          {[1, 2, 3, 4].map((count) => (
+            <button
+              key={count}
+              type="button"
+              className={variationCount === count ? 'is-active' : undefined}
+              aria-pressed={variationCount === count}
+              onClick={() => setVariationCount(count)}
+            >
+              {count}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="primary-popover-button"
+          disabled={!canRun}
+          onClick={() => void runAnnotationEdit()}
+        >
+          {runLabel}
+        </button>
+      </div>
     </div>
   );
 }

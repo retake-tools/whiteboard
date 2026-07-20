@@ -78,11 +78,45 @@ Internal planning and research documents live under `docs/` and are ignored by
 Git. Keep them in Chinese unless there is a concrete external-facing reason to
 write English.
 
+Keep the project status indexes current when work changes product scope or
+delivery status:
+
+- Update `docs/product/handoff.zh.md` when priorities, blockers, repository
+  handoff state, or recently completed work changes.
+- When a user-visible capability becomes complete, update the matching section
+  in `docs/product/completed-features.zh.md` before moving the item from the
+  handoff priority list to "recently completed."
+- Keep the handoff bounded: retain at most six recently completed items or
+  fourteen days of work, whichever limit is reached first. Use Git history for
+  older chronology, and treat the completed-features document as a capability
+  index rather than a changelog.
+- Link to detailed `docs/` or `research/` files instead of duplicating their
+  contents. Because these files are ignored, inspect them directly instead of
+  relying on Git status.
+
 Public-facing repository docs can be added later when the product surface is
 stable. Do not move internal research, competitor notes, or strategy documents
 into tracked public docs without an explicit decision.
 
 ## Verification
+
+### Test data safety
+
+Never run automated browser interaction, destructive verification, or MCP test
+setup against a user board.
+
+- Browser/UI automation that may move the viewport, drag, edit, execute, delete,
+  or autosave must first create and switch to a clearly named disposable board,
+  such as `[TEST] annotation-hover 2026-07-19`.
+- Do not reuse the default board or any board containing user-generated assets,
+  executions, or history for automated interaction tests. Read-only inspection
+  of a user board is allowed only when the test cannot trigger persistence.
+- Service and MCP tests must set `RETAKE_WORKSPACE_DIR=.retake-test` (or another
+  disposable directory) and must never call reset/delete operations against the
+  real `.retake/` workspace.
+- Before browser automation, record the disposable projectId and boardId and
+  verify them again before the first mutating action. Delete test data only when
+  it is known to be disposable; do not clean up user boards by inference.
 
 After code changes, run the narrowest meaningful checks:
 

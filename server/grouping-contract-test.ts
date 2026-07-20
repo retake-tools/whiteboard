@@ -17,8 +17,18 @@ import { connectedWorkflowBlockIds } from '../src/core/workflowSelection';
 
 const canvasSource = await readFile('src/app/useCanvasController.ts', 'utf8');
 const canvasViewSource = await readFile('src/app/WhiteboardCanvas.tsx', 'utf8');
+const canvasCss = await readFile('src/styles/canvas.css', 'utf8');
+const blockNodeCss = await readFile('src/nodes/block-node.css', 'utf8');
 assert.match(canvasViewSource, /zoomOnDoubleClick=\{false\}/);
 assert.match(canvasSource, /function selectConnectedWorkflow[\s\S]*?window\.requestAnimationFrame/);
+assert.match(canvasViewSource, /data-pointer-moving="false"[\s\S]*?onPointerMoveCapture=\{handleCanvasPointerMove\}/);
+assert.match(canvasCss, /\[data-pointer-moving='true'\] \.react-flow__node:not\(\.dragging\)[\s\S]*?cursor: default !important;/);
+assert.match(blockNodeCss, /\.image-preview img \{[\s\S]*?pointer-events: none;[\s\S]*?-webkit-user-drag: none;/);
+assert.match(blockNodeCss, /\.operation-input-quick-add \{[\s\S]*?pointer-events: none;/);
+assert.match(blockNodeCss, /\.block-node-text \{[\s\S]*?cursor: text;/);
+assert.match(blockNodeCss, /\.block-node-text \.block-heading,[\s\S]*?\.block-node-operation \.block-heading \{[\s\S]*?cursor: grab;/);
+assert.match(blockNodeCss, /\.react-flow__node\.draggable \{[\s\S]*?cursor: grab;/);
+assert.match(blockNodeCss, /\.react-flow__node\.dragging \*[\s\S]*?cursor: grabbing !important;/);
 import type { BlockRecord, BoardSnapshot } from '../src/core/types';
 
 const createdAt = '2026-07-10T00:00:00.000Z';
@@ -62,9 +72,9 @@ assert.equal(blockLockedByGroup(drawSnapshot, drawInside.blockId), true);
 assert.equal(groupStructureLocked(drawSnapshot, drawnGroup.blockId), true);
 const lockedFlowNodes = createFlowNodes(drawSnapshot);
 assert.equal(lockedFlowNodes.find((node) => node.id === drawInside.blockId)?.draggable, false);
+assert.equal(lockedFlowNodes.find((node) => node.id === drawOutside.blockId)?.draggable, true);
 assert.equal(lockedFlowNodes.find((node) => node.id === drawInside.blockId)?.deletable, false);
 assert.equal(lockedFlowNodes.find((node) => node.id === drawnGroup.blockId)?.deletable, false);
-
 const lockedNestedGroup = block('locked_nested_group', 'group', 60, 60, 180, 140);
 lockedNestedGroup.data.groupPositionLocked = true;
 lockedNestedGroup.data.groupContentsLocked = true;
@@ -238,6 +248,17 @@ assert.equal(batchGroup.data.groupExecutionId, 'exec_batch');
 assert.equal(batchGroup.parentGroupId, workflowGroup.blockId);
 assert.equal(resultOne.parentGroupId, batchGroup.blockId);
 assert.equal(resultTwo.parentGroupId, batchGroup.blockId);
+const fittedBatchPosition = { ...batchGroup.position };
+const fittedBatchSize = { ...batchGroup.size };
+batchGroup.size.width += 200;
+const refittedBatchGroup = createExecutionResultGroup(batchSnapshot, {
+  executionId: 'exec_batch',
+  operationBlock: operation,
+  resultBlocks: [resultOne, resultTwo],
+});
+assert.equal(refittedBatchGroup?.blockId, batchGroup.blockId);
+assert.deepEqual(refittedBatchGroup?.position, fittedBatchPosition);
+assert.deepEqual(refittedBatchGroup?.size, fittedBatchSize);
 batchSnapshot.executions.push({
   executionId: 'exec_batch',
   projectId: 'project_test',

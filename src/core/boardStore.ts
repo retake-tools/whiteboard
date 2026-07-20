@@ -40,19 +40,22 @@ export async function loadBoardSnapshot(input?: { projectId?: string; boardId?: 
 }
 
 export async function saveBoardSnapshot(snapshot: BoardSnapshot): Promise<SnapshotSaveResult> {
+  let response: Response;
   try {
-    const response = await fetch('/api/local/snapshot', {
+    response = await fetch('/api/local/snapshot', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(snapshot),
     });
-    if (response.ok) return { persistedTo: 'local-api' };
   } catch {
     // Browser-only fallback for static preview builds.
+    localStorage.setItem(storageKey, JSON.stringify(snapshot));
+    return { persistedTo: 'browser-storage' };
   }
 
-  localStorage.setItem(storageKey, JSON.stringify(snapshot));
-  return { persistedTo: 'browser-storage' };
+  if (response.ok) return { persistedTo: 'local-api' };
+  const result = (await response.json().catch(() => undefined)) as { error?: string } | undefined;
+  throw new Error(result?.error ?? `Snapshot save failed with status ${response.status}.`);
 }
 
 export async function clearBoardSnapshot(): Promise<BoardSnapshot> {

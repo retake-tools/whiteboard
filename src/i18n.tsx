@@ -369,6 +369,14 @@ type TranslationKey =
   | 'settings.title'
   | 'result.retryCodex'
   | 'result.retryPromptTitle'
+  | 'resultStatus.canceled'
+  | 'resultStatus.codexQueued'
+  | 'resultStatus.codexRunning'
+  | 'resultStatus.directApiQueued'
+  | 'resultStatus.directApiRunning'
+  | 'resultStatus.failed'
+  | 'resultStatus.queued'
+  | 'resultStatus.running'
   | 'status.failed'
   | 'status.canceled'
   | 'status.queued'
@@ -779,6 +787,14 @@ const translations: Record<Locale, Translations> = {
     'settings.title': 'Settings',
     'result.retryCodex': 'Retry this result',
     'result.retryPromptTitle': 'Retry failed result',
+    'resultStatus.canceled': 'Generation was canceled.',
+    'resultStatus.codexQueued': 'Prompt ready. Start this task in Codex.',
+    'resultStatus.codexRunning': 'Codex is generating this image.',
+    'resultStatus.directApiQueued': 'Waiting for the image API worker to start.',
+    'resultStatus.directApiRunning': 'The image API is generating this image.',
+    'resultStatus.failed': 'Generation failed. Open execution details for more information.',
+    'resultStatus.queued': 'Waiting for generation to start.',
+    'resultStatus.running': 'Generating image.',
     'status.failed': 'failed',
     'status.canceled': 'canceled',
     'status.queued': 'queued',
@@ -1184,6 +1200,14 @@ const translations: Record<Locale, Translations> = {
     'settings.title': '设置',
     'result.retryCodex': '重试此结果',
     'result.retryPromptTitle': '重试失败结果',
+    'resultStatus.canceled': '生成已取消。',
+    'resultStatus.codexQueued': '提示已准备好，请在 Codex 中开始执行。',
+    'resultStatus.codexRunning': 'Codex 正在生成这张图片。',
+    'resultStatus.directApiQueued': '正在等待图片 API 任务开始。',
+    'resultStatus.directApiRunning': '图片 API 正在生成这张图片。',
+    'resultStatus.failed': '生成失败，请打开执行信息查看详情。',
+    'resultStatus.queued': '正在等待生成任务开始。',
+    'resultStatus.running': '正在生成图片。',
     'status.failed': '失败',
     'status.canceled': '已取消',
     'status.queued': '等待中',

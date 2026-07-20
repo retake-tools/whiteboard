@@ -166,6 +166,23 @@ const canceledOperationMarkup = renderToStaticMarkup(
 );
 assert.match(canceledOperationMarkup, /Generate again/);
 
+const completedAnnotationOperationMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <OperationInlineControls
+      blockId="operation_annotation_succeeded"
+      data={{
+        title: 'Annotation edit',
+        capabilityId: 'image.annotation_edit',
+        generationProfileId: 'codex-managed',
+        operationCanRun: true,
+        sourceExecutionId: 'exec_annotation_succeeded',
+        status: 'succeeded',
+      }}
+    />
+  </I18nProvider>,
+);
+assert.match(completedAnnotationOperationMarkup, /Generate again/);
+
 const invalidOperationMarkup = renderToStaticMarkup(
   <I18nProvider>
     <OperationInlineControls

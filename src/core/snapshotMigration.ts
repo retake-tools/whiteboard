@@ -80,10 +80,8 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
     executions: migratedExecutions,
   };
   repairGroupRelationships(migratedSnapshot);
-  if ((legacy.groupMigrationVersion ?? 0) < 1) {
-    ensureExecutionResultGroups(migratedSnapshot);
-    migratedSnapshot.groupMigrationVersion = 1;
-  }
+  ensureExecutionResultGroups(migratedSnapshot);
+  if ((legacy.groupMigrationVersion ?? 0) < 1) migratedSnapshot.groupMigrationVersion = 1;
   return migratedSnapshot;
 }
 

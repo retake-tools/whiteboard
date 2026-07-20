@@ -208,6 +208,7 @@ export function App(): ReactElement {
     addOperationInputBlock,
     directImageImportInputRef,
     isMiniMapVisible,
+    openHistoricalAnnotationVersion,
     pendingDirectImageImportBlockIdRef,
     retryFailedImageResult,
     setHistoryOpen: setIsHistoryOpen,

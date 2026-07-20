@@ -115,7 +115,7 @@ async function main(): Promise<void> {
     },
   });
   const snapshot = readStructuredContent<{
-    blocks: unknown[];
+    blocks: Array<{ blockId: string; data: { title?: string } }>;
     assets: Array<{ assetId: string; storageProvider: string; storageKey: string; previewUrl: string }>;
     executions: Array<{
       status: string;
@@ -135,6 +135,10 @@ async function main(): Promise<void> {
   }
   if (snapshot.executions[0]?.operationVersion !== 1) {
     throw new Error('Expected mark running to assign V1 before asset import');
+  }
+  const importedResultBlock = snapshot.blocks.find((candidate) => candidate.blockId === prepared.resultBlockId);
+  if (importedResultBlock?.data.title !== 'Imported agent file result') {
+    throw new Error('Expected the result block to accept the content-specific title supplied by the agent');
   }
 
   await client.close();

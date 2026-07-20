@@ -12,6 +12,13 @@ import {
   writeJson,
 } from './context';
 
+export class SnapshotWriteConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SnapshotWriteConflictError';
+  }
+}
+
 export async function ensureDefaultSnapshot(): Promise<BoardSnapshot> {
   await ensureWorkspace();
 
@@ -42,6 +49,9 @@ export async function saveSnapshot(snapshot: BoardSnapshot): Promise<void> {
   const normalizedSnapshot = migrateBoardSnapshot(snapshot);
   const projectDir = path.join(projectsRoot, normalizedSnapshot.project.projectId);
   const boardDir = path.join(projectDir, 'boards', normalizedSnapshot.board.boardId);
+  const snapshotPath = path.join(boardDir, 'snapshot.json');
+  const previousSnapshot = await readStoredSnapshot(snapshotPath);
+  if (previousSnapshot) protectDurableSnapshotState(normalizedSnapshot, previousSnapshot);
 
   await mkdir(boardDir, { recursive: true });
   await mkdir(path.join(projectDir, 'assets'), { recursive: true });
@@ -50,7 +60,7 @@ export async function saveSnapshot(snapshot: BoardSnapshot): Promise<void> {
 
   await writeJson(path.join(projectDir, 'project.json'), normalizedSnapshot.project);
   await writeJson(path.join(boardDir, 'board.json'), normalizedSnapshot.board);
-  await writeJson(path.join(boardDir, 'snapshot.json'), normalizedSnapshot);
+  await writeJson(snapshotPath, normalizedSnapshot);
 }
 
 export async function resetWorkspace(): Promise<BoardSnapshot> {
@@ -159,4 +169,61 @@ function createDefaultWorkspaceSnapshot(): BoardSnapshot {
 
 function ensureSnapshotCodexProjectPath(snapshot: BoardSnapshot): void {
   snapshot.project.codexProjectPath ??= workspaceRoot;
+}
+
+async function readStoredSnapshot(snapshotPath: string): Promise<BoardSnapshot | undefined> {
+  try {
+    return migrateBoardSnapshot(JSON.parse(await readFile(snapshotPath, 'utf8')) as BoardSnapshot);
+  } catch {
+    return undefined;
+  }
+}
+
+function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSnapshot): void {
+  if (
+    incoming.project.projectId !== previous.project.projectId ||
+    incoming.board.boardId !== previous.board.boardId
+  ) return;
+
+  const fallbackBlockIds = new Set(defaultSnapshot.blocks.map((block) => block.blockId));
+  const isEmptyFallbackWrite =
+    incoming.blocks.length === fallbackBlockIds.size &&
+    incoming.blocks.every((block) => fallbackBlockIds.has(block.blockId)) &&
+    incoming.executions.length === 0 &&
+    incoming.assets.length === 0 &&
+    (incoming.historyEvents?.length ?? 0) === 0;
+  const previousHasUserData =
+    previous.blocks.some((block) => !fallbackBlockIds.has(block.blockId)) ||
+    previous.executions.length > 0 ||
+    previous.assets.length > 0 ||
+    (previous.historyEvents?.length ?? 0) > 0;
+  if (isEmptyFallbackWrite && previousHasUserData) {
+    throw new SnapshotWriteConflictError(
+      'Refusing to replace a populated board with the empty bootstrap snapshot.',
+    );
+  }
+
+  // Assets, executions, and history are durable lineage. Ordinary board saves
+  // may update them but must not silently erase records that already exist.
+  incoming.assets = mergeRecords(incoming.assets, previous.assets, (asset) => asset.assetId);
+  incoming.executions = mergeRecords(
+    incoming.executions,
+    previous.executions,
+    (execution) => execution.executionId,
+  );
+  incoming.historyEvents = mergeRecords(
+    incoming.historyEvents ?? [],
+    previous.historyEvents ?? [],
+    (event) => event.eventId,
+  ).slice(0, 200);
+}
+
+function mergeRecords<T>(incoming: T[], previous: T[], idFor: (record: T) => string): T[] {
+  const merged = [...incoming];
+  const knownIds = new Set(incoming.map(idFor));
+  for (const record of previous) {
+    if (knownIds.has(idFor(record))) continue;
+    merged.push(record);
+  }
+  return merged;
 }

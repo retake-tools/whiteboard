@@ -192,6 +192,7 @@ export function createImageOperationPrompt(
     isMultiResult
       ? '- Generate one distinct image per assigned resultBlockId. Do not reuse the same asset for multiple variants.'
       : `- When calling retake_update_image_result_block, pass resultBlockId ${resultBlock.blockId}.`,
+    '- When calling retake_update_image_result_block, pass a concise, content-specific title for the generated image. For multiple results, distinguish them by visible content or treatment; do not use only generic names such as "Variant 1" or "Image 2".',
     '- Do not create another result block for this operation.',
     isMultiResult
       ? `- Spawn ${resultBlocks.length} subagents when subagent image generation is available, assigning one variant/output path/resultBlockId to each. As soon as any subagent finishes, immediately import and update that assigned Result Block; do not wait for the remaining variants before writing back a completed one. Wait for all subagents only before ending the task.`

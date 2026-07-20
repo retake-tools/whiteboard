@@ -112,7 +112,7 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
       { type: 'image', required: true, source: 'generated_asset', role: 'annotated_composite', min: 1, max: 1 },
     ],
     outputContracts: [{ type: 'image' }],
-    paramsSchema: {},
+    paramsSchema: { count: true },
     promptSource: 'inline',
     supportedAdapters: ['mcp_agent', 'direct_api', 'cli_agent', 'manual_import'],
   },

@@ -1,5 +1,5 @@
 import { Background, NodeToolbar, Position, ReactFlow, type EdgeTypes, type NodeTypes } from '@xyflow/react';
-import type { Dispatch, ReactElement, RefObject, SetStateAction } from 'react';
+import { useEffect, useRef, type Dispatch, type PointerEvent as ReactPointerEvent, type ReactElement, type RefObject, type SetStateAction } from 'react';
 import { CanvasMiniMap } from '../components/CanvasMiniMap';
 import { CanvasViewportControls } from '../components/CanvasViewportControls';
 import { ContextToolbar } from '../components/ContextToolbar';
@@ -72,9 +72,38 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
     snapshotRef,
     t,
   } = props;
+  const pointerIdleTimerRef = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => {
+    if (pointerIdleTimerRef.current !== undefined) window.clearTimeout(pointerIdleTimerRef.current);
+  }, []);
+
+  function handleCanvasPointerMove(event: ReactPointerEvent<HTMLElement>): void {
+    if (event.pointerType === 'touch') return;
+    const canvasElement = event.currentTarget;
+    if (canvasElement.dataset.pointerMoving !== 'true') canvasElement.dataset.pointerMoving = 'true';
+    if (pointerIdleTimerRef.current !== undefined) window.clearTimeout(pointerIdleTimerRef.current);
+    pointerIdleTimerRef.current = window.setTimeout(() => {
+      canvasElement.dataset.pointerMoving = 'false';
+      pointerIdleTimerRef.current = undefined;
+    }, 90);
+  }
+
+  function handleCanvasPointerLeave(event: ReactPointerEvent<HTMLElement>): void {
+    if (pointerIdleTimerRef.current !== undefined) window.clearTimeout(pointerIdleTimerRef.current);
+    pointerIdleTimerRef.current = undefined;
+    event.currentTarget.dataset.pointerMoving = 'false';
+  }
 
   return (
-    <section ref={canvas.canvasAreaRef} className="canvas-area" aria-label="Retake board canvas">
+    <section
+      ref={canvas.canvasAreaRef}
+      className="canvas-area"
+      data-pointer-moving="false"
+      aria-label="Retake board canvas"
+      onPointerMoveCapture={handleCanvasPointerMove}
+      onPointerLeave={handleCanvasPointerLeave}
+    >
       <ReactFlow
         nodes={canvas.nodes}
         edges={canvas.edges}
@@ -125,18 +154,24 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
                 pendingDirectImageImportBlockIdRef.current = selectedBlock.blockId;
                 directImageImportInputRef.current?.click();
               }}
-              onRunAnnotationEdit={({ instruction, manifest, composite }) => {
+              onRunAnnotationEdit={({ instruction, manifest, composite, historical, variationCount }) => {
                 void createImageAssetFromDataUrl({
                   projectId: snapshotRef.current.project.projectId,
                   dataUrl: composite.dataUrl,
                   fileName: `annotation-${selectedBlock.blockId}.png`,
                   width: composite.width,
                   height: composite.height,
-                }).then((annotatedCompositeAsset) => {
-                  void imageOperations.startImageCodexOperation('annotation_edit', selectedBlock, instruction, {
+                }).then(async (annotatedCompositeAsset) => {
+                  const created = await imageOperations.startImageCodexOperation('annotation_edit', selectedBlock, instruction, {
                     annotatedCompositeAsset,
                     annotationManifest: { ...manifest, compositeAssetId: annotatedCompositeAsset.assetId },
+                    generationParams: { variationCount },
                   });
+                  if (!created) return;
+                  if (!historical) {
+                    annotations.updateAnnotationDraft(selectedBlock.blockId, { schemaVersion: 1, globalInstruction: '', marks: [] });
+                    flushAnnotationDraftPersist();
+                  }
                 });
               }}
               onRunQuickEdit={({ instruction }) => imageOperations.createImageToImageDraftOperation(selectedBlock, 'quick_edit', instruction)}

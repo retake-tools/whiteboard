@@ -8,6 +8,7 @@ interface AppEventBindingsOptions {
   directImageImportInputRef: RefObject<HTMLInputElement | null>;
   isMiniMapVisible: boolean;
   pendingDirectImageImportBlockIdRef: RefObject<string | undefined>;
+  openHistoricalAnnotationVersion: (executionId: string) => void;
   retryFailedImageResult: (blockId: string) => Promise<void>;
   setHistoryOpen: (open: boolean) => void;
   setInspectorBlockId: (blockId: string | undefined) => void;
@@ -22,6 +23,7 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
     directImageImportInputRef,
     isMiniMapVisible,
     pendingDirectImageImportBlockIdRef,
+    openHistoricalAnnotationVersion,
     retryFailedImageResult,
     setHistoryOpen,
     setInspectorBlockId,
@@ -47,6 +49,10 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
       const blockId = (event as CustomEvent<{ blockId?: string }>).detail?.blockId;
       if (blockId) void retryFailedImageResult(blockId);
     }
+    function onOpenAnnotationEditor(event: Event): void {
+      const executionId = (event as CustomEvent<{ executionId?: string }>).detail?.executionId;
+      if (executionId) openHistoricalAnnotationVersion(executionId);
+    }
     function onAddOperationInput(event: Event): void {
       const detail = (event as CustomEvent<{ operationBlockId?: string; type?: BlockType }>).detail;
       if (!detail?.operationBlockId || (detail.type !== 'text' && detail.type !== 'image' && detail.type !== 'video')) return;
@@ -61,11 +67,13 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
       directImageImportInputRef.current?.click();
     }
     window.addEventListener('retake:open-execution-inspector', onOpenInspector);
+    window.addEventListener('retake:open-annotation-editor', onOpenAnnotationEditor);
     window.addEventListener('retake:retry-image-result', onRetryImageResult);
     window.addEventListener('retake:add-operation-input', onAddOperationInput);
     window.addEventListener('retake:request-image-import', onRequestImageImport);
     return () => {
       window.removeEventListener('retake:open-execution-inspector', onOpenInspector);
+      window.removeEventListener('retake:open-annotation-editor', onOpenAnnotationEditor);
       window.removeEventListener('retake:retry-image-result', onRetryImageResult);
       window.removeEventListener('retake:add-operation-input', onAddOperationInput);
       window.removeEventListener('retake:request-image-import', onRequestImageImport);

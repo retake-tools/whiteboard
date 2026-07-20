@@ -15,7 +15,7 @@ import { createExecutionResultGroup, expandGroupToContents } from './grouping';
 import { createImageOperationPrompt } from './prompts';
 import { recordExecutionConfiguration } from './executionConfiguration';
 import { imageBlockAspectRatio } from './operationAspectRatio';
-import { imageBranchDraftLayout } from './imageOperationLayout';
+import { imageBranchDraftLayout, imageOperationResultRowLayout } from './imageOperationLayout';
 import {
   defaultGenerationProfileId,
   generationParameterVisible,
@@ -197,6 +197,7 @@ export function addImageCodexOperation(
 
   const resultCount = variationCount(generationParams);
   const resultSize = displaySlotSizeForGenerationParams(generationParams, sourceBlock.size);
+  const resultLayout = imageOperationResultRowLayout(snapshot, operationBlock, resultSize, resultCount);
   const resultBlocks = Array.from({ length: resultCount }, (_, index): BlockRecord => ({
     blockId: createId('block'),
     boardId: snapshot.board.boardId,
@@ -204,14 +205,14 @@ export function addImageCodexOperation(
     layerId: 'layer_default',
     parentGroupId: operationBlock.parentGroupId,
     position: {
-      x: operationBlock.position.x + operationBlock.size.width + 80 + index * (resultSize.width + imageResultColumnGap),
-      y: sourceBlock.position.y,
+      x: resultLayout.x + index * (resultSize.width + imageResultColumnGap),
+      y: resultLayout.y,
     },
     size: { ...resultSize },
     zIndex: operationBlock.zIndex + index + 1,
     data: {
       title: variantTitle(title, index, resultCount),
-      body: instruction || input.waitingBody || 'Waiting for Codex to generate an image result.',
+      body: input.waitingBody || 'Waiting for Codex to generate an image result.',
       status: 'queued',
       operationBlockId: operationBlock.blockId,
       resultIndex: index,
@@ -696,16 +697,31 @@ export function executeExistingImageOperationBlock(
   }
 
   const inputBlocks = connectedInputBlocks(snapshot, operationBlock.blockId);
+  const isAnnotationRepeat = operationBlock.data.capabilityId === 'image.annotation_edit';
   const textBlock = firstTextInputBlock(inputBlocks);
-  if (!textBlock) {
+  if (!isAnnotationRepeat && !textBlock) {
     throw new Error('Connect a Text Block to this Operation before running.');
   }
   const promptText = promptTextFromInputs(inputBlocks);
-  if (!promptText) {
+  if (!isAnnotationRepeat && !promptText) {
     throw new Error('Enter a prompt before running this operation.');
   }
-  const codexOperation = imageOperationForSwitchableMode(input.operation);
+  const codexOperation: ImageCodexOperation = isAnnotationRepeat
+    ? 'annotation_edit'
+    : imageOperationForSwitchableMode(input.operation);
   const capabilityId = capabilityForOperation(codexOperation);
+  const annotationManifest = isAnnotationRepeat && isAnnotationManifest(operationBlock.data.annotationManifest)
+    ? structuredClone(operationBlock.data.annotationManifest)
+    : undefined;
+  const annotatedCompositeAssetId = isAnnotationRepeat && typeof operationBlock.data.annotatedCompositeAssetId === 'string'
+    ? operationBlock.data.annotatedCompositeAssetId
+    : undefined;
+  const annotatedCompositeAsset = annotatedCompositeAssetId
+    ? snapshot.assets.find((asset) => asset.assetId === annotatedCompositeAssetId)
+    : undefined;
+  if (isAnnotationRepeat && (!annotationManifest || !annotatedCompositeAsset)) {
+    throw new Error('This annotation operation no longer has a complete annotation snapshot. Open it in Annotation Edit before running.');
+  }
   const imageInputBindings = operationImageInputBindings(snapshot, operationBlock);
   const unresolvedImageInput = imageInputBindings.find(
     (binding) => binding.block.data.assetId && !binding.inputRole,
@@ -718,7 +734,7 @@ export function executeExistingImageOperationBlock(
     throw new Error('Connect an image block to this operation before running image edit.');
   }
   const sourceBlock = imageInputBindings.find((binding) => binding.inputRole === 'source')?.block;
-  if (input.operation !== 'text_to_image' && (!sourceBlock || !sourceBlock.data.assetId)) {
+  if (codexOperation !== 'generate_image' && (!sourceBlock || !sourceBlock.data.assetId)) {
     throw new Error('Image-to-image operations require a connected source Image Block with an asset.');
   }
   const promptFrameBlock = sourceBlock ?? reusableOutputSlot(snapshot, operationBlock);
@@ -726,14 +742,17 @@ export function executeExistingImageOperationBlock(
   const executionId = createId('exec');
   const createdAt = nowIso();
   const title = titleForOperation(codexOperation);
-  const instruction = promptText;
+  const instruction = isAnnotationRepeat
+    ? (typeof operationBlock.data.annotationText === 'string' ? operationBlock.data.annotationText.trim() : '')
+    : promptText ?? '';
+  if (!instruction) throw new Error('Enter a prompt before running this operation.');
   const generationProfileId = operationBlock.data.generationProfileId ?? defaultGenerationProfileId;
   const generationParams = effectiveGenerationParams(
     generationParamsForSourceImage(
       snapshot,
       sourceBlock,
-      generationParamsForTextToImage(input.generationParams, input.operation === 'text_to_image'),
-      input.operation === 'image_to_image',
+      generationParamsForTextToImage(input.generationParams, codexOperation === 'generate_image'),
+      codexOperation !== 'generate_image',
     ),
     generationProfileId,
     capabilityId,
@@ -748,11 +767,11 @@ export function executeExistingImageOperationBlock(
     agentHost: 'codex',
     triggerMode: 'manual_agent_session',
     capabilityId,
-    operationMode: input.operation,
+    operationMode: operationModeForImageOperation(codexOperation),
     operationVariant: undefined,
     sourceBlockId: sourceBlock?.blockId,
     sourceAssetId: sourceBlock?.data.assetId,
-    promptSourceBlockId: textBlock?.blockId,
+    promptSourceBlockId: isAnnotationRepeat ? undefined : textBlock?.blockId,
     generationParams,
     generationProfileId,
     sourceExecutionId: executionId,
@@ -782,12 +801,13 @@ export function executeExistingImageOperationBlock(
     capabilityId,
     adapter: 'mcp_agent',
     status: 'queued',
-    inputBlockIds: [textBlock?.blockId, ...imageInputBindings.map((binding) => binding.block.blockId)].filter(
+    inputBlockIds: [isAnnotationRepeat ? undefined : textBlock?.blockId, ...imageInputBindings.map((binding) => binding.block.blockId)].filter(
       (blockId): blockId is string => typeof blockId === 'string',
     ),
-    inputAssetIds: imageInputBindings
-      .map((binding) => binding.block.data.assetId)
-      .filter((assetId): assetId is string => typeof assetId === 'string'),
+    inputAssetIds: [
+      ...imageInputBindings.map((binding) => binding.block.data.assetId),
+      annotatedCompositeAssetId,
+    ].filter((assetId): assetId is string => typeof assetId === 'string'),
     outputBlockIds: resultBlocks.map((block) => block.blockId),
     outputAssetIds: [],
     agentHost: 'codex',
@@ -798,6 +818,8 @@ export function executeExistingImageOperationBlock(
     params: {
       operationBlockId: operationBlock.blockId,
       ...(generationParams ? { generation: generationParams } : {}),
+      ...(annotationManifest ? { annotationManifest } : {}),
+      ...(annotationManifest ? { annotationEditControls: annotationEditControlsFromManifest(annotationManifest) } : {}),
       inputBindings: imageInputBindings
         .filter((binding): binding is typeof binding & { inputRole: ExecutionInputRole } => Boolean(binding.inputRole))
         .map((binding) => ({
@@ -832,18 +854,22 @@ export function executeExistingImageOperationBlock(
     actor: 'user',
     executionId,
     blockIds: [
-      textBlock?.blockId,
+      isAnnotationRepeat ? undefined : textBlock?.blockId,
       sourceBlock?.blockId,
       operationBlock.blockId,
       ...resultBlocks.map((block) => block.blockId),
     ].filter(
       (blockId): blockId is string => typeof blockId === 'string',
     ),
-    assetIds: [sourceBlock?.data.assetId].filter((assetId): assetId is string => typeof assetId === 'string'),
+    assetIds: [sourceBlock?.data.assetId, annotatedCompositeAssetId].filter(
+      (assetId): assetId is string => typeof assetId === 'string',
+    ),
     summary: title,
     detail: {
       capabilityId,
       instruction,
+      annotationManifest,
+      annotationEditControls: annotationManifest ? annotationEditControlsFromManifest(annotationManifest) : undefined,
       operationBlockId: operationBlock.blockId,
       prompt,
       resultBlockIds: resultBlocks.map((block) => block.blockId),
@@ -1002,6 +1028,12 @@ function operationImageInputBindings(
     });
 }
 
+function isAnnotationManifest(value: unknown): value is AnnotationManifest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Partial<AnnotationManifest>;
+  return candidate.schemaVersion === 1 && Array.isArray(candidate.marks);
+}
+
 function reusableOutputSlot(snapshot: BoardSnapshot, operationBlock: BlockRecord): BlockRecord | undefined {
   const outputSlotId = snapshot.edges.find(
     (edge) => edge.sourceBlockId === operationBlock.blockId && edge.kind === 'execution_output',
@@ -1031,12 +1063,20 @@ function findOrCreateOperationResultBlocks(
   const availableOutputSlots = outputBlocks.filter(
     (block) => !block.data.assetId && !block.data.sourceExecutionId,
   );
-  const priorOutputBlocks = outputBlocks.filter((block) => !availableOutputSlots.includes(block));
   const resultBlocks: BlockRecord[] = [];
-  const baseX = input.operationBlock.position.x + input.operationBlock.size.width + 80;
-  const baseY = priorOutputBlocks.length
-    ? Math.max(...priorOutputBlocks.map((block) => block.position.y + block.size.height)) + 72
-    : availableOutputSlots[0]?.position.y ?? input.operationBlock.position.y;
+  const excludedBlockIds = availableOutputSlots.flatMap((block) => [
+    block.blockId,
+    ...(block.parentGroupId ? [block.parentGroupId] : []),
+  ]);
+  const resultLayout = imageOperationResultRowLayout(
+    snapshot,
+    input.operationBlock,
+    input.resultSize,
+    input.count,
+    excludedBlockIds,
+  );
+  const baseX = resultLayout.x;
+  const baseY = resultLayout.y;
 
   for (let index = 0; index < input.count; index += 1) {
     const outputSlot = availableOutputSlots[index];

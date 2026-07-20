@@ -25,6 +25,7 @@ import {
   reorderProjects,
   resetWorkspace,
   saveSnapshot,
+  SnapshotWriteConflictError,
   setCodexProjectBinding,
   updateImageResultBlock,
   validateCodexProjectBinding,
@@ -457,7 +458,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
             {
               error: error instanceof Error ? error.message : 'Unknown local API error',
             },
-            500,
+            error instanceof SnapshotWriteConflictError ? 409 : 500,
           );
         }
       });

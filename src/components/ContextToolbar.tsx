@@ -52,6 +52,8 @@ interface ContextToolbarProps {
     instruction: string;
     manifest: AnnotationManifest;
     composite: AnnotationComposite;
+    historical: boolean;
+    variationCount: number;
     route: ExecutionRoute;
   }) => void;
   onAnnotationDraftChange: (draft: AnnotationDraftContent) => void;
@@ -278,12 +280,14 @@ export function ContextToolbar({
           onCreateLocalEdit={onCreateLocalEdit}
           onCreateSimilar={() => onCreateSimilar({ route: executionRoute })}
           onRunAnnotationEdit={(input) => {
+            const historical = Boolean(historicalAnnotationDraft);
             if (historicalAnnotationDraft) {
               setHistoricalAnnotationDraft(undefined);
             } else {
               flushAnnotationDraft();
             }
-            onRunAnnotationEdit({ ...input, route: executionRoute });
+            onRunAnnotationEdit({ ...input, historical, route: executionRoute });
+            setActiveTool(null);
           }}
           onQuickEditInstructionChange={setQuickEditInstruction}
           onRunQuickEdit={() => onRunQuickEdit({ instruction: quickEditInstruction, route: executionRoute })}
@@ -345,6 +349,7 @@ function ImageToolPopover({
     instruction: string;
     manifest: AnnotationManifest;
     composite: AnnotationComposite;
+    variationCount: number;
   }) => void;
   onQuickEditInstructionChange: (instruction: string) => void;
   onRunQuickEdit: () => void;

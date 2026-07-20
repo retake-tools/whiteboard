@@ -185,6 +185,8 @@ export function createFlowNodes(
       groupScopeSelected: selectionScopeBlockIds.has(block.blockId) && !selectedBlockIds.has(block.blockId),
       executionChangeCount: groupExecutionMetadata?.changeCount,
       executionChangeKinds: groupExecutionMetadata?.changeKinds,
+      executionAdapter: sourceExecution?.adapter,
+      executionTriggerMode: sourceExecution?.triggerMode,
       executionVersion: groupExecutionMetadata?.version,
       executionStatus: groupExecutionMetadata?.status,
       operationInputEdgeId: inputMetadataByBlockId.get(block.blockId)?.edgeId,

@@ -187,7 +187,10 @@ export function createExecutionResultGroup(
   const existing = snapshot.blocks.find(
     (block) => block.type === 'group' && block.data.groupExecutionId === input.executionId,
   );
-  if (existing) return existing;
+  if (existing) {
+    fitGroupToChildren(snapshot, existing.blockId);
+    return existing;
+  }
 
   for (const block of input.resultBlocks) block.parentGroupId = input.operationBlock.parentGroupId;
 
@@ -309,11 +312,19 @@ export function fitGroupToChildren(snapshot: BoardSnapshot, groupId: string): Bl
   const children = directGroupChildren(snapshot, groupId);
   if (children.length === 0) return group;
   const bounds = boundsForBlocks(children);
-  group.position = { x: bounds.minX - groupPadding.left, y: bounds.minY - groupPadding.top };
-  group.size = {
+  const nextPosition = { x: bounds.minX - groupPadding.left, y: bounds.minY - groupPadding.top };
+  const nextSize = {
     width: Math.max(minimumGroupSize.width, bounds.maxX - bounds.minX + groupPadding.left + groupPadding.right),
     height: Math.max(minimumGroupSize.height, bounds.maxY - bounds.minY + groupPadding.top + groupPadding.bottom),
   };
+  if (
+    group.position.x === nextPosition.x &&
+    group.position.y === nextPosition.y &&
+    group.size.width === nextSize.width &&
+    group.size.height === nextSize.height
+  ) return group;
+  group.position = nextPosition;
+  group.size = nextSize;
   group.updatedAt = nowIso();
   if (group.parentGroupId) expandGroupToContain(snapshot, group.parentGroupId);
   return group;

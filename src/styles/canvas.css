@@ -7,6 +7,14 @@
   background: #f7f8fa;
 }
 
+/* Chromium can briefly paint its fallback cursor while a pointer crosses the
+   many nested elements inside editable nodes. Keep one neutral cursor during
+   continuous motion, then restore each zone's semantic cursor after it idles. */
+.canvas-area[data-pointer-moving='true'] .react-flow__node:not(.dragging),
+.canvas-area[data-pointer-moving='true'] .react-flow__node:not(.dragging) * {
+  cursor: default !important;
+}
+
 .react-flow__attribution {
   display: none;
 }

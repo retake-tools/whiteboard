@@ -17,7 +17,7 @@
     "mcp:import-smoke": "RETAKE_WORKSPACE_DIR=.retake-test tsx server/mcp-import-smoke-test.ts",
     "mcp:multi-result": "RETAKE_WORKSPACE_DIR=.retake-test tsx server/mcp-multi-result-smoke-test.ts",
     "mcp:smoke": "RETAKE_WORKSPACE_DIR=.retake-test tsx server/mcp-smoke-test.ts",
-    "mcp:test": "npm run sizing:test && npm run grouping:test && npm run group-ui:test && npm run popover:test && npm run hydration:test && npm run result-branch:test && npm run profiles:test && npm run roles:test && npm run local-image:test && npm run annotation:test && npm run cancellation:test && npm run mcp:binding-guard && npm run mcp:execution-status && npm run mcp:smoke && npm run mcp:import-smoke && npm run mcp:multi-result && npm run mcp:existing-execution",
+    "mcp:test": "npm run sizing:test && npm run grouping:test && npm run group-ui:test && npm run popover:test && npm run hydration:test && npm run snapshot-safety:test && npm run result-branch:test && npm run profiles:test && npm run roles:test && npm run local-image:test && npm run annotation:test && npm run cancellation:test && npm run mcp:binding-guard && npm run mcp:execution-status && npm run mcp:smoke && npm run mcp:import-smoke && npm run mcp:multi-result && npm run mcp:existing-execution",
     "hydration:test": "tsx server/board-hydration-contract-test.ts",
     "annotation:test": "tsx server/image-annotation-contract-test.ts",
     "local-image:test": "tsx server/local-image-adjustment-contract-test.ts",
@@ -31,6 +31,7 @@
     "grouping:test": "tsx server/grouping-contract-test.ts",
     "group-ui:test": "tsx server/group-inspector-render-test.tsx",
     "roles:test": "tsx server/input-role-contract-test.ts",
+    "snapshot-safety:test": "RETAKE_WORKSPACE_DIR=.retake-test tsx server/snapshot-persistence-safety-test.ts",
     "sizing:test": "tsx server/block-sizing-contract-test.ts",
     "skill:validate": "python3 /Users/wingoo/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/retake-whiteboard-codex",
     "typecheck": "tsc --noEmit"

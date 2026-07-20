@@ -1,9 +1,10 @@
 import { Handle, NodeResizer, Position, type NodeProps, type ResizeParams } from '@xyflow/react';
-import { Check, ChevronDown, Clock, FileText, ImageIcon, Info, Layers3, LockKeyhole, Play, Plus, RefreshCw, Video } from 'lucide-react';
+import { Check, ChevronDown, Clock, FileText, ImageIcon, Info, Layers3, LockKeyhole, MessageSquareText, Play, Plus, RefreshCw, Video } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { isLocalCanvasCapability, schemaForCapability } from '../core/capabilities';
 import type { SwitchableOperationMode } from '../core/imageOperations';
 import { operationDisplayState } from '../core/operationDisplay';
+import { managedResultStatusMessageKey } from '../core/resultStatus';
 import type { BlockData, BlockType, ExecutionConfigurationChangeKind, ExecutionInputRole, RetakeNode } from '../core/types';
 import { useI18n } from '../i18n';
 import { TooltipIconButton } from '../components/Tooltip';
@@ -120,6 +121,12 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
           <span className="block-heading-status operation-dirty-status">
             {data.operationChangeCount} {t('operationStatus.changes')}
           </span>
+        ) : null}
+        {blockType === 'operation' && data.capabilityId === 'image.annotation_edit' && typeof data.sourceExecutionId === 'string' ? (
+          <AnnotationEditorButton
+            executionId={data.sourceExecutionId}
+            label={t('inspector.restoreAnnotationDraft')}
+          />
         ) : null}
         {blockType === 'operation' && hasExecutionDetails(data as BlockData) ? (
           <ExecutionInfoButton
@@ -424,7 +431,7 @@ function BlockBody({
                 <span>{t(`status.${status}`)}</span>
               </div>
             ) : null}
-            <p>{data.body || t('block.image.body')}</p>
+            <p>{managedResultDescription(data, t)}</p>
             {data.resultRetryMode === 'codex_prompt' ? (
               <button
                 type="button"
@@ -530,6 +537,12 @@ function ResultBatchBadge({ data }: { data: BlockData }): ReactElement | null {
   const count = typeof data.resultCount === 'number' ? data.resultCount : undefined;
   if (index === undefined || count === undefined || count <= 1) return null;
   return <span className="image-result-batch-badge">{index + 1} / {count}</span>;
+}
+
+function managedResultDescription(data: BlockData, t: ReturnType<typeof useI18n>['t']): string {
+  const statusMessageKey = managedResultStatusMessageKey(data);
+  if (statusMessageKey) return t(statusMessageKey);
+  return data.body || t('block.image.body');
 }
 
 function TextBlockBody({
@@ -649,6 +662,22 @@ function ExecutionInfoButton({
       }}
     >
       <Info size={15} />
+    </TooltipIconButton>
+  );
+}
+
+function AnnotationEditorButton({ executionId, label }: { executionId: string; label: string }): ReactElement {
+  return (
+    <TooltipIconButton
+      className="block-heading-info-button nodrag nopan"
+      label={label}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        window.dispatchEvent(new CustomEvent('retake:open-annotation-editor', { detail: { executionId } }));
+      }}
+    >
+      <MessageSquareText size={15} />
     </TooltipIconButton>
   );
 }

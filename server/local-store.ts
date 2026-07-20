@@ -19,6 +19,7 @@ export {
   getBoardSnapshot,
   resetWorkspace,
   saveSnapshot,
+  SnapshotWriteConflictError,
 } from './local-store/snapshot-store';
 export {
   createBoard,

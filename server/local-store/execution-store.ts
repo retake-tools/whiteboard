@@ -148,7 +148,7 @@ export async function updateImageResultBlock(input: {
   const now = new Date().toISOString();
   block.data = {
     ...block.data,
-    title: input.title ?? block.data.title,
+    title: input.title?.trim() || block.data.title,
     body: input.body ?? block.data.body,
     assetId: asset.assetId,
     previewUrl: asset.previewUrl,
