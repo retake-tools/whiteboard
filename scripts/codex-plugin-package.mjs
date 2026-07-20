@@ -15,6 +15,13 @@ const packagedEntries = [
 ];
 
 export async function prepareCodexPluginPackage({ repositoryRoot, pluginRoot }) {
+  if (path.resolve(repositoryRoot) === path.resolve(pluginRoot)) {
+    throw new Error(
+      `The Retake repository checkout cannot also be the managed plugin package at ${pluginRoot}. ` +
+        'Keep the checkout elsewhere, such as ~/src/retake-whiteboard.',
+    );
+  }
+
   await removeExistingManagedPackage({ repositoryRoot, pluginRoot });
   await mkdir(pluginRoot, { recursive: true });
 

@@ -8,8 +8,13 @@ import { pluginSourceMarker, prepareCodexPluginPackage } from './codex-plugin-pa
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'retake-codex-plugin-'));
 const pluginRoot = path.join(temporaryRoot, 'retake-whiteboard');
+const collisionRoot = path.join(temporaryRoot, 'checkout-collision');
 
 try {
+  await assert.rejects(
+    prepareCodexPluginPackage({ repositoryRoot: collisionRoot, pluginRoot: collisionRoot }),
+    /repository checkout cannot also be the managed plugin package/,
+  );
   await prepareCodexPluginPackage({ repositoryRoot, pluginRoot });
   await prepareCodexPluginPackage({ repositoryRoot, pluginRoot });
 
@@ -29,7 +34,13 @@ try {
   assert.equal(marker.repositoryRoot, repositoryRoot);
   assert.equal(marker.managedBy, '@retake-tools/whiteboard');
 
-  console.log({ entries, excludesWorkspaceData: true, managedReinstall: true, repositoryRoot });
+  console.log({
+    checkoutCollisionRejected: true,
+    entries,
+    excludesWorkspaceData: true,
+    managedReinstall: true,
+    repositoryRoot,
+  });
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });
 }

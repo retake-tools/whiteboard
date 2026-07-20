@@ -36,7 +36,7 @@ Retake 插件负责读取 Operation、组织执行上下文和写回结果，不
 ```text
 请从 https://github.com/retake-tools/whiteboard.git 安装 Retake Whiteboard Codex 插件。
 
-请 clone 仓库到 ~/plugins/retake-whiteboard，运行 npm install，
+请 clone 仓库到 ~/src/retake-whiteboard，运行 npm install，
 再运行 npm run mcp:test 和 npm run codex:install。
 
 安装完成后请校验插件、Skill 和 MCP 工具，并告诉我是否需要开启一个新的 Codex 任务。
@@ -49,9 +49,9 @@ Retake 插件负责读取 Operation、组织执行上下文和写回结果，不
 ### 手动安装
 
 ```bash
-mkdir -p ~/plugins
-git clone https://github.com/retake-tools/whiteboard.git ~/plugins/retake-whiteboard
-cd ~/plugins/retake-whiteboard
+mkdir -p ~/src
+git clone https://github.com/retake-tools/whiteboard.git ~/src/retake-whiteboard
+cd ~/src/retake-whiteboard
 npm install
 npm run mcp:test
 npm run codex:install
@@ -60,6 +60,8 @@ npm run codex:install
 安装脚本会把此 checkout 注册到默认的 personal Codex marketplace，并制作一个最小插件包。
 该插件包只包含 manifest、MCP 配置、Skill、启动桥接脚本、README 和许可证；不会把
 `.retake/` 白板数据、依赖、构建产物、内部调研或测试产物复制到 Codex 插件缓存。
+
+仓库 checkout 不要放在 `~/plugins/retake-whiteboard`；该路径保留给安装器管理的最小插件源包。
 
 MCP bridge 仍从此 checkout 执行，因此安装后需要保留仓库和 `node_modules`。安装完成后，
 请新建一个 Codex 任务，以加载新的 Skill 和 MCP 工具。

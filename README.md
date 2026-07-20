@@ -40,7 +40,7 @@ Send the following prompt to Codex:
 Install the Retake Whiteboard Codex plugin from
 https://github.com/retake-tools/whiteboard.git.
 
-Clone the repository into ~/plugins/retake-whiteboard, run npm install,
+Clone the repository into ~/src/retake-whiteboard, run npm install,
 then run npm run mcp:test and npm run codex:install.
 
 After installation, validate the plugin, Skill, and MCP tools, and tell me
@@ -55,9 +55,9 @@ writeback depends on MCP.
 ### Manual installation
 
 ```bash
-mkdir -p ~/plugins
-git clone https://github.com/retake-tools/whiteboard.git ~/plugins/retake-whiteboard
-cd ~/plugins/retake-whiteboard
+mkdir -p ~/src
+git clone https://github.com/retake-tools/whiteboard.git ~/src/retake-whiteboard
+cd ~/src/retake-whiteboard
 npm install
 npm run mcp:test
 npm run codex:install
@@ -68,6 +68,9 @@ marketplace and stages a minimal plugin package. The package contains only the
 manifest, MCP configuration, Skill, startup bridge, READMEs, and license. It
 does not copy `.retake/` board data, dependencies, build output, internal
 research, or test artifacts into the Codex plugin cache.
+
+Keep the repository checkout outside `~/plugins/retake-whiteboard`. That path
+is reserved for the installer-managed minimal plugin source package.
 
 The MCP bridge continues to execute from this checkout, so keep the repository
 and `node_modules` in place. Start a new Codex task after installation to load
