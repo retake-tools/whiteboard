@@ -18,32 +18,6 @@ Retake Whiteboard 是面向 Retake 视频创作工作流的无限画布。当前
 
 视频生成、在线协作、Direct Provider API 和动态插件发现目前还不是完整的产品流程。
 
-## 如何使用
-
-Retake 会把提示词、原图、Operation 和生成结果保留在同一张无限画布上。在网页中搭好
-工作流，从 Operation Block 生成 Codex Prompt，再由 Retake 插件把完成的图片写回预先
-准备好的结果 Block。
-
-### 文生图
-
-将 Text Block 连接到文生图 Operation，选择画幅比例和结果数量，再交给 Codex 执行。
-
-![文生图工作流生成真实感海景客厅](./assets/readme/text-to-image.jpg)
-
-### 图生图
-
-把原始 Image Block 和修改提示词连接到 Operation，在保留原始构图的同时修改指定的
-视觉属性。
-
-![图生图工作流把海景客厅从黄昏改为蓝调夜景](./assets/readme/image-to-image.jpg)
-
-### 标注编辑
-
-直接在原图上绘制编号标记、箭头、自由画笔、区域笔刷、矩形或椭圆。每个标记都可以
-填写独立修改说明，也可以在执行前补充一条全局说明。
-
-![带矩形、箭头、区域笔刷和逐项说明的标注编辑器](./assets/readme/annotation-edit.jpg)
-
 ## 环境要求
 
 - Node.js 20.19 或更高版本（使用 Node.js 22 时需 22.12 或更高版本）；
@@ -112,6 +86,32 @@ npm run dev
 
 MCP bridge 仍从此 checkout 执行。安装 Plugin 后请新建一个 Codex 任务，以加载新的 Skill
 和 MCP 工具。
+
+## 如何使用
+
+Retake 会把提示词、原图、Operation 和生成结果保留在同一张无限画布上。在网页中搭好
+工作流，从 Operation Block 生成 Codex Prompt，再由 Retake 插件把完成的图片写回预先
+准备好的结果 Block。
+
+### 文生图
+
+将 Text Block 连接到文生图 Operation，选择画幅比例和结果数量，再交给 Codex 执行。
+
+![文生图工作流生成真实感海景客厅](./assets/readme/text-to-image.jpg)
+
+### 图生图
+
+把原始 Image Block 和修改提示词连接到 Operation，在保留原始构图的同时修改指定的
+视觉属性。
+
+![图生图工作流把海景客厅从黄昏改为蓝调夜景](./assets/readme/image-to-image.jpg)
+
+### 标注编辑
+
+直接在原图上绘制编号标记、箭头、自由画笔、区域笔刷、矩形或椭圆。每个标记都可以
+填写独立修改说明，也可以在执行前补充一条全局说明。
+
+![带矩形、箭头、区域笔刷和逐项说明的标注编辑器](./assets/readme/annotation-edit.jpg)
 
 ## 本地开发
 

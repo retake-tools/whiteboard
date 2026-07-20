@@ -20,35 +20,6 @@ The image-stage MVP includes:
 Video generation, hosted collaboration, direct provider APIs, and dynamic
 plugin discovery are not complete product flows yet.
 
-## How to Use It
-
-Retake keeps prompts, source images, Operations, and generated results visible
-on one canvas. Create a workflow in the web app, generate the Codex Prompt from
-the Operation Block, and let the Retake plugin write the finished image back to
-the prepared result Block.
-
-### Text to image
-
-Connect a Text Block to a text-to-image Operation, choose the aspect ratio and
-result count, then run it through Codex.
-
-![Text-to-image workflow generating a photorealistic oceanfront living room](./assets/readme/text-to-image.jpg)
-
-### Image to image
-
-Connect a source Image Block and an edit prompt to preserve the original
-composition while changing the requested visual attributes.
-
-![Image-to-image workflow changing an oceanfront room from golden hour to blue hour](./assets/readme/image-to-image.jpg)
-
-### Annotation edit
-
-Draw numbered markers, arrows, freehand strokes, region brushes, rectangles, or
-ellipses directly over the source image. Give each mark its own instruction and
-optionally add one global instruction before running the edit.
-
-![Annotation editor with a rectangle, arrow, region brush, and per-mark instructions](./assets/readme/annotation-edit.jpg)
-
 ## Requirements
 
 - Node.js 20.19 or later (22.12 or later when using Node.js 22);
@@ -129,6 +100,35 @@ is reserved for the installer-managed minimal plugin source package.
 
 The MCP bridge continues to execute from this checkout. Start a new Codex task
 after plugin installation to load the new Skill and MCP tools.
+
+## How to Use It
+
+Retake keeps prompts, source images, Operations, and generated results visible
+on one canvas. Create a workflow in the web app, generate the Codex Prompt from
+the Operation Block, and let the Retake plugin write the finished image back to
+the prepared result Block.
+
+### Text to image
+
+Connect a Text Block to a text-to-image Operation, choose the aspect ratio and
+result count, then run it through Codex.
+
+![Text-to-image workflow generating a photorealistic oceanfront living room](./assets/readme/text-to-image.jpg)
+
+### Image to image
+
+Connect a source Image Block and an edit prompt to preserve the original
+composition while changing the requested visual attributes.
+
+![Image-to-image workflow changing an oceanfront room from golden hour to blue hour](./assets/readme/image-to-image.jpg)
+
+### Annotation edit
+
+Draw numbered markers, arrows, freehand strokes, region brushes, rectangles, or
+ellipses directly over the source image. Give each mark its own instruction and
+optionally add one global instruction before running the edit.
+
+![Annotation editor with a rectangle, arrow, region brush, and per-mark instructions](./assets/readme/annotation-edit.jpg)
 
 ## Local Development
 
