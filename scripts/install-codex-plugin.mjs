@@ -1,16 +1,17 @@
 import { execFileSync } from 'node:child_process';
-import { lstat, mkdir, readFile, realpath, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { prepareCodexPluginPackage } from './codex-plugin-package.mjs';
 
 const pluginName = 'retake-whiteboard';
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const marketplaceRoot = path.join(homedir(), '.agents');
 const marketplacePath = path.join(marketplaceRoot, 'plugins', 'marketplace.json');
-const pluginLink = path.join(homedir(), 'plugins', pluginName);
+const pluginSourceRoot = path.join(homedir(), 'plugins', pluginName);
 
-await ensurePluginLink();
+await prepareCodexPluginPackage({ repositoryRoot, pluginRoot: pluginSourceRoot });
 const marketplaceName = await registerPersonalMarketplaceEntry();
 
 execFileSync('codex', ['plugin', 'add', `${pluginName}@${marketplaceName}`], {
@@ -19,26 +20,6 @@ execFileSync('codex', ['plugin', 'add', `${pluginName}@${marketplaceName}`], {
 });
 
 console.log(`Installed ${pluginName}@${marketplaceName}. Start a new Codex task to load its Skill and MCP tools.`);
-
-async function ensurePluginLink() {
-  await mkdir(path.dirname(pluginLink), { recursive: true });
-
-  try {
-    const stat = await lstat(pluginLink);
-    if (!stat.isSymbolicLink()) {
-      throw new Error(`Cannot register ${pluginName}: ${pluginLink} already exists and is not a symbolic link.`);
-    }
-    const existingTarget = await realpath(pluginLink);
-    if (existingTarget !== repositoryRoot) {
-      throw new Error(`Cannot register ${pluginName}: ${pluginLink} points to ${existingTarget}.`);
-    }
-    return;
-  } catch (error) {
-    if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') throw error;
-  }
-
-  await symlink(repositoryRoot, pluginLink, process.platform === 'win32' ? 'junction' : 'dir');
-}
 
 async function registerPersonalMarketplaceEntry() {
   await mkdir(path.dirname(marketplacePath), { recursive: true });

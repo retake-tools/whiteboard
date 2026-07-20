@@ -80,6 +80,12 @@ the bundled plugin:
 npm run codex:install
 ```
 
+The installer stages a minimal plugin package containing only the manifest,
+MCP configuration, Skill, startup bridge, README, and license. It does not copy
+`.retake/` board data, dependencies, build output, internal research, or test
+artifacts into the Codex plugin cache. The MCP bridge continues to execute from
+this checkout, so keep the checkout in place and run `npm install` before use.
+
 Start a new Codex task after installation so the bundled Skill and MCP tools are
 loaded. `Codex Managed` is the built-in generation profile and requires no model
 provider or API-key configuration. Direct API, ACP, and third-party model
@@ -95,6 +101,7 @@ workspace.
 npm run typecheck
 npm run build
 npm run mcp:test
+npm run plugin:package:test
 npm run skill:validate
 ```
 

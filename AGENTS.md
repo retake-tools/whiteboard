@@ -71,6 +71,11 @@ Use the existing project shape before introducing new patterns.
 - Do not directly edit `.retake/` snapshot files from agents; use local service
   functions or MCP tools.
 - Keep generated assets in the AssetStore flow before creating result blocks.
+- Keep the local Codex plugin package whitelist-based. Never point the installed
+  plugin source at the repository root: local installation copies that source
+  into the Codex cache and could otherwise include ignored `.retake/` user data,
+  dependencies, logs, or internal research. Run `npm run plugin:package:test`
+  after changing plugin packaging or installation scripts.
 
 ## Documentation
 
@@ -124,6 +129,7 @@ After code changes, run the narrowest meaningful checks:
 npm run typecheck
 npm run build
 npm run mcp:test
+npm run plugin:package:test
 ```
 
 `npm run mcp:test` must run sequentially because tests reset the same local

@@ -35,6 +35,7 @@ run the full gate:
 npm run typecheck
 npm run build
 npm run mcp:test
+npm run plugin:package:test
 git diff --check
 ```
 
