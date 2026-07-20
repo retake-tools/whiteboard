@@ -20,6 +20,7 @@ import {
 import { addImageCodexOperation, executeExistingImageOperationBlock } from '../src/core/imageOperations';
 import { schemaForCapability } from '../src/core/capabilities';
 import { generationParamsForSchema } from '../src/nodes/OperationInlineControls';
+import { createFlowNodes } from '../src/core/flowProjection';
 import {
   annotationDraftRestoreContext,
 } from '../src/core/restoreAnnotationDraft';
@@ -58,6 +59,7 @@ const annotationControllerSource = await readFile('src/app/useAnnotationControll
 const toolbarSource = await readFile('src/components/ContextToolbar.tsx', 'utf8');
 const canvasSource = await readFile('src/app/WhiteboardCanvas.tsx', 'utf8');
 const blockNodeSource = await readFile('src/nodes/BlockNode.tsx', 'utf8');
+const annotationOperationPreviewSource = await readFile('src/nodes/AnnotationOperationPreviewButton.tsx', 'utf8');
 const operationControlsSource = await readFile('src/nodes/OperationInlineControls.tsx', 'utf8');
 const executionDetailSource = await readFile('src/components/ExecutionDetailContent.tsx', 'utf8');
 const executionInspectorSource = await readFile('src/components/ExecutionInspector.tsx', 'utf8');
@@ -110,7 +112,8 @@ assert.match(executionInspectorSource, /onOpenAnnotationEditor\(context\.executi
 assert.match(toolbarSource, /setActiveTool\('annotation-edit'\)/);
 assert.match(annotationControllerSource, /setAnnotationEditorOpenRequest\(/);
 assert.match(canvasSource, /updateAnnotationDraft\(selectedBlock\.blockId, \{ schemaVersion: 1, globalInstruction: '', marks: \[\] \}\)/);
-assert.match(blockNodeSource, /retake:open-annotation-editor/);
+assert.match(blockNodeSource, /AnnotationOperationPreviewButton/);
+assert.match(annotationOperationPreviewSource, /retake:open-annotation-editor/);
 assert.match(operationControlsSource, /generationParamsForSchema\(nextParams, paramsSchema\)/);
 assert.doesNotMatch(annotationControllerSource, /window\.confirm\(t\('inspector\.annotationDraftRestoreConfirm'\)\)/);
 assert.match(toolbarSource, /historicalAnnotationDraft \?\? annotationDraftForBlock/);
@@ -331,6 +334,9 @@ assert.equal(operation.resultBlocks.length, 3);
 assert.equal(operation.execution.params?.generation && (operation.execution.params.generation as { variationCount?: number }).variationCount, 3);
 assert.equal(operation.resultBlock.data.body, 'Waiting for Codex to generate an image result.');
 assert.doesNotMatch(operation.resultBlock.data.body ?? '', /R1: red rectangle/);
+const annotationOperationNode = createFlowNodes(snapshot).find((node) => node.id === operation.operationBlock.blockId);
+assert.equal(annotationOperationNode?.data.annotatedCompositePreviewUrl, compositeAsset.previewUrl);
+assert.equal(annotationOperationNode?.data.annotationMarkCount, persistedManifest.marks.length);
 const operationResultGroup = snapshot.blocks.find(
   (block) => block.type === 'group' && block.data.groupExecutionId === operation.execution.executionId,
 );

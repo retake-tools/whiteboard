@@ -203,6 +203,7 @@ type TranslationKey =
   | 'inspector.annotatedComposite'
   | 'inspector.annotationGlobalInstruction'
   | 'inspector.annotationManifest'
+  | 'inspector.annotationPreview'
   | 'inspector.annotationManifestRaw'
   | 'inspector.annotationMarks'
   | 'inspector.annotationSourceChanged'
@@ -621,6 +622,7 @@ const translations: Record<Locale, Translations> = {
     'inspector.annotatedComposite': 'Annotated brief',
     'inspector.annotationGlobalInstruction': 'Global instruction',
     'inspector.annotationManifest': 'Annotation Manifest',
+    'inspector.annotationPreview': 'Annotated input',
     'inspector.annotationManifestRaw': 'View raw Manifest',
     'inspector.annotationMarks': 'Marks',
     'inspector.annotationSourceChanged': 'The source image has changed, so these coordinates cannot be restored safely.',
@@ -1034,6 +1036,7 @@ const translations: Record<Locale, Translations> = {
     'inspector.annotatedComposite': '标注输入',
     'inspector.annotationGlobalInstruction': '全局说明',
     'inspector.annotationManifest': '标注 Manifest',
+    'inspector.annotationPreview': '带标注的输入图',
     'inspector.annotationManifestRaw': '查看原始 Manifest',
     'inspector.annotationMarks': '标记',
     'inspector.annotationSourceChanged': '源图片已经变化，无法安全恢复这组坐标。',

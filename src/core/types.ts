@@ -237,6 +237,9 @@ export interface BlockData {
   body?: string;
   assetId?: string;
   annotationDraft?: AnnotationDraft;
+  annotatedCompositeAssetId?: string;
+  annotatedCompositePreviewUrl?: string;
+  annotationMarkCount?: number;
   previewUrl?: string;
   resultRetryMode?: 'codex_prompt' | 'direct_retry';
   status?: ExecutionStatus;

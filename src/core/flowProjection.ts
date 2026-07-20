@@ -205,6 +205,12 @@ export function createFlowNodes(
       operationReadinessIssues: operationReadiness?.issues,
       operationSourceAspectRatio:
         block.type === 'operation' ? sourceImageAspectRatio(readinessSnapshot, block.blockId) : undefined,
+      annotatedCompositePreviewUrl:
+        block.type === 'operation'
+          ? getAssetPreviewUrl(snapshot.assets, block.data.annotatedCompositeAssetId)
+          : undefined,
+      annotationMarkCount:
+        block.type === 'operation' ? annotationMarkCount(block.data.annotationManifest) : undefined,
       previewUrl: getAssetPreviewUrl(snapshot.assets, block.data.assetId),
       resultRetryMode:
         block.type === 'image' && block.data.status === 'failed' && !block.data.assetId
@@ -226,6 +232,12 @@ export function createFlowNodes(
     draggable: !contentLocked && !(block.type === 'group' && block.data.groupPositionLocked),
     });
   });
+}
+
+function annotationMarkCount(manifest: unknown): number | undefined {
+  if (!manifest || typeof manifest !== 'object' || !('marks' in manifest)) return undefined;
+  const marks = manifest.marks;
+  return Array.isArray(marks) ? marks.length : undefined;
 }
 
 export function createFlowEdges(

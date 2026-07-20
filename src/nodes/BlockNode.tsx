@@ -1,5 +1,5 @@
 import { Handle, NodeResizer, Position, type NodeProps, type ResizeParams } from '@xyflow/react';
-import { Check, ChevronDown, Clock, FileText, ImageIcon, Info, Layers3, LockKeyhole, MessageSquareText, Play, Plus, RefreshCw, Video } from 'lucide-react';
+import { Check, ChevronDown, Clock, FileText, ImageIcon, Info, Layers3, LockKeyhole, Play, Plus, RefreshCw, Video } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { isLocalCanvasCapability, schemaForCapability } from '../core/capabilities';
 import type { SwitchableOperationMode } from '../core/imageOperations';
@@ -10,6 +10,7 @@ import { useI18n } from '../i18n';
 import { TooltipIconButton } from '../components/Tooltip';
 import { InputRoleOptionList, inputRoleTitle } from '../components/InputRoleOptionList';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
+import { AnnotationOperationPreviewButton } from './AnnotationOperationPreviewButton';
 import { OperationInlineControls } from './OperationInlineControls';
 
 const iconByType = {
@@ -123,9 +124,12 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
           </span>
         ) : null}
         {blockType === 'operation' && data.capabilityId === 'image.annotation_edit' && typeof data.sourceExecutionId === 'string' ? (
-          <AnnotationEditorButton
+          <AnnotationOperationPreviewButton
             executionId={data.sourceExecutionId}
             label={t('inspector.restoreAnnotationDraft')}
+            markCount={data.annotationMarkCount}
+            previewLabel={t('inspector.annotationPreview')}
+            previewUrl={data.annotatedCompositePreviewUrl}
           />
         ) : null}
         {blockType === 'operation' && hasExecutionDetails(data as BlockData) ? (
@@ -662,22 +666,6 @@ function ExecutionInfoButton({
       }}
     >
       <Info size={15} />
-    </TooltipIconButton>
-  );
-}
-
-function AnnotationEditorButton({ executionId, label }: { executionId: string; label: string }): ReactElement {
-  return (
-    <TooltipIconButton
-      className="block-heading-info-button nodrag nopan"
-      label={label}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => {
-        event.stopPropagation();
-        window.dispatchEvent(new CustomEvent('retake:open-annotation-editor', { detail: { executionId } }));
-      }}
-    >
-      <MessageSquareText size={15} />
     </TooltipIconButton>
   );
 }

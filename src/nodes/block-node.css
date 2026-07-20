@@ -644,6 +644,44 @@
   color: #2563eb;
 }
 
+.annotation-operation-preview {
+  position: fixed;
+  top: var(--annotation-preview-top);
+  left: var(--annotation-preview-left);
+  z-index: 1100;
+  width: min(300px, calc(100vw - 24px));
+  overflow: hidden;
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 18px 48px rgb(15 23 42 / 20%);
+  cursor: default;
+  backdrop-filter: blur(12px);
+}
+
+.annotation-operation-preview img {
+  display: block;
+  width: 100%;
+  max-height: min(320px, 48vh);
+  object-fit: contain;
+  background: #f8fafc;
+}
+
+.annotation-operation-preview > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 11px;
+  color: #475569;
+  font-size: 11px;
+}
+
+.annotation-operation-preview strong {
+  color: #172033;
+  font-size: 12px;
+}
+
 .block-heading-info-button .icon-tooltip {
   right: 0;
   left: auto;
