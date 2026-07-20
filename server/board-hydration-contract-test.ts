@@ -16,7 +16,7 @@ assert.match(
 assert.match(
   boardSessionSource,
   /async function persistSnapshot[\s\S]*?if \(!initialSnapshotLoadedRef\.current\) return;/,
-  'viewport and canvas callbacks must not persist the fallback snapshot during hydration',
+  'canvas callbacks must not persist the fallback snapshot during hydration',
 );
 
 console.log({ fallbackPersistenceBlocked: true, hydrationGateInstalled: true });

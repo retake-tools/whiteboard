@@ -1,4 +1,4 @@
-import type { Edge, Node, Viewport } from '@xyflow/react';
+import type { Edge, Node } from '@xyflow/react';
 import type { AnnotationDraft } from './imageAnnotations';
 
 export type BlockType = 'text' | 'image' | 'video' | 'operation' | 'group';
@@ -312,7 +312,6 @@ export interface BoardSnapshot {
   executions: ExecutionRecord[];
   historyEvents?: BoardHistoryEvent[];
   groupMigrationVersion?: number;
-  viewport: Viewport;
 }
 
 export interface WorkspaceBoardSummary {

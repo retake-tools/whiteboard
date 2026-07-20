@@ -19,10 +19,12 @@ type LegacyEdgeRecord = Omit<BoardEdgeRecord, 'kind'> & { kind: LegacyConnection
 type LegacyBoardSnapshot = Omit<BoardSnapshot, 'blocks' | 'edges'> & {
   blocks: LegacyBlockRecord[];
   edges: LegacyEdgeRecord[];
+  viewport?: unknown;
 };
 
 export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
   const legacy = snapshot as LegacyBoardSnapshot;
+  const { viewport: _legacyViewport, ...snapshotWithoutLegacyViewport } = legacy;
   const removedBlockIds = new Set<string>();
   const migratedBlocks = legacy.blocks.flatMap((block): BlockRecord[] => {
     if (block.type === 'frame' || block.type === 'task') {
@@ -74,7 +76,7 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
   );
 
   const migratedSnapshot: BoardSnapshot = {
-    ...legacy,
+    ...snapshotWithoutLegacyViewport,
     blocks: repairedBlocks,
     edges: migratedEdges,
     executions: migratedExecutions,

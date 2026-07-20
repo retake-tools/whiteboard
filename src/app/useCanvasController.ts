@@ -13,6 +13,17 @@ import {
 } from '@xyflow/react';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { touchBoard } from '../core/blockFactory';
+import {
+  adaptViewportToBasis,
+  defaultBoardViewport,
+  loadBoardViewState,
+  maxBoardZoom,
+  minBoardZoom,
+  saveBoardViewState,
+  viewportBasisFromElement,
+  viewportShowsAnyBlock,
+  type ViewportBasis,
+} from '../core/boardViewStateStore';
 import { createFlowEdges, createFlowNodes } from '../core/flowProjection';
 import {
   blockLockedByGroup,
@@ -70,7 +81,8 @@ export function useCanvasController(options: CanvasControllerOptions) {
     updateSnapshot,
   } = options;
   const canvasAreaRef = useRef<HTMLElement | null>(null);
-  const currentViewportRef = useRef<Viewport>(snapshot.viewport);
+  const currentViewportRef = useRef<Viewport>(defaultBoardViewport);
+  const boardViewportRestoreTokenRef = useRef(0);
   const reactFlowRef = useRef<ReactFlowInstance<RetakeNode, RetakeEdge> | null>(null);
   const selectedBlockIdsRef = useRef<string[]>([]);
   const textBlockDraftsRef = useRef<Map<string, string>>(new Map());
@@ -111,12 +123,12 @@ export function useCanvasController(options: CanvasControllerOptions) {
 
   connectSessionPorts({
     onBoardLoaded: (loadedSnapshot) => {
-      restoreViewport(loadedSnapshot.viewport);
       setNodes(createFlowNodesForSelection(loadedSnapshot, []));
       setEdges(createFlowEdgesForSelection(loadedSnapshot, []));
       setSelectedBlockIds([]);
       setInspectorBlockId(undefined);
       setHistoryOpen(false);
+      restoreBoardViewport(loadedSnapshot);
     },
     onRemoteSnapshot: (remoteSnapshot) => {
       setNodes(createFlowNodesForSelection(remoteSnapshot));
@@ -412,8 +424,62 @@ export function useCanvasController(options: CanvasControllerOptions) {
     currentViewportRef.current = viewport;
     setCanvasZoom(viewport.zoom);
     const current = snapshotRef.current;
-    if (Math.abs(current.viewport.x - viewport.x) < 0.5 && Math.abs(current.viewport.y - viewport.y) < 0.5 && Math.abs(current.viewport.zoom - viewport.zoom) < 0.001) return;
-    updateSnapshot((next) => ({ ...next, viewport }), { persist: true });
+    const basis = viewportBasisFromElement(canvasAreaRef.current);
+    const saved = loadBoardViewState(current.project.projectId, current.board.boardId);
+    if (
+      saved &&
+      Math.abs(saved.viewport.x - viewport.x) < 0.5 &&
+      Math.abs(saved.viewport.y - viewport.y) < 0.5 &&
+      Math.abs(saved.viewport.zoom - viewport.zoom) < 0.001 &&
+      Math.abs(saved.viewportBasis.canvasWidth - basis.canvasWidth) < 0.5 &&
+      Math.abs(saved.viewportBasis.canvasHeight - basis.canvasHeight) < 0.5
+    ) return;
+    saveViewportForBoard(current, viewport, basis);
+  }
+
+  function restoreBoardViewport(loadedSnapshot: BoardSnapshot): void {
+    const restoreToken = ++boardViewportRestoreTokenRef.current;
+    const basis = viewportBasisFromElement(canvasAreaRef.current);
+    const saved = loadBoardViewState(loadedSnapshot.project.projectId, loadedSnapshot.board.boardId);
+    if (saved) {
+      const adapted = adaptViewportToBasis(saved.viewport, saved.viewportBasis, basis, minBoardZoom, maxBoardZoom);
+      if (viewportShowsAnyBlock(adapted, basis, loadedSnapshot.blocks)) {
+        restoreViewport(adapted);
+        return;
+      }
+    }
+
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      if (restoreToken !== boardViewportRestoreTokenRef.current) return;
+      const reactFlow = reactFlowRef.current;
+      if (!reactFlow) return;
+      const nextBasis = viewportBasisFromElement(canvasAreaRef.current);
+      if (loadedSnapshot.blocks.length === 0) {
+        const emptyViewport = { x: nextBasis.canvasWidth / 2, y: nextBasis.canvasHeight / 2, zoom: 1 };
+        void reactFlow.setViewport(emptyViewport, { duration: 0 }).then(() => {
+          if (restoreToken === boardViewportRestoreTokenRef.current) saveViewportForBoard(loadedSnapshot, emptyViewport, nextBasis);
+        });
+        return;
+      }
+      void reactFlow.fitView({ duration: 0, padding: 0.18 }).then(() => {
+        if (restoreToken !== boardViewportRestoreTokenRef.current) return;
+        const fittedViewport = reactFlow.getViewport();
+        currentViewportRef.current = fittedViewport;
+        setCanvasZoom(fittedViewport.zoom);
+        saveViewportForBoard(loadedSnapshot, fittedViewport, nextBasis);
+      });
+    }));
+  }
+
+  function saveViewportForBoard(current: BoardSnapshot, viewport: Viewport, basis: ViewportBasis): void {
+    saveBoardViewState({
+      schemaVersion: 1,
+      projectId: current.project.projectId,
+      boardId: current.board.boardId,
+      viewport,
+      viewportBasis: basis,
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   useEffect(() => {

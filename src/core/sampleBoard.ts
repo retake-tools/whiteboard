@@ -76,5 +76,4 @@ export const defaultSnapshot: BoardSnapshot = {
   assets: [],
   executions: [],
   historyEvents: [],
-  viewport: { x: 550, y: 280, zoom: 0.9 },
 };

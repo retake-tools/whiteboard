@@ -116,7 +116,6 @@ function snapshot(blocks: BlockRecord[]): BoardSnapshot {
     assets: [],
     executions: [],
     historyEvents: [],
-    viewport: { x: 0, y: 0, zoom: 1 },
   };
 }
 

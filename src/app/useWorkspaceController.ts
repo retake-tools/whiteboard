@@ -13,6 +13,7 @@ import {
   reorderWorkspaceProjects,
 } from '../core/boardStore';
 import { touchBoard } from '../core/blockFactory';
+import { removeBoardViewState, removeProjectBoardViewStates } from '../core/boardViewStateStore';
 import { numberedDefaultName } from '../core/listUtils';
 import type { BoardSnapshot, WorkspaceSummary } from '../core/types';
 import type { ProjectBoardDialogState } from '../components/projectBoardTypes';
@@ -149,6 +150,7 @@ export function useWorkspaceController({
     }
     if (dialog.action === 'deleteBoard') {
       const result = await deleteWorkspaceBoard(dialog.projectId, dialog.boardId);
+      removeBoardViewState(dialog.projectId, dialog.boardId);
       setWorkspace(result.workspace);
       if (dialog.projectId === snapshotRef.current.project.projectId && dialog.boardId === snapshotRef.current.board.boardId) {
         applyLoadedSnapshot(result.snapshot);
@@ -156,6 +158,7 @@ export function useWorkspaceController({
       return;
     }
     const result = await deleteWorkspaceProject(dialog.projectId);
+    removeProjectBoardViewStates(dialog.projectId);
     setWorkspace(result.workspace);
     if (dialog.projectId === snapshotRef.current.project.projectId) applyLoadedSnapshot(result.snapshot);
   }

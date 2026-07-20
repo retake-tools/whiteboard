@@ -146,7 +146,6 @@ export function createBlankSnapshot(input: {
     assets: [],
     executions: [],
     historyEvents: [],
-    viewport: structuredClone(defaultSnapshot.viewport),
   };
 }
 

@@ -7,6 +7,7 @@ import { ExecutionOutputEdge } from '../components/ExecutionOutputEdge';
 import { GroupDrawOverlay } from '../components/GroupDrawOverlay';
 import { GroupToolbar } from '../components/GroupToolbar';
 import { createImageAssetFromDataUrl } from '../core/assetStore';
+import { maxBoardZoom, minBoardZoom } from '../core/boardViewStateStore';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
 import type { useI18n } from '../i18n';
 import { BlockNode } from '../nodes/BlockNode';
@@ -17,8 +18,6 @@ import type { useCanvasController } from './useCanvasController';
 import type { useGroupController } from './useGroupController';
 import type { useImageOperationController } from './useImageOperationController';
 
-const minCanvasZoom = 0.05;
-const maxCanvasZoom = 5;
 const nodeTypes = { text: BlockNode, image: BlockNode, video: BlockNode, operation: BlockNode, group: BlockNode } satisfies NodeTypes;
 const edgeTypes = { executionOutput: ExecutionOutputEdge } satisfies EdgeTypes;
 
@@ -126,9 +125,9 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
         }}
         onMoveEnd={(_event, viewport) => canvas.persistViewport(viewport)}
         onSelectionChange={canvas.onSelectionChange}
-        defaultViewport={snapshot.viewport}
-        minZoom={minCanvasZoom}
-        maxZoom={maxCanvasZoom}
+        defaultViewport={canvas.currentViewportRef.current}
+        minZoom={minBoardZoom}
+        maxZoom={maxBoardZoom}
         zoomOnDoubleClick={false}
         deleteKeyCode={null}
         nodesDraggable={canvas.activeCanvasTool === 'select'}
