@@ -34,7 +34,7 @@
     "roles:test": "tsx server/input-role-contract-test.ts",
     "snapshot-safety:test": "RETAKE_WORKSPACE_DIR=.retake-test tsx server/snapshot-persistence-safety-test.ts",
     "sizing:test": "tsx server/block-sizing-contract-test.ts",
-    "skill:validate": "python3 /Users/wingoo/.codex/skills/.system/skill-creator/scripts/quick_validate.py skills/retake-whiteboard-codex",
+    "skill:validate": "node scripts/validate-codex-skill.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

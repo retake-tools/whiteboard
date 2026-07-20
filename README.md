@@ -4,6 +4,20 @@ Retake Whiteboard is an infinite-canvas workspace for Retake video creation
 workflows. The current MVP focuses on the image stage of that workflow: image
 blocks, annotation-driven image edits, and Codex/MCP writeback.
 
+## Current Scope
+
+The image-stage MVP includes:
+
+- text-to-image and image-to-image operation flows;
+- annotation-driven edits with visual marks and per-mark instructions;
+- one to four pre-created result blocks with progressive writeback;
+- Project, Board, Asset, Execution, Group, and lightweight History records;
+- Codex/MCP execution through the same data model intended for future direct
+  API adapters.
+
+Video generation, hosted collaboration, direct provider APIs, and dynamic
+plugin discovery are not complete product flows yet.
+
 ## Local Development
 
 Install dependencies and start the web app:
@@ -14,6 +28,10 @@ npm run dev
 ```
 
 The development server starts at `http://127.0.0.1:18770` by default.
+
+Board content is stored locally under `.retake/`, which is ignored by Git. Do
+not edit snapshot JSON files directly; use the whiteboard UI, local service, or
+MCP tools so Asset and Execution lineage stays consistent.
 
 ## Local Preview Port
 
@@ -79,3 +97,25 @@ npm run build
 npm run mcp:test
 npm run skill:validate
 ```
+
+`npm run mcp:test` runs sequentially because the contract tests share and reset
+the ignored `.retake-test/` workspace. UI changes should also be checked in a
+clearly named disposable Project and Board rather than an existing user board.
+
+## Architecture Boundaries
+
+- `Block` owns visible canvas state and placement.
+- `AssetRecord` owns asset metadata and storage references.
+- `ExecutionRecord` owns one capability run, including route, status, inputs,
+  outputs, provider/model metadata, and errors.
+- `Plugin` defines capabilities; an `Adapter` executes them; a `Skill` defines
+  compatible creative or process behavior.
+- The canvas coordinates workflows but does not own provider-specific logic.
+
+Codex is one execution route, not the Retake backend. MCP writeback and future
+direct API execution must converge on the same Asset and Execution records.
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for repository boundaries, verification,
+and safe UI testing guidance.
