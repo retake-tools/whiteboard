@@ -64,6 +64,7 @@ import {
   type AnnotationTool,
 } from './ImageAnnotationControls';
 import { TooltipIconButton } from './Tooltip';
+import type { ExecutionConnectionSummary } from '../core/executionProviders';
 
 export type { AnnotationComposite } from './imageAnnotationComposite';
 
@@ -73,6 +74,8 @@ export type { AnnotationComposite } from './imageAnnotationComposite';
 // modules so those responsibilities no longer grow in this file.
 
 interface ImageAnnotationEditorProps {
+  connectionOptions: ExecutionConnectionSummary[];
+  defaultConnectionId?: string;
   imageUrl?: string;
   initialDraft?: AnnotationDraft;
   instruction: string;
@@ -82,6 +85,7 @@ interface ImageAnnotationEditorProps {
   onInstructionChange: (instruction: string) => void;
   onDraftChange: (draft: AnnotationDraftContent) => void;
   onRun: (input: {
+    connectionId: string;
     instruction: string;
     manifest: AnnotationManifest;
     composite: AnnotationComposite;
@@ -105,6 +109,8 @@ const defaultMarkColor: MarkColor = annotationColorOptions[0].value;
 const supportedMarkKinds = new Set<AnnotationMarkKind>(['marker', 'arrow', 'pen', 'brush', 'rect', 'ellipse']);
 
 export function ImageAnnotationEditor({
+  connectionOptions,
+  defaultConnectionId,
   imageUrl,
   initialDraft,
   instruction,
@@ -133,6 +139,10 @@ export function ImageAnnotationEditor({
   const [viewPan, setViewPan] = useState<Point>({ x: 0, y: 0 });
   const [viewZoom, setViewZoom] = useState(1);
   const [variationCount, setVariationCount] = useState(1);
+  const connectionSelectionKey = connectionOptions.map((connection) => connection.connectionId).join('|');
+  const [connectionId, setConnectionId] = useState(
+    () => defaultConnectionId ?? connectionOptions[0]?.connectionId ?? '',
+  );
   const historyRef = useRef<{ past: AnnotationMark[][]; future: AnnotationMark[][] }>({
     past: [],
     future: [],
@@ -152,11 +162,16 @@ export function ImageAnnotationEditor({
     setViewPan({ x: 0, y: 0 });
     setViewZoom(1);
     setVariationCount(1);
+    setConnectionId((current) =>
+      connectionOptions.some((connection) => connection.connectionId === current)
+        ? current
+        : defaultConnectionId ?? connectionOptions[0]?.connectionId ?? '',
+    );
     gestureDirtyRef.current = false;
     suppressNextIdleDraftPublishRef.current = false;
     historyRef.current = { past: [], future: [] };
     setHistoryRevision((revision) => revision + 1);
-  }, [imageUrl]);
+  }, [imageUrl, defaultConnectionId, connectionSelectionKey]);
 
   useLayoutEffect(() => {
     if (dragTarget) return;
@@ -262,7 +277,7 @@ export function ImageAnnotationEditor({
   const compiledInstruction = useMemo(() => compileAnnotationInstruction(manifest), [manifest]);
   const missingIntentIds = useMemo(() => annotationMarksMissingIntent(manifest), [manifest]);
   const canRun = Boolean(
-    imageUrl && hasExecutableAnnotationIntent(manifest) && missingIntentIds.length === 0,
+    imageUrl && connectionId && hasExecutableAnnotationIntent(manifest) && missingIntentIds.length === 0,
   );
   const baseMetrics = metrics;
   const renderMetrics = baseMetrics ? transformImageDisplayMetrics(baseMetrics, viewZoom, viewPan) : null;
@@ -629,7 +644,7 @@ export function ImageAnnotationEditor({
     if (!imageUrl) return;
     const manifestSnapshot = annotationManifestFromDraft(manifest);
     const composite = await createAnnotatedComposite(imageUrl, marks);
-    onRun({ instruction: compiledInstruction, manifest: manifestSnapshot, composite, variationCount });
+    onRun({ connectionId, instruction: compiledInstruction, manifest: manifestSnapshot, composite, variationCount });
   }
 
   return (
@@ -791,6 +806,16 @@ export function ImageAnnotationEditor({
       </div>
 
       <div className="annotation-run-controls">
+        <label className="annotation-connection-select">
+          <span>{t('operationToolbar.generator')}</span>
+          <select value={connectionId} onChange={(event) => setConnectionId(event.currentTarget.value)}>
+            {connectionOptions.map((connection) => (
+              <option key={connection.connectionId} value={connection.connectionId}>
+                {connection.displayName}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="annotation-result-count" aria-label={t('operationToolbar.count')}>
           <span>{t('operationToolbar.count')}</span>
           {[1, 2, 3, 4].map((count) => (

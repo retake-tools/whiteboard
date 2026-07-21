@@ -454,10 +454,20 @@ const annotationManifestMarkup = renderToStaticMarkup(
           }],
         },
         currentDraftChanges: [],
-        execution: historySnapshot.executions[0],
+        execution: {
+          ...historySnapshot.executions[0],
+          adapter: 'codex_app_server',
+          model: 'gpt-5.6-sol',
+        },
         executionChanges: [],
         inputImages: [],
         outputAssets: [],
+        prompt: 'User-facing annotation instruction',
+        requestPrompts: [{
+          index: 0,
+          outputBlockId: 'annotation_result',
+          prompt: '$imagegen Edit attachment 1 using the annotated composite.',
+        }],
         sourceAssets: [],
       }}
       copyKey="annotation-manifest-render"
@@ -470,6 +480,10 @@ const annotationManifestMarkup = renderToStaticMarkup(
 assert.match(annotationManifestMarkup, /Annotation Manifest/);
 assert.match(annotationManifestMarkup, /M1 · Numbered marker/);
 assert.match(annotationManifestMarkup, /Open in annotation editor/);
+assert.match(annotationManifestMarkup, /User-facing annotation instruction/);
+assert.match(annotationManifestMarkup, /Actual request prompt/);
+assert.match(annotationManifestMarkup, /\$imagegen Edit attachment 1 using the annotated composite/);
+assert.match(annotationManifestMarkup, /Codex App Server · gpt-5.6-sol/);
 
 const replaceableImageBlock: BlockRecord = {
   ...group,

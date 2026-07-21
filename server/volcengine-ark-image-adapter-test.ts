@@ -123,6 +123,8 @@ const completed = await loadSnapshot(snapshot.project.projectId, snapshot.board.
 const completedExecution = completed.executions.find((candidate) => candidate.executionId === run.execution.executionId);
 assert.equal(completedExecution?.status, 'succeeded');
 assert.equal(completedExecution?.outputAssetIds.length, 2);
+assert.equal(completedExecution?.requestPrompts?.length, 2);
+assert.match(completedExecution?.requestPrompts?.[0]?.prompt ?? '', /^Generate exactly one image/);
 assert.equal(completedExecution?.resultSummary?.succeeded, 2);
 assert.equal(calls, 2, 'Each requested candidate must be an independent paid draw.');
 assert.equal(maxConcurrentCalls, 2, 'Seedream candidates must start concurrently.');

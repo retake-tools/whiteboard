@@ -139,6 +139,8 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
         {selectedBlock?.type === 'image' && selectedImageUrl && !selectedBlockContentLocked ? (
           <NodeToolbar nodeId={selectedBlock.blockId} position={Position.Top} offset={12} isVisible>
             <ContextToolbar
+              annotationConnections={imageOperations.annotationConnections}
+              preferredAnnotationConnectionId={imageOperations.preferredAnnotationConnectionId}
               canvasZoom={canvas.canvasZoom}
               annotationEditorOpenRequest={annotations.annotationEditorOpenRequest?.blockId === selectedBlock.blockId ? annotations.annotationEditorOpenRequest : undefined}
               selectedBlock={selectedBlock}
@@ -154,7 +156,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
                 pendingDirectImageImportBlockIdRef.current = selectedBlock.blockId;
                 directImageImportInputRef.current?.click();
               }}
-              onRunAnnotationEdit={({ instruction, manifest, composite, historical, variationCount }) => {
+              onRunAnnotationEdit={({ instruction, manifest, composite, connectionId, historical, variationCount }) => {
                 void createImageAssetFromDataUrl({
                   projectId: snapshotRef.current.project.projectId,
                   dataUrl: composite.dataUrl,
@@ -165,6 +167,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
                   const created = await imageOperations.startImageCodexOperation('annotation_edit', selectedBlock, instruction, {
                     annotatedCompositeAsset,
                     annotationManifest: { ...manifest, compositeAssetId: annotatedCompositeAsset.assetId },
+                    connectionId,
                     generationParams: { variationCount },
                   });
                   if (!created) return;

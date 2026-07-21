@@ -208,6 +208,9 @@ const imageExecution = completed.executions.find((candidate) => candidate.execut
 const imageResult = completed.blocks.find((candidate) => candidate.blockId === imageRun.resultBlock.blockId);
 assert.equal(imageExecution?.status, 'succeeded');
 assert.equal(imageExecution?.outputAssetIds.length, 2);
+assert.equal(imageExecution?.requestPrompts?.length, 2);
+assert.match(imageExecution?.requestPrompts?.[0]?.prompt ?? '', /^\$imagegen Generate exactly one image/);
+assert.match(imageExecution?.requestPrompts?.[1]?.prompt ?? '', /candidate 2 of 2/);
 assert.equal(maxConcurrentImageCalls, 2, 'Codex App Server candidates must start concurrently.');
 assert.deepEqual([...imageCandidatePrompts].sort(), ['1', '2']);
 assert.ok(imageResult?.data.assetId);
@@ -232,6 +235,7 @@ const referencedTextToImagePrompt = createProviderImagePrompt(referenceOnlyExecu
 });
 assert.match(referencedTextToImagePrompt, /^\$imagegen Generate exactly one image/);
 assert.match(referencedTextToImagePrompt, /create a new image instead of treating any reference as the editable output base/);
+assert.doesNotMatch(referencedTextToImagePrompt, /\.\./);
 assert.match(referencedTextToImagePrompt, /attachment 1 \[general_reference\]/);
 assert.doesNotMatch(referencedTextToImagePrompt, /^\$imagegen Edit/);
 
@@ -256,6 +260,7 @@ assert.match(roleAwareEditPrompt, /^\$imagegen Edit attachment 1/);
 assert.match(roleAwareEditPrompt, /attachment 2 \[style_reference\]/);
 assert.match(roleAwareEditPrompt, /Do not reassign these roles/);
 assert.match(roleAwareEditPrompt, /candidate 2 of 2/);
+assert.doesNotMatch(roleAwareEditPrompt, /\.\./);
 
 const annotatedComposite = await createAssetFromDataUrl({
   projectId: completed.project.projectId,
@@ -322,6 +327,10 @@ assert.equal(
   completed.executions.find((candidate) => candidate.executionId === annotationRun.execution.executionId)?.status,
   'succeeded',
 );
+const completedAnnotationExecution = completed.executions.find(
+  (candidate) => candidate.executionId === annotationRun.execution.executionId,
+);
+assert.match(completedAnnotationExecution?.requestPrompts?.[0]?.prompt ?? '', /final attached annotated composite/);
 
 console.log(JSON.stringify({
   ok: true,

@@ -94,8 +94,11 @@ assert.doesNotMatch(editorSource, /mark\.kind === 'brush' \? screenStrokeWidth \
 assert.doesNotMatch(editorSource, /Math\.max\(context\.lineWidth \* 9/);
 assert.match(editorSource, /hoveredMark\?\.intent\.trim\(\)/);
 assert.match(editorSource, /className="annotation-result-count"/);
+assert.match(editorSource, /className="annotation-connection-select"/);
+assert.match(editorSource, /operationToolbar\.generator/);
+assert.match(editorSource, /connectionId/);
 assert.match(editorSource, /variationCount/);
-assert.match(canvasSource, /generationParams: \{ variationCount \}/);
+assert.match(canvasSource, /connectionId,[\s\S]*?generationParams: \{ variationCount \}/);
 assert.match(editorSource, /closest\('\.annotation-stage'\)/);
 assert.doesNotMatch(editorSource, /closest\('\.annotation-editor'\).*preventDefault/);
 assert.match(annotationEditorStylesSource, /\.annotation-hover-prompt \{[\s\S]*?pointer-events: none;/);
@@ -106,6 +109,7 @@ assert.doesNotMatch(editorSource, /handleStageDoubleClick|createMark\('text'|ann
 assert.match(annotationControllerSource, /function updateAnnotationDraft/);
 assert.match(annotationControllerSource, /scheduleAnnotationDraftPersist\(\)/);
 assert.match(toolbarSource, /initialDraft={annotationDraft}/);
+assert.doesNotMatch(toolbarSource, /codex_mcp/);
 assert.match(executionDetailSource, /function AnnotationManifestDetail/);
 assert.match(executionDetailSource, /inspector\.restoreAnnotationDraft/);
 assert.match(executionInspectorSource, /onOpenAnnotationEditor\(context\.execution\.executionId\)/);

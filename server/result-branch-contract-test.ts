@@ -308,6 +308,8 @@ const firstRowSecondResultRoute = executionOutputEdgeRoute({
 assert.equal(firstRowSecondResultRoute.targetLeftX, 1200);
 assert.equal(firstRowSecondResultRoute.targetLeftY, 300);
 assert.equal(firstRowSecondResultRoute.targetTopY, 193);
+assert.equal(firstRowSecondResultRoute.targetBottomY, 407);
+assert.equal(firstRowSecondResultRoute.laneSide, 'top');
 assert.equal(firstRowSecondResultRoute.laneY, 161);
 assert.equal(firstRowSecondResultRoute.gutterX, 532);
 assert.equal(firstRowSecondResultRoute.approachX, 1188);
@@ -327,6 +329,19 @@ const firstRowBottom = firstRowSecondResultRoute.targetTopY + 214;
 assert.equal(secondRowSecondResultRoute.targetTopY - firstRowBottom, 72);
 assert.equal(secondRowSecondResultRoute.laneY - firstRowBottom, 40);
 assert.equal(secondRowSecondResultRoute.gutterX, firstRowSecondResultRoute.gutterX);
+
+const upperSecondResultRoute = executionOutputEdgeRoute({
+  resultHeight: 380,
+  sourceX: 420,
+  sourceY: 195,
+  targetX: 762,
+  targetY: -138,
+  targetLeftGap: 48,
+});
+assert.equal(upperSecondResultRoute.laneSide, 'bottom');
+assert.equal(upperSecondResultRoute.targetBottomY, 52);
+assert.equal(upperSecondResultRoute.laneY, 84);
+assert.match(upperSecondResultRoute.path, /L 762 -138$/);
 
 const firstResultGroup = executionResultGroup(snapshot, firstRun.execution.executionId);
 const secondResultGroup = executionResultGroup(snapshot, secondRun.execution.executionId);

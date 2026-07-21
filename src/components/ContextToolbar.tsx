@@ -20,6 +20,7 @@ import {
   type LocalImageAdjustments,
 } from '../core/localImageTransforms';
 import type { BlockRecord } from '../core/types';
+import type { ExecutionConnectionSummary } from '../core/executionProviders';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
 import { ImageAnnotationEditor, type AnnotationComposite } from './ImageAnnotationEditor';
@@ -32,9 +33,10 @@ import {
 import { TooltipIconButton, TooltipWrapper } from './Tooltip';
 
 type ImageTool = 'quick-edit' | 'annotation-edit' | 'create-similar' | 'adjust' | 'more';
-export type ExecutionRoute = 'codex_mcp';
 
 interface ContextToolbarProps {
+  annotationConnections?: ExecutionConnectionSummary[];
+  preferredAnnotationConnectionId?: string;
   canvasZoom: number;
   annotationEditorOpenRequest?: {
     draft: AnnotationDraft;
@@ -52,20 +54,22 @@ interface ContextToolbarProps {
     instruction: string;
     manifest: AnnotationManifest;
     composite: AnnotationComposite;
+    connectionId: string;
     historical: boolean;
     variationCount: number;
-    route: ExecutionRoute;
   }) => void;
   onAnnotationDraftChange: (draft: AnnotationDraftContent) => void;
   onAnnotationDraftFlush: () => void;
   onAnnotationEditorOpenRequestHandled: () => void;
-  onCreateSimilar: (input: { route: ExecutionRoute }) => void;
+  onCreateSimilar: () => void;
   onDownloadImage: () => void;
   onReplaceImage: () => void;
-  onRunQuickEdit: (input: { instruction: string; route: ExecutionRoute }) => void;
+  onRunQuickEdit: (input: { instruction: string }) => void;
 }
 
 export function ContextToolbar({
+  annotationConnections = [],
+  preferredAnnotationConnectionId,
   canvasZoom,
   annotationEditorOpenRequest,
   selectedBlock,
@@ -96,7 +100,6 @@ export function ContextToolbar({
   const dockRef = useRef<HTMLDivElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const { t } = useI18n();
-  const executionRoute: ExecutionRoute = 'codex_mcp';
 
   useEffect(() => {
     if (!selectedBlock || selectedBlock.type !== 'image') return;
@@ -253,8 +256,9 @@ export function ContextToolbar({
         <ImageToolPopover
           annotationInstruction={annotationInstruction}
           annotationDraft={activeAnnotationDraft}
+          annotationConnections={annotationConnections}
+          preferredAnnotationConnectionId={preferredAnnotationConnectionId}
           isHistoricalAnnotationSession={Boolean(historicalAnnotationDraft)}
-          executionRoute={executionRoute}
           adjustForm={adjustForm}
           imageUrl={selectedImageUrl}
           popoverScale={popoverScale}
@@ -278,7 +282,7 @@ export function ContextToolbar({
           }}
           onAdjustFormChange={setAdjustForm}
           onCreateLocalEdit={onCreateLocalEdit}
-          onCreateSimilar={() => onCreateSimilar({ route: executionRoute })}
+          onCreateSimilar={onCreateSimilar}
           onRunAnnotationEdit={(input) => {
             const historical = Boolean(historicalAnnotationDraft);
             if (historicalAnnotationDraft) {
@@ -286,11 +290,11 @@ export function ContextToolbar({
             } else {
               flushAnnotationDraft();
             }
-            onRunAnnotationEdit({ ...input, historical, route: executionRoute });
+            onRunAnnotationEdit({ ...input, historical });
             setActiveTool(null);
           }}
           onQuickEditInstructionChange={setQuickEditInstruction}
-          onRunQuickEdit={() => onRunQuickEdit({ instruction: quickEditInstruction, route: executionRoute })}
+          onRunQuickEdit={() => onRunQuickEdit({ instruction: quickEditInstruction })}
         />
       ) : null}
     </div>
@@ -300,8 +304,9 @@ export function ContextToolbar({
 function ImageToolPopover({
   annotationInstruction,
   annotationDraft,
+  annotationConnections,
+  preferredAnnotationConnectionId,
   isHistoricalAnnotationSession,
-  executionRoute,
   adjustForm,
   imageUrl,
   popoverScale,
@@ -323,8 +328,9 @@ function ImageToolPopover({
 }: {
   annotationInstruction: string;
   annotationDraft?: AnnotationDraft;
+  annotationConnections: ExecutionConnectionSummary[];
+  preferredAnnotationConnectionId?: string;
   isHistoricalAnnotationSession: boolean;
-  executionRoute: ExecutionRoute;
   adjustForm: LocalImageAdjustments;
   imageUrl?: string;
   popoverScale: number;
@@ -349,6 +355,7 @@ function ImageToolPopover({
     instruction: string;
     manifest: AnnotationManifest;
     composite: AnnotationComposite;
+    connectionId: string;
     variationCount: number;
   }) => void;
   onQuickEditInstructionChange: (instruction: string) => void;
@@ -407,6 +414,8 @@ function ImageToolPopover({
             </div>
           ) : null}
           <ImageAnnotationEditor
+            connectionOptions={annotationConnections}
+            defaultConnectionId={preferredAnnotationConnectionId}
             imageUrl={imageUrl}
             initialDraft={annotationDraft}
             instruction={annotationInstruction}

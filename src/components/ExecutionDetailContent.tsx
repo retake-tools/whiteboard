@@ -43,6 +43,7 @@ export interface ExecutionDetailContext {
   operationBlock?: BlockRecord;
   outputAssets: AssetRecord[];
   prompt?: string;
+  requestPrompts?: ExecutionRecord['requestPrompts'];
   sourceAssets: AssetRecord[];
   sourceBlock?: BlockRecord;
   sourceExecutionVersion?: number;
@@ -112,6 +113,7 @@ export function ExecutionDetailContent({
     inputImages,
     outputAssets,
     prompt,
+    requestPrompts,
     sourceBlock,
     sourceExecutionVersion,
   } = context;
@@ -149,7 +151,7 @@ export function ExecutionDetailContent({
       <dl className="execution-inspector-meta">
         <Meta label={t('inspector.status')} value={t(`status.${execution.status}`)} />
         <Meta label={t('inspector.capability')} value={execution.capabilityId} />
-        <Meta label={t('inspector.generator')} value={execution.generationProfile?.name} />
+        <Meta label={t('inspector.generator')} value={executionGeneratorLabel(execution)} />
         <Meta label={t('inspector.adapter')} value={execution.adapter} />
         <Meta label={t('inspector.skill')} value={execution.skillId} />
         <Meta
@@ -249,6 +251,36 @@ export function ExecutionDetailContent({
         </section>
       ) : null}
 
+      {requestPrompts?.map((requestPrompt) => {
+        const requestCopyKey = `${copyKey}:request:${requestPrompt.index}`;
+        const requestCopied = copiedPromptKey === requestCopyKey;
+        return (
+          <section className="execution-inspector-prompt" key={requestCopyKey}>
+            <header>
+              <h3>
+                {t('inspector.requestPrompt')}
+                {requestPrompts.length > 1 ? ` · ${requestPrompt.index + 1}/${requestPrompts.length}` : ''}
+              </h3>
+              <TooltipIconButton
+                label={t(requestCopied ? 'feedback.copied' : 'feedback.copyPrompt')}
+                onClick={() =>
+                  onCopyPrompt({
+                    blockIds: executionDetailBlockIds(context),
+                    copyKey: requestCopyKey,
+                    executionId: execution.executionId,
+                    prompt: requestPrompt.prompt,
+                    source: copySource,
+                  })
+                }
+              >
+                {requestCopied ? <Check size={15} /> : <Clipboard size={15} />}
+              </TooltipIconButton>
+            </header>
+            <pre>{requestPrompt.prompt}</pre>
+          </section>
+        );
+      })}
+
       {previewImage ? (
         <ImageLightbox
           image={previewImage}
@@ -260,6 +292,16 @@ export function ExecutionDetailContent({
       ) : null}
     </div>
   );
+}
+
+function executionGeneratorLabel(execution: ExecutionRecord): string | undefined {
+  if (execution.adapter === 'codex_app_server') {
+    return ['Codex App Server', execution.model].filter(Boolean).join(' · ');
+  }
+  if (execution.adapter === 'direct_api' || execution.adapter === 'provider_cli') {
+    return [execution.provider ?? execution.connectionId, execution.model].filter(Boolean).join(' · ');
+  }
+  return execution.generationProfile?.name ?? execution.provider ?? execution.connectionId;
 }
 
 export function getExecutionDetailContextForBlock(
@@ -353,6 +395,7 @@ function createExecutionDetailContext(
     operationBlock,
     outputAssets: snapshot.assets.filter((asset) => execution.outputAssetIds.includes(asset.assetId)),
     prompt: execution.agentPrompt ?? blockPrompt ?? execution.prompt,
+    requestPrompts: execution.requestPrompts,
     sourceAssets: inputImages.map((inputImage) => inputImage.asset),
     sourceBlock,
     sourceExecutionVersion,

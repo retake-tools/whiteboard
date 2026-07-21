@@ -19,8 +19,10 @@ export interface EdgeObstacleBounds {
 export interface ExecutionOutputEdgeRoute {
   approachX: number;
   gutterX: number;
+  laneSide: 'top' | 'bottom';
   laneY: number;
   path: string;
+  targetBottomY: number;
   targetLeftX: number;
   targetLeftY: number;
   targetTopY: number;
@@ -88,11 +90,17 @@ export function directBezierIntersectsObstacles(input: {
 
 export function executionOutputEdgeRoute(input: ExecutionOutputEdgePathInput): ExecutionOutputEdgeRoute {
   const targetTopY = input.targetY - input.resultHeight / 2;
+  const targetBottomY = input.targetY + input.resultHeight / 2;
   const targetLeftX = input.targetX;
   const gutterX = input.sourceX + direction(targetLeftX - input.sourceX) * trunkOffset;
-  const laneY = targetTopY - laneClearance;
   const resultApproachOffset = resultApproachOffsetForGap(input.targetLeftGap);
   const approachX = targetLeftX - direction(targetLeftX - gutterX) * resultApproachOffset;
+  const topLaneY = targetTopY - laneClearance;
+  const bottomLaneY = targetBottomY + laneClearance;
+  const topLength = orthogonalRouteLength(input.sourceY, input.targetY, topLaneY);
+  const bottomLength = orthogonalRouteLength(input.sourceY, input.targetY, bottomLaneY);
+  const laneSide = topLength <= bottomLength ? 'top' : 'bottom';
+  const laneY = laneSide === 'top' ? topLaneY : bottomLaneY;
 
   const sourceDirection = direction(gutterX - input.sourceX);
   const laneDirection = direction(laneY - input.sourceY);
@@ -136,12 +144,18 @@ export function executionOutputEdgeRoute(input: ExecutionOutputEdgePathInput): E
   return {
     approachX,
     gutterX,
+    laneSide,
     laneY,
     path,
+    targetBottomY,
     targetLeftX,
     targetLeftY: input.targetY,
     targetTopY,
   };
+}
+
+function orthogonalRouteLength(sourceY: number, targetY: number, laneY: number): number {
+  return Math.abs(laneY - sourceY) + Math.abs(targetY - laneY);
 }
 
 export function executionOutputEdgePath(input: ExecutionOutputEdgePathInput): string {

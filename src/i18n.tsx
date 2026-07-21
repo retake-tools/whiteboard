@@ -273,6 +273,7 @@ type TranslationKey =
   | 'inspector.outputAssets'
   | 'inspector.previousPreview'
   | 'inspector.prompt'
+  | 'inspector.requestPrompt'
   | 'inspector.restoreConfiguration'
   | 'inspector.restoreAnnotationDraft'
   | 'inspector.skill'
@@ -793,6 +794,7 @@ const translations: Record<Locale, Translations> = {
     'inspector.outputAssets': 'Output assets',
     'inspector.previousPreview': 'Previous image',
     'inspector.prompt': 'Prompt',
+    'inspector.requestPrompt': 'Actual request prompt',
     'inspector.restoreConfiguration': 'Restore this version',
     'inspector.restoreAnnotationDraft': 'Open in annotation editor',
     'inspector.skill': 'Skill',
@@ -1308,6 +1310,7 @@ const translations: Record<Locale, Translations> = {
     'inspector.outputAssets': '输出素材',
     'inspector.previousPreview': '上一张图片',
     'inspector.prompt': '提示',
+    'inspector.requestPrompt': '实际请求 Prompt',
     'inspector.restoreConfiguration': '恢复此版本配置',
     'inspector.restoreAnnotationDraft': '在标注编辑中打开',
     'inspector.skill': '技能',

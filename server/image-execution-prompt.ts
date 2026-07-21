@@ -90,13 +90,17 @@ export function createProviderImagePrompt(
   if (execution.capabilityId === 'image.image_to_image') {
     const sourceIndex = attachmentIndex(inputAssignments, 'source');
     const source = sourceIndex ? `attachment ${sourceIndex}` : 'the attached source image';
-    return `${command}Edit ${source} according to this instruction: ${instruction}.${inputContract}${geometry} Preserve its subject, composition, and all unmentioned primary content unless the instruction, an input role, or the requested output canvas explicitly changes it.${variant} Generate exactly one clean revised image.${toolRule}`;
+    return `${command}Edit ${source} according to this instruction: ${sentence(instruction)}${inputContract}${geometry} Preserve its subject, composition, and all unmentioned primary content unless the instruction, an input role, or the requested output canvas explicitly changes it.${variant} Generate exactly one clean revised image.${toolRule}`;
   }
 
   const references = inputAssignments.length
     ? ' Use the attached images only according to their assigned reference roles; create a new image instead of treating any reference as the editable output base.'
     : '';
-  return `${command}Generate exactly one image from this instruction: ${instruction}.${references}${inputContract}${geometry} Generate the composition directly on the requested canvas.${variant}${toolRule}`;
+  return `${command}Generate exactly one image from this instruction: ${sentence(instruction)}${references}${inputContract}${geometry} Generate the composition directly on the requested canvas.${variant}${toolRule}`;
+}
+
+function sentence(value: string): string {
+  return /[.!?。！？]$/.test(value) ? value : `${value}.`;
 }
 
 function imageInputContractInstruction(assignments: readonly ImageExecutionInputAssignment[]): string {

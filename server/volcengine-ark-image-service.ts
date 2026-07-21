@@ -3,7 +3,12 @@ import { createProviderImagePrompt, imageExecutionInputAssignments } from './ima
 import { createAssetFromDataUrl } from './local-store/asset-store';
 import { readAssetAsDataUrl } from './local-store/asset-files';
 import { resolveExecutionConnection } from './local-store/execution-provider-store';
-import { failExecution, markExecutionRunning, updateImageResultBlock } from './local-store/execution-store';
+import {
+  failExecution,
+  markExecutionRunning,
+  recordExecutionRequestPrompts,
+  updateImageResultBlock,
+} from './local-store/execution-store';
 import { loadSnapshot, saveSnapshot } from './local-store/snapshot-store';
 import { createSerialTaskQueue } from './serial-task-queue';
 import {
@@ -60,15 +65,26 @@ async function executeArkImageRun(
   const inputAssignments = imageExecutionInputAssignments(execution);
   const referenceImages = await executionInputImages(initial, inputAssignments.map((assignment) => assignment.assetId));
   const size = requestedSize(execution);
+  const requests = execution.outputBlockIds.map((outputBlockId, index) => ({
+    index,
+    outputBlockId,
+    prompt: createProviderImagePrompt(execution, inputAssignments, {
+      dialect: 'provider_api',
+      variantIndex: index,
+      variantCount: execution.outputBlockIds.length,
+    }),
+  }));
+  await recordExecutionRequestPrompts({
+    projectId: execution.projectId,
+    boardId: execution.boardId,
+    executionId: execution.executionId,
+    requestPrompts: requests,
+  });
   const enqueueWrite = createSerialTaskQueue();
   const results = await Promise.allSettled(execution.outputBlockIds.map(async (resultBlockId, index) => {
     await assertExecutionRunning(execution);
     const result = await client.generateImage({
-      prompt: createProviderImagePrompt(execution, inputAssignments, {
-        dialect: 'provider_api',
-        variantIndex: index,
-        variantCount: execution.outputBlockIds.length,
-      }),
+      prompt: requests[index].prompt,
       images: referenceImages,
       size,
     });

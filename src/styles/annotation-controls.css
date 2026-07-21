@@ -32,6 +32,26 @@
   color: #ffffff;
 }
 
+.annotation-connection-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.annotation-connection-select select {
+  max-width: 220px;
+  height: 30px;
+  padding: 0 28px 0 9px;
+  border: 1px solid #d8dee8;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #334155;
+  font: inherit;
+}
+
 .annotation-result-count {
   display: inline-flex;
   align-items: center;

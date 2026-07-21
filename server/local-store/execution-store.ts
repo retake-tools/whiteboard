@@ -1,7 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { assignExecutionVersion } from '../../src/core/executionConfiguration';
 import { syncExecutionOutputContractSnapshot } from '../../src/core/executionContractSnapshot';
-import type { AssetRecord, BlockRecord, BoardSnapshot, ExecutionRecord } from '../../src/core/types';
+import type {
+  AssetRecord,
+  BlockRecord,
+  BoardSnapshot,
+  ExecutionRecord,
+  ExecutionRequestPrompt,
+} from '../../src/core/types';
 import { touchSnapshot } from './context';
 import { readAssetMetadata } from './asset-files';
 import { listProjectBoards, loadSnapshot, saveSnapshot } from './snapshot-store';
@@ -128,6 +134,21 @@ export async function failExecution(input: { projectId: string; boardId: string;
     summary: `Execution failed: ${execution.capabilityId}`,
     detail: { errorMessage: input.errorMessage, failedResultBlockIds },
   });
+  touchSnapshot(snapshot);
+  await saveSnapshot(snapshot);
+  return { snapshot, execution };
+}
+
+export async function recordExecutionRequestPrompts(input: {
+  projectId: string;
+  boardId: string;
+  executionId: string;
+  requestPrompts: ExecutionRequestPrompt[];
+}): Promise<{ snapshot: BoardSnapshot; execution: ExecutionRecord }> {
+  const snapshot = await loadSnapshot(input.projectId, input.boardId);
+  const execution = findExecutionOrThrow(snapshot, input.executionId);
+  assertExecutionRunning(execution, 'record request prompts for');
+  execution.requestPrompts = structuredClone(input.requestPrompts);
   touchSnapshot(snapshot);
   await saveSnapshot(snapshot);
   return { snapshot, execution };

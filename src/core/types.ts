@@ -157,6 +157,7 @@ export interface ExecutionRecord {
   generationProfile?: GenerationProfileSnapshot;
   prompt?: string;
   agentPrompt?: string;
+  requestPrompts?: ExecutionRequestPrompt[];
   params?: Record<string, unknown>;
   startedAt: string;
   completedAt?: string;
@@ -181,6 +182,12 @@ export interface ExecutionRecord {
   inputBindingsSnapshot?: CapabilityInputBinding[];
   outputSlotResults?: ExecutionOutputSlotResult[];
   resultSummary?: ExecutionResultSummary;
+}
+
+export interface ExecutionRequestPrompt {
+  index: number;
+  outputBlockId?: string;
+  prompt: string;
 }
 
 export interface ExecutionOutputSlotResult {

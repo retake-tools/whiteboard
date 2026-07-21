@@ -12,7 +12,12 @@ import {
 import { resolveAssetStoragePath } from './local-store/asset-files';
 import { createAssetFromDataUrl } from './local-store/asset-store';
 import { listExecutionProviderSettings } from './local-store/execution-provider-store';
-import { failExecution, markExecutionRunning, updateImageResultBlock } from './local-store/execution-store';
+import {
+  failExecution,
+  markExecutionRunning,
+  recordExecutionRequestPrompts,
+  updateImageResultBlock,
+} from './local-store/execution-store';
 import { loadSnapshot, saveSnapshot } from './local-store/snapshot-store';
 import { createSerialTaskQueue } from './serial-task-queue';
 
@@ -73,17 +78,28 @@ async function executeCodexImageRun(
   const initial = await loadSnapshot(execution.projectId, execution.boardId);
   const inputAssignments = imageExecutionInputAssignments(execution);
   const localImagePaths = await executionInputImagePaths(initial, inputAssignments);
+  const requests = execution.outputBlockIds.map((outputBlockId, index) => ({
+    index,
+    outputBlockId,
+    prompt: createProviderImagePrompt(execution, inputAssignments, {
+      dialect: 'codex_imagegen',
+      variantIndex: index,
+      variantCount: execution.outputBlockIds.length,
+    }),
+  }));
+  await recordExecutionRequestPrompts({
+    projectId: execution.projectId,
+    boardId: execution.boardId,
+    executionId: execution.executionId,
+    requestPrompts: requests,
+  });
   const enqueueWrite = createSerialTaskQueue();
   const results = await Promise.allSettled(execution.outputBlockIds.map(async (resultBlockId, index) => {
     await assertExecutionRunning(execution);
     const result = await (dependencies.runTurn ?? runCodexAppServerTurn)({
       cwd: process.env.TMPDIR || '/tmp',
       model,
-      prompt: createProviderImagePrompt(execution, inputAssignments, {
-        dialect: 'codex_imagegen',
-        variantIndex: index,
-        variantCount: execution.outputBlockIds.length,
-      }),
+      prompt: requests[index].prompt,
       localImagePaths,
       sandbox: 'workspace-write',
       onImageGenerationStarted: () => publishExecutionEvent(execution.executionId, {

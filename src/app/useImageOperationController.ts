@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import { createImageAssetFromDataUrl, getAssetPreviewUrl } from '../core/assetStore';
 import { loadBoardSnapshot } from '../core/boardStore';
 import { localizedBlockData } from '../core/blockLocalization';
@@ -34,7 +34,9 @@ import {
   currentExecutionProviderSettings,
   executionConnection,
   executionDefaultConnection,
+  subscribeExecutionProviderSettings,
 } from '../core/executionProviderPreferences';
+import type { ExecutionConnectionSummary, ExecutionProviderSettingsSnapshot } from '../core/executionProviders';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
 import { startVolcengineArkImage } from '../core/volcengineArkImageClient';
 import { startCodexAppServerImage } from '../core/codexAppServerImageClient';
@@ -80,6 +82,11 @@ export function useImageOperationController(options: ImageOperationControllerOpt
   const [promptPreview, setPromptPreview] = useState<PromptPreview>();
   const [copiedPromptKey, setCopiedPromptKey] = useState<string>();
   const copiedPromptTimer = useRef<number | undefined>(undefined);
+  const providerSettings = useSyncExternalStore(
+    subscribeExecutionProviderSettings,
+    currentExecutionProviderSettings,
+    currentExecutionProviderSettings,
+  );
 
   useEffect(() => () => {
     if (copiedPromptTimer.current) window.clearTimeout(copiedPromptTimer.current);
@@ -193,12 +200,18 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     operationOptions: {
       annotatedCompositeAsset?: AssetRecord;
       annotationManifest?: import('../core/imageAnnotations').AnnotationManifest;
+      connectionId?: string;
       generationParams?: ImageGenerationParams;
       referenceAssets?: AssetRecord[];
     } = {},
   ): Promise<boolean> {
     const capabilityId = capabilityIdForImmediateImageOperation(operation);
-    const connection = preferredReadyImageConnection(snapshotRef.current, capabilityId);
+    const connection = preferredReadyImageConnection(
+      snapshotRef.current,
+      capabilityId,
+      providerSettings,
+      operationOptions.connectionId,
+    );
     if (!connection) {
       setOperationToast({
         id: `connection:${block.blockId}`,
@@ -620,7 +633,15 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     await persistSnapshot(nextSnapshot);
   }
 
+  const annotationConnections = readyConnectionsForCapability(providerSettings, 'image.annotation_edit');
+  const preferredAnnotationConnectionId = preferredReadyImageConnection(
+    snapshotRef.current,
+    'image.annotation_edit',
+    providerSettings,
+  )?.connectionId;
+
   return {
+    annotationConnections,
     closePromptPreviewAfterCopy,
     copiedPromptKey,
     copyPromptWithHistory,
@@ -632,6 +653,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     importImageIntoBlock,
     operationToast,
     promptPreview,
+    preferredAnnotationConnectionId,
     refreshQueuedOperationPrompt,
     retryFailedImageResult,
     setCopiedPromptKey,
@@ -655,7 +677,15 @@ function preferredImageConnection(snapshot: BoardSnapshot): string {
 function preferredReadyImageConnection(
   snapshot: BoardSnapshot,
   capabilityId: string,
-) {
+  settings: ExecutionProviderSettingsSnapshot | undefined = currentExecutionProviderSettings(),
+  requestedConnectionId?: string,
+): ExecutionConnectionSummary | undefined {
+  if (requestedConnectionId) {
+    const requested = settings?.connections.find((connection) => connection.connectionId === requestedConnectionId);
+    return requested?.status === 'ready' && requested.supportedCapabilityIds.includes(capabilityId)
+      ? requested
+      : undefined;
+  }
   const preferredConnection = executionConnection(
     executionDefaultConnection('image', snapshot.project.projectId),
     snapshot.project.projectId,
@@ -666,11 +696,20 @@ function preferredReadyImageConnection(
   ) {
     return preferredConnection;
   }
-  return currentExecutionProviderSettings()?.connections.find(
+  return settings?.connections.find(
     (connection) =>
       connection.status === 'ready' &&
       connection.supportedCapabilityIds.includes(capabilityId),
   );
+}
+
+function readyConnectionsForCapability(
+  settings: ExecutionProviderSettingsSnapshot | undefined,
+  capabilityId: string,
+): ExecutionConnectionSummary[] {
+  return settings?.connections.filter(
+    (connection) => connection.status === 'ready' && connection.supportedCapabilityIds.includes(capabilityId),
+  ) ?? [];
 }
 
 function capabilityIdForImmediateImageOperation(operation: ImageCodexOperation): string {
