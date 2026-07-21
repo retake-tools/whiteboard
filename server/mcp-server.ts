@@ -122,7 +122,7 @@ server.registerTool(
       projectId: z.string(),
       boardId: z.string(),
       capabilityId: z.string(),
-      adapter: z.enum(['direct_api', 'mcp_agent', 'cli_agent', 'manual_import', 'mock']),
+      adapter: z.enum(['direct_api', 'codex_app_server', 'mcp_agent', 'cli_agent', 'manual_import', 'mock']),
       inputBlockIds: z.array(z.string()).default([]),
       agentHost: z.enum(['codex', 'claude', 'cursor', 'other']).optional(),
       triggerMode: z

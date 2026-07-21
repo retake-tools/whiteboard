@@ -47,6 +47,8 @@ import {
 import type { ExecutionUseCase } from '../src/core/executionProviders';
 import { startVolcengineArkImageGeneration } from './volcengine-ark-image-service';
 import { startTextGeneration } from './text-generation-service';
+import { installExecutionEventStream } from './execution-events';
+import { startCodexAppServerImageGeneration } from './codex-app-server-image-service';
 
 type MiddlewareContainer = {
   use(
@@ -187,6 +189,28 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               return;
             }
             const started = await startVolcengineArkImageGeneration({
+              projectId: body.projectId,
+              boardId: body.boardId,
+              executionId,
+              connectionId: body.connectionId,
+            });
+            sendJson(res, { snapshot: started.snapshot, execution: started.execution }, 202);
+            return;
+          }
+
+          const codexImageExecutionMatch = url.pathname.match(/^\/image\/codex-app-server\/executions\/([^/]+)\/run$/);
+          if (method === 'POST' && codexImageExecutionMatch) {
+            const [, executionId] = codexImageExecutionMatch;
+            const body = (await readJson(req)) as {
+              projectId?: string;
+              boardId?: string;
+              connectionId?: string;
+            };
+            if (!body.projectId || !body.boardId || !body.connectionId) {
+              sendJson(res, { error: 'projectId, boardId, and connectionId are required' }, 400);
+              return;
+            }
+            const started = await startCodexAppServerImageGeneration({
               projectId: body.projectId,
               boardId: body.boardId,
               executionId,
@@ -560,7 +584,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               projectId?: string;
               boardId?: string;
               capabilityId?: string;
-              adapter?: 'direct_api' | 'mcp_agent' | 'cli_agent' | 'manual_import' | 'mock';
+              adapter?: 'direct_api' | 'codex_app_server' | 'mcp_agent' | 'cli_agent' | 'manual_import' | 'mock';
               inputBlockIds?: string[];
               agentHost?: 'codex' | 'claude' | 'cursor' | 'other';
               triggerMode?:
@@ -611,6 +635,20 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
             }
 
             sendJson(res, await getExecution({ projectId, boardId, executionId }));
+            return;
+          }
+
+          const executionEventsMatch = url.pathname.match(/^\/executions\/([^/]+)\/events$/);
+          if (method === 'GET' && executionEventsMatch) {
+            const [, executionId] = executionEventsMatch;
+            const projectId = url.searchParams.get('projectId');
+            const boardId = url.searchParams.get('boardId');
+            if (!projectId || !boardId) {
+              sendJson(res, { error: 'projectId and boardId are required' }, 400);
+              return;
+            }
+            await getExecution({ projectId, boardId, executionId });
+            installExecutionEventStream(req, res, executionId);
             return;
           }
 

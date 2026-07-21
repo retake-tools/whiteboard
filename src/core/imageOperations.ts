@@ -17,7 +17,10 @@ import { createExecutionResultGroup, expandGroupToContents } from './grouping';
 import { syncExecutionOutputContractSnapshot } from './executionContractSnapshot';
 import { createImageOperationPrompt } from './prompts';
 import { recordExecutionConfiguration } from './executionConfiguration';
-import { volcengineArkSeedreamImageAdapterDefinition } from './capabilityRegistry';
+import {
+  codexAppServerImageAdapterDefinition,
+  volcengineArkSeedreamImageAdapterDefinition,
+} from './capabilityRegistry';
 import { imageBlockAspectRatio } from './operationAspectRatio';
 import { imageBranchDraftLayout, imageOperationResultRowLayout } from './imageOperationLayout';
 import {
@@ -765,6 +768,9 @@ export function executeExistingImageOperationBlock(
     ? operationBlock.data.connectionId
     : 'codex-managed');
   const directApi = input.connection?.connectorId === 'volcengine-ark';
+  const codexAppServer = input.connection?.connectorId === 'codex-app-server';
+  const automated = directApi || codexAppServer;
+  const adapter = directApi ? 'direct_api' : codexAppServer ? 'codex_app_server' : 'mcp_agent';
   const generationParams = effectiveGenerationParams(
     generationParamsForSourceImage(
       snapshot,
@@ -782,9 +788,9 @@ export function executeExistingImageOperationBlock(
     title,
     body: instruction,
     status: 'queued',
-    adapter: directApi ? 'direct_api' : 'mcp_agent',
+    adapter,
     agentHost: directApi ? undefined : 'codex',
-    triggerMode: directApi ? 'server_worker' : 'manual_agent_session',
+    triggerMode: directApi ? 'server_worker' : codexAppServer ? 'agent_bridge' : 'manual_agent_session',
     capabilityId,
     operationMode: operationModeForImageOperation(codexOperation),
     operationVariant: undefined,
@@ -819,7 +825,7 @@ export function executeExistingImageOperationBlock(
     projectId: snapshot.project.projectId,
     boardId: snapshot.board.boardId,
     capabilityId,
-    adapter: directApi ? 'direct_api' : 'mcp_agent',
+    adapter,
     status: 'queued',
     inputBlockIds: [isAnnotationRepeat ? undefined : textBlock?.blockId, ...imageInputBindings.map((binding) => binding.block.blockId)].filter(
       (blockId): blockId is string => typeof blockId === 'string',
@@ -831,9 +837,9 @@ export function executeExistingImageOperationBlock(
     outputBlockIds: resultBlocks.map((block) => block.blockId),
     outputAssetIds: [],
     agentHost: directApi ? undefined : 'codex',
-    triggerMode: directApi ? 'server_worker' : 'manual_agent_session',
-    provider: directApi ? input.connection?.providerLabel : undefined,
-    model: directApi ? input.connection?.modelId : undefined,
+    triggerMode: directApi ? 'server_worker' : codexAppServer ? 'agent_bridge' : 'manual_agent_session',
+    provider: automated ? input.connection?.providerLabel : undefined,
+    model: automated ? input.connection?.modelId : undefined,
     connectionId,
     skillId: skillForOperation(codexOperation),
     generationProfile: imageGenerationProfileSnapshot(input.connection, operationBlock.data.generationProfileId),
@@ -868,9 +874,19 @@ export function executeExistingImageOperationBlock(
       provider: volcengineArkSeedreamImageAdapterDefinition.provider,
       model: input.connection?.modelId ?? volcengineArkSeedreamImageAdapterDefinition.model,
     };
+  } else if (codexAppServer) {
+    execution.adapterSnapshot = {
+      adapterId: codexAppServerImageAdapterDefinition.adapterId,
+      version: codexAppServerImageAdapterDefinition.version,
+      definitionHash: codexAppServerImageAdapterDefinition.definitionHash,
+      adapterClass: codexAppServerImageAdapterDefinition.adapterClass,
+      routeKind: codexAppServerImageAdapterDefinition.routeKind,
+      provider: codexAppServerImageAdapterDefinition.provider,
+      model: input.connection?.modelId ?? codexAppServerImageAdapterDefinition.model,
+    };
   }
   snapshot.executions.unshift(execution);
-  const prompt = directApi
+  const prompt = automated
     ? instruction
     : createImageOperationPrompt(
       snapshot,
@@ -879,7 +895,7 @@ export function executeExistingImageOperationBlock(
       resultBlocks,
       execution,
     );
-  if (!directApi) {
+  if (!automated) {
     execution.agentPrompt = prompt;
     operationBlock.data.agentPrompt = prompt;
     for (const outputBlock of resultBlocks) outputBlock.data.agentPrompt = prompt;
@@ -1196,7 +1212,8 @@ function imageGenerationProfileSnapshot(
     name: connection.displayName,
     version: 1,
     source: connection.deletable ? 'user' : 'builtin',
-    adapter: 'direct_api',
+    adapter: connection.connectorId === 'codex-app-server' ? 'codex_app_server' : 'direct_api',
+    ...(connection.connectorId === 'codex-app-server' ? { agentHost: 'codex' as const } : {}),
     provider: connection.providerLabel,
     model: connection.modelId,
     connectionId: connection.connectionId,

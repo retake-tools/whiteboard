@@ -151,6 +151,11 @@ type TranslationKey =
   | 'feedback.connectionAdapterUnavailable'
   | 'feedback.inputRequired'
   | 'feedback.executionCanceled'
+  | 'feedback.codexImageStarted'
+  | 'feedback.codexImageCostNotice'
+  | 'feedback.codexImageCompleted'
+  | 'feedback.codexImageCompletedNotice'
+  | 'feedback.codexImageFailed'
   | 'feedback.seedreamStarted'
   | 'feedback.seedreamCostNotice'
   | 'feedback.seedreamCompleted'
@@ -662,6 +667,11 @@ const translations: Record<Locale, Translations> = {
     'feedback.connectionAdapterUnavailable': 'The selected connection does not have an installed image execution adapter.',
     'feedback.inputRequired': 'Complete the operation inputs',
     'feedback.executionCanceled': 'Execution canceled',
+    'feedback.codexImageStarted': 'Codex image generation started',
+    'feedback.codexImageCostNotice': 'Codex App Server is generating image results in the background.',
+    'feedback.codexImageCompleted': 'Codex image generation completed',
+    'feedback.codexImageCompletedNotice': 'Generated images were imported as Retake assets.',
+    'feedback.codexImageFailed': 'Codex image generation failed',
     'feedback.seedreamStarted': 'Seedream generation started',
     'feedback.seedreamCostNotice': 'Volcengine Ark is generating paid image results in the background.',
     'feedback.seedreamCompleted': 'Seedream generation completed',
@@ -1168,6 +1178,11 @@ const translations: Record<Locale, Translations> = {
     'feedback.connectionAdapterUnavailable': '当前连接尚未安装图片执行 Adapter。',
     'feedback.inputRequired': '请完善操作输入',
     'feedback.executionCanceled': '已取消执行',
+    'feedback.codexImageStarted': 'Codex 图片生成已开始',
+    'feedback.codexImageCostNotice': 'Codex App Server 正在后台生成图片结果。',
+    'feedback.codexImageCompleted': 'Codex 图片生成完成',
+    'feedback.codexImageCompletedNotice': '生成图片已导入为 Retake Asset。',
+    'feedback.codexImageFailed': 'Codex 图片生成失败',
     'feedback.seedreamStarted': 'Seedream 已开始生成',
     'feedback.seedreamCostNotice': '火山方舟正在后台生成付费图片结果。',
     'feedback.seedreamCompleted': 'Seedream 生成完成',

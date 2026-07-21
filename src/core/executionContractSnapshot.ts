@@ -140,6 +140,7 @@ function legacyAdapterSnapshot(
 function legacyAdapterRouteKind(adapter: ExecutionRecord['adapter']): NonNullable<ExecutionRecord['adapterSnapshot']>['routeKind'] {
   if (adapter === 'direct_api') return 'direct_api';
   if (adapter === 'provider_cli') return 'provider_cli';
+  if (adapter === 'codex_app_server') return 'codex_app_server';
   if (adapter === 'cli_agent') return 'cli_agent';
   if (adapter === 'mcp_agent') return 'mcp_manual';
   if (adapter === 'manual_import') return 'manual';

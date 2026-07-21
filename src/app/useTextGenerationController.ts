@@ -7,6 +7,7 @@ import {
   executionDefaultConnection,
 } from '../core/executionProviderPreferences';
 import { startTextGeneration } from '../core/textGenerationClient';
+import { subscribeExecutionEvents } from '../core/executionEventClient';
 import {
   createDraftTextGenerationOperation,
   executeExistingTextGenerationOperation,
@@ -83,16 +84,58 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
         return current;
       }, { history: true });
       await persistSnapshot(queuedSnapshot, { requireLocalApi: true });
-      const started = await startTextGeneration({
+      let finishStream: ((snapshot: BoardSnapshot) => void) | undefined;
+      let failStream: ((error: Error) => void) | undefined;
+      const streamCompletion = new Promise<BoardSnapshot>((resolve, reject) => {
+        finishStream = resolve;
+        failStream = reject;
+      });
+      const unsubscribe = subscribeExecutionEvents({
         projectId: queuedSnapshot.project.projectId,
         boardId: queuedSnapshot.board.boardId,
         executionId,
-        connectionId,
+        onError: () => failStream?.(new Error('Execution event stream disconnected.')),
+        onEvent: (event) => {
+          if (event.type === 'text.delta') {
+            updateSnapshot((current) => {
+              const resultBlock = current.blocks.find((candidate) => candidate.blockId === event.resultBlockId);
+              if (!resultBlock || resultBlock.type !== 'text') return current;
+              resultBlock.data = {
+                ...resultBlock.data,
+                body: `${resultBlock.data.body || ''}${event.delta}`,
+                status: 'running',
+              };
+              return current;
+            }, { history: false, persist: false });
+          } else if (event.type === 'execution.snapshot') {
+            finishStream?.(event.snapshot);
+          } else if (event.type === 'execution.failed') {
+            const failedSnapshot = event.snapshot;
+            if (failedSnapshot) updateSnapshot(() => failedSnapshot, { history: false, persist: false });
+            failStream?.(new Error(event.errorMessage));
+          }
+        },
       });
-      const runningSnapshot = updateSnapshot(() => started.snapshot, { history: true, persist: false });
-      setSelectedBlocks(runningSnapshot, [resultBlockId]);
-      setOperationToast({ id: executionId, title: t('feedback.textGenerationStarted'), tone: 'success' });
-      await pollTextExecution(executionId, runningSnapshot);
+      try {
+        const started = await startTextGeneration({
+          projectId: queuedSnapshot.project.projectId,
+          boardId: queuedSnapshot.board.boardId,
+          executionId,
+          connectionId,
+        });
+        const runningSnapshot = updateSnapshot(() => started.snapshot, { history: true, persist: false });
+        setSelectedBlocks(runningSnapshot, [resultBlockId]);
+        setOperationToast({ id: executionId, title: t('feedback.textGenerationStarted'), tone: 'success' });
+        try {
+          const completedSnapshot = await streamCompletion;
+          updateSnapshot(() => completedSnapshot, { history: false, persist: false });
+          showTextExecutionResult(executionId, completedSnapshot);
+        } catch {
+          await pollTextExecution(executionId, runningSnapshot);
+        }
+      } finally {
+        unsubscribe();
+      }
     } catch (error) {
       setOperationToast({
         id: executionId || `text-generation:${block.blockId}`,
@@ -119,16 +162,22 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
       }
       if (!execution) throw new Error(`Text execution disappeared while waiting: ${executionId}`);
       if (execution.status === 'queued' || execution.status === 'running') continue;
-      setOperationToast({
-        id: executionId,
-        title: t(execution.status === 'succeeded'
-          ? 'feedback.textGenerationCompleted'
-          : 'feedback.textGenerationFailed'),
-        body: execution.status === 'failed' ? execution.errorMessage : undefined,
-        tone: execution.status === 'succeeded' ? 'success' : 'error',
-      });
+      showTextExecutionResult(executionId, latest);
       return;
     }
+  }
+
+  function showTextExecutionResult(executionId: string, snapshot: BoardSnapshot): void {
+    const execution = snapshot.executions.find((candidate) => candidate.executionId === executionId);
+    if (!execution) return;
+    setOperationToast({
+      id: executionId,
+      title: t(execution.status === 'succeeded'
+        ? 'feedback.textGenerationCompleted'
+        : 'feedback.textGenerationFailed'),
+      body: execution.status === 'failed' ? execution.errorMessage : undefined,
+      tone: execution.status === 'succeeded' ? 'success' : 'error',
+    });
   }
 
   function labels(): TextGenerationLabels {

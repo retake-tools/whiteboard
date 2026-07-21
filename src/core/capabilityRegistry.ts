@@ -25,6 +25,60 @@ export const aiSdkTextAdapterDefinition: AdapterDefinition = {
   availability: 'installed',
 };
 
+export const codexAppServerTextAdapterDefinition: AdapterDefinition = {
+  schemaVersion: 1,
+  adapterId: 'retake.text.codex-app-server',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-text-codex-app-server-v0',
+  adapterClass: 'agent_runtime.text',
+  routeKind: 'codex_app_server',
+  provider: 'codex',
+  model: 'gpt-5.4',
+  supportedCapabilityIds: ['text.generate'],
+  inputProfiles: [{
+    profileId: 'text_prompt',
+    requiredSlots: ['prompt'],
+    optionalSlots: [],
+  }],
+  constraints: {
+    outputCount: { min: 1, max: 1 },
+    durableAssetOutput: true,
+    outputMimeType: 'text/markdown',
+    streamedText: true,
+  },
+  availability: 'installed',
+};
+
+export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
+  schemaVersion: 1,
+  adapterId: 'retake.image.codex-app-server',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-image-codex-app-server-v0',
+  adapterClass: 'agent_runtime.media',
+  routeKind: 'codex_app_server',
+  provider: 'codex',
+  model: 'gpt-5.4',
+  supportedCapabilityIds: ['image.text_to_image', 'image.image_to_image'],
+  inputProfiles: [
+    {
+      profileId: 'codex_image_generation',
+      requiredSlots: ['prompt'],
+      optionalSlots: ['references'],
+    },
+    {
+      profileId: 'codex_image_edit',
+      requiredSlots: ['prompt', 'source_image'],
+      optionalSlots: ['references'],
+    },
+  ],
+  constraints: {
+    outputCount: { min: 1, max: 4 },
+    durableAssetOutput: true,
+    builtInTool: 'imagegen',
+  },
+  availability: 'installed',
+};
+
 export const videoGenerateCapabilityDefinition: CapabilityDefinition = {
   schemaVersion: 1,
   capabilityId: 'video.generate',

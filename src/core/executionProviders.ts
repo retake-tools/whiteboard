@@ -116,8 +116,9 @@ const connectors: ExecutionConnectorDefinition[] = [
     installStatus: 'installed',
     connectionMode: 'fixed',
     requiresCredential: false,
-    supportedCapabilityIds: [],
-    defaultUseCases: [],
+    supportedCapabilityIds: ['text.generate', 'image.image_to_image', 'image.text_to_image'],
+    defaultUseCases: ['text', 'image'],
+    defaultModelId: 'gpt-5.4',
   },
   {
     connectorId: 'dreamina',

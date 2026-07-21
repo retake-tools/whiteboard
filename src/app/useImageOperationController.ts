@@ -33,6 +33,7 @@ import { cancelExecution } from '../core/executionLifecycle';
 import { executionConnection, executionDefaultConnection } from '../core/executionProviderPreferences';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
 import { startVolcengineArkImage } from '../core/volcengineArkImageClient';
+import { startCodexAppServerImage } from '../core/codexAppServerImageClient';
 import type { OperationToast, PromptPreview } from '../components/OperationFeedback';
 import type { useI18n } from '../i18n';
 import {
@@ -355,6 +356,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     let inputBlockIds: string[] = [];
     let selectedConnectionId = '';
     let usesVolcengineArk = false;
+    let usesCodexAppServer = false;
     const copyKey = `prompt:${input.block.blockId}`;
     try {
       await persistSnapshot(snapshotRef.current, { requireLocalApi: true });
@@ -370,10 +372,15 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         )) {
           throw new Error(t('feedback.connectionUnavailable'));
         }
-        if (connection.connectorId !== 'codex-managed' && connection.connectorId !== 'volcengine-ark') {
+        if (
+          connection.connectorId !== 'codex-managed' &&
+          connection.connectorId !== 'codex-app-server' &&
+          connection.connectorId !== 'volcengine-ark'
+        ) {
           throw new Error(t('feedback.connectionAdapterUnavailable'));
         }
         usesVolcengineArk = connection.connectorId === 'volcengine-ark';
+        usesCodexAppServer = connection.connectorId === 'codex-app-server';
         const hasPendingImageRole = current.edges.some((edge) => {
           if (edge.targetBlockId !== input.block.blockId || edge.kind !== 'execution_input' || edge.inputRole) return false;
           const sourceBlock = current.blocks.find((block) => block.blockId === edge.sourceBlockId);
@@ -411,7 +418,25 @@ export function useImageOperationController(options: ImageOperationControllerOpt
           body: t('feedback.seedreamCostNotice'),
           tone: 'success',
         });
-        await pollDirectImageExecution(executionId, runningSnapshot);
+        await pollDirectImageExecution(executionId, runningSnapshot, 'seedream');
+        return;
+      }
+      if (usesCodexAppServer) {
+        const started = await startCodexAppServerImage({
+          projectId: nextSnapshot.project.projectId,
+          boardId: nextSnapshot.board.boardId,
+          executionId,
+          connectionId: selectedConnectionId,
+        });
+        const runningSnapshot = updateSnapshot(() => started.snapshot, { persist: false, history: true });
+        setSelectedBlocks(runningSnapshot, started.execution.outputBlockIds);
+        setOperationToast({
+          id: executionId,
+          title: t('feedback.codexImageStarted'),
+          body: t('feedback.codexImageCostNotice'),
+          tone: 'success',
+        });
+        await pollDirectImageExecution(executionId, runningSnapshot, 'codex');
         return;
       }
       setPromptPreview({ title: t('feedback.promptTitle'), prompt: operationPrompt, copyKey, executionId, blockIds });
@@ -426,7 +451,11 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     }
   }
 
-  async function pollDirectImageExecution(executionId: string, scope: BoardSnapshot): Promise<void> {
+  async function pollDirectImageExecution(
+    executionId: string,
+    scope: BoardSnapshot,
+    provider: 'codex' | 'seedream',
+  ): Promise<void> {
     while (true) {
       await delay(1_500);
       const latest = await loadBoardSnapshot({
@@ -445,13 +474,13 @@ export function useImageOperationController(options: ImageOperationControllerOpt
       setOperationToast({
         id: executionId,
         title: t(execution.status === 'succeeded'
-          ? 'feedback.seedreamCompleted'
+          ? provider === 'codex' ? 'feedback.codexImageCompleted' : 'feedback.seedreamCompleted'
           : execution.status === 'canceled'
             ? 'feedback.executionCanceled'
-            : 'feedback.seedreamFailed'),
+            : provider === 'codex' ? 'feedback.codexImageFailed' : 'feedback.seedreamFailed'),
         body: execution.status === 'succeeded'
-          ? t('feedback.seedreamCompletedNotice')
-          : execution.errorMessage ?? t('feedback.seedreamFailed'),
+          ? t(provider === 'codex' ? 'feedback.codexImageCompletedNotice' : 'feedback.seedreamCompletedNotice')
+          : execution.errorMessage ?? t(provider === 'codex' ? 'feedback.codexImageFailed' : 'feedback.seedreamFailed'),
         tone: execution.status === 'succeeded' ? 'success' : execution.status === 'canceled' ? undefined : 'error',
       });
       return;

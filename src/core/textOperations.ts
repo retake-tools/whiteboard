@@ -1,4 +1,4 @@
-import { aiSdkTextAdapterDefinition } from './capabilityRegistry';
+import { aiSdkTextAdapterDefinition, codexAppServerTextAdapterDefinition } from './capabilityRegistry';
 import { connectedInputBlocks, promptTextFromInputs } from './capabilities';
 import { createBlockRecord, maxZIndex, touchBoard } from './blockFactory';
 import { recordExecutionConfiguration } from './executionConfiguration';
@@ -18,6 +18,7 @@ export function createDraftTextGenerationOperation(
   snapshot: BoardSnapshot,
   input: TextGenerationLabels & { connectionId?: string },
 ): { operationBlock: BlockRecord; promptBlock: BlockRecord; resultBlock: BlockRecord } {
+  const usesCodexAppServer = input.connectionId === 'codex-app-server';
   const promptBlock = createBlockRecord(snapshot, 'text');
   promptBlock.data = {
     ...promptBlock.data,
@@ -31,8 +32,9 @@ export function createDraftTextGenerationOperation(
     title: input.operationTitle,
     body: input.promptPlaceholder,
     capabilityId: 'text.generate',
-    adapter: 'direct_api',
-    triggerMode: 'server_worker',
+    adapter: usesCodexAppServer ? 'codex_app_server' : 'direct_api',
+    ...(usesCodexAppServer ? { agentHost: 'codex' as const } : {}),
+    triggerMode: usesCodexAppServer ? 'agent_bridge' : 'server_worker',
     ...(input.connectionId ? { connectionId: input.connectionId } : {}),
   };
   const resultBlock = createBlockRecord(snapshot, 'text');
@@ -97,6 +99,8 @@ export function executeExistingTextGenerationOperation(
 
   const executionId = createId('exec');
   const createdAt = nowIso();
+  const usesCodexAppServer = input.connection.connectorId === 'codex-app-server';
+  const adapter = usesCodexAppServer ? 'codex_app_server' : 'direct_api';
   const resultBlock = reusableDraftResult(snapshot, operationBlock) ?? createResultBlock(
     snapshot,
     operationBlock,
@@ -122,8 +126,9 @@ export function executeExistingTextGenerationOperation(
     ...operationBlock.data,
     body: prompt,
     status: 'queued',
-    adapter: 'direct_api',
-    triggerMode: 'server_worker',
+    adapter,
+    agentHost: usesCodexAppServer ? 'codex' : undefined,
+    triggerMode: usesCodexAppServer ? 'agent_bridge' : 'server_worker',
     capabilityId: 'text.generate',
     connectionId: input.connection.connectionId,
     sourceExecutionId: executionId,
@@ -138,12 +143,13 @@ export function executeExistingTextGenerationOperation(
     projectId: snapshot.project.projectId,
     boardId: snapshot.board.boardId,
     capabilityId: 'text.generate',
-    adapter: 'direct_api',
+    adapter,
     status: 'queued',
     inputBlockIds: [promptBlock.blockId],
     outputBlockIds: [resultBlock.blockId],
     outputAssetIds: [],
-    triggerMode: 'server_worker',
+    agentHost: usesCodexAppServer ? 'codex' : undefined,
+    triggerMode: usesCodexAppServer ? 'agent_bridge' : 'server_worker',
     provider: input.connection.providerLabel,
     model: input.connection.modelId,
     connectionId: input.connection.connectionId,
@@ -157,12 +163,13 @@ export function executeExistingTextGenerationOperation(
     startedAt: createdAt,
   };
   recordExecutionConfiguration(snapshot, execution, operationBlock);
+  const adapterDefinition = usesCodexAppServer ? codexAppServerTextAdapterDefinition : aiSdkTextAdapterDefinition;
   execution.adapterSnapshot = {
-    adapterId: aiSdkTextAdapterDefinition.adapterId,
-    version: aiSdkTextAdapterDefinition.version,
-    definitionHash: aiSdkTextAdapterDefinition.definitionHash,
-    adapterClass: aiSdkTextAdapterDefinition.adapterClass,
-    routeKind: aiSdkTextAdapterDefinition.routeKind,
+    adapterId: adapterDefinition.adapterId,
+    version: adapterDefinition.version,
+    definitionHash: adapterDefinition.definitionHash,
+    adapterClass: adapterDefinition.adapterClass,
+    routeKind: adapterDefinition.routeKind,
     provider: input.connection.providerLabel,
     model: input.connection.modelId,
   };
@@ -246,5 +253,5 @@ function operationHistory(
 }
 
 function isTextConnector(connectorId: string): boolean {
-  return connectorId === 'anthropic-native' || connectorId === 'google-native' || connectorId === 'openai-compatible';
+  return connectorId === 'anthropic-native' || connectorId === 'codex-app-server' || connectorId === 'google-native' || connectorId === 'openai-compatible';
 }

@@ -10,6 +10,8 @@ import {
 } from '../src/core/capabilityContracts';
 import {
   aiSdkTextAdapterDefinition,
+  codexAppServerImageAdapterDefinition,
+  codexAppServerTextAdapterDefinition,
   dreaminaCliAdapterDefinition,
   seedanceModelArkAdapterDefinition,
   videoGenerateCapabilityDefinition,
@@ -31,6 +33,8 @@ const legacyCapabilityIds = [
 const definitions = new Map<string, CapabilityDefinition>();
 
 assertNoIssues(validateCapabilityDefinition(videoGenerateCapabilityDefinition), 'canonical video.generate definition');
+assertNoIssues(validateAdapterDefinition(codexAppServerTextAdapterDefinition), 'Codex App Server text adapter');
+assertNoIssues(validateAdapterDefinition(codexAppServerImageAdapterDefinition), 'Codex App Server image adapter');
 
 for (const capabilityId of legacyCapabilityIds) {
   const definition = definitionForLegacyCapability(capabilityId);

@@ -50,6 +50,7 @@ export type OperationReadinessIssue =
 export type AdapterKind =
   | 'direct_api'
   | 'provider_cli'
+  | 'codex_app_server'
   | 'mcp_agent'
   | 'cli_agent'
   | 'local_canvas'

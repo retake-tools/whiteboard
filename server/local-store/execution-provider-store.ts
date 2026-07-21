@@ -341,7 +341,10 @@ export async function checkExecutionConnection(
       checkMessage = 'Dreamina CLI executable verified. Login and membership are validated again when a task is submitted.';
     } else if (summary.connectorId === 'codex-app-server') {
       const result = await (dependencies.probeCodexAppServer ?? probeCodexAppServerConnection)();
-      checkMessage = `Codex App Server handshake succeeded (${result.authMode}).`;
+      if (!result.capabilities.imageGeneration) {
+        throw new Error('Codex App Server is authenticated, but this runtime does not expose built-in image generation.');
+      }
+      checkMessage = `Codex App Server text streaming and built-in image generation are available (${result.authMode}).`;
     } else if (summary.connectorId === 'openai-compatible') {
       const connection = await resolveExecutionConnection(connectionId);
       if (!connection?.apiKey || !connection.baseUrl || !connection.model) {

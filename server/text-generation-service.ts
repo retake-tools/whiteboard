@@ -1,7 +1,9 @@
 import type { BoardSnapshot, ExecutionRecord } from '../src/core/types';
 import { generateNativeText, type NativeTextResult } from './ai-sdk-native-text-client';
+import { runCodexAppServerTurn } from './codex-app-server-client';
+import { publishExecutionEvent } from './execution-events';
 import { createAssetFromDataUrl } from './local-store/asset-store';
-import { resolveExecutionConnection } from './local-store/execution-provider-store';
+import { listExecutionProviderSettings, resolveExecutionConnection } from './local-store/execution-provider-store';
 import { failExecution, markExecutionRunning, updateTextResultBlock } from './local-store/execution-store';
 import { loadSnapshot, saveSnapshot } from './local-store/snapshot-store';
 import { generateOpenAICompatibleText, type OpenAICompatibleTextResult } from './openai-compatible-client';
@@ -11,6 +13,7 @@ type TextGenerationResult = NativeTextResult | OpenAICompatibleTextResult;
 interface TextGenerationDependencies {
   generateNative?: typeof generateNativeText;
   generateOpenAICompatible?: typeof generateOpenAICompatibleText;
+  runCodexAppServer?: typeof runCodexAppServerTurn;
 }
 
 export async function startTextGeneration(input: {
@@ -23,14 +26,16 @@ export async function startTextGeneration(input: {
   execution: ExecutionRecord;
   completion: Promise<void>;
 }> {
-  const connection = await resolveExecutionConnection(input.connectionId);
-  const connectorId = connection?.connectorId;
-  if (!connection || !connectorId || !isTextConnector(connectorId)) {
+  const settings = await listExecutionProviderSettings(input.projectId);
+  const connectionSummary = settings.connections.find((candidate) => candidate.connectionId === input.connectionId);
+  const connectorId = connectionSummary?.connectorId;
+  if (!connectionSummary || connectionSummary.status !== 'ready' || !connectorId || !isTextConnector(connectorId)) {
     throw new Error('Text generation connection is unavailable. Configure and test it in Retake Settings.');
   }
   const current = await loadSnapshot(input.projectId, input.boardId);
   const queued = current.executions.find((candidate) => candidate.executionId === input.executionId);
-  if (!queued || queued.status !== 'queued' || queued.adapter !== 'direct_api' || queued.capabilityId !== 'text.generate') {
+  const expectedAdapter = connectorId === 'codex-app-server' ? 'codex_app_server' : 'direct_api';
+  if (!queued || queued.status !== 'queued' || queued.adapter !== expectedAdapter || queued.capabilityId !== 'text.generate') {
     throw new Error(`Queued text.generate execution not found: ${input.executionId}`);
   }
   if (queued.connectionId !== input.connectionId) {
@@ -38,13 +43,19 @@ export async function startTextGeneration(input: {
   }
 
   const started = await markExecutionRunning(input);
-  const completion = executeTextGeneration(started.execution, { ...connection, connectorId }, dependencies).catch(async (error) => {
-    await failExecution({
+  publishExecutionEvent(input.executionId, { type: 'execution.started' });
+  const completion = executeTextGeneration(started.execution, connectionSummary, dependencies).catch(async (error) => {
+    const failed = await failExecution({
       projectId: input.projectId,
       boardId: input.boardId,
       executionId: input.executionId,
       errorMessage: error instanceof Error ? error.message : 'Text generation failed.',
     }).catch(() => undefined);
+    publishExecutionEvent(input.executionId, {
+      type: 'execution.failed',
+      errorMessage: error instanceof Error ? error.message : 'Text generation failed.',
+      ...(failed ? { snapshot: failed.snapshot } : {}),
+    });
     throw error;
   });
   void completion.catch(() => undefined);
@@ -53,22 +64,50 @@ export async function startTextGeneration(input: {
 
 async function executeTextGeneration(
   execution: ExecutionRecord,
-  connection: NonNullable<Awaited<ReturnType<typeof resolveExecutionConnection>>> & {
-    connectorId: 'anthropic-native' | 'google-native' | 'openai-compatible';
-  },
+  connection: Awaited<ReturnType<typeof listExecutionProviderSettings>>['connections'][number],
   dependencies: TextGenerationDependencies,
 ): Promise<void> {
-  const config = {
-    apiKey: connection.apiKey,
-    baseUrl: connection.baseUrl,
-    model: connection.model,
-  };
   const prompt = execution.prompt?.trim();
   if (!prompt) throw new Error('Text generation requires a non-empty prompt.');
   const maxOutputTokens = requestedMaxOutputTokens(execution);
-  const result = connection.connectorId === 'openai-compatible'
-    ? await (dependencies.generateOpenAICompatible ?? generateOpenAICompatibleText)(config, { prompt, maxOutputTokens })
-    : await (dependencies.generateNative ?? generateNativeText)(connection.connectorId, config, { prompt, maxOutputTokens });
+  let result: TextGenerationResult;
+  if (connection.connectorId === 'codex-app-server') {
+    const codexResult = await (dependencies.runCodexAppServer ?? runCodexAppServerTurn)({
+      cwd: process.env.TMPDIR || '/tmp',
+      model: connection.modelId || 'gpt-5.4',
+      prompt: `${prompt}\n\nReturn only the requested Markdown document. Do not call tools and do not add process commentary.`,
+      sandbox: 'read-only',
+      onTextDelta: (delta) => publishExecutionEvent(execution.executionId, {
+        type: 'text.delta',
+        delta,
+        resultBlockId: execution.outputBlockIds[0] ?? '',
+      }),
+    });
+    result = {
+      text: codexResult.text,
+      finishReason: 'stop',
+      usage: {},
+      providerMetadata: {
+        codexAppServer: {
+          threadId: codexResult.threadId,
+          turnId: codexResult.turnId,
+        },
+      },
+    };
+  } else {
+    const resolved = await resolveExecutionConnection(connection.connectionId);
+    if (!resolved || !isDirectTextConnector(resolved.connectorId)) {
+      throw new Error('Text generation credentials are unavailable. Configure the connection in Retake Settings.');
+    }
+    const config = {
+      apiKey: resolved.apiKey,
+      baseUrl: resolved.baseUrl,
+      model: resolved.model,
+    };
+    result = resolved.connectorId === 'openai-compatible'
+      ? await (dependencies.generateOpenAICompatible ?? generateOpenAICompatibleText)(config, { prompt, maxOutputTokens })
+      : await (dependencies.generateNative ?? generateNativeText)(resolved.connectorId, config, { prompt, maxOutputTokens });
+  }
   const markdown = result.text.trim();
   if (!markdown) throw new Error('The provider returned an empty text result.');
 
@@ -80,7 +119,7 @@ async function executeTextGeneration(
     fileName: 'generated.md',
     kind: 'document',
   });
-  await updateTextResultBlock({
+  const completed = await updateTextResultBlock({
     projectId: execution.projectId,
     boardId: execution.boardId,
     executionId: execution.executionId,
@@ -89,6 +128,7 @@ async function executeTextGeneration(
     title: 'Generated text',
     markdown,
   });
+  publishExecutionEvent(execution.executionId, { type: 'execution.snapshot', snapshot: completed.snapshot });
 }
 
 async function recordProviderResult(execution: ExecutionRecord, result: TextGenerationResult): Promise<void> {
@@ -113,6 +153,12 @@ function requestedMaxOutputTokens(execution: ExecutionRecord): number {
 }
 
 function isTextConnector(
+  connectorId: string,
+): connectorId is 'anthropic-native' | 'codex-app-server' | 'google-native' | 'openai-compatible' {
+  return connectorId === 'anthropic-native' || connectorId === 'codex-app-server' || connectorId === 'google-native' || connectorId === 'openai-compatible';
+}
+
+function isDirectTextConnector(
   connectorId: string,
 ): connectorId is 'anthropic-native' | 'google-native' | 'openai-compatible' {
   return connectorId === 'anthropic-native' || connectorId === 'google-native' || connectorId === 'openai-compatible';
