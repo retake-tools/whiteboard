@@ -21,6 +21,8 @@ export interface VideoGenerationInput {
   durationSeconds: number;
   outputCount: number;
   aspectRatio?: string;
+  connectionId?: string;
+  model?: string;
 }
 
 export interface VideoGenerationRun {
@@ -129,6 +131,8 @@ export function createVideoGenerationExecution(
     skillLock: null,
     executionProfileId: profile.executionProfileId,
     requestedAdapterId: profile.adapterDefinition.adapterId,
+    ...(input.connectionId ? { requestedConnectionId: input.connectionId } : {}),
+    ...(input.model ? { requestedModel: input.model } : {}),
     inputBindings,
     parameters: {
       durationSeconds: input.durationSeconds,
@@ -174,7 +178,8 @@ export function createVideoGenerationExecution(
     outputAssetIds: [],
     triggerMode: profile.triggerMode,
     provider: profile.adapterDefinition.provider,
-    model: profile.adapterDefinition.model,
+    model: input.model || profile.adapterDefinition.model,
+    ...(input.connectionId ? { connectionId: input.connectionId } : {}),
     prompt,
     params: { generation: structuredClone(request.parameters), shortcutBlockId: targetBlock.blockId },
     startedAt: createdAt,

@@ -1,5 +1,6 @@
 import type {
   ExecutionCapabilityClass,
+  ExecutionModelConfiguration,
   ExecutionProviderSettingsSnapshot,
 } from './executionProviders';
 import { cacheExecutionProviderSettings } from './executionProviderPreferences';
@@ -11,17 +12,41 @@ export async function loadExecutionProviderSettings(projectId?: string): Promise
   return snapshot;
 }
 
-export async function updateExecutionProviderConnection(input: {
-  providerId: string;
+export async function createExecutionProviderConnection(input: {
+  templateId: string;
+  displayName: string;
   projectId?: string;
-  displayName?: string;
-  enabled?: boolean;
+  providerLabel?: string;
   baseUrl?: string;
-  model?: string;
+  models?: ExecutionModelConfiguration[];
+  defaultModelId?: string;
   apiKey?: string;
 }): Promise<ExecutionProviderSettingsSnapshot> {
   const snapshot = await readJsonResponse<ExecutionProviderSettingsSnapshot>(await fetch(
-    `/api/local/settings/execution/connections/${encodeURIComponent(input.providerId)}`,
+    '/api/local/settings/execution/connections',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  ));
+  cacheExecutionProviderSettings(input.projectId, snapshot);
+  return snapshot;
+}
+
+export async function updateExecutionProviderConnection(input: {
+  connectionId: string;
+  projectId?: string;
+  displayName?: string;
+  providerLabel?: string;
+  enabled?: boolean;
+  baseUrl?: string;
+  models?: ExecutionModelConfiguration[];
+  defaultModelId?: string;
+  apiKey?: string;
+}): Promise<ExecutionProviderSettingsSnapshot> {
+  const snapshot = await readJsonResponse<ExecutionProviderSettingsSnapshot>(await fetch(
+    `/api/local/settings/execution/connections/${encodeURIComponent(input.connectionId)}`,
     {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -32,12 +57,28 @@ export async function updateExecutionProviderConnection(input: {
   return snapshot;
 }
 
-export async function checkExecutionProviderConnection(
-  providerId: string,
+export async function deleteExecutionProviderConnection(
+  connectionId: string,
   projectId?: string,
 ): Promise<ExecutionProviderSettingsSnapshot> {
   const snapshot = await readJsonResponse<ExecutionProviderSettingsSnapshot>(await fetch(
-    `/api/local/settings/execution/connections/${encodeURIComponent(providerId)}/check`,
+    `/api/local/settings/execution/connections/${encodeURIComponent(connectionId)}`,
+    {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId }),
+    },
+  ));
+  cacheExecutionProviderSettings(projectId, snapshot);
+  return snapshot;
+}
+
+export async function checkExecutionProviderConnection(
+  connectionId: string,
+  projectId?: string,
+): Promise<ExecutionProviderSettingsSnapshot> {
+  const snapshot = await readJsonResponse<ExecutionProviderSettingsSnapshot>(await fetch(
+    `/api/local/settings/execution/connections/${encodeURIComponent(connectionId)}/check`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

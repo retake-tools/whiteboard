@@ -77,6 +77,7 @@ export interface GenerationProfileSnapshot {
   agentHost?: AgentHost;
   provider?: string;
   model?: string;
+  connectionId?: string;
 }
 
 export interface ProjectRecord {
@@ -150,6 +151,7 @@ export interface ExecutionRecord {
   triggerMode?: TriggerMode;
   provider?: string;
   model?: string;
+  connectionId?: string;
   skillId?: string;
   generationProfile?: GenerationProfileSnapshot;
   prompt?: string;

@@ -1,6 +1,11 @@
 import { Info, Play, Video } from 'lucide-react';
-import type { ReactElement } from 'react';
+import { useSyncExternalStore, type ReactElement } from 'react';
 import { TooltipIconButton } from '../components/Tooltip';
+import {
+  currentExecutionProviderSettings,
+  subscribeExecutionProviderSettings,
+} from '../core/executionProviderPreferences';
+import type { ExecutionConnectionSummary } from '../core/executionProviders';
 import type { BlockData } from '../core/types';
 import { useI18n } from '../i18n';
 
@@ -12,6 +17,18 @@ export function VideoBlockBody({ blockId, data }: { blockId: string; data: Block
   const outputCount = numericDraftParameter(draft?.parameters.outputCount, 1);
   const aspectRatio = stringDraftParameter(draft?.parameters.aspectRatio, '9:16');
   const executionProfileId = draft?.executionProfileId ?? 'video-mock';
+  const providerSettings = useSyncExternalStore(
+    subscribeExecutionProviderSettings,
+    currentExecutionProviderSettings,
+    currentExecutionProviderSettings,
+  );
+  const executionChoices = videoExecutionChoices(providerSettings?.connections ?? []);
+  const selectedExecutionChoice = executionChoices.find((choice) =>
+    choice.executionProfileId === executionProfileId
+      && (!draft?.connectionId || choice.connectionId === draft.connectionId)
+      && (!draft?.model || choice.model === draft.model))
+    ?? executionChoices.find((choice) => choice.executionProfileId === executionProfileId)
+    ?? executionChoices[0];
   const usesSeedance = executionProfileId === 'video-seedance-modelark';
   const usesDreaminaCli = executionProfileId === 'video-dreamina-cli';
   const status = visibleVideoStatus(data);
@@ -64,12 +81,21 @@ export function VideoBlockBody({ blockId, data }: { blockId: string; data: Block
         <select
           aria-label={t('videoGeneration.profile')}
           disabled={isLocked || isRunning}
-          value={executionProfileId}
-          onChange={(event) => dispatchUpdateVideoDraft(blockId, { executionProfileId: event.currentTarget.value })}
+          value={selectedExecutionChoice ? encodeExecutionChoice(selectedExecutionChoice) : executionProfileId}
+          onChange={(event) => {
+            const choice = decodeExecutionChoice(event.currentTarget.value);
+            dispatchUpdateVideoDraft(blockId, choice);
+          }}
         >
-          <option value="video-mock">{t('videoGeneration.profileMockOption')}</option>
-          <option value="video-dreamina-cli">{t('videoGeneration.profileDreaminaOption')}</option>
-          <option value="video-seedance-modelark">{t('videoGeneration.profileSeedanceOption')}</option>
+          {executionChoices.map((choice) => (
+            <option
+              key={encodeExecutionChoice(choice)}
+              disabled={choice.disabled}
+              value={encodeExecutionChoice(choice)}
+            >
+              {choice.label}
+            </option>
+          ))}
         </select>
       </label>
       <div className="video-generation-fields">
@@ -157,7 +183,64 @@ function visibleVideoStatus(data: BlockData): BlockData['status'] | undefined {
 
 function dispatchUpdateVideoDraft(
   blockId: string,
-  update: { aspectRatio?: string; durationSeconds?: number; executionProfileId?: string; outputCount?: number; prompt?: string },
+  update: {
+    aspectRatio?: string;
+    connectionId?: string | null;
+    durationSeconds?: number;
+    executionProfileId?: string;
+    model?: string | null;
+    outputCount?: number;
+    prompt?: string;
+  },
 ): void {
   window.dispatchEvent(new CustomEvent('retake:update-video-draft', { detail: { blockId, ...update } }));
+}
+
+interface VideoExecutionChoice {
+  connectionId: string;
+  disabled?: boolean;
+  executionProfileId: string;
+  label: string;
+  model?: string;
+}
+
+function videoExecutionChoices(connections: ExecutionConnectionSummary[]): VideoExecutionChoice[] {
+  const choices = connections.filter((connection) => connection.capabilityClasses.includes('video')).flatMap((connection) => {
+    const executionProfileId = videoProfileForConnector(connection.connectorId);
+    if (!executionProfileId) return [];
+    const models = connection.models.length ? connection.models : [{ modelId: '' }];
+    return models.map((model) => ({
+      connectionId: connection.connectionId,
+      disabled: connection.status !== 'ready',
+      executionProfileId,
+      label: `${connection.displayName}${model.modelId ? ` · ${model.displayName || model.modelId}` : ''}`,
+      ...(model.modelId ? { model: model.modelId } : {}),
+    }));
+  });
+  if (choices.length) return choices;
+  return [
+    { connectionId: 'retake-mock', executionProfileId: 'video-mock', label: 'Retake Mock' },
+    { connectionId: 'dreamina', executionProfileId: 'video-dreamina-cli', label: 'Dreamina CLI' },
+    { connectionId: 'byteplus-modelark', executionProfileId: 'video-seedance-modelark', label: 'BytePlus ModelArk' },
+  ];
+}
+
+function videoProfileForConnector(connectorId: string): string | undefined {
+  if (connectorId === 'retake-mock') return 'video-mock';
+  if (connectorId === 'dreamina') return 'video-dreamina-cli';
+  if (connectorId === 'byteplus-modelark') return 'video-seedance-modelark';
+  return undefined;
+}
+
+function encodeExecutionChoice(choice: VideoExecutionChoice): string {
+  return [choice.executionProfileId, choice.connectionId, choice.model ?? ''].join('\u001f');
+}
+
+function decodeExecutionChoice(value: string): {
+  connectionId: string | null;
+  executionProfileId: string;
+  model: string | null;
+} {
+  const [executionProfileId = 'video-mock', connectionId = '', model = ''] = value.split('\u001f');
+  return { executionProfileId, connectionId: connectionId || null, model: model || null };
 }

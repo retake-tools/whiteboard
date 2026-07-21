@@ -17,36 +17,55 @@ export type ExecutionConnectionStatus =
 
 export type ExecutionCapabilityClass = 'text' | 'document' | 'image' | 'video' | 'audio' | 'agent';
 
-export interface ExecutionProviderDefinition {
-  providerId: string;
+export interface ExecutionModelConfiguration {
+  modelId: string;
+  displayName?: string;
+}
+
+export interface ExecutionConnectorDefinition {
+  connectorId: string;
   displayName: string;
   description: string;
   connectionKind: ExecutionConnectionKind;
   implementationKind: AdapterImplementationKind;
-  packageStatus: 'installed' | 'available';
+  installStatus: 'installed' | 'available';
+  connectionMode: 'fixed' | 'multiple';
+  requiresCredential: boolean;
   supportedCapabilityIds: string[];
   capabilityClasses: ExecutionCapabilityClass[];
-  configurable: boolean;
   defaultBaseUrl?: string;
-  defaultModel?: string;
+  defaultModels?: ExecutionModelConfiguration[];
+}
+
+export interface ExecutionConnectionTemplate {
+  templateId: string;
+  connectorId: string;
+  displayName: string;
+  description: string;
+  providerLabel: string;
+  defaultBaseUrl?: string;
+  defaultModels: ExecutionModelConfiguration[];
 }
 
 export interface ExecutionConnectionSummary {
   connectionId: string;
-  providerId: string;
+  connectorId: string;
+  templateId?: string;
+  providerLabel: string;
   displayName: string;
   description: string;
   connectionKind: ExecutionConnectionKind;
   implementationKind: AdapterImplementationKind;
-  packageStatus: 'installed' | 'available';
   supportedCapabilityIds: string[];
   capabilityClasses: ExecutionCapabilityClass[];
   configurable: boolean;
+  deletable: boolean;
   enabled: boolean;
   status: ExecutionConnectionStatus;
   hasCredential: boolean;
   baseUrl?: string;
-  model?: string;
+  models: ExecutionModelConfiguration[];
+  defaultModelId?: string;
   lastCheckedAt?: string;
   lastError?: string;
 }
@@ -58,99 +77,193 @@ export interface ExecutionDefaultSelection {
 }
 
 export interface ExecutionProviderSettingsSnapshot {
+  connectors: ExecutionConnectorDefinition[];
+  connectionTemplates: ExecutionConnectionTemplate[];
   connections: ExecutionConnectionSummary[];
   workspaceDefaults: ExecutionDefaultSelection[];
   projectDefaults: ExecutionDefaultSelection[];
 }
 
-const definitions: ExecutionProviderDefinition[] = [
+const connectors: ExecutionConnectorDefinition[] = [
   {
-    providerId: 'retake-mock',
+    connectorId: 'retake-mock',
     displayName: 'Retake Mock',
     description: 'Local no-cost contract adapter for workflow testing.',
     connectionKind: 'local',
     implementationKind: 'local',
-    packageStatus: 'installed',
+    installStatus: 'installed',
+    connectionMode: 'fixed',
+    requiresCredential: false,
     supportedCapabilityIds: ['video.generate'],
     capabilityClasses: ['video'],
-    configurable: false,
-    defaultModel: 'contract-placeholder',
+    defaultModels: [{ modelId: 'contract-placeholder' }],
   },
   {
-    providerId: 'codex-managed',
+    connectorId: 'codex-managed',
     displayName: 'Codex Managed',
     description: 'Codex host with the Retake MCP bridge and installed skills.',
     connectionKind: 'agent_host',
     implementationKind: 'agent_bridge',
-    packageStatus: 'installed',
+    installStatus: 'installed',
+    connectionMode: 'fixed',
+    requiresCredential: false,
     supportedCapabilityIds: ['image.annotation_edit', 'image.image_to_image', 'image.text_to_image'],
     capabilityClasses: ['image', 'agent'],
-    configurable: false,
   },
   {
-    providerId: 'dreamina',
+    connectorId: 'dreamina',
     displayName: 'Dreamina CLI',
     description: 'Local Dreamina membership route for Seedance video generation.',
     connectionKind: 'provider_cli',
     implementationKind: 'provider_cli',
-    packageStatus: 'installed',
+    installStatus: 'installed',
+    connectionMode: 'fixed',
+    requiresCredential: false,
     supportedCapabilityIds: ['video.generate'],
     capabilityClasses: ['video'],
-    configurable: false,
-    defaultModel: 'seedance2.0_vip',
+    defaultModels: [{ modelId: 'seedance2.0_vip' }],
   },
   {
-    providerId: 'byteplus-modelark',
+    connectorId: 'byteplus-modelark',
     displayName: 'BytePlus ModelArk',
     description: 'Global Ark connection using the durable native Seedance task adapter.',
     connectionKind: 'model_provider',
     implementationKind: 'native_async',
-    packageStatus: 'installed',
+    installStatus: 'installed',
+    connectionMode: 'multiple',
+    requiresCredential: true,
     supportedCapabilityIds: ['video.generate'],
     capabilityClasses: ['video'],
-    configurable: true,
     defaultBaseUrl: 'https://ark.ap-southeast.bytepluses.com/api/v3',
-    defaultModel: 'dreamina-seedance-2-0-260128',
+    defaultModels: [{ modelId: 'dreamina-seedance-2-0-260128' }],
   },
   {
-    providerId: 'openai-compatible',
-    displayName: 'OpenAI-compatible API',
-    description: 'AI SDK connection foundation for future text and document execution adapters.',
+    connectorId: 'openai-compatible',
+    displayName: 'OpenAI-compatible',
+    description: 'AI SDK connector shared by OpenAI, OpenRouter, DeepSeek, internal gateways, and compatible APIs.',
     connectionKind: 'model_provider',
     implementationKind: 'ai_sdk',
-    packageStatus: 'installed',
+    installStatus: 'installed',
+    connectionMode: 'multiple',
+    requiresCredential: true,
     supportedCapabilityIds: [],
     capabilityClasses: [],
-    configurable: true,
   },
-  ...[
-    ['openai', 'OpenAI', 'Official AI SDK provider package.'],
-    ['anthropic', 'Anthropic', 'Official AI SDK provider package.'],
-    ['google', 'Google Gemini', 'Official AI SDK provider package.'],
-    ['openrouter', 'OpenRouter', 'Aggregated model provider connection.'],
-    ['deepseek', 'DeepSeek', 'Direct model provider connection.'],
-    ['volcengine-ark', 'Volcengine Ark', 'Mainland China Ark image and video provider connection.'],
-  ].map(([providerId, displayName, description]): ExecutionProviderDefinition => ({
-    providerId,
-    displayName,
-    description,
+  {
+    connectorId: 'anthropic-native',
+    displayName: 'Anthropic native',
+    description: 'Future official AI SDK connector for Anthropic-native endpoints.',
     connectionKind: 'model_provider',
-    implementationKind: providerId === 'volcengine-ark' ? 'native_async' : 'ai_sdk',
-    packageStatus: 'available',
+    implementationKind: 'ai_sdk',
+    installStatus: 'available',
+    connectionMode: 'multiple',
+    requiresCredential: true,
     supportedCapabilityIds: [],
     capabilityClasses: [],
-    configurable: false,
-  })),
+  },
+  {
+    connectorId: 'google-native',
+    displayName: 'Google Gemini native',
+    description: 'Future official AI SDK connector for Gemini-native endpoints.',
+    connectionKind: 'model_provider',
+    implementationKind: 'ai_sdk',
+    installStatus: 'available',
+    connectionMode: 'multiple',
+    requiresCredential: true,
+    supportedCapabilityIds: [],
+    capabilityClasses: [],
+  },
+  {
+    connectorId: 'volcengine-ark',
+    displayName: 'Volcengine Ark',
+    description: 'Future mainland China Ark image and video connector.',
+    connectionKind: 'model_provider',
+    implementationKind: 'native_async',
+    installStatus: 'available',
+    connectionMode: 'multiple',
+    requiresCredential: true,
+    supportedCapabilityIds: [],
+    capabilityClasses: [],
+  },
 ];
 
-export function listExecutionProviderDefinitions(): ExecutionProviderDefinition[] {
-  return definitions.map((definition) => ({
-    ...definition,
-    supportedCapabilityIds: [...definition.supportedCapabilityIds],
-    capabilityClasses: [...definition.capabilityClasses],
+const connectionTemplates: ExecutionConnectionTemplate[] = [
+  {
+    templateId: 'openai',
+    connectorId: 'openai-compatible',
+    displayName: 'OpenAI',
+    description: 'OpenAI API through the shared OpenAI-compatible connector.',
+    providerLabel: 'OpenAI',
+    defaultBaseUrl: 'https://api.openai.com/v1',
+    defaultModels: [],
+  },
+  {
+    templateId: 'openrouter',
+    connectorId: 'openai-compatible',
+    displayName: 'OpenRouter',
+    description: 'OpenRouter multi-provider API using its OpenAI-compatible endpoint.',
+    providerLabel: 'OpenRouter',
+    defaultBaseUrl: 'https://openrouter.ai/api/v1',
+    defaultModels: [],
+  },
+  {
+    templateId: 'deepseek',
+    connectorId: 'openai-compatible',
+    displayName: 'DeepSeek',
+    description: 'DeepSeek API using its OpenAI-compatible endpoint.',
+    providerLabel: 'DeepSeek',
+    defaultBaseUrl: 'https://api.deepseek.com',
+    defaultModels: [],
+  },
+  {
+    templateId: 'custom-openai-compatible',
+    connectorId: 'openai-compatible',
+    displayName: 'Custom OpenAI-compatible',
+    description: 'Any internal gateway or provider that implements the compatible chat API.',
+    providerLabel: 'Custom',
+    defaultModels: [],
+  },
+  {
+    templateId: 'byteplus-modelark',
+    connectorId: 'byteplus-modelark',
+    displayName: 'BytePlus ModelArk',
+    description: 'Another BytePlus account, region, or endpoint using the installed native async connector.',
+    providerLabel: 'BytePlus ModelArk',
+    defaultBaseUrl: 'https://ark.ap-southeast.bytepluses.com/api/v3',
+    defaultModels: [{ modelId: 'dreamina-seedance-2-0-260128' }],
+  },
+];
+
+export function listExecutionConnectorDefinitions(): ExecutionConnectorDefinition[] {
+  return connectors.map(cloneConnector);
+}
+
+export function executionConnectorDefinition(connectorId: string): ExecutionConnectorDefinition | undefined {
+  const definition = connectors.find((candidate) => candidate.connectorId === connectorId);
+  return definition ? cloneConnector(definition) : undefined;
+}
+
+export function listExecutionConnectionTemplates(): ExecutionConnectionTemplate[] {
+  return connectionTemplates.map((template) => ({
+    ...template,
+    defaultModels: cloneModels(template.defaultModels),
   }));
 }
 
-export function executionProviderDefinition(providerId: string): ExecutionProviderDefinition | undefined {
-  return listExecutionProviderDefinitions().find((definition) => definition.providerId === providerId);
+export function executionConnectionTemplate(templateId: string): ExecutionConnectionTemplate | undefined {
+  const template = connectionTemplates.find((candidate) => candidate.templateId === templateId);
+  return template ? { ...template, defaultModels: cloneModels(template.defaultModels) } : undefined;
+}
+
+function cloneConnector(definition: ExecutionConnectorDefinition): ExecutionConnectorDefinition {
+  return {
+    ...definition,
+    supportedCapabilityIds: [...definition.supportedCapabilityIds],
+    capabilityClasses: [...definition.capabilityClasses],
+    ...(definition.defaultModels ? { defaultModels: cloneModels(definition.defaultModels) } : {}),
+  };
+}
+
+function cloneModels(models: ExecutionModelConfiguration[]): ExecutionModelConfiguration[] {
+  return models.map((model) => ({ ...model }));
 }

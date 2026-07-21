@@ -1,7 +1,7 @@
 import { createId, nowIso } from './id';
 import { defaultGenerationProfileId } from './generationProfiles';
 import { defaultBlockSize } from './blockSizing';
-import { executionDefaultConnection } from './executionProviderPreferences';
+import { executionConnection, executionDefaultSelection } from './executionProviderPreferences';
 import type { BlockRecord, BlockType, BoardSnapshot } from './types';
 
 export function createBlockRecord(
@@ -63,7 +63,9 @@ function dataForType(type: BlockType, projectId: string): BlockRecord['data'] {
   }
 
   if (type === 'video') {
-    const executionProfileId = videoProfileForConnection(executionDefaultConnection('video', projectId));
+    const selection = executionDefaultSelection('video', projectId);
+    const connection = executionConnection(selection?.connectionId, projectId);
+    const executionProfileId = videoProfileForConnector(connection?.connectorId);
     return {
       title: 'Video block',
       body: 'Connect optional image references, then generate through the selected video profile.',
@@ -71,6 +73,8 @@ function dataForType(type: BlockType, projectId: string): BlockRecord['data'] {
         schemaVersion: 1,
         capabilityId: 'video.generate',
         executionProfileId,
+        ...(selection?.connectionId ? { connectionId: selection.connectionId } : {}),
+        ...(selection?.model ? { model: selection.model } : {}),
         prompt: '',
         parameters: {
           aspectRatio: '9:16',
@@ -88,8 +92,8 @@ function dataForType(type: BlockType, projectId: string): BlockRecord['data'] {
   };
 }
 
-function videoProfileForConnection(connectionId: string | undefined): string {
-  if (connectionId === 'dreamina') return 'video-dreamina-cli';
-  if (connectionId === 'byteplus-modelark') return 'video-seedance-modelark';
+function videoProfileForConnector(connectorId: string | undefined): string {
+  if (connectorId === 'dreamina') return 'video-dreamina-cli';
+  if (connectorId === 'byteplus-modelark') return 'video-seedance-modelark';
   return 'video-mock';
 }

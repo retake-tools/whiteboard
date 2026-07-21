@@ -37,6 +37,8 @@ import { dreaminaCliAvailability } from './dreamina-cli-client';
 import { cancelDreaminaCliVideoGeneration, startDreaminaCliVideoGeneration } from './dreamina-cli-video-service';
 import {
   checkExecutionConnection,
+  createExecutionConnection,
+  deleteExecutionConnection,
   listExecutionProviderSettings,
   saveExecutionDefault,
   updateExecutionConnection,
@@ -78,18 +80,54 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
             return;
           }
 
+          if (method === 'POST' && url.pathname === '/settings/execution/connections') {
+            const body = (await readJson(req)) as {
+              projectId?: string;
+              templateId?: string;
+              displayName?: string;
+              providerLabel?: string;
+              baseUrl?: string;
+              models?: Array<{ modelId: string; displayName?: string }>;
+              defaultModelId?: string;
+              apiKey?: string;
+            };
+            if (!body.templateId || !body.displayName) {
+              sendJson(res, { error: 'templateId and displayName are required' }, 400);
+              return;
+            }
+            sendJson(res, await createExecutionConnection({
+              templateId: body.templateId,
+              displayName: body.displayName,
+              providerLabel: body.providerLabel,
+              baseUrl: body.baseUrl,
+              models: body.models,
+              defaultModelId: body.defaultModelId,
+              apiKey: body.apiKey,
+            }, body.projectId), 201);
+            return;
+          }
+
           const executionConnectionMatch = url.pathname.match(/^\/settings\/execution\/connections\/([^/]+)$/);
           if (method === 'PUT' && executionConnectionMatch) {
-            const [, providerId] = executionConnectionMatch;
+            const [, connectionId] = executionConnectionMatch;
             const body = (await readJson(req)) as {
               projectId?: string;
               displayName?: string;
+              providerLabel?: string;
               enabled?: boolean;
               baseUrl?: string;
-              model?: string;
+              models?: Array<{ modelId: string; displayName?: string }>;
+              defaultModelId?: string;
               apiKey?: string;
             };
-            sendJson(res, await updateExecutionConnection({ providerId, ...body }, body.projectId));
+            sendJson(res, await updateExecutionConnection(connectionId, body, body.projectId));
+            return;
+          }
+
+          if (method === 'DELETE' && executionConnectionMatch) {
+            const [, connectionId] = executionConnectionMatch;
+            const body = (await readJson(req)) as { projectId?: string };
+            sendJson(res, await deleteExecutionConnection(connectionId, body.projectId));
             return;
           }
 
@@ -97,9 +135,9 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
             /^\/settings\/execution\/connections\/([^/]+)\/check$/,
           );
           if (method === 'POST' && executionConnectionCheckMatch) {
-            const [, providerId] = executionConnectionCheckMatch;
+            const [, connectionId] = executionConnectionCheckMatch;
             const body = (await readJson(req)) as { projectId?: string };
-            sendJson(res, await checkExecutionConnection(providerId, body.projectId));
+            sendJson(res, await checkExecutionConnection(connectionId, body.projectId));
             return;
           }
 
@@ -127,12 +165,12 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
 
           if (method === 'GET' && url.pathname === '/video/seedance-modelark/availability') {
             const settings = await listExecutionProviderSettings();
-            const connection = settings.connections.find((candidate) => candidate.providerId === 'byteplus-modelark');
+            const connection = settings.connections.find((candidate) => candidate.connectionId === 'byteplus-modelark');
             sendJson(res, connection ? {
               available: connection.status === 'ready',
               adapterId: 'retake.video.seedance-modelark',
               credentialRefType: 'modelark_api_key',
-              model: connection.model,
+              model: connection.defaultModelId,
               ...(connection.status === 'ready' ? {} : { reason: connection.lastError || 'Configure BytePlus ModelArk in Retake Settings.' }),
             } : seedanceModelArkAvailability());
             return;
@@ -196,6 +234,8 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               durationSeconds?: number;
               outputCount?: number;
               aspectRatio?: string;
+              connectionId?: string;
+              model?: string;
             };
             if (!body.projectId || !body.boardId || !body.targetBlockId || typeof body.prompt !== 'string') {
               sendJson(res, { error: 'projectId, boardId, targetBlockId, and prompt are required' }, 400);
@@ -209,6 +249,8 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               durationSeconds: body.durationSeconds ?? 8,
               outputCount: body.outputCount ?? 1,
               aspectRatio: body.aspectRatio,
+              connectionId: body.connectionId,
+              model: body.model,
             });
             sendJson(res, { snapshot: started.snapshot, execution: started.execution }, 202);
             return;

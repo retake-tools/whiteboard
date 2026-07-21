@@ -388,20 +388,31 @@ type TranslationKey =
   | 'settings.executionProviders'
   | 'settings.executionProvidersDescription'
   | 'settings.connections'
+  | 'settings.connectionsDescription'
+  | 'settings.addConnection'
+  | 'settings.connectionTemplate'
+  | 'settings.connectionName'
+  | 'settings.providerLabel'
+  | 'settings.modelIds'
+  | 'settings.modelIdsPlaceholder'
+  | 'settings.createConnection'
+  | 'settings.deleteConnection'
+  | 'settings.confirmDeleteConnection'
+  | 'settings.models'
+  | 'settings.noBoundCapabilities'
   | 'settings.defaults'
-  | 'settings.catalog'
   | 'settings.configure'
   | 'settings.checkConnection'
   | 'settings.checkMayCost'
   | 'settings.saveConnection'
   | 'settings.apiKey'
+  | 'settings.apiKeyCreatePlaceholder'
   | 'settings.apiKeyPlaceholder'
   | 'settings.baseUrl'
   | 'settings.model'
   | 'settings.capabilities'
   | 'settings.credentialsStored'
   | 'settings.credentialsMissing'
-  | 'settings.packageAvailable'
   | 'settings.workspaceDefaults'
   | 'settings.projectDefaults'
   | 'settings.inheritWorkspace'
@@ -869,20 +880,31 @@ const translations: Record<Locale, Translations> = {
     'settings.executionProviders': 'Execution & providers',
     'settings.executionProvidersDescription': 'Configure API connections, local agent hosts, provider CLIs, and capability defaults.',
     'settings.connections': 'Connections',
+    'settings.connectionsDescription': 'Add as many API accounts, endpoints, and internal gateways as you need.',
+    'settings.addConnection': 'Add connection',
+    'settings.connectionTemplate': 'Service template',
+    'settings.connectionName': 'Connection name',
+    'settings.providerLabel': 'Provider label',
+    'settings.modelIds': 'Model IDs',
+    'settings.modelIdsPlaceholder': 'One model ID per line, or separate with commas',
+    'settings.createConnection': 'Create connection',
+    'settings.deleteConnection': 'Delete',
+    'settings.confirmDeleteConnection': 'Delete connection',
+    'settings.models': 'Models',
+    'settings.noBoundCapabilities': 'Connector foundation only',
     'settings.defaults': 'Defaults',
-    'settings.catalog': 'Available packages',
     'settings.configure': 'Configure',
     'settings.checkConnection': 'Check',
     'settings.checkMayCost': 'Connection checks send a minimal text request and may incur a small provider charge.',
     'settings.saveConnection': 'Save connection',
-    'settings.apiKey': 'API key',
+    'settings.apiKey': 'API key / secret',
+    'settings.apiKeyCreatePlaceholder': 'Enter the API key or secret for this connection',
     'settings.apiKeyPlaceholder': 'Leave blank to keep the stored key',
     'settings.baseUrl': 'Base URL',
     'settings.model': 'Model ID',
     'settings.capabilities': 'Capabilities',
     'settings.credentialsStored': 'Credential stored on the Retake server',
     'settings.credentialsMissing': 'Credential required',
-    'settings.packageAvailable': 'Package not installed',
     'settings.workspaceDefaults': 'Workspace defaults',
     'settings.projectDefaults': 'Current project overrides',
     'settings.inheritWorkspace': 'Inherit workspace default',
@@ -1345,20 +1367,31 @@ const translations: Record<Locale, Translations> = {
     'settings.executionProviders': '执行与服务商',
     'settings.executionProvidersDescription': '配置 Direct API、本机 Agent Host、Provider CLI，以及各类能力的默认执行方式。',
     'settings.connections': '连接',
+    'settings.connectionsDescription': '可按需要添加多个 API 账号、服务端点或内部模型网关。',
+    'settings.addConnection': '添加连接',
+    'settings.connectionTemplate': '服务模板',
+    'settings.connectionName': '连接名称',
+    'settings.providerLabel': '服务商标识',
+    'settings.modelIds': '模型 ID',
+    'settings.modelIdsPlaceholder': '每行填写一个模型 ID，也可以用逗号分隔',
+    'settings.createConnection': '创建连接',
+    'settings.deleteConnection': '删除',
+    'settings.confirmDeleteConnection': '确认删除连接',
+    'settings.models': '模型',
+    'settings.noBoundCapabilities': '仅连接基础，尚未绑定执行能力',
     'settings.defaults': '默认值',
-    'settings.catalog': '可添加的 Package',
     'settings.configure': '配置',
     'settings.checkConnection': '检测',
     'settings.checkMayCost': '连接检测会发送一次极小的文本请求，可能产生少量服务商费用。',
     'settings.saveConnection': '保存连接',
-    'settings.apiKey': 'API Key',
+    'settings.apiKey': 'API Key / Secret',
+    'settings.apiKeyCreatePlaceholder': '填写此连接使用的 API Key 或 Secret',
     'settings.apiKeyPlaceholder': '留空则保留服务端已存储的 Key',
     'settings.baseUrl': 'Base URL',
     'settings.model': '模型 ID',
     'settings.capabilities': '支持能力',
     'settings.credentialsStored': '凭据已存储在 Retake 服务端',
     'settings.credentialsMissing': '需要配置凭据',
-    'settings.packageAvailable': 'Package 尚未安装',
     'settings.workspaceDefaults': 'Workspace 默认值',
     'settings.projectDefaults': '当前 Project 覆盖',
     'settings.inheritWorkspace': '继承 Workspace 默认值',

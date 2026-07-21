@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile, rm, stat } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createBlockRecord } from '../src/core/blockFactory';
 import { cacheExecutionProviderSettings } from '../src/core/executionProviderPreferences';
@@ -7,6 +7,9 @@ import { defaultSnapshot } from '../src/core/sampleBoard';
 import type { BoardSnapshot } from '../src/core/types';
 import { generateOpenAICompatibleText } from './openai-compatible-client';
 import {
+  checkExecutionConnection,
+  createExecutionConnection,
+  deleteExecutionConnection,
   listExecutionProviderSettings,
   resolveExecutionConnection,
   saveExecutionDefault,
@@ -15,6 +18,51 @@ import {
 import { retakeRoot } from './local-store/context';
 
 assert.ok(retakeRoot.endsWith('.retake-test-providers'), 'Provider tests must use the disposable provider workspace.');
+await rm(retakeRoot, { recursive: true, force: true });
+
+const settingsRoot = path.join(retakeRoot, 'settings');
+await mkdir(settingsRoot, { recursive: true });
+await writeFile(path.join(settingsRoot, 'execution-connections.json'), JSON.stringify({
+  schemaVersion: 1,
+  connections: [{
+    connectionId: 'openai-compatible',
+    providerId: 'openai-compatible',
+    displayName: 'Legacy compatible connection',
+    enabled: true,
+    baseUrl: 'https://legacy.example/v1',
+    model: 'legacy-model',
+    updatedAt: '2026-07-21T00:00:00.000Z',
+  }],
+}));
+const migrated = await listExecutionProviderSettings();
+assert.equal(migrated.connections.find((connection) => connection.connectionId === 'openai-compatible')?.connectorId, 'openai-compatible');
+assert.equal(migrated.connections.find((connection) => connection.connectionId === 'openai-compatible')?.models[0]?.modelId, 'legacy-model');
+await rm(retakeRoot, { recursive: true, force: true });
+
+const previousModelArkEnvironment = {
+  apiKey: process.env.SEEDANCE_MODELARK_API_KEY,
+  baseUrl: process.env.SEEDANCE_MODELARK_BASE_URL,
+  model: process.env.SEEDANCE_MODELARK_MODEL,
+};
+try {
+  process.env.SEEDANCE_MODELARK_API_KEY = 'environment-test-key';
+  process.env.SEEDANCE_MODELARK_BASE_URL = 'https://environment.example/api/v3';
+  process.env.SEEDANCE_MODELARK_MODEL = 'environment-seedance-model';
+  const environmentSettings = await listExecutionProviderSettings();
+  const environmentConnection = environmentSettings.connections.find(
+    (connection) => connection.connectionId === 'byteplus-modelark',
+  );
+  assert.equal(environmentConnection?.baseUrl, 'https://environment.example/api/v3');
+  assert.equal(environmentConnection?.defaultModelId, 'environment-seedance-model');
+  assert.equal(environmentConnection?.models[0]?.modelId, 'environment-seedance-model');
+  assert.equal((await resolveExecutionConnection('byteplus-modelark'))?.model, 'environment-seedance-model');
+  await checkExecutionConnection('byteplus-modelark');
+  assert.equal((await resolveExecutionConnection('byteplus-modelark'))?.model, 'environment-seedance-model');
+} finally {
+  restoreEnvironment('SEEDANCE_MODELARK_API_KEY', previousModelArkEnvironment.apiKey);
+  restoreEnvironment('SEEDANCE_MODELARK_BASE_URL', previousModelArkEnvironment.baseUrl);
+  restoreEnvironment('SEEDANCE_MODELARK_MODEL', previousModelArkEnvironment.model);
+}
 await rm(retakeRoot, { recursive: true, force: true });
 
 let capturedUrl = '';
@@ -46,59 +94,96 @@ assert.equal(generated.finishReason, 'stop');
 assert.equal(capturedUrl, 'https://provider.example/v1/chat/completions');
 assert.equal(capturedAuthorization, 'Bearer test-secret-key');
 
-await updateExecutionConnection({
-  providerId: 'openai-compatible',
-  baseUrl: 'https://provider.example/v1',
-  model: 'test-model',
-  apiKey: 'stored-secret-key',
-});
-await updateExecutionConnection({
-  providerId: 'byteplus-modelark',
+await updateExecutionConnection('byteplus-modelark', {
+  models: [{ modelId: 'dreamina-seedance-2-0-260128' }],
   apiKey: 'byteplus-secret-key',
 });
+let settings = await createExecutionConnection({
+  templateId: 'openrouter',
+  displayName: 'Personal OpenRouter',
+  models: [{ modelId: 'provider/model-a' }, { modelId: 'provider/model-b' }],
+  apiKey: 'openrouter-personal-secret',
+});
+settings = await createExecutionConnection({
+  templateId: 'custom-openai-compatible',
+  displayName: 'Internal Gateway',
+  providerLabel: 'Studio AI',
+  baseUrl: 'https://ai.studio.example/v1',
+  models: [{ modelId: 'script-v2' }, { modelId: 'review-v1' }],
+  apiKey: 'internal-gateway-secret',
+});
+settings = await createExecutionConnection({
+  templateId: 'byteplus-modelark',
+  displayName: 'BytePlus Preview Account',
+  models: [{ modelId: 'seedance-preview-model' }],
+  apiKey: 'byteplus-preview-secret',
+});
 
-const settings = await listExecutionProviderSettings('project_provider_test');
-const compatible = settings.connections.find((connection) => connection.providerId === 'openai-compatible');
-assert.equal(compatible?.status, 'ready');
-assert.equal(compatible?.hasCredential, true);
-assert.equal(JSON.stringify(settings).includes('stored-secret-key'), false, 'Settings API must never return credentials.');
-assert.equal(settings.connections.some((connection) => connection.providerId === 'openai'), true, 'Registry catalog should include addable packages.');
+const openAiCompatibleConnections = settings.connections.filter((connection) => connection.connectorId === 'openai-compatible');
+assert.equal(openAiCompatibleConnections.length, 2, 'One connector must support multiple named connections.');
+assert.notEqual(openAiCompatibleConnections[0]?.connectionId, openAiCompatibleConnections[1]?.connectionId);
+assert.deepEqual(openAiCompatibleConnections.find((connection) => connection.displayName === 'Personal OpenRouter')?.models.map((model) => model.modelId), [
+  'provider/model-a',
+  'provider/model-b',
+]);
+assert.equal(settings.connectionTemplates.some((template) => template.templateId === 'openrouter'), true);
+assert.equal(JSON.stringify(settings).includes('secret'), false, 'Settings API must never return credentials.');
+
+const internal = openAiCompatibleConnections.find((connection) => connection.displayName === 'Internal Gateway');
+assert.ok(internal);
+const resolvedInternal = await resolveExecutionConnection(internal.connectionId, 'review-v1');
+assert.equal(resolvedInternal?.apiKey, 'internal-gateway-secret');
+assert.equal(resolvedInternal?.baseUrl, 'https://ai.studio.example/v1');
+assert.equal(resolvedInternal?.model, 'review-v1');
 await assert.rejects(
-  saveExecutionDefault({ capabilityClass: 'text', connectionId: 'openai-compatible' }),
+  saveExecutionDefault({ capabilityClass: 'text', connectionId: internal.connectionId }),
   /does not support text/,
   'A connection foundation must not become selectable before its Retake execution adapter exists.',
 );
 
-const resolved = await resolveExecutionConnection('byteplus-modelark');
-assert.equal(resolved?.apiKey, 'byteplus-secret-key');
-assert.equal(resolved?.baseUrl, 'https://ark.ap-southeast.bytepluses.com/api/v3');
-
-await saveExecutionDefault({ capabilityClass: 'video', connectionId: 'byteplus-modelark' });
+const previewConnection = settings.connections.find((connection) => connection.displayName === 'BytePlus Preview Account');
+assert.ok(previewConnection);
+await saveExecutionDefault({
+  capabilityClass: 'video',
+  connectionId: previewConnection.connectionId,
+  model: 'seedance-preview-model',
+});
 await saveExecutionDefault({ capabilityClass: 'video', connectionId: 'retake-mock', projectId: 'project_provider_test' });
 const workspaceSaveResponse = await saveExecutionDefault({
   capabilityClass: 'video',
-  connectionId: 'byteplus-modelark',
+  connectionId: previewConnection.connectionId,
+  model: 'seedance-preview-model',
   responseProjectId: 'project_provider_test',
 });
 assert.equal(workspaceSaveResponse.projectDefaults[0]?.connectionId, 'retake-mock');
-assert.equal(workspaceSaveResponse.workspaceDefaults.some((value) => value.connectionId === 'byteplus-modelark'), true);
-const withDefaults = await listExecutionProviderSettings('project_provider_test');
-assert.equal(withDefaults.workspaceDefaults[0]?.connectionId, 'byteplus-modelark');
-assert.equal(withDefaults.projectDefaults[0]?.connectionId, 'retake-mock');
+assert.equal(workspaceSaveResponse.workspaceDefaults[0]?.model, 'seedance-preview-model');
+
 const board = structuredClone(defaultSnapshot) as BoardSnapshot;
 board.project.projectId = 'project_provider_test';
-cacheExecutionProviderSettings(board.project.projectId, withDefaults);
+cacheExecutionProviderSettings(board.project.projectId, workspaceSaveResponse);
 assert.equal(createBlockRecord(board, 'video').data.executionDraft?.executionProfileId, 'video-mock');
 await saveExecutionDefault({ capabilityClass: 'video', projectId: 'project_provider_test' });
 const inheritedDefaults = await listExecutionProviderSettings('project_provider_test');
-assert.equal(inheritedDefaults.projectDefaults.length, 0);
 cacheExecutionProviderSettings(board.project.projectId, inheritedDefaults);
-assert.equal(createBlockRecord(board, 'video').data.executionDraft?.executionProfileId, 'video-seedance-modelark');
+const inheritedVideoBlock = createBlockRecord(board, 'video');
+assert.equal(inheritedVideoBlock.data.executionDraft?.executionProfileId, 'video-seedance-modelark');
+assert.equal(inheritedVideoBlock.data.executionDraft?.connectionId, previewConnection.connectionId);
+assert.equal(inheritedVideoBlock.data.executionDraft?.model, 'seedance-preview-model');
+
+const personal = openAiCompatibleConnections.find((connection) => connection.displayName === 'Personal OpenRouter');
+assert.ok(personal);
+settings = await deleteExecutionConnection(personal.connectionId, 'project_provider_test');
+assert.equal(settings.connections.some((connection) => connection.connectionId === personal.connectionId), false);
 
 const metadataText = await readFile(path.join(retakeRoot, 'settings', 'execution-connections.json'), 'utf8');
-assert.equal(metadataText.includes('secret-key'), false, 'Connection metadata must not contain API keys.');
+assert.equal(metadataText.includes('secret'), false, 'Connection metadata must not contain API keys.');
 const credentialStat = await stat(path.join(retakeRoot, 'settings', 'credentials.json'));
 assert.equal(credentialStat.mode & 0o777, 0o600, 'Local credential file must be owner-only.');
 
 await rm(retakeRoot, { recursive: true, force: true });
 console.log('execution provider contract passed');
+
+function restoreEnvironment(key: string, value: string | undefined): void {
+  if (value === undefined) delete process.env[key];
+  else process.env[key] = value;
+}
