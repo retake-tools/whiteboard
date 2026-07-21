@@ -57,6 +57,8 @@ const firstStarted = await startTextGeneration({
     assert.equal(config.apiKey, 'text-test-secret');
     assert.equal(config.model, 'text-test-model');
     assert.match(input.prompt, /cat director/);
+    assert.match(input.prompt, /Return only the requested Markdown document/);
+    assert.match(input.prompt, /Do not call tools and do not add process commentary/);
     return {
       text: '# Cat Director\n\nA concise first draft.',
       finishReason: 'stop',
@@ -111,9 +113,11 @@ const secondStarted = await startTextGeneration({
   executionId: secondRun.execution.executionId,
   connectionId: readyGoogleConnection!.connectionId,
 }, {
-  generateNative: async (providerId, config) => {
+  generateNative: async (providerId, config, input) => {
     assert.equal(providerId, 'google-native');
     assert.equal(config.apiKey, 'gemini-test-secret');
+    assert.match(input.prompt, /Return only the requested Markdown document/);
+    assert.match(input.prompt, /Do not call tools and do not add process commentary/);
     return {
       text: '# Cat Director\n\nA revised second draft.',
       finishReason: 'stop',

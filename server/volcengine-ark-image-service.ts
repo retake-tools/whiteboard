@@ -1,4 +1,5 @@
 import type { BoardSnapshot, ExecutionRecord } from '../src/core/types';
+import { createProviderImagePrompt, imageExecutionInputAssignments } from './image-execution-prompt';
 import { createAssetFromDataUrl } from './local-store/asset-store';
 import { readAssetAsDataUrl } from './local-store/asset-files';
 import { resolveExecutionConnection } from './local-store/execution-provider-store';
@@ -55,12 +56,17 @@ async function executeArkImageRun(
   client: VolcengineArkImageClient,
 ): Promise<void> {
   const initial = await loadSnapshot(execution.projectId, execution.boardId);
-  const referenceImages = await executionInputImages(initial, execution);
+  const inputAssignments = imageExecutionInputAssignments(execution);
+  const referenceImages = await executionInputImages(initial, inputAssignments.map((assignment) => assignment.assetId));
   const size = requestedSize(execution);
   for (let index = 0; index < execution.outputBlockIds.length; index += 1) {
     await assertExecutionRunning(execution);
     const result = await client.generateImage({
-      prompt: execution.prompt ?? '',
+      prompt: createProviderImagePrompt(execution, inputAssignments, {
+        dialect: 'provider_api',
+        variantIndex: index,
+        variantCount: execution.outputBlockIds.length,
+      }),
       images: referenceImages,
       size,
     });
@@ -88,16 +94,14 @@ async function executeArkImageRun(
   }
 }
 
-async function executionInputImages(snapshot: BoardSnapshot, execution: ExecutionRecord): Promise<string[]> {
-  const assetIds = execution.inputBindingsSnapshot?.flatMap((binding) =>
-    binding.values.flatMap((value) => value.kind === 'asset' ? [value.assetId] : [])) ?? [];
+async function executionInputImages(snapshot: BoardSnapshot, assetIds: readonly string[]): Promise<string[]> {
   const uniqueAssetIds = [...new Set(assetIds)];
   for (const assetId of uniqueAssetIds) {
     if (!snapshot.assets.some((asset) => asset.assetId === assetId && asset.kind === 'image')) {
       throw new Error(`Seedream image input is missing from the board snapshot: ${assetId}`);
     }
   }
-  return Promise.all(uniqueAssetIds.map((assetId) => readAssetAsDataUrl(execution.projectId, assetId)));
+  return Promise.all(uniqueAssetIds.map((assetId) => readAssetAsDataUrl(snapshot.project.projectId, assetId)));
 }
 
 function requestedSize(execution: ExecutionRecord): string {

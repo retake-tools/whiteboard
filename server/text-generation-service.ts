@@ -69,13 +69,14 @@ async function executeTextGeneration(
 ): Promise<void> {
   const prompt = execution.prompt?.trim();
   if (!prompt) throw new Error('Text generation requires a non-empty prompt.');
+  const providerPrompt = `${prompt}\n\nReturn only the requested Markdown document. Do not call tools and do not add process commentary.`;
   const maxOutputTokens = requestedMaxOutputTokens(execution);
   let result: TextGenerationResult;
   if (connection.connectorId === 'codex-app-server') {
     const codexResult = await (dependencies.runCodexAppServer ?? runCodexAppServerTurn)({
       cwd: process.env.TMPDIR || '/tmp',
       model: connection.modelId || 'gpt-5.4',
-      prompt: `${prompt}\n\nReturn only the requested Markdown document. Do not call tools and do not add process commentary.`,
+      prompt: providerPrompt,
       sandbox: 'read-only',
       onTextDelta: (delta) => publishExecutionEvent(execution.executionId, {
         type: 'text.delta',
@@ -105,8 +106,8 @@ async function executeTextGeneration(
       model: resolved.model,
     };
     result = resolved.connectorId === 'openai-compatible'
-      ? await (dependencies.generateOpenAICompatible ?? generateOpenAICompatibleText)(config, { prompt, maxOutputTokens })
-      : await (dependencies.generateNative ?? generateNativeText)(resolved.connectorId, config, { prompt, maxOutputTokens });
+      ? await (dependencies.generateOpenAICompatible ?? generateOpenAICompatibleText)(config, { prompt: providerPrompt, maxOutputTokens })
+      : await (dependencies.generateNative ?? generateNativeText)(resolved.connectorId, config, { prompt: providerPrompt, maxOutputTokens });
   }
   const markdown = result.text.trim();
   if (!markdown) throw new Error('The provider returned an empty text result.');

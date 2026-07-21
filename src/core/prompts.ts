@@ -153,10 +153,13 @@ export function createImageOperationPrompt(
     isPromptGeneration
       ? '- Treat the selected empty Image Block as the generation slot. Use the target display size and aspect ratio above as the intended composition frame.'
       : undefined,
+    generationParams?.aspectRatioPreset || typeof generationParams?.targetAspectRatio === 'number'
+      ? '- Treat the requested aspect ratio as a native output-canvas requirement. Do not substitute another orientation or simulate the requested ratio with letterboxing or padding.'
+      : undefined,
     isPromptGeneration && generationParams?.targetWidth && generationParams?.targetHeight
       ? '- Compose the final bitmap for the requested output pixel size when the available image tool supports size parameters. If it does not, still follow the requested aspect ratio and composition frame in the prompt.'
       : undefined,
-    isPromptGeneration && referenceAssets.length
+    referenceAssets.length
       ? '- Use the reference images as visual/style references. They are input references, not images to copy verbatim unless the instruction asks for that.'
       : undefined,
     isAnnotationEdit ? '- annotation mode: annotated composite image is the authoritative edit brief.' : undefined,

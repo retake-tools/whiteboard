@@ -2,9 +2,13 @@ import { readFile, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import type { BoardSnapshot, ExecutionRecord } from '../src/core/types';
-import { annotationEditControlDescription, readAnnotationEditControlManifest } from '../src/core/annotationEditControls';
 import { runCodexAppServerTurn } from './codex-app-server-client';
 import { publishExecutionEvent } from './execution-events';
+import {
+  createProviderImagePrompt,
+  imageExecutionInputAssignments,
+  type ImageExecutionInputAssignment,
+} from './image-execution-prompt';
 import { resolveAssetStoragePath } from './local-store/asset-files';
 import { createAssetFromDataUrl } from './local-store/asset-store';
 import { listExecutionProviderSettings } from './local-store/execution-provider-store';
@@ -66,13 +70,18 @@ async function executeCodexImageRun(
   dependencies: CodexAppServerImageDependencies,
 ): Promise<void> {
   const initial = await loadSnapshot(execution.projectId, execution.boardId);
-  const localImagePaths = await executionInputImagePaths(initial, execution);
+  const inputAssignments = imageExecutionInputAssignments(execution);
+  const localImagePaths = await executionInputImagePaths(initial, inputAssignments);
   for (let index = 0; index < execution.outputBlockIds.length; index += 1) {
     await assertExecutionRunning(execution);
     const result = await (dependencies.runTurn ?? runCodexAppServerTurn)({
       cwd: process.env.TMPDIR || '/tmp',
       model,
-      prompt: imagegenPrompt(execution, localImagePaths.length > 0),
+      prompt: createProviderImagePrompt(execution, inputAssignments, {
+        dialect: 'codex_imagegen',
+        variantIndex: index,
+        variantCount: execution.outputBlockIds.length,
+      }),
       localImagePaths,
       sandbox: 'workspace-write',
       onImageGenerationStarted: () => publishExecutionEvent(execution.executionId, {
@@ -115,27 +124,16 @@ async function executeCodexImageRun(
   }
 }
 
-async function executionInputImagePaths(snapshot: BoardSnapshot, execution: ExecutionRecord): Promise<string[]> {
-  const bindingAssetIds = execution.inputBindingsSnapshot?.flatMap((binding) =>
-    binding.values.flatMap((value) => value.kind === 'asset' ? [value.assetId] : [])) ?? [];
-  const annotatedCompositeAssetId = typeof execution.params?.annotatedCompositeAssetId === 'string'
-    ? execution.params.annotatedCompositeAssetId
-    : undefined;
-  const assetIds = [...new Set([
-    ...(bindingAssetIds.length ? bindingAssetIds : execution.inputAssetIds ?? []),
-    ...(execution.capabilityId === 'image.annotation_edit'
-      ? [
-          ...(execution.inputAssetIds ?? []).filter((assetId) => assetId !== annotatedCompositeAssetId),
-          annotatedCompositeAssetId,
-        ]
-      : []),
-  ].filter((assetId): assetId is string => typeof assetId === 'string'))];
-  for (const assetId of assetIds) {
+async function executionInputImagePaths(
+  snapshot: BoardSnapshot,
+  assignments: readonly ImageExecutionInputAssignment[],
+): Promise<string[]> {
+  for (const { assetId } of assignments) {
     if (!snapshot.assets.some((asset) => asset.assetId === assetId && asset.kind === 'image')) {
       throw new Error(`Codex image input is missing from the board snapshot: ${assetId}`);
     }
   }
-  return Promise.all(assetIds.map((assetId) => resolveAssetStoragePath(execution.projectId, assetId)));
+  return Promise.all(assignments.map(({ assetId }) => resolveAssetStoragePath(snapshot.project.projectId, assetId)));
 }
 
 async function importCodexImagePath(execution: ExecutionRecord, sourcePath: string) {
@@ -167,63 +165,6 @@ function rasterMimeType(bytes: Buffer): 'image/jpeg' | 'image/png' | 'image/webp
   return undefined;
 }
 
-function imagegenPrompt(execution: ExecutionRecord, hasInputs: boolean): string {
-  const instruction = execution.prompt?.trim();
-  if (!instruction) throw new Error('Image generation requires a non-empty prompt.');
-  const geometry = imageGenerationGeometryInstruction(execution);
-  if (execution.capabilityId === 'image.annotation_edit') {
-    const annotationInstructions = annotationPromptInstructions(execution);
-    return `$imagegen Edit the clean source image using the final attached annotated composite as a visual instruction layer. ${annotationInstructions} The colored marks, arrows, outlines, labels, and brush overlays are instructions only: do not retain them in the final image. Preserve all unmentioned content.${geometry} Generate exactly one clean revised image. Do not call other tools or copy the result.`;
-  }
-  return hasInputs
-    ? `$imagegen Edit the attached image according to this instruction: ${instruction}.${geometry} Preserve all unmentioned content. Generate exactly one revised image. Do not call other tools or copy the result.`
-    : `$imagegen Generate exactly one image from this instruction: ${instruction}.${geometry} Generate the composition directly on the requested canvas. Do not call other tools or copy the result.`;
-}
-
-function imageGenerationGeometryInstruction(execution: ExecutionRecord): string {
-  const generation = isRecord(execution.params?.generation) ? execution.params.generation : {};
-  const width = finiteNumber(generation.targetWidth);
-  const height = finiteNumber(generation.targetHeight);
-  const targetRatio = finiteNumber(generation.targetAspectRatio) ?? (width && height ? width / height : undefined);
-  const preset = typeof generation.aspectRatioPreset === 'string' ? generation.aspectRatioPreset.trim() : '';
-  const orientation = targetRatio
-    ? targetRatio < 0.95 ? 'portrait' : targetRatio > 1.05 ? 'landscape' : 'square'
-    : undefined;
-  const aspectInstruction = preset === 'source'
-    ? ' Preserve the source image aspect ratio as the output canvas.'
-    : preset
-      ? ` Required output aspect ratio: ${preset}${orientation ? ` (${orientation}, width:height)` : ' (width:height)'}.`
-      : targetRatio
-        ? ` Required output aspect ratio: ${targetRatio.toFixed(3)} width/height${orientation ? ` (${orientation})` : ''}.`
-        : '';
-  const dimensions = width && height
-    ? ` Target pixel dimensions: ${Math.round(width)}x${Math.round(height)}.`
-    : '';
-  const hardConstraint = aspectInstruction
-    ? ' Treat the aspect ratio as a hard output-canvas requirement: do not substitute another orientation, and do not simulate the requested ratio with letterboxing or padding.'
-    : '';
-  return `${aspectInstruction}${dimensions}${hardConstraint}`;
-}
-
-function annotationPromptInstructions(execution: ExecutionRecord): string {
-  const manifest = isRecord(execution.params?.annotationManifest) ? execution.params.annotationManifest : {};
-  const globalInstruction = typeof manifest.globalInstruction === 'string' ? manifest.globalInstruction.trim() : '';
-  const controls = readAnnotationEditControlManifest(execution.params?.annotationEditControls)?.controls ?? [];
-  const controlById = new Map(controls.map((control) => [control.markId, control]));
-  const marks = Array.isArray(manifest.marks) ? manifest.marks.filter(isRecord) : [];
-  const markInstructions = marks.flatMap((mark) => {
-    if (typeof mark.id !== 'string' || typeof mark.intent !== 'string' || !mark.intent.trim()) return [];
-    const control = controlById.get(mark.id);
-    const location = control ? ` (${annotationEditControlDescription(control)})` : '';
-    return [`${mark.id}${location}: ${mark.intent.trim()}`];
-  });
-  const parts = [
-    globalInstruction ? `Global instruction: ${globalInstruction}` : '',
-    markInstructions.length ? `Marked edits: ${markInstructions.join('; ')}` : '',
-  ].filter(Boolean);
-  return parts.join(' ') || `Instruction: ${execution.prompt?.trim() || 'Apply the marked edits.'}`;
-}
-
 async function recordProviderResult(
   execution: ExecutionRecord,
   result: {
@@ -253,10 +194,6 @@ async function assertExecutionRunning(execution: ExecutionRecord): Promise<void>
   const snapshot = await loadSnapshot(execution.projectId, execution.boardId);
   const persisted = snapshot.executions.find((candidate) => candidate.executionId === execution.executionId);
   if (persisted?.status !== 'running') throw new Error('Image execution is no longer running.');
-}
-
-function finiteNumber(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -84,6 +84,9 @@ const started = await startVolcengineArkImageGeneration({
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
     assert.equal(body.size, '1152x2048');
     assert.equal(body.sequential_image_generation, 'disabled');
+    assert.match(String(body.prompt), /Required output aspect ratio: 9:16/);
+    assert.match(String(body.prompt), /hard output-canvas requirement/);
+    assert.match(String(body.prompt), new RegExp(`candidate ${calls} of 2`));
     return new Response(JSON.stringify({
       model: connection.modelId,
       data: [{ b64_json: Buffer.from(`image-${calls}`).toString('base64'), size: '1152x2048' }],

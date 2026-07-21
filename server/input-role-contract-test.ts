@@ -264,7 +264,9 @@ if (
   !execution.prompt.includes('Authoritative image input contract:') ||
   !execution.prompt.includes('retake_mark_execution_running') ||
   !execution.prompt.includes('[source]') ||
-  !execution.prompt.includes('[style_reference]')
+  !execution.prompt.includes('[style_reference]') ||
+  !execution.prompt.includes('native output-canvas requirement') ||
+  !execution.prompt.includes('letterboxing or padding')
 ) {
   throw new Error('Expected role-aware prompt contract without generic Strength');
 }

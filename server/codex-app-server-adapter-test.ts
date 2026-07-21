@@ -5,6 +5,7 @@ import { defaultSnapshot } from '../src/core/sampleBoard';
 import { createDraftTextGenerationOperation, executeExistingTextGenerationOperation } from '../src/core/textOperations';
 import type { BoardSnapshot } from '../src/core/types';
 import { startCodexAppServerImageGeneration } from './codex-app-server-image-service';
+import { createProviderImagePrompt, imageExecutionInputAssignments } from './image-execution-prompt';
 import { checkExecutionConnection, listExecutionProviderSettings, updateExecutionConnection } from './local-store/execution-provider-store';
 import { resolveAssetStoragePath } from './local-store/asset-files';
 import { createAssetFromDataUrl } from './local-store/asset-store';
@@ -101,6 +102,8 @@ const textStarted = await startTextGeneration({
 }, {
   runCodexAppServer: async (input) => {
     assert.equal(input.model, 'gpt-5.6-terra');
+    assert.match(input.prompt, /Return only the requested Markdown document/);
+    assert.match(input.prompt, /Do not call tools and do not add process commentary/);
     input.onTextDelta?.('# Cat Scene\n\n');
     input.onTextDelta?.('A concise draft.');
     deltas.push('# Cat Scene\n\n', 'A concise draft.');
@@ -183,6 +186,49 @@ assert.ok(imageResult?.data.assetId);
 assert.equal(completed.assets.some((candidate) => candidate.assetId === imageResult.data.assetId), true);
 assert.equal(imageExecution?.params?.codexAppServer && typeof imageExecution.params.codexAppServer, 'object');
 
+const referenceOnlyExecution = structuredClone(imageRun.execution);
+referenceOnlyExecution.inputAssetIds = ['asset_reference_prompt_test'];
+referenceOnlyExecution.params = {
+  ...referenceOnlyExecution.params,
+  referenceAssetIds: ['asset_reference_prompt_test'],
+};
+const referenceAssignments = imageExecutionInputAssignments(referenceOnlyExecution);
+assert.deepEqual(referenceAssignments, [{
+  assetId: 'asset_reference_prompt_test',
+  inputRole: 'general_reference',
+}]);
+const referencedTextToImagePrompt = createProviderImagePrompt(referenceOnlyExecution, referenceAssignments, {
+  dialect: 'codex_imagegen',
+  variantIndex: 0,
+  variantCount: 1,
+});
+assert.match(referencedTextToImagePrompt, /^\$imagegen Generate exactly one image/);
+assert.match(referencedTextToImagePrompt, /create a new image instead of treating any reference as the editable output base/);
+assert.match(referencedTextToImagePrompt, /attachment 1 \[general_reference\]/);
+assert.doesNotMatch(referencedTextToImagePrompt, /^\$imagegen Edit/);
+
+const roleAwareEditExecution = structuredClone(imageRun.execution);
+roleAwareEditExecution.capabilityId = 'image.image_to_image';
+roleAwareEditExecution.inputAssetIds = ['asset_source_prompt_test', 'asset_style_prompt_test'];
+roleAwareEditExecution.params = {
+  ...roleAwareEditExecution.params,
+  inputBindings: [
+    { assetId: 'asset_source_prompt_test', blockId: 'block_source_prompt_test', inputRole: 'source' },
+    { assetId: 'asset_style_prompt_test', blockId: 'block_style_prompt_test', inputRole: 'style_reference' },
+  ],
+};
+const editAssignments = imageExecutionInputAssignments(roleAwareEditExecution);
+assert.deepEqual(editAssignments.map((assignment) => assignment.inputRole), ['source', 'style_reference']);
+const roleAwareEditPrompt = createProviderImagePrompt(roleAwareEditExecution, editAssignments, {
+  dialect: 'codex_imagegen',
+  variantIndex: 1,
+  variantCount: 2,
+});
+assert.match(roleAwareEditPrompt, /^\$imagegen Edit attachment 1/);
+assert.match(roleAwareEditPrompt, /attachment 2 \[style_reference\]/);
+assert.match(roleAwareEditPrompt, /Do not reassign these roles/);
+assert.match(roleAwareEditPrompt, /candidate 2 of 2/);
+
 const annotatedComposite = await createAssetFromDataUrl({
   projectId: completed.project.projectId,
   dataUrl: `data:image/png;base64,${Buffer.from('annotated-composite-test').toString('base64')}`,
@@ -226,8 +272,11 @@ const annotationStarted = await startCodexAppServerImageGeneration({
   runTurn: async (input) => {
     assert.equal(input.localImagePaths?.length, 2, 'Annotation edit must attach the clean source and annotated composite.');
     assert.match(input.prompt, /final attached annotated composite/);
+    assert.match(input.prompt, /attachment 1 \[source\]/);
+    assert.match(input.prompt, /attachment 2 \[annotated_composite\]/);
     assert.match(input.prompt, /Change only the collar to royal blue/);
     assert.match(input.prompt, /do not retain them in the final image/);
+    assert.match(input.prompt, /Preserve the source subject, composition, style, and all unmentioned content/);
     return {
       threadId: 'thread_annotation_test',
       turnId: 'turn_annotation_test',
