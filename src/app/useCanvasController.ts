@@ -21,7 +21,6 @@ import {
   minBoardZoom,
   saveBoardViewState,
   viewportBasisFromElement,
-  viewportShowsAnyBlock,
   type ViewportBasis,
 } from '../core/boardViewStateStore';
 import { createFlowEdges, createFlowNodes } from '../core/flowProjection';
@@ -473,10 +472,8 @@ export function useCanvasController(options: CanvasControllerOptions) {
     const saved = loadBoardViewState(loadedSnapshot.project.projectId, loadedSnapshot.board.boardId);
     if (saved) {
       const adapted = adaptViewportToBasis(saved.viewport, saved.viewportBasis, basis, minBoardZoom, maxBoardZoom);
-      if (viewportShowsAnyBlock(adapted, basis, loadedSnapshot.blocks)) {
-        restoreViewport(adapted);
-        return;
-      }
+      restoreViewport(adapted);
+      return;
     }
 
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => {

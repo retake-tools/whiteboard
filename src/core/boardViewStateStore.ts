@@ -1,5 +1,4 @@
 import type { Viewport } from '@xyflow/react';
-import type { BlockRecord } from './types';
 
 export interface ViewportBasis {
   canvasWidth: number;
@@ -97,28 +96,6 @@ export function adaptViewportToBasis(
     y: nextBasis.canvasHeight / 2 - centerY * zoom,
     zoom,
   };
-}
-
-export function viewportShowsAnyBlock(
-  viewport: Viewport,
-  basis: ViewportBasis,
-  blocks: readonly BlockRecord[],
-): boolean {
-  if (blocks.length === 0) return true;
-  const zoom = viewport.zoom;
-  if (!Number.isFinite(zoom) || zoom <= 0) return false;
-  const visible = {
-    left: -viewport.x / zoom,
-    right: (basis.canvasWidth - viewport.x) / zoom,
-    top: -viewport.y / zoom,
-    bottom: (basis.canvasHeight - viewport.y) / zoom,
-  };
-  return blocks.some((block) =>
-    block.position.x < visible.right &&
-    block.position.x + block.size.width > visible.left &&
-    block.position.y < visible.bottom &&
-    block.position.y + block.size.height > visible.top,
-  );
 }
 
 export function viewportBasisFromElement(element: HTMLElement | null): ViewportBasis {

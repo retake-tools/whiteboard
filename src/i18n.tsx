@@ -243,6 +243,7 @@ type TranslationKey =
   | 'language.english'
   | 'language.chinese'
   | 'inspector.adapter'
+  | 'inspector.agentPrompt'
   | 'inspector.annotatedComposite'
   | 'inspector.annotationGlobalInstruction'
   | 'inspector.annotationManifest'
@@ -274,6 +275,7 @@ type TranslationKey =
   | 'inspector.previousPreview'
   | 'inspector.prompt'
   | 'inspector.requestPrompt'
+  | 'inspector.requestPromptBatch'
   | 'inspector.restoreConfiguration'
   | 'inspector.restoreAnnotationDraft'
   | 'inspector.skill'
@@ -764,6 +766,7 @@ const translations: Record<Locale, Translations> = {
     'language.english': 'English',
     'language.chinese': '中文',
     'inspector.adapter': 'Adapter',
+    'inspector.agentPrompt': 'Agent execution prompt',
     'inspector.annotatedComposite': 'Annotated brief',
     'inspector.annotationGlobalInstruction': 'Global instruction',
     'inspector.annotationManifest': 'Annotation Manifest',
@@ -793,8 +796,9 @@ const translations: Record<Locale, Translations> = {
     'inspector.pendingConfiguration': 'Pending configuration',
     'inspector.outputAssets': 'Output assets',
     'inspector.previousPreview': 'Previous image',
-    'inspector.prompt': 'Prompt',
+    'inspector.prompt': 'User prompt',
     'inspector.requestPrompt': 'Actual request prompt',
+    'inspector.requestPromptBatch': 'candidate requests consolidated',
     'inspector.restoreConfiguration': 'Restore this version',
     'inspector.restoreAnnotationDraft': 'Open in annotation editor',
     'inspector.skill': 'Skill',
@@ -1280,6 +1284,7 @@ const translations: Record<Locale, Translations> = {
     'language.english': 'English',
     'language.chinese': '中文',
     'inspector.adapter': '适配器',
+    'inspector.agentPrompt': 'Agent 执行提示',
     'inspector.annotatedComposite': '标注输入',
     'inspector.annotationGlobalInstruction': '全局说明',
     'inspector.annotationManifest': '标注 Manifest',
@@ -1309,8 +1314,9 @@ const translations: Record<Locale, Translations> = {
     'inspector.pendingConfiguration': '待执行配置',
     'inspector.outputAssets': '输出素材',
     'inspector.previousPreview': '上一张图片',
-    'inspector.prompt': '提示',
+    'inspector.prompt': '用户提示词',
     'inspector.requestPrompt': '实际请求 Prompt',
+    'inspector.requestPromptBatch': '个候选请求已合并',
     'inspector.restoreConfiguration': '恢复此版本配置',
     'inspector.restoreAnnotationDraft': '在标注编辑中打开',
     'inspector.skill': '技能',

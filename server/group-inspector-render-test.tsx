@@ -462,12 +462,20 @@ const annotationManifestMarkup = renderToStaticMarkup(
         executionChanges: [],
         inputImages: [],
         outputAssets: [],
+        agentPrompt: 'Agent orchestration instructions',
         prompt: 'User-facing annotation instruction',
-        requestPrompts: [{
-          index: 0,
-          outputBlockId: 'annotation_result',
-          prompt: '$imagegen Edit attachment 1 using the annotated composite.',
-        }],
+        requestPrompts: [
+          {
+            index: 0,
+            outputBlockId: 'annotation_result_1',
+            prompt: '$imagegen Edit attachment 1 using the annotated composite. This is candidate 1 of 2; produce an independent visual variation rather than duplicating another candidate.',
+          },
+          {
+            index: 1,
+            outputBlockId: 'annotation_result_2',
+            prompt: '$imagegen Edit attachment 1 using the annotated composite. This is candidate 2 of 2; produce an independent visual variation rather than duplicating another candidate.',
+          },
+        ],
         sourceAssets: [],
       }}
       copyKey="annotation-manifest-render"
@@ -481,8 +489,12 @@ assert.match(annotationManifestMarkup, /Annotation Manifest/);
 assert.match(annotationManifestMarkup, /M1 · Numbered marker/);
 assert.match(annotationManifestMarkup, /Open in annotation editor/);
 assert.match(annotationManifestMarkup, /User-facing annotation instruction/);
-assert.match(annotationManifestMarkup, /Actual request prompt/);
+assert.match(annotationManifestMarkup, /User prompt/);
+assert.match(annotationManifestMarkup, /Agent execution prompt/);
+assert.match(annotationManifestMarkup, /Agent orchestration instructions/);
+assert.match(annotationManifestMarkup, /Actual request prompt · 2 candidate requests consolidated/);
 assert.match(annotationManifestMarkup, /\$imagegen Edit attachment 1 using the annotated composite/);
+assert.equal(annotationManifestMarkup.match(/\$imagegen/g)?.length, 1);
 assert.match(annotationManifestMarkup, /Codex App Server · gpt-5.6-sol/);
 
 const replaceableImageBlock: BlockRecord = {

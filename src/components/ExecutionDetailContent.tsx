@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Clipboard, ImageIcon, MessageSquareText, RotateCcw, X } from 'lucide-react';
+import { ChevronRight, ImageIcon, MessageSquareText, RotateCcw, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useEffect, useState, type ReactElement } from 'react';
 import { inputRoleDefinition, isExecutionInputRole } from '../core/inputRoles';
@@ -29,11 +29,16 @@ import {
   type AnnotationDraftRestoreState,
 } from '../core/restoreAnnotationDraft';
 import { TooltipIconButton } from './Tooltip';
+import {
+  ExecutionPromptDetails,
+  type ExecutionDetailCopySource,
+} from './ExecutionPromptDetails';
 
-export type ExecutionDetailCopySource = 'execution_inspector' | 'group_inspector' | 'history_panel';
+export type { ExecutionDetailCopySource } from './ExecutionPromptDetails';
 
 export interface ExecutionDetailContext {
   activity: ExecutionActivityItem[];
+  agentPrompt?: string;
   annotatedCompositeAsset?: AssetRecord;
   annotationDraftRestoreState?: AnnotationDraftRestoreState;
   annotationManifest?: AnnotationManifest;
@@ -102,6 +107,7 @@ export function ExecutionDetailContent({
   const [previewImage, setPreviewImage] = useState<PreviewImage | undefined>();
   const {
     annotatedCompositeAsset,
+    agentPrompt,
     annotationDraftRestoreState,
     annotationManifest,
     activity,
@@ -117,8 +123,6 @@ export function ExecutionDetailContent({
     sourceBlock,
     sourceExecutionVersion,
   } = context;
-  const isCopied = copiedPromptKey === copyKey;
-
   function openImagePreview(image: PreviewImage): void {
     const selected = image.images[image.index];
     if (onSelectAsset && selected) {
@@ -228,58 +232,17 @@ export function ExecutionDetailContent({
         onSelect={onSelectAsset}
       />
 
-      {prompt ? (
-        <section className="execution-inspector-prompt">
-          <header>
-            <h3>{t('inspector.prompt')}</h3>
-            <TooltipIconButton
-              label={t(isCopied ? 'feedback.copied' : 'feedback.copyPrompt')}
-              onClick={() =>
-                onCopyPrompt({
-                  blockIds: executionDetailBlockIds(context),
-                  copyKey,
-                  executionId: execution.executionId,
-                  prompt,
-                  source: copySource,
-                })
-              }
-            >
-              {isCopied ? <Check size={15} /> : <Clipboard size={15} />}
-            </TooltipIconButton>
-          </header>
-          <pre>{prompt}</pre>
-        </section>
-      ) : null}
-
-      {requestPrompts?.map((requestPrompt) => {
-        const requestCopyKey = `${copyKey}:request:${requestPrompt.index}`;
-        const requestCopied = copiedPromptKey === requestCopyKey;
-        return (
-          <section className="execution-inspector-prompt" key={requestCopyKey}>
-            <header>
-              <h3>
-                {t('inspector.requestPrompt')}
-                {requestPrompts.length > 1 ? ` · ${requestPrompt.index + 1}/${requestPrompts.length}` : ''}
-              </h3>
-              <TooltipIconButton
-                label={t(requestCopied ? 'feedback.copied' : 'feedback.copyPrompt')}
-                onClick={() =>
-                  onCopyPrompt({
-                    blockIds: executionDetailBlockIds(context),
-                    copyKey: requestCopyKey,
-                    executionId: execution.executionId,
-                    prompt: requestPrompt.prompt,
-                    source: copySource,
-                  })
-                }
-              >
-                {requestCopied ? <Check size={15} /> : <Clipboard size={15} />}
-              </TooltipIconButton>
-            </header>
-            <pre>{requestPrompt.prompt}</pre>
-          </section>
-        );
-      })}
+      <ExecutionPromptDetails
+        agentPrompt={agentPrompt}
+        blockIds={executionDetailBlockIds(context)}
+        copiedPromptKey={copiedPromptKey}
+        copyKey={copyKey}
+        copySource={copySource}
+        executionId={execution.executionId}
+        onCopyPrompt={onCopyPrompt}
+        prompt={prompt}
+        requestPrompts={requestPrompts}
+      />
 
       {previewImage ? (
         <ImageLightbox
@@ -362,7 +325,7 @@ function createExecutionDetailContext(
       : typeof detailBlock?.data.annotationText === 'string'
         ? detailBlock.data.annotationText
         : undefined;
-  const blockPrompt =
+  const blockAgentPrompt =
     typeof operationBlock?.data.agentPrompt === 'string'
       ? operationBlock.data.agentPrompt
       : typeof detailBlock?.data.agentPrompt === 'string'
@@ -386,6 +349,7 @@ function createExecutionDetailContext(
 
   return {
     activity: executionActivity(snapshot, execution),
+    agentPrompt: execution.agentPrompt ?? blockAgentPrompt,
     annotatedCompositeAsset: snapshot.assets.find((asset) => asset.assetId === annotatedCompositeAssetId),
     annotationDraftRestoreState: annotationRestore.state,
     annotationManifest: annotationRestore.manifest,
@@ -394,7 +358,7 @@ function createExecutionDetailContext(
     inputImages,
     operationBlock,
     outputAssets: snapshot.assets.filter((asset) => execution.outputAssetIds.includes(asset.assetId)),
-    prompt: execution.agentPrompt ?? blockPrompt ?? execution.prompt,
+    prompt: execution.prompt,
     requestPrompts: execution.requestPrompts,
     sourceAssets: inputImages.map((inputImage) => inputImage.asset),
     sourceBlock,

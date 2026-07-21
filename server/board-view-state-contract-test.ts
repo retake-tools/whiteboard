@@ -6,7 +6,6 @@ import {
   removeBoardViewState,
   removeProjectBoardViewStates,
   saveBoardViewState,
-  viewportShowsAnyBlock,
 } from '../src/core/boardViewStateStore';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import { migrateBoardSnapshot } from '../src/core/snapshotMigration';
@@ -63,16 +62,6 @@ assert.equal(
   'restored zoom must respect the canvas zoom limit',
 );
 
-assert.equal(
-  viewportShowsAnyBlock({ x: 0, y: 0, zoom: 1 }, { canvasWidth: 800, canvasHeight: 600 }, [defaultSnapshot.blocks[1]]),
-  true,
-);
-assert.equal(
-  viewportShowsAnyBlock({ x: -5000, y: -5000, zoom: 1 }, { canvasWidth: 800, canvasHeight: 600 }, defaultSnapshot.blocks),
-  false,
-  'a saved view that has lost all board content must fall back to fitView',
-);
-
 removeBoardViewState('project_a', 'board_a', storage);
 assert.equal(loadBoardViewState('project_a', 'board_a', storage), undefined);
 assert.ok(loadBoardViewState('project_a', 'board_b', storage));
@@ -96,11 +85,12 @@ assert.equal('viewport' in createBlankSnapshot({
 
 const canvasSource = await readFile('src/app/useCanvasController.ts', 'utf8');
 assert.match(canvasSource, /saveBoardViewState\(/, 'canvas viewport changes must use BoardViewStateStore');
+assert.doesNotMatch(canvasSource, /viewportShowsAnyBlock/, 'a saved empty-space view must remain authoritative until the user chooses fitView');
 assert.doesNotMatch(canvasSource, /updateSnapshot\(\(next\) => \(\{ \.\.\.next, viewport \}\)/, 'viewport must not re-enter snapshot autosave');
 
 console.log({
   boardScopedStorage: true,
-  contentFallback: true,
+  emptySpaceViewPreserved: true,
   legacyViewportRemoved: true,
   responsiveCenterRestore: true,
 });
