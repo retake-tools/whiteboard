@@ -44,7 +44,7 @@ const connection: ExecutionConnectionSummary = {
   connectionKind: 'model_provider',
   implementationKind: 'native_api',
   supportedCapabilityIds: ['image.image_to_image', 'image.text_to_image'],
-  capabilityClasses: ['image'],
+  enabledUseCases: ['image'],
   configurable: true,
   deletable: true,
   enabled: true,

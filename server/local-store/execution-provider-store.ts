@@ -3,10 +3,10 @@ import {
   executionConnectorDefinition,
   listExecutionConnectionTemplates,
   listExecutionConnectorDefinitions,
-  type ExecutionCapabilityClass,
   type ExecutionConnectionStatus,
   type ExecutionDefaultSelection,
   type ExecutionProviderSettingsSnapshot,
+  type ExecutionUseCase,
 } from '../../src/core/executionProviders';
 import { createId } from '../../src/core/id';
 import { probeNativeTextConnection } from '../ai-sdk-native-text-client';
@@ -33,6 +33,7 @@ export interface CreateExecutionConnectionInput {
   baseUrl?: string;
   modelId?: string;
   apiKey?: string;
+  enabledUseCases?: ExecutionUseCase[];
 }
 
 export interface UpdateExecutionConnectionInput {
@@ -42,6 +43,7 @@ export interface UpdateExecutionConnectionInput {
   baseUrl?: string;
   modelId?: string;
   apiKey?: string;
+  enabledUseCases?: ExecutionUseCase[];
 }
 
 interface FixedConnectionDefinition {
@@ -148,7 +150,7 @@ export async function listExecutionProviderSettings(projectId?: string): Promise
       connectionKind: connector.connectionKind,
       implementationKind: connector.implementationKind,
       supportedCapabilityIds: [...connector.supportedCapabilityIds],
-      capabilityClasses: [...connector.capabilityClasses],
+      enabledUseCases: [...(stored?.enabledUseCases ?? template?.defaultUseCases ?? connector.defaultUseCases)],
       configurable: fixed?.configurable ?? connector.connectionMode === 'multiple',
       deletable: !fixed,
       enabled,
@@ -194,6 +196,7 @@ export async function createExecutionConnection(
     enabled: true,
     baseUrl: cleanOptional(input.baseUrl) || template.defaultBaseUrl || connector.defaultBaseUrl,
     ...(modelId ? { modelId } : {}),
+    enabledUseCases: normalizeUseCases(input.enabledUseCases, template.defaultUseCases),
     updatedAt: new Date().toISOString(),
   });
   await writeExecutionConnections(connectionsFile);
@@ -228,6 +231,10 @@ export async function updateExecutionConnection(
     enabled: input.enabled ?? existing?.enabled ?? true,
     baseUrl: cleanOptional(input.baseUrl) || existing?.baseUrl || template?.defaultBaseUrl || connector.defaultBaseUrl,
     ...(modelId ? { modelId } : {}),
+    enabledUseCases: normalizeUseCases(
+      input.enabledUseCases,
+      existing?.enabledUseCases ?? template?.defaultUseCases ?? connector.defaultUseCases,
+    ),
     updatedAt: new Date().toISOString(),
   };
   connectionsFile.connections = [
@@ -269,6 +276,7 @@ export async function duplicateExecutionConnection(
     enabled: true,
     ...(source.baseUrl ? { baseUrl: source.baseUrl } : {}),
     ...(source.modelId ? { modelId: source.modelId } : {}),
+    enabledUseCases: [...source.enabledUseCases],
     updatedAt: new Date().toISOString(),
   });
   const sourceCredential = credentials.credentials[sourceConnectionId];
@@ -391,6 +399,7 @@ export async function checkExecutionConnection(
     enabled: existing?.enabled ?? true,
     baseUrl: existing?.baseUrl || summary.baseUrl || connector.defaultBaseUrl,
     modelId: existing?.modelId || summary.modelId || connector.defaultModelId,
+    enabledUseCases: [...summary.enabledUseCases],
     lastCheckedAt: now,
     ...(checkMessage ? { lastCheckMessage: checkMessage } : {}),
     lastError: error,
@@ -405,7 +414,7 @@ export async function checkExecutionConnection(
 }
 
 export async function saveExecutionDefault(input: {
-  capabilityClass: ExecutionCapabilityClass;
+  useCase: ExecutionUseCase;
   connectionId?: string;
   projectId?: string;
   responseProjectId?: string;
@@ -413,23 +422,23 @@ export async function saveExecutionDefault(input: {
   const defaults = await readExecutionDefaults();
   if (!input.connectionId) {
     if (input.projectId) {
-      defaults.projects[input.projectId] = removeDefault(defaults.projects[input.projectId] ?? [], input.capabilityClass);
+      defaults.projects[input.projectId] = removeDefault(defaults.projects[input.projectId] ?? [], input.useCase);
     } else {
-      defaults.workspace = removeDefault(defaults.workspace, input.capabilityClass);
+      defaults.workspace = removeDefault(defaults.workspace, input.useCase);
     }
     await writeExecutionDefaults(defaults);
     return listExecutionProviderSettings(input.responseProjectId ?? input.projectId);
   }
   const settings = await listExecutionProviderSettings(input.responseProjectId ?? input.projectId);
   const connection = settings.connections.find((candidate) => candidate.connectionId === input.connectionId);
-  if (!connection?.capabilityClasses.includes(input.capabilityClass)) {
-    throw new Error(`${input.connectionId} does not support ${input.capabilityClass}.`);
+  if (!connection?.enabledUseCases.includes(input.useCase)) {
+    throw new Error(`${input.connectionId} is not enabled for ${input.useCase}.`);
   }
   if (connection.status !== 'ready') {
     throw new Error(`${input.connectionId} is not ready and cannot be selected as a default.`);
   }
   const selection: ExecutionDefaultSelection = {
-    capabilityClass: input.capabilityClass,
+    useCase: input.useCase,
     connectionId: input.connectionId,
   };
   if (input.projectId) {
@@ -523,14 +532,14 @@ function replaceDefault(
   defaults: ExecutionDefaultSelection[],
   selection: ExecutionDefaultSelection,
 ): ExecutionDefaultSelection[] {
-  return [...defaults.filter((candidate) => candidate.capabilityClass !== selection.capabilityClass), selection];
+  return [...defaults.filter((candidate) => candidate.useCase !== selection.useCase), selection];
 }
 
 function removeDefault(
   defaults: ExecutionDefaultSelection[],
-  capabilityClass: ExecutionCapabilityClass,
+  useCase: ExecutionUseCase,
 ): ExecutionDefaultSelection[] {
-  return defaults.filter((candidate) => candidate.capabilityClass !== capabilityClass);
+  return defaults.filter((candidate) => candidate.useCase !== useCase);
 }
 
 function cloneDefaults(defaults: ExecutionDefaultSelection[]): ExecutionDefaultSelection[] {
@@ -546,4 +555,18 @@ function requireText(value: string | undefined, message: string): string {
 function cleanOptional(value: string | undefined): string | undefined {
   const cleaned = value?.trim();
   return cleaned || undefined;
+}
+
+function normalizeUseCases(
+  value: ExecutionUseCase[] | undefined,
+  fallback: ExecutionUseCase[],
+): ExecutionUseCase[] {
+  const useCases = value ?? fallback;
+  const normalized = [...new Set(useCases.filter(isExecutionUseCase))];
+  if (!normalized.length) throw new Error('Select at least one connection use case.');
+  return normalized;
+}
+
+function isExecutionUseCase(value: string): value is ExecutionUseCase {
+  return value === 'text' || value === 'image' || value === 'video' || value === 'audio';
 }

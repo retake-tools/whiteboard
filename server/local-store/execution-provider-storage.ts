@@ -3,6 +3,7 @@ import path from 'node:path';
 import {
   executionConnectorDefinition,
   type ExecutionDefaultSelection,
+  type ExecutionUseCase,
 } from '../../src/core/executionProviders';
 import { retakeRoot, writeJson } from './context';
 
@@ -15,6 +16,7 @@ export interface StoredExecutionConnection {
   enabled: boolean;
   baseUrl?: string;
   modelId?: string;
+  enabledUseCases?: ExecutionUseCase[];
   lastCheckedAt?: string;
   lastCheckMessage?: string;
   lastError?: string;
@@ -22,7 +24,7 @@ export interface StoredExecutionConnection {
 }
 
 export interface StoredConnectionsFile {
-  schemaVersion: 3;
+  schemaVersion: 4;
   connections: StoredExecutionConnection[];
 }
 
@@ -32,7 +34,7 @@ export interface StoredCredentialsFile {
 }
 
 export interface StoredDefaultsFile {
-  schemaVersion: 2;
+  schemaVersion: 3;
   workspace: ExecutionDefaultSelection[];
   projects: Record<string, ExecutionDefaultSelection[]>;
 }
@@ -48,15 +50,19 @@ export async function readExecutionConnections(): Promise<StoredConnectionsFile>
       schemaVersion?: number;
       connections?: Array<Record<string, unknown>>;
     };
-    if (parsed.schemaVersion === 3) return parsed as unknown as StoredConnectionsFile;
+    if (parsed.schemaVersion === 4) return parsed as unknown as StoredConnectionsFile;
     return {
-      schemaVersion: 3,
+      schemaVersion: 4,
       connections: (parsed.connections ?? []).flatMap(
-        parsed.schemaVersion === 2 ? migrateV2Connection : migrateV1Connection,
+        parsed.schemaVersion === 3
+          ? migrateV3Connection
+          : parsed.schemaVersion === 2
+            ? migrateV2Connection
+            : migrateV1Connection,
       ),
     };
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { schemaVersion: 3, connections: [] };
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { schemaVersion: 4, connections: [] };
     throw error;
   }
 }
@@ -87,7 +93,7 @@ export async function readExecutionDefaults(): Promise<StoredDefaultsFile> {
     projects?: Record<string, Array<Record<string, unknown>>>;
   }>(defaultsPath, { workspace: [], projects: {} });
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     workspace: normalizeDefaults(parsed.workspace ?? []),
     projects: Object.fromEntries(Object.entries(parsed.projects ?? {}).map(
       ([projectId, defaults]) => [projectId, normalizeDefaults(defaults)],
@@ -112,6 +118,7 @@ function migrateV1Connection(value: Record<string, unknown>): StoredExecutionCon
     enabled: value.enabled !== false,
     baseUrl: typeof value.baseUrl === 'string' ? value.baseUrl : connector.defaultBaseUrl,
     ...(modelId ? { modelId } : {}),
+    enabledUseCases: [...connector.defaultUseCases],
     ...(typeof value.lastCheckedAt === 'string' ? { lastCheckedAt: value.lastCheckedAt } : {}),
     ...(typeof value.lastCheckMessage === 'string' ? { lastCheckMessage: value.lastCheckMessage } : {}),
     ...(typeof value.lastError === 'string' ? { lastError: value.lastError } : {}),
@@ -141,6 +148,28 @@ function migrateV2Connection(value: Record<string, unknown>): StoredExecutionCon
     enabled: value.enabled !== false,
     ...(cleanString(value.baseUrl) ? { baseUrl: cleanString(value.baseUrl) } : {}),
     ...(modelId ? { modelId } : {}),
+    enabledUseCases: [...executionConnectorDefinition(connectorId)!.defaultUseCases],
+    ...(cleanString(value.lastCheckedAt) ? { lastCheckedAt: cleanString(value.lastCheckedAt) } : {}),
+    ...(cleanString(value.lastCheckMessage) ? { lastCheckMessage: cleanString(value.lastCheckMessage) } : {}),
+    ...(cleanString(value.lastError) ? { lastError: cleanString(value.lastError) } : {}),
+    updatedAt: cleanString(value.updatedAt) || new Date().toISOString(),
+  }];
+}
+
+function migrateV3Connection(value: Record<string, unknown>): StoredExecutionConnection[] {
+  const connectorId = cleanString(value.connectorId);
+  if (!connectorId || !executionConnectorDefinition(connectorId)) return [];
+  const connector = executionConnectorDefinition(connectorId)!;
+  return [{
+    connectionId: cleanString(value.connectionId) || connectorId,
+    connectorId,
+    ...(cleanString(value.templateId) ? { templateId: cleanString(value.templateId) } : {}),
+    ...(cleanString(value.providerLabel) ? { providerLabel: cleanString(value.providerLabel) } : {}),
+    displayName: cleanString(value.displayName) || connector.displayName,
+    enabled: value.enabled !== false,
+    ...(cleanString(value.baseUrl) ? { baseUrl: cleanString(value.baseUrl) } : {}),
+    ...(cleanString(value.modelId) ? { modelId: cleanString(value.modelId) } : {}),
+    enabledUseCases: normalizeUseCases(value.enabledUseCases, connector.defaultUseCases),
     ...(cleanString(value.lastCheckedAt) ? { lastCheckedAt: cleanString(value.lastCheckedAt) } : {}),
     ...(cleanString(value.lastCheckMessage) ? { lastCheckMessage: cleanString(value.lastCheckMessage) } : {}),
     ...(cleanString(value.lastError) ? { lastError: cleanString(value.lastError) } : {}),
@@ -153,13 +182,24 @@ function cleanString(value: unknown): string | undefined {
 }
 
 function normalizeDefaults(values: Array<Record<string, unknown>>): ExecutionDefaultSelection[] {
-  const capabilityClasses = new Set(['text', 'document', 'image', 'video', 'audio', 'agent']);
-  return values.flatMap((value) => {
-    const capabilityClass = cleanString(value.capabilityClass);
+  const defaults = values.flatMap((value) => {
+    const rawUseCase = cleanString(value.useCase) || cleanString(value.capabilityClass);
+    const useCase = rawUseCase === 'document' ? 'text' : rawUseCase;
     const connectionId = cleanString(value.connectionId);
-    if (!capabilityClass || !capabilityClasses.has(capabilityClass) || !connectionId) return [];
-    return [{ capabilityClass: capabilityClass as ExecutionDefaultSelection['capabilityClass'], connectionId }];
+    if (!useCase || !isExecutionUseCase(useCase) || !connectionId) return [];
+    return [{ useCase, connectionId }];
   });
+  return [...new Map(defaults.map((selection) => [selection.useCase, selection])).values()];
+}
+
+function normalizeUseCases(value: unknown, fallback: ExecutionUseCase[]): ExecutionUseCase[] {
+  if (!Array.isArray(value)) return [...fallback];
+  return [...new Set(value.filter((candidate): candidate is ExecutionUseCase =>
+    typeof candidate === 'string' && isExecutionUseCase(candidate)))];
+}
+
+function isExecutionUseCase(value: string): value is ExecutionUseCase {
+  return value === 'text' || value === 'image' || value === 'video' || value === 'audio';
 }
 
 async function readOptionalJson<T>(filePath: string, fallback: T): Promise<T> {

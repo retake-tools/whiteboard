@@ -23,12 +23,12 @@ import {
   updateExecutionProviderConnection,
 } from '../core/executionProviderClient';
 import type {
-  ExecutionCapabilityClass,
   ExecutionConnectionStatus,
   ExecutionConnectionSummary,
   ExecutionConnectionTemplate,
   ExecutionDefaultSelection,
   ExecutionProviderSettingsSnapshot,
+  ExecutionUseCase,
 } from '../core/executionProviders';
 import { useI18n, type I18nContextValue } from '../i18n';
 import { TooltipIconButton } from './Tooltip';
@@ -45,9 +45,10 @@ interface ConnectionDraft {
   apiKey: string;
   baseUrl: string;
   modelId: string;
+  enabledUseCases: ExecutionUseCase[];
 }
 
-const capabilityClasses: ExecutionCapabilityClass[] = ['text', 'document', 'image', 'video', 'audio', 'agent'];
+const executionUseCases: ExecutionUseCase[] = ['text', 'image', 'video', 'audio'];
 const emptyDraft: ConnectionDraft = {
   templateId: '',
   displayName: '',
@@ -55,6 +56,7 @@ const emptyDraft: ConnectionDraft = {
   apiKey: '',
   baseUrl: '',
   modelId: '',
+  enabledUseCases: [],
 };
 
 export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProvidersSettingsProps): ReactElement {
@@ -98,6 +100,7 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
       apiKey: '',
       baseUrl: connection.baseUrl ?? '',
       modelId: connection.modelId ?? '',
+      enabledUseCases: [...connection.enabledUseCases],
     });
     setError(undefined);
   }
@@ -120,6 +123,7 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
         baseUrl: draft.baseUrl,
         modelId: draft.modelId,
         apiKey: draft.apiKey,
+        enabledUseCases: draft.enabledUseCases,
       }));
       cancelForm();
     } catch (caught) {
@@ -141,6 +145,7 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
         baseUrl: draft.baseUrl,
         modelId: draft.modelId,
         apiKey: draft.apiKey,
+        enabledUseCases: draft.enabledUseCases,
       }));
       cancelForm();
     } catch (caught) {
@@ -194,16 +199,16 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
   }
 
   async function saveDefault(
-    capabilityClass: ExecutionCapabilityClass,
+    useCase: ExecutionUseCase,
     connectionId: string,
     scope: 'workspace' | 'project',
   ): Promise<void> {
-    const busyKey = `${scope}:${capabilityClass}`;
+    const busyKey = `${scope}:${useCase}`;
     setBusyId(busyKey);
     setError(undefined);
     try {
       setSnapshot(await saveExecutionProviderDefault({
-        capabilityClass,
+        useCase,
         connectionId: connectionId || undefined,
         projectId: scope === 'project' ? projectId : undefined,
         responseProjectId: projectId,
@@ -312,8 +317,27 @@ function ConnectionForm({ busy, draft, templates, onCancel, onDraftChange, onSav
       <label><span>{t('settings.baseUrl')}</span><input value={draft.baseUrl} onChange={(event) => onDraftChange({ ...draft, baseUrl: event.currentTarget.value })} /></label>
       <label><span>{t('settings.modelIds')}</span><input placeholder={t('settings.modelIdsPlaceholder')} value={draft.modelId} onChange={(event) => onDraftChange({ ...draft, modelId: event.currentTarget.value })} /></label>
       <label><span>{t('settings.apiKey')}</span><input type="password" autoComplete="off" placeholder={t(templates ? 'settings.apiKeyCreatePlaceholder' : 'settings.apiKeyPlaceholder')} value={draft.apiKey} onChange={(event) => onDraftChange({ ...draft, apiKey: event.currentTarget.value })} /></label>
+      <fieldset className="execution-use-case-fieldset">
+        <legend>{t('settings.useCases')}</legend>
+        <p>{t('settings.useCasesDescription')}</p>
+        <div>
+          {executionUseCases.map((useCase) => (
+            <label key={useCase}>
+              <input
+                type="checkbox"
+                checked={draft.enabledUseCases.includes(useCase)}
+                onChange={() => onDraftChange({
+                  ...draft,
+                  enabledUseCases: toggleUseCase(draft.enabledUseCases, useCase),
+                })}
+              />
+              <span>{useCaseLabel(useCase, t)}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <p className="execution-connection-form-note">{t('settings.testRequired')}</p>
-      <div><button type="button" onClick={onCancel}>{t('projectBoard.cancel')}</button><button type="button" className="is-primary" disabled={busy || !draft.templateId || !draft.displayName.trim() || !draft.modelId.trim()} onClick={onSave}>{t(templates ? 'settings.createConnection' : 'settings.saveConnection')}</button></div>
+      <div><button type="button" onClick={onCancel}>{t('projectBoard.cancel')}</button><button type="button" className="is-primary" disabled={busy || Boolean(templates && !draft.templateId) || !draft.displayName.trim() || !draft.modelId.trim() || !draft.enabledUseCases.length} onClick={onSave}>{t(templates ? 'settings.createConnection' : 'settings.saveConnection')}</button></div>
     </div>
   );
 }
@@ -345,8 +369,10 @@ function ConnectionCard({ busy, connection, draft, duplicating, editing, onBegin
         {connection.connectionKind === 'model_provider' ? <span>{connection.hasCredential ? <CheckCircle2 size={13} /> : <KeyRound size={13} />}{connection.hasCredential ? t('settings.credentialsStored') : t('settings.credentialsMissing')}</span> : null}
       </div>
       <div className="execution-capability-list">
-        <strong>{t('settings.capabilities')}</strong>
-        {connection.supportedCapabilityIds.length ? connection.supportedCapabilityIds.map((capabilityId) => <span key={capabilityId}>{capabilityId}</span>) : <span>{t('settings.noBoundCapabilities')}</span>}
+        <strong>{t('settings.useCases')}</strong>
+        {connection.enabledUseCases.length
+          ? connection.enabledUseCases.map((useCase) => <span key={useCase}>{useCaseLabel(useCase, t)}</span>)
+          : <span>{t('settings.agentHostUseCases')}</span>}
       </div>
       {connection.modelId ? <div className="execution-capability-list"><strong>{t('settings.models')}</strong><span>{connection.modelId}</span></div> : null}
       {connection.lastCheckedAt ? <p className="execution-connection-check-result"><strong>{t('settings.lastTested')}:</strong> {new Date(connection.lastCheckedAt).toLocaleString()}</p> : null}
@@ -372,7 +398,7 @@ function DefaultsPanel({ busyId, connections, projectDefaults, workspaceDefaults
   connections: ExecutionConnectionSummary[];
   projectDefaults: ExecutionDefaultSelection[];
   workspaceDefaults: ExecutionDefaultSelection[];
-  onSave: (capabilityClass: ExecutionCapabilityClass, connectionId: string, scope: 'workspace' | 'project') => Promise<void>;
+  onSave: (useCase: ExecutionUseCase, connectionId: string, scope: 'workspace' | 'project') => Promise<void>;
   t: I18nContextValue['t'];
 }): ReactElement {
   return (
@@ -380,14 +406,14 @@ function DefaultsPanel({ busyId, connections, projectDefaults, workspaceDefaults
       {(['workspace', 'project'] as const).map((scope) => (
         <section key={scope}>
           <h3>{t(scope === 'workspace' ? 'settings.workspaceDefaults' : 'settings.projectDefaults')}</h3>
-          {capabilityClasses.map((capabilityClass) => {
-            const compatible = connections.filter((connection) => connection.status === 'ready' && connection.capabilityClasses.includes(capabilityClass));
-            const selected = (scope === 'workspace' ? workspaceDefaults : projectDefaults).find((value) => value.capabilityClass === capabilityClass);
+          {executionUseCases.map((useCase) => {
+            const compatible = connections.filter((connection) => connection.status === 'ready' && connection.enabledUseCases.includes(useCase));
+            const selected = (scope === 'workspace' ? workspaceDefaults : projectDefaults).find((value) => value.useCase === useCase);
             return (
-              <label key={capabilityClass}>
-                <span>{capabilityLabel(capabilityClass, t)}</span>
-                <select value={selected?.connectionId ?? ''} disabled={busyId === `${scope}:${capabilityClass}`} onChange={(event) => {
-                  void onSave(capabilityClass, event.currentTarget.value, scope);
+              <label key={useCase}>
+                <span>{useCaseLabel(useCase, t)}</span>
+                <select value={selected?.connectionId ?? ''} disabled={busyId === `${scope}:${useCase}`} onChange={(event) => {
+                  void onSave(useCase, event.currentTarget.value, scope);
                 }}>
                   <option value="">{scope === 'project' ? t('settings.inheritWorkspace') : t('settings.noCompatibleConnection')}</option>
                   {compatible.map((connection) => <option key={connection.connectionId} value={connection.connectionId}>{connection.displayName}{connection.modelId ? ` · ${connection.modelId}` : ''}</option>)}
@@ -418,13 +444,11 @@ function statusLabel(status: ExecutionConnectionStatus, t: I18nContextValue['t']
   return t('settings.statusUnavailable');
 }
 
-function capabilityLabel(capabilityClass: ExecutionCapabilityClass, t: I18nContextValue['t']): string {
-  if (capabilityClass === 'text') return t('settings.defaultText');
-  if (capabilityClass === 'document') return t('settings.defaultDocument');
-  if (capabilityClass === 'image') return t('settings.defaultImage');
-  if (capabilityClass === 'video') return t('settings.defaultVideo');
-  if (capabilityClass === 'audio') return t('settings.defaultAudio');
-  return t('settings.defaultAgent');
+function useCaseLabel(useCase: ExecutionUseCase, t: I18nContextValue['t']): string {
+  if (useCase === 'text') return t('settings.defaultText');
+  if (useCase === 'image') return t('settings.defaultImage');
+  if (useCase === 'video') return t('settings.defaultVideo');
+  return t('settings.defaultAudio');
 }
 
 function draftFromTemplate(template: ExecutionConnectionTemplate): ConnectionDraft {
@@ -435,7 +459,14 @@ function draftFromTemplate(template: ExecutionConnectionTemplate): ConnectionDra
     apiKey: '',
     baseUrl: template.defaultBaseUrl ?? '',
     modelId: template.defaultModelId ?? '',
+    enabledUseCases: [...template.defaultUseCases],
   };
+}
+
+function toggleUseCase(useCases: ExecutionUseCase[], useCase: ExecutionUseCase): ExecutionUseCase[] {
+  return useCases.includes(useCase)
+    ? useCases.filter((candidate) => candidate !== useCase)
+    : [...useCases, useCase];
 }
 
 function errorMessage(error: unknown): string {

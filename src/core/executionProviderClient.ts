@@ -1,6 +1,6 @@
 import type {
-  ExecutionCapabilityClass,
   ExecutionProviderSettingsSnapshot,
+  ExecutionUseCase,
 } from './executionProviders';
 import { cacheExecutionProviderSettings } from './executionProviderPreferences';
 
@@ -19,6 +19,7 @@ export async function createExecutionProviderConnection(input: {
   baseUrl?: string;
   modelId?: string;
   apiKey?: string;
+  enabledUseCases?: ExecutionUseCase[];
 }): Promise<ExecutionProviderSettingsSnapshot> {
   const snapshot = await readJsonResponse<ExecutionProviderSettingsSnapshot>(await fetch(
     '/api/local/settings/execution/connections',
@@ -41,6 +42,7 @@ export async function updateExecutionProviderConnection(input: {
   baseUrl?: string;
   modelId?: string;
   apiKey?: string;
+  enabledUseCases?: ExecutionUseCase[];
 }): Promise<ExecutionProviderSettingsSnapshot> {
   const snapshot = await readJsonResponse<ExecutionProviderSettingsSnapshot>(await fetch(
     `/api/local/settings/execution/connections/${encodeURIComponent(input.connectionId)}`,
@@ -102,7 +104,7 @@ export async function checkExecutionProviderConnection(
 }
 
 export async function saveExecutionProviderDefault(input: {
-  capabilityClass: ExecutionCapabilityClass;
+  useCase: ExecutionUseCase;
   connectionId?: string;
   projectId?: string;
   responseProjectId?: string;

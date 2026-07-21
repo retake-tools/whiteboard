@@ -17,7 +17,7 @@ export type ExecutionConnectionStatus =
   | 'ready'
   | 'unavailable';
 
-export type ExecutionCapabilityClass = 'text' | 'document' | 'image' | 'video' | 'audio' | 'agent';
+export type ExecutionUseCase = 'text' | 'image' | 'video' | 'audio';
 
 export interface ExecutionConnectorDefinition {
   connectorId: string;
@@ -29,7 +29,7 @@ export interface ExecutionConnectorDefinition {
   connectionMode: 'fixed' | 'multiple';
   requiresCredential: boolean;
   supportedCapabilityIds: string[];
-  capabilityClasses: ExecutionCapabilityClass[];
+  defaultUseCases: ExecutionUseCase[];
   defaultBaseUrl?: string;
   defaultModelId?: string;
 }
@@ -40,6 +40,7 @@ export interface ExecutionConnectionTemplate {
   displayName: string;
   description: string;
   providerLabel: string;
+  defaultUseCases: ExecutionUseCase[];
   defaultBaseUrl?: string;
   defaultModelId?: string;
 }
@@ -54,7 +55,7 @@ export interface ExecutionConnectionSummary {
   connectionKind: ExecutionConnectionKind;
   implementationKind: AdapterImplementationKind;
   supportedCapabilityIds: string[];
-  capabilityClasses: ExecutionCapabilityClass[];
+  enabledUseCases: ExecutionUseCase[];
   configurable: boolean;
   deletable: boolean;
   enabled: boolean;
@@ -68,7 +69,7 @@ export interface ExecutionConnectionSummary {
 }
 
 export interface ExecutionDefaultSelection {
-  capabilityClass: ExecutionCapabilityClass;
+  useCase: ExecutionUseCase;
   connectionId: string;
 }
 
@@ -91,7 +92,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     connectionMode: 'fixed',
     requiresCredential: false,
     supportedCapabilityIds: ['video.generate'],
-    capabilityClasses: ['video'],
+    defaultUseCases: ['video'],
     defaultModelId: 'contract-placeholder',
   },
   {
@@ -104,7 +105,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     connectionMode: 'fixed',
     requiresCredential: false,
     supportedCapabilityIds: ['image.annotation_edit', 'image.image_to_image', 'image.text_to_image'],
-    capabilityClasses: ['image', 'agent'],
+    defaultUseCases: ['image'],
   },
   {
     connectorId: 'codex-app-server',
@@ -116,7 +117,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     connectionMode: 'fixed',
     requiresCredential: false,
     supportedCapabilityIds: [],
-    capabilityClasses: [],
+    defaultUseCases: [],
   },
   {
     connectorId: 'dreamina',
@@ -128,7 +129,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     connectionMode: 'fixed',
     requiresCredential: false,
     supportedCapabilityIds: ['video.generate'],
-    capabilityClasses: ['video'],
+    defaultUseCases: ['video'],
     defaultModelId: 'seedance2.0_vip',
   },
   {
@@ -141,7 +142,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     connectionMode: 'multiple',
     requiresCredential: true,
     supportedCapabilityIds: ['video.generate'],
-    capabilityClasses: ['video'],
+    defaultUseCases: ['video'],
     defaultBaseUrl: 'https://ark.ap-southeast.bytepluses.com/api/v3',
     defaultModelId: 'dreamina-seedance-2-0-260128',
   },
@@ -155,7 +156,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     connectionMode: 'multiple',
     requiresCredential: true,
     supportedCapabilityIds: [],
-    capabilityClasses: ['text', 'document'],
+    defaultUseCases: ['text'],
   },
   {
     connectorId: 'anthropic-native',
@@ -167,7 +168,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     connectionMode: 'multiple',
     requiresCredential: true,
     supportedCapabilityIds: [],
-    capabilityClasses: ['text', 'document'],
+    defaultUseCases: ['text'],
     defaultBaseUrl: 'https://api.anthropic.com/v1',
     defaultModelId: 'claude-sonnet-4-6',
   },
@@ -181,7 +182,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     connectionMode: 'multiple',
     requiresCredential: true,
     supportedCapabilityIds: [],
-    capabilityClasses: ['text', 'document'],
+    defaultUseCases: ['text'],
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
     defaultModelId: 'gemini-2.5-flash',
   },
@@ -195,7 +196,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     connectionMode: 'multiple',
     requiresCredential: true,
     supportedCapabilityIds: ['image.image_to_image', 'image.text_to_image'],
-    capabilityClasses: ['image'],
+    defaultUseCases: ['image'],
     defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
     defaultModelId: 'doubao-seedream-5-0-260128',
   },
@@ -208,6 +209,7 @@ const connectionTemplates: ExecutionConnectionTemplate[] = [
     displayName: 'OpenAI',
     description: 'OpenAI API through the shared OpenAI-compatible connector.',
     providerLabel: 'OpenAI',
+    defaultUseCases: ['text'],
     defaultBaseUrl: 'https://api.openai.com/v1',
   },
   {
@@ -216,6 +218,7 @@ const connectionTemplates: ExecutionConnectionTemplate[] = [
     displayName: 'OpenRouter',
     description: 'OpenRouter multi-provider API using its OpenAI-compatible endpoint.',
     providerLabel: 'OpenRouter',
+    defaultUseCases: ['text'],
     defaultBaseUrl: 'https://openrouter.ai/api/v1',
   },
   {
@@ -224,6 +227,7 @@ const connectionTemplates: ExecutionConnectionTemplate[] = [
     displayName: 'DeepSeek',
     description: 'DeepSeek API using its OpenAI-compatible endpoint.',
     providerLabel: 'DeepSeek',
+    defaultUseCases: ['text'],
     defaultBaseUrl: 'https://api.deepseek.com',
   },
   {
@@ -232,6 +236,7 @@ const connectionTemplates: ExecutionConnectionTemplate[] = [
     displayName: 'Custom OpenAI-compatible',
     description: 'Any internal gateway or provider that implements the compatible chat API.',
     providerLabel: 'Custom',
+    defaultUseCases: ['text'],
   },
   {
     templateId: 'byteplus-modelark',
@@ -239,6 +244,7 @@ const connectionTemplates: ExecutionConnectionTemplate[] = [
     displayName: 'BytePlus ModelArk',
     description: 'Another BytePlus account, region, or endpoint using the installed native async connector.',
     providerLabel: 'BytePlus ModelArk',
+    defaultUseCases: ['video'],
     defaultBaseUrl: 'https://ark.ap-southeast.bytepluses.com/api/v3',
     defaultModelId: 'dreamina-seedance-2-0-260128',
   },
@@ -248,6 +254,7 @@ const connectionTemplates: ExecutionConnectionTemplate[] = [
     displayName: 'Anthropic',
     description: 'Claude through the official Vercel AI SDK Anthropic provider.',
     providerLabel: 'Anthropic',
+    defaultUseCases: ['text'],
     defaultBaseUrl: 'https://api.anthropic.com/v1',
     defaultModelId: 'claude-sonnet-4-6',
   },
@@ -257,6 +264,7 @@ const connectionTemplates: ExecutionConnectionTemplate[] = [
     displayName: 'Google Gemini',
     description: 'Gemini through the official Vercel AI SDK Google Generative AI provider.',
     providerLabel: 'Google',
+    defaultUseCases: ['text'],
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
     defaultModelId: 'gemini-2.5-flash',
   },
@@ -266,6 +274,7 @@ const connectionTemplates: ExecutionConnectionTemplate[] = [
     displayName: 'Volcengine Ark Seedream',
     description: 'Seedream text-to-image and image-to-image through the mainland China Ark API.',
     providerLabel: 'Volcengine Ark',
+    defaultUseCases: ['image'],
     defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
     defaultModelId: 'doubao-seedream-5-0-260128',
   },
@@ -281,19 +290,23 @@ export function executionConnectorDefinition(connectorId: string): ExecutionConn
 }
 
 export function listExecutionConnectionTemplates(): ExecutionConnectionTemplate[] {
-  return connectionTemplates.map((template) => ({ ...template }));
+  return connectionTemplates.map(cloneTemplate);
 }
 
 export function executionConnectionTemplate(templateId: string): ExecutionConnectionTemplate | undefined {
   const template = connectionTemplates.find((candidate) => candidate.templateId === templateId);
-  return template ? { ...template } : undefined;
+  return template ? cloneTemplate(template) : undefined;
 }
 
 function cloneConnector(definition: ExecutionConnectorDefinition): ExecutionConnectorDefinition {
   return {
     ...definition,
     supportedCapabilityIds: [...definition.supportedCapabilityIds],
-    capabilityClasses: [...definition.capabilityClasses],
+    defaultUseCases: [...definition.defaultUseCases],
     ...(definition.defaultModelId ? { defaultModelId: definition.defaultModelId } : {}),
   };
+}
+
+function cloneTemplate(template: ExecutionConnectionTemplate): ExecutionConnectionTemplate {
+  return { ...template, defaultUseCases: [...template.defaultUseCases] };
 }

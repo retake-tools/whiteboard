@@ -365,6 +365,55 @@
   font-weight: 700;
 }
 
+.execution-use-case-fieldset {
+  display: grid;
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 11px;
+  gap: 5px;
+  border: 1px solid #d0d7e2;
+  border-radius: 8px;
+}
+
+.execution-use-case-fieldset legend {
+  padding: 0 4px;
+  color: #475467;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.execution-use-case-fieldset p {
+  margin: 0;
+  color: #667085;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.execution-use-case-fieldset > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 7px;
+}
+
+.execution-use-case-fieldset label {
+  display: inline-flex;
+  grid-template-columns: none;
+  align-items: center;
+  padding: 5px 8px;
+  gap: 5px;
+  border-radius: 7px;
+  background: #f2f4f7;
+  cursor: pointer;
+}
+
+.execution-use-case-fieldset input {
+  width: 14px;
+  min-height: 14px;
+  margin: 0;
+  padding: 0;
+}
+
 .execution-connection-form input,
 .execution-connection-form select,
 .execution-default-sections select {

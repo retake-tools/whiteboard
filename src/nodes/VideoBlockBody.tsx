@@ -202,7 +202,7 @@ interface VideoExecutionChoice {
 }
 
 function videoExecutionChoices(connections: ExecutionConnectionSummary[]): VideoExecutionChoice[] {
-  const choices = connections.filter((connection) => connection.capabilityClasses.includes('video')).flatMap((connection) => {
+  const choices = connections.filter((connection) => connection.enabledUseCases.includes('video')).flatMap((connection) => {
     const executionProfileId = videoProfileForConnector(connection.connectorId);
     if (!executionProfileId) return [];
     return [{

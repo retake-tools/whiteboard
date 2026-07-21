@@ -56,12 +56,15 @@ await writeFile(path.join(settingsRoot, 'execution-connections.json'), JSON.stri
 }));
 await writeFile(path.join(settingsRoot, 'execution-defaults.json'), JSON.stringify({
   schemaVersion: 1,
-  workspace: [{ capabilityClass: 'text', connectionId: 'connection_v2', model: 'model-b' }],
+  workspace: [
+    { capabilityClass: 'document', connectionId: 'connection_v2', model: 'model-b' },
+    { capabilityClass: 'agent', connectionId: 'connection_v2', model: 'model-b' },
+  ],
   projects: {},
 }));
 const migratedV2 = await listExecutionProviderSettings();
 assert.equal(migratedV2.connections.find((connection) => connection.connectionId === 'connection_v2')?.modelId, 'model-b');
-assert.deepEqual(migratedV2.workspaceDefaults, [{ capabilityClass: 'text', connectionId: 'connection_v2' }]);
+assert.deepEqual(migratedV2.workspaceDefaults, [{ useCase: 'text', connectionId: 'connection_v2' }]);
 await rm(retakeRoot, { recursive: true, force: true });
 
 const previousModelArkEnvironment = {
@@ -248,6 +251,7 @@ settings = await createExecutionConnection({
   baseUrl: 'https://ai.studio.example/v1',
   modelId: 'script-v2',
   apiKey: 'internal-gateway-secret',
+  enabledUseCases: ['text', 'image'],
 });
 settings = await createExecutionConnection({
   templateId: 'byteplus-modelark',
@@ -288,6 +292,7 @@ assert.equal(JSON.stringify(settings).includes('secret'), false, 'Settings API m
 const internal = openAiCompatibleConnections.find((connection) => connection.displayName === 'Internal Gateway');
 assert.ok(internal);
 assert.equal(internal.status, 'untested');
+assert.deepEqual(internal.enabledUseCases, ['text', 'image']);
 const resolvedInternal = await resolveExecutionConnection(internal.connectionId);
 assert.equal(resolvedInternal?.apiKey, 'internal-gateway-secret');
 assert.equal(resolvedInternal?.baseUrl, 'https://ai.studio.example/v1');
@@ -299,7 +304,7 @@ settings = await checkExecutionConnection(internal.connectionId, undefined, {
   },
 });
 assert.equal(settings.connections.find((connection) => connection.connectionId === internal.connectionId)?.status, 'ready');
-await saveExecutionDefault({ capabilityClass: 'text', connectionId: internal.connectionId });
+await saveExecutionDefault({ useCase: 'text', connectionId: internal.connectionId });
 
 const claudeConnection = settings.connections.find((connection) => connection.displayName === 'Claude Writing');
 const geminiConnection = settings.connections.find((connection) => connection.displayName === 'Gemini Writing');
@@ -328,7 +333,7 @@ settings = await checkExecutionConnection(seedreamConnection.connectionId, undef
 assert.equal(settings.connections.find((connection) => connection.connectionId === claudeConnection.connectionId)?.status, 'ready');
 assert.equal(settings.connections.find((connection) => connection.connectionId === geminiConnection.connectionId)?.status, 'ready');
 assert.equal(settings.connections.find((connection) => connection.connectionId === seedreamConnection.connectionId)?.status, 'ready');
-await saveExecutionDefault({ capabilityClass: 'image', connectionId: seedreamConnection.connectionId });
+await saveExecutionDefault({ useCase: 'image', connectionId: seedreamConnection.connectionId });
 
 const previewConnection = settings.connections.find((connection) => connection.displayName === 'BytePlus Preview Account');
 assert.ok(previewConnection);
@@ -347,18 +352,18 @@ assert.match(
 const codexAppServer = settings.connections.find((connection) => connection.connectionId === 'codex-app-server');
 assert.ok(codexAppServer, 'Codex App Server must be present as a fixed Agent Host connection.');
 await saveExecutionDefault({
-  capabilityClass: 'video',
+  useCase: 'video',
   connectionId: previewConnection.connectionId,
 });
-await saveExecutionDefault({ capabilityClass: 'video', connectionId: 'retake-mock', projectId: 'project_provider_test' });
+await saveExecutionDefault({ useCase: 'video', connectionId: 'retake-mock', projectId: 'project_provider_test' });
 const workspaceSaveResponse = await saveExecutionDefault({
-  capabilityClass: 'video',
+  useCase: 'video',
   connectionId: previewConnection.connectionId,
   responseProjectId: 'project_provider_test',
 });
 assert.equal(workspaceSaveResponse.projectDefaults[0]?.connectionId, 'retake-mock');
 assert.equal(
-  workspaceSaveResponse.workspaceDefaults.find((selection) => selection.capabilityClass === 'video')?.connectionId,
+  workspaceSaveResponse.workspaceDefaults.find((selection) => selection.useCase === 'video')?.connectionId,
   previewConnection.connectionId,
 );
 
@@ -366,7 +371,7 @@ const board = structuredClone(defaultSnapshot) as BoardSnapshot;
 board.project.projectId = 'project_provider_test';
 cacheExecutionProviderSettings(board.project.projectId, workspaceSaveResponse);
 assert.equal(createBlockRecord(board, 'video').data.executionDraft?.executionProfileId, 'video-mock');
-await saveExecutionDefault({ capabilityClass: 'video', projectId: 'project_provider_test' });
+await saveExecutionDefault({ useCase: 'video', projectId: 'project_provider_test' });
 const inheritedDefaults = await listExecutionProviderSettings('project_provider_test');
 cacheExecutionProviderSettings(board.project.projectId, inheritedDefaults);
 const inheritedVideoBlock = createBlockRecord(board, 'video');

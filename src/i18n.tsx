@@ -421,6 +421,9 @@ type TranslationKey =
   | 'settings.baseUrl'
   | 'settings.model'
   | 'settings.capabilities'
+  | 'settings.useCases'
+  | 'settings.useCasesDescription'
+  | 'settings.agentHostUseCases'
   | 'settings.credentialsStored'
   | 'settings.credentialsMissing'
   | 'settings.workspaceDefaults'
@@ -924,6 +927,9 @@ const translations: Record<Locale, Translations> = {
     'settings.baseUrl': 'Base URL',
     'settings.model': 'Model ID',
     'settings.capabilities': 'Capabilities',
+    'settings.useCases': 'Uses',
+    'settings.useCasesDescription': 'Choose how this exact model connection may be used. Templates provide editable defaults.',
+    'settings.agentHostUseCases': 'Managed separately by the Agent runtime',
     'settings.credentialsStored': 'Credential stored on the Retake server',
     'settings.credentialsMissing': 'Credential required',
     'settings.workspaceDefaults': 'Workspace defaults',
@@ -1422,6 +1428,9 @@ const translations: Record<Locale, Translations> = {
     'settings.baseUrl': 'Base URL',
     'settings.model': '模型 ID',
     'settings.capabilities': '支持能力',
+    'settings.useCases': '用途',
+    'settings.useCasesDescription': '选择这条具体模型连接可用于哪些领域；模板只提供可修改的默认值。',
+    'settings.agentHostUseCases': '由 Agent Runtime 单独管理',
     'settings.credentialsStored': '凭据已存储在 Retake 服务端',
     'settings.credentialsMissing': '需要配置凭据',
     'settings.workspaceDefaults': 'Workspace 默认值',

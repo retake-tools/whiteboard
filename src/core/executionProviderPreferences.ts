@@ -1,8 +1,8 @@
 import type {
-  ExecutionCapabilityClass,
   ExecutionConnectionSummary,
   ExecutionDefaultSelection,
   ExecutionProviderSettingsSnapshot,
+  ExecutionUseCase,
 } from './executionProviders';
 
 const snapshotsByProject = new Map<string, ExecutionProviderSettingsSnapshot>();
@@ -28,19 +28,19 @@ export function currentExecutionProviderSettings(): ExecutionProviderSettingsSna
 }
 
 export function executionDefaultConnection(
-  capabilityClass: ExecutionCapabilityClass,
+  useCase: ExecutionUseCase,
   projectId: string,
 ): string | undefined {
-  return executionDefaultSelection(capabilityClass, projectId)?.connectionId;
+  return executionDefaultSelection(useCase, projectId)?.connectionId;
 }
 
 export function executionDefaultSelection(
-  capabilityClass: ExecutionCapabilityClass,
+  useCase: ExecutionUseCase,
   projectId: string,
 ): ExecutionDefaultSelection | undefined {
   const snapshot = snapshotsByProject.get(projectId) ?? snapshotsByProject.get('');
-  const selection = snapshot?.projectDefaults.find((candidate) => candidate.capabilityClass === capabilityClass)
-    ?? snapshot?.workspaceDefaults.find((candidate) => candidate.capabilityClass === capabilityClass);
+  const selection = snapshot?.projectDefaults.find((candidate) => candidate.useCase === useCase)
+    ?? snapshot?.workspaceDefaults.find((candidate) => candidate.useCase === useCase);
   return selection ? { ...selection } : undefined;
 }
 

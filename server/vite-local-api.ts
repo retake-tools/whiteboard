@@ -44,7 +44,7 @@ import {
   saveExecutionDefault,
   updateExecutionConnection,
 } from './local-store/execution-provider-store';
-import type { ExecutionCapabilityClass } from '../src/core/executionProviders';
+import type { ExecutionUseCase } from '../src/core/executionProviders';
 import { startVolcengineArkImageGeneration } from './volcengine-ark-image-service';
 
 type MiddlewareContainer = {
@@ -91,6 +91,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               baseUrl?: string;
               modelId?: string;
               apiKey?: string;
+              enabledUseCases?: ExecutionUseCase[];
             };
             if (!body.templateId || !body.displayName) {
               sendJson(res, { error: 'templateId and displayName are required' }, 400);
@@ -103,6 +104,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               baseUrl: body.baseUrl,
               modelId: body.modelId,
               apiKey: body.apiKey,
+              enabledUseCases: body.enabledUseCases,
             }, body.projectId), 201);
             return;
           }
@@ -118,6 +120,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               baseUrl?: string;
               modelId?: string;
               apiKey?: string;
+              enabledUseCases?: ExecutionUseCase[];
             };
             sendJson(res, await updateExecutionConnection(connectionId, body, body.projectId));
             return;
@@ -152,17 +155,17 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
 
           if (method === 'PUT' && url.pathname === '/settings/execution/defaults') {
             const body = (await readJson(req)) as {
-              capabilityClass?: ExecutionCapabilityClass;
+              useCase?: ExecutionUseCase;
               connectionId?: string;
               projectId?: string;
               responseProjectId?: string;
             };
-            if (!body.capabilityClass) {
-              sendJson(res, { error: 'capabilityClass is required' }, 400);
+            if (!body.useCase) {
+              sendJson(res, { error: 'useCase is required' }, 400);
               return;
             }
             sendJson(res, await saveExecutionDefault({
-              capabilityClass: body.capabilityClass,
+              useCase: body.useCase,
               connectionId: body.connectionId,
               projectId: body.projectId,
               responseProjectId: body.responseProjectId,
