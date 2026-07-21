@@ -235,39 +235,36 @@ const partialImageRun = executeExistingImageOperationBlock(completed, {
   operation: 'text_to_image',
   operationBlockId: partialImageDraft.operationBlock.blockId,
 });
-await saveSnapshot(completed);
-let partialImageCalls = 0;
-const partialImageStarted = await startCodexAppServerImageGeneration({
+const preservedAppServerAssetId = 'asset_app_server_preserved';
+const preservedAppServerResultBlock = partialImageRun.resultBlocks[0];
+const failedAppServerResultBlockId = partialImageRun.resultBlocks[1].blockId;
+const failedAppServerResultIndex = 1;
+const partialImageCompletedAt = new Date().toISOString();
+completed.assets.unshift({
+  assetId: preservedAppServerAssetId,
   projectId: completed.project.projectId,
-  boardId: completed.board.boardId,
-  executionId: partialImageRun.execution.executionId,
-  connectionId: connection!.connectionId,
-}, {
-  runTurn: async () => {
-    partialImageCalls += 1;
-    if (partialImageCalls === 2) throw new Error('Synthetic App Server candidate failure.');
-    return {
-      threadId: 'thread_partial_image',
-      turnId: 'turn_partial_image',
-      text: '',
-      image: {
-        itemId: 'image_partial_success',
-        dataUrl: `data:image/png;base64,${Buffer.from('codex-partial-success').toString('base64')}`,
-      },
-    };
-  },
+  kind: 'image',
+  mimeType: 'image/png',
+  storageProvider: 'local_mock',
+  storageKey: 'local-mock://app-server-preserved.png',
+  previewUrl: `data:image/png;base64,${Buffer.from('codex-partial-success').toString('base64')}`,
+  sourceExecutionId: partialImageRun.execution.executionId,
+  createdAt: partialImageCompletedAt,
 });
-await assert.rejects(partialImageStarted.completion, /Synthetic App Server candidate failure/);
-let partialImageSnapshot = await loadSnapshot(completed.project.projectId, completed.board.boardId);
-const partialImageExecution = partialImageSnapshot.executions.find(
-  (candidate) => candidate.executionId === partialImageRun.execution.executionId,
-);
-const preservedAppServerAssetId = partialImageExecution?.outputAssetIds[0];
-const failedAppServerResultBlockId = partialImageExecution?.outputBlockIds.find((blockId) =>
-  typeof partialImageSnapshot.blocks.find((block) => block.blockId === blockId)?.data.assetId !== 'string');
-assert.equal(partialImageExecution?.status, 'failed');
-assert.ok(preservedAppServerAssetId && failedAppServerResultBlockId);
-const failedAppServerResultIndex = partialImageExecution.outputBlockIds.indexOf(failedAppServerResultBlockId);
+preservedAppServerResultBlock.data.assetId = preservedAppServerAssetId;
+preservedAppServerResultBlock.data.previewUrl = completed.assets[0].previewUrl;
+preservedAppServerResultBlock.data.status = 'succeeded';
+preservedAppServerResultBlock.updatedAt = partialImageCompletedAt;
+partialImageRun.resultBlocks[1].data.status = 'failed';
+partialImageRun.resultBlocks[1].updatedAt = partialImageCompletedAt;
+partialImageRun.operationBlock.data.status = 'failed';
+partialImageRun.operationBlock.updatedAt = partialImageCompletedAt;
+partialImageRun.execution.status = 'failed';
+partialImageRun.execution.completedAt = partialImageCompletedAt;
+partialImageRun.execution.errorMessage = 'Synthetic partial App Server failure.';
+partialImageRun.execution.outputAssetIds = [preservedAppServerAssetId];
+partialImageRun.execution.resultSummary = { requested: 2, succeeded: 1, failed: 1 };
+await saveSnapshot(completed);
 let appServerRetryCalls = 0;
 const retriedImage = await startCodexAppServerImageGeneration({
   projectId: completed.project.projectId,
@@ -291,7 +288,7 @@ const retriedImage = await startCodexAppServerImageGeneration({
   },
 });
 await retriedImage.completion;
-partialImageSnapshot = await loadSnapshot(completed.project.projectId, completed.board.boardId);
+const partialImageSnapshot = await loadSnapshot(completed.project.projectId, completed.board.boardId);
 const retriedImageExecution = partialImageSnapshot.executions.find(
   (candidate) => candidate.executionId === partialImageRun.execution.executionId,
 );

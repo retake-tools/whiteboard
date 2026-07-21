@@ -22,7 +22,11 @@ import {
   volcengineArkSeedreamImageAdapterDefinition,
 } from './capabilityRegistry';
 import { imageBlockAspectRatio } from './operationAspectRatio';
-import { imageBranchDraftLayout, imageOperationResultRowLayout } from './imageOperationLayout';
+import {
+  annotationOperationBranchLayout,
+  imageBranchDraftLayout,
+  imageOperationResultRowLayout,
+} from './imageOperationLayout';
 import {
   defaultGenerationProfileId,
   generationParameterVisible,
@@ -182,18 +186,24 @@ export function addImageCodexOperation(
   const annotationEditControls = input.operation === 'annotation_edit' && input.annotationManifest
     ? annotationEditControlsFromManifest(input.annotationManifest)
     : undefined;
+  const resultCount = variationCount(generationParams);
+  const resultSize = displaySlotSizeForGenerationParams(generationParams, sourceBlock.size);
+  const operationSize = { width: 320, height: 190 };
+  const annotationLayout = input.operation === 'annotation_edit'
+    ? annotationOperationBranchLayout(snapshot, sourceBlock, operationSize, resultSize, resultCount)
+    : undefined;
 
   const operationBlock: BlockRecord = {
     blockId: createId('block'),
     boardId: snapshot.board.boardId,
     type: 'operation',
     layerId: 'layer_default',
-    parentGroupId: sourceBlock.parentGroupId,
-    position: {
+    parentGroupId: annotationLayout ? annotationLayout.parentGroupId : sourceBlock.parentGroupId,
+    position: annotationLayout?.operationPosition ?? {
       x: sourceBlock.position.x + sourceBlock.size.width + 80,
       y: sourceBlock.position.y,
     },
-    size: { width: 320, height: 190 },
+    size: operationSize,
     zIndex: maxZIndex(snapshot.blocks) + 1,
     data: {
       title,
@@ -224,9 +234,8 @@ export function addImageCodexOperation(
     updatedAt: createdAt,
   };
 
-  const resultCount = variationCount(generationParams);
-  const resultSize = displaySlotSizeForGenerationParams(generationParams, sourceBlock.size);
-  const resultLayout = imageOperationResultRowLayout(snapshot, operationBlock, resultSize, resultCount);
+  const resultLayout = annotationLayout?.resultPosition
+    ?? imageOperationResultRowLayout(snapshot, operationBlock, resultSize, resultCount);
   const resultBlocks = Array.from({ length: resultCount }, (_, index): BlockRecord => ({
     blockId: createId('block'),
     boardId: snapshot.board.boardId,

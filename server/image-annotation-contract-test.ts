@@ -350,6 +350,75 @@ const operationResultGroup = snapshot.blocks.find(
 );
 assert.ok(operationResultGroup);
 assert.equal(rectanglesOverlap(operationResultGroup, nearbyBlocker, 28), false);
+
+const groupedSnapshot = structuredClone(defaultSnapshot);
+groupedSnapshot.blocks = [];
+groupedSnapshot.edges = [];
+groupedSnapshot.assets = [sourceAsset];
+groupedSnapshot.executions = [];
+groupedSnapshot.historyEvents = [];
+const sourceGroup: BlockRecord = {
+  blockId: 'block_annotation_source_group',
+  boardId: groupedSnapshot.board.boardId,
+  type: 'group',
+  layerId: 'layer_default',
+  position: { x: 200, y: 500 },
+  size: { width: 520, height: 360 },
+  zIndex: 10,
+  data: { title: 'Original image group', groupKind: 'manual', groupLayoutMode: 'free' },
+  createdAt: sourceAsset.createdAt,
+  updatedAt: sourceAsset.createdAt,
+};
+const groupedSourceBlock: BlockRecord = {
+  ...structuredClone(sourceBlock),
+  blockId: 'block_annotation_grouped_source',
+  boardId: groupedSnapshot.board.boardId,
+  parentGroupId: sourceGroup.blockId,
+  position: { x: 260, y: 570 },
+};
+const upperBlocker: BlockRecord = {
+  blockId: 'block_annotation_upper_blocker',
+  boardId: groupedSnapshot.board.boardId,
+  type: 'text',
+  layerId: 'layer_default',
+  position: { x: 200, y: 100 },
+  size: { width: 1200, height: 320 },
+  zIndex: 11,
+  data: { title: 'Occupied upper lane', body: '' },
+  createdAt: sourceAsset.createdAt,
+  updatedAt: sourceAsset.createdAt,
+};
+groupedSnapshot.blocks.push(sourceGroup, groupedSourceBlock, upperBlocker);
+const groupedAnnotation = addImageCodexOperation(groupedSnapshot, {
+  operation: 'annotation_edit',
+  sourceBlockId: groupedSourceBlock.blockId,
+  instruction: prompt,
+  annotatedCompositeAsset: compositeAsset,
+  annotationManifest: persistedManifest,
+  generationParams: { variationCount: 2 },
+});
+const groupedAnnotationResults = groupedSnapshot.blocks.find(
+  (block) => block.type === 'group' && block.data.groupExecutionId === groupedAnnotation.execution.executionId,
+);
+assert.equal(groupedAnnotation.operationBlock.parentGroupId, undefined);
+assert.ok(groupedAnnotationResults);
+assert.equal(groupedAnnotationResults.parentGroupId, undefined);
+assert.deepEqual(
+  groupedSnapshot.blocks.filter((block) => block.parentGroupId === sourceGroup.blockId).map((block) => block.blockId),
+  [groupedSourceBlock.blockId],
+);
+assert.equal(rectanglesOverlap(groupedAnnotation.operationBlock, sourceGroup, 28), false);
+assert.equal(rectanglesOverlap(groupedAnnotationResults, sourceGroup, 28), false);
+assert.equal(rectanglesOverlap(groupedAnnotation.operationBlock, upperBlocker, 28), false);
+assert.equal(rectanglesOverlap(groupedAnnotationResults, upperBlocker, 28), false);
+assert.equal(
+  Math.max(
+    groupedAnnotation.operationBlock.position.y + groupedAnnotation.operationBlock.size.height,
+    groupedAnnotationResults.position.y + groupedAnnotationResults.size.height,
+  ) < sourceGroup.position.y,
+  true,
+  'Grouped annotation branches should prefer free space above the source group.',
+);
 operation.operationBlock.data.status = 'succeeded';
 operation.execution.status = 'succeeded';
 operation.resultBlocks.forEach((resultBlock, index) => {

@@ -22,6 +22,12 @@ export interface ImageOperationResultRowLayout {
   y: number;
 }
 
+export interface AnnotationOperationBranchLayout {
+  operationPosition: Position;
+  parentGroupId?: string;
+  resultPosition: Position;
+}
+
 export function imageBranchDraftSelectionBlockIds(
   sourceBlock: BlockRecord,
   textBlock: BlockRecord,
@@ -40,6 +46,75 @@ const branchLaneOutputClearance = 160;
 const collisionGap = 28;
 const resultHorizontalGap = 32;
 const resultGroupPadding = { top: 48, right: 28, bottom: 28, left: 28 };
+
+export function annotationOperationBranchLayout(
+  snapshot: BoardSnapshot,
+  sourceBlock: BlockRecord,
+  operationSize: Size,
+  resultSize: Size,
+  count: number,
+): AnnotationOperationBranchLayout | undefined {
+  const sourceGroup = sourceBlock.parentGroupId
+    ? snapshot.blocks.find((block) => block.blockId === sourceBlock.parentGroupId && block.type === 'group')
+    : undefined;
+  if (!sourceGroup) return undefined;
+
+  const parentGroupId = sourceGroup.parentGroupId;
+  const grouped = count > 1;
+  const resultRowWidth = count * resultSize.width + Math.max(0, count - 1) * resultHorizontalGap;
+  const resultEnvelope = {
+    width: resultRowWidth + (grouped ? resultGroupPadding.left + resultGroupPadding.right : 0),
+    height: resultSize.height + (grouped ? resultGroupPadding.top + resultGroupPadding.bottom : 0),
+  };
+  const operationResultGap = 80;
+  const branchSize = {
+    width: operationSize.width + operationResultGap + resultEnvelope.width,
+    height: Math.max(operationSize.height, resultEnvelope.height),
+  };
+  const placementGap = 64;
+  const occupied = snapshot.blocks.filter((block) => block.parentGroupId === parentGroupId);
+  const aboveY = sourceGroup.position.y - branchSize.height - placementGap;
+  const candidates: Position[] = [];
+
+  for (let row = 0; row < 16; row += 1) {
+    const y = aboveY - row * (branchSize.height + placementGap);
+    for (let offset = 0; offset < 16; offset += 1) {
+      const distance = Math.ceil(offset / 2) * 96;
+      const direction = offset === 0 || offset % 2 === 1 ? 1 : -1;
+      candidates.push({ x: sourceGroup.position.x + distance * direction, y });
+    }
+  }
+
+  for (let step = 0; step < 24; step += 1) {
+    const verticalOffset = step * (branchSize.height + placementGap);
+    candidates.push({
+      x: sourceGroup.position.x + sourceGroup.size.width + placementGap,
+      y: sourceGroup.position.y + verticalOffset,
+    });
+    candidates.push({
+      x: sourceGroup.position.x - branchSize.width - placementGap,
+      y: sourceGroup.position.y + verticalOffset,
+    });
+    candidates.push({
+      x: sourceGroup.position.x,
+      y: sourceGroup.position.y + sourceGroup.size.height + placementGap + verticalOffset,
+    });
+  }
+
+  const branchPosition = candidates.find((candidate) =>
+    occupied.every((block) => !rectanglesOverlap(candidate, branchSize, block.position, block.size, collisionGap)))
+    ?? { x: sourceGroup.position.x, y: aboveY };
+  const operationPosition = {
+    x: branchPosition.x,
+    y: branchPosition.y + Math.max(0, (branchSize.height - operationSize.height) / 2),
+  };
+  const resultPosition = {
+    x: branchPosition.x + operationSize.width + operationResultGap + (grouped ? resultGroupPadding.left : 0),
+    y: branchPosition.y + Math.max(0, (branchSize.height - resultEnvelope.height) / 2)
+      + (grouped ? resultGroupPadding.top : 0),
+  };
+  return { operationPosition, parentGroupId, resultPosition };
+}
 
 export function imageBranchDraftLayout(
   snapshot: BoardSnapshot,
