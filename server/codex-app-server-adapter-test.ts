@@ -1,29 +1,54 @@
 import assert from 'node:assert/strict';
 import { readFile, rm } from 'node:fs/promises';
-import { createDraftTextToImageOperation, executeExistingImageOperationBlock } from '../src/core/imageOperations';
+import { addImageCodexOperation, createDraftTextToImageOperation, executeExistingImageOperationBlock } from '../src/core/imageOperations';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import { createDraftTextGenerationOperation, executeExistingTextGenerationOperation } from '../src/core/textOperations';
 import type { BoardSnapshot } from '../src/core/types';
 import { startCodexAppServerImageGeneration } from './codex-app-server-image-service';
 import { checkExecutionConnection } from './local-store/execution-provider-store';
 import { resolveAssetStoragePath } from './local-store/asset-files';
+import { createAssetFromDataUrl } from './local-store/asset-store';
 import { retakeRoot } from './local-store/context';
 import { loadSnapshot, saveSnapshot } from './local-store/snapshot-store';
 import { startTextGeneration } from './text-generation-service';
+import { cliUpgradeMessage, cliVersionAtLeast } from './cli-runtime-diagnostic';
 
 assert.ok(retakeRoot.endsWith('.retake-test-codex-app-server'), 'Codex App Server tests must use a disposable workspace.');
 await rm(retakeRoot, { recursive: true, force: true });
 
+assert.equal(cliVersionAtLeast('0.144.6', '0.136.0'), true);
+assert.equal(cliVersionAtLeast('0.120.0', '0.136.0'), false);
+assert.match(cliUpgradeMessage({
+  runtimeName: 'Claude CLI',
+  version: '1.0.0',
+  upgradeCommands: ['claude update'],
+}), /Claude CLI.*1\.0\.0.*claude update/);
+
 const settings = await checkExecutionConnection('codex-app-server', undefined, {
-  probeCodexAppServer: async () => ({
+  probeCodexAppServer: async (selectedModelId) => ({
+    version: '0.144.6',
     authMode: 'chatgpt',
     capabilities: { imageGeneration: true, namespaceTools: true, webSearch: true },
+    models: [{
+      id: selectedModelId ?? 'gpt-5.6-terra',
+      displayName: 'GPT-5.6-Terra',
+      description: 'Test model',
+      isDefault: true,
+      inputModalities: ['text', 'image'],
+    }],
+    selectedModel: {
+      id: selectedModelId ?? 'gpt-5.6-terra',
+      displayName: 'GPT-5.6-Terra',
+      description: 'Test model',
+      isDefault: true,
+      inputModalities: ['text', 'image'],
+    },
   }),
 });
 const connection = settings.connections.find((candidate) => candidate.connectionId === 'codex-app-server');
 assert.equal(connection?.status, 'ready');
-assert.equal(connection?.modelId, 'gpt-5.4');
-assert.deepEqual(connection?.supportedCapabilityIds, ['text.generate', 'image.image_to_image', 'image.text_to_image']);
+assert.equal(connection?.modelId, 'gpt-5.6-terra');
+assert.deepEqual(connection?.supportedCapabilityIds, ['text.generate', 'image.annotation_edit', 'image.image_to_image', 'image.text_to_image']);
 
 const snapshot = structuredClone(defaultSnapshot) as BoardSnapshot;
 snapshot.project.projectId = 'project_codex_app_server_test';
@@ -68,7 +93,7 @@ const textStarted = await startTextGeneration({
   connectionId: connection!.connectionId,
 }, {
   runCodexAppServer: async (input) => {
-    assert.equal(input.model, 'gpt-5.4');
+    assert.equal(input.model, 'gpt-5.6-terra');
     input.onTextDelta?.('# Cat Scene\n\n');
     input.onTextDelta?.('A concise draft.');
     deltas.push('# Cat Scene\n\n', 'A concise draft.');
@@ -142,8 +167,76 @@ assert.ok(imageResult?.data.assetId);
 assert.equal(completed.assets.some((candidate) => candidate.assetId === imageResult.data.assetId), true);
 assert.equal(imageExecution?.params?.codexAppServer && typeof imageExecution.params.codexAppServer, 'object');
 
+const annotatedComposite = await createAssetFromDataUrl({
+  projectId: completed.project.projectId,
+  dataUrl: `data:image/png;base64,${Buffer.from('annotated-composite-test').toString('base64')}`,
+  fileName: 'annotated-composite.png',
+  kind: 'image',
+});
+const annotationDraft = addImageCodexOperation(completed, {
+  operation: 'annotation_edit',
+  sourceBlockId: imageResult!.blockId,
+  instruction: 'Make the marked collar blue.',
+  annotatedCompositeAsset: annotatedComposite,
+  annotationManifest: {
+    schemaVersion: 1,
+    compositeAssetId: annotatedComposite.assetId,
+    globalInstruction: 'Keep the cat unchanged outside the marked region.',
+    marks: [{
+      id: 'R1',
+      kind: 'rect',
+      color: '#2563eb',
+      strokeSize: 'm',
+      intent: 'Change only the collar to royal blue.',
+      start: { x: 0.35, y: 0.55 },
+      end: { x: 0.65, y: 0.72 },
+    }],
+  },
+});
+completed.executions = completed.executions.filter((candidate) => candidate.executionId !== annotationDraft.execution.executionId);
+const annotationRun = executeExistingImageOperationBlock(completed, {
+  connection: connection!,
+  generationParams: { targetWidth: 1024, targetHeight: 1024, variationCount: 1 },
+  instruction: '',
+  operation: 'image_to_image',
+  operationBlockId: annotationDraft.operationBlock.blockId,
+});
+assert.equal(annotationRun.execution.adapter, 'codex_app_server');
+assert.equal(annotationRun.execution.capabilityId, 'image.annotation_edit');
+assert.equal(annotationRun.execution.params?.annotatedCompositeAssetId, annotatedComposite.assetId);
+await saveSnapshot(completed);
+
+const annotationStarted = await startCodexAppServerImageGeneration({
+  projectId: completed.project.projectId,
+  boardId: completed.board.boardId,
+  executionId: annotationRun.execution.executionId,
+  connectionId: connection!.connectionId,
+}, {
+  runTurn: async (input) => {
+    assert.equal(input.localImagePaths?.length, 2, 'Annotation edit must attach the clean source and annotated composite.');
+    assert.match(input.prompt, /final attached annotated composite/);
+    assert.match(input.prompt, /Change only the collar to royal blue/);
+    assert.match(input.prompt, /do not retain them in the final image/);
+    return {
+      threadId: 'thread_annotation_test',
+      turnId: 'turn_annotation_test',
+      text: '',
+      image: {
+        itemId: 'annotation_image_item_test',
+        dataUrl: `data:image/png;base64,${Buffer.from('annotation-image-test').toString('base64')}`,
+      },
+    };
+  },
+});
+await annotationStarted.completion;
+completed = await loadSnapshot(completed.project.projectId, completed.board.boardId);
+assert.equal(
+  completed.executions.find((candidate) => candidate.executionId === annotationRun.execution.executionId)?.status,
+  'succeeded',
+);
+
 console.log(JSON.stringify({
   ok: true,
   capabilities: connection?.supportedCapabilityIds,
-  routes: [textExecution?.adapter, imageExecution?.adapter],
+  routes: [textExecution?.adapter, imageExecution?.adapter, annotationRun.execution.adapter],
 }));

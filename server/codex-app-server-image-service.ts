@@ -2,6 +2,7 @@ import { readFile, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import type { BoardSnapshot, ExecutionRecord } from '../src/core/types';
+import { annotationEditControlDescription, readAnnotationEditControlManifest } from '../src/core/annotationEditControls';
 import { runCodexAppServerTurn } from './codex-app-server-client';
 import { publishExecutionEvent } from './execution-events';
 import { resolveAssetStoragePath } from './local-store/asset-files';
@@ -117,7 +118,18 @@ async function executeCodexImageRun(
 async function executionInputImagePaths(snapshot: BoardSnapshot, execution: ExecutionRecord): Promise<string[]> {
   const bindingAssetIds = execution.inputBindingsSnapshot?.flatMap((binding) =>
     binding.values.flatMap((value) => value.kind === 'asset' ? [value.assetId] : [])) ?? [];
-  const assetIds = [...new Set(bindingAssetIds.length ? bindingAssetIds : execution.inputAssetIds ?? [])];
+  const annotatedCompositeAssetId = typeof execution.params?.annotatedCompositeAssetId === 'string'
+    ? execution.params.annotatedCompositeAssetId
+    : undefined;
+  const assetIds = [...new Set([
+    ...(bindingAssetIds.length ? bindingAssetIds : execution.inputAssetIds ?? []),
+    ...(execution.capabilityId === 'image.annotation_edit'
+      ? [
+          ...(execution.inputAssetIds ?? []).filter((assetId) => assetId !== annotatedCompositeAssetId),
+          annotatedCompositeAssetId,
+        ]
+      : []),
+  ].filter((assetId): assetId is string => typeof assetId === 'string'))];
   for (const assetId of assetIds) {
     if (!snapshot.assets.some((asset) => asset.assetId === assetId && asset.kind === 'image')) {
       throw new Error(`Codex image input is missing from the board snapshot: ${assetId}`);
@@ -162,9 +174,32 @@ function imagegenPrompt(execution: ExecutionRecord, hasInputs: boolean): string 
   const width = finiteNumber(generation.targetWidth);
   const height = finiteNumber(generation.targetHeight);
   const dimensions = width && height ? ` Target composition: ${Math.round(width)}x${Math.round(height)}.` : '';
+  if (execution.capabilityId === 'image.annotation_edit') {
+    const annotationInstructions = annotationPromptInstructions(execution);
+    return `$imagegen Edit the clean source image using the final attached annotated composite as a visual instruction layer. ${annotationInstructions} The colored marks, arrows, outlines, labels, and brush overlays are instructions only: do not retain them in the final image. Preserve all unmentioned content.${dimensions} Generate exactly one clean revised image. Do not call other tools or copy the result.`;
+  }
   return hasInputs
     ? `$imagegen Edit the attached image according to this instruction: ${instruction}.${dimensions} Preserve all unmentioned content. Generate exactly one revised image. Do not call other tools or copy the result.`
     : `$imagegen Generate exactly one image from this instruction: ${instruction}.${dimensions} Do not call other tools or copy the result.`;
+}
+
+function annotationPromptInstructions(execution: ExecutionRecord): string {
+  const manifest = isRecord(execution.params?.annotationManifest) ? execution.params.annotationManifest : {};
+  const globalInstruction = typeof manifest.globalInstruction === 'string' ? manifest.globalInstruction.trim() : '';
+  const controls = readAnnotationEditControlManifest(execution.params?.annotationEditControls)?.controls ?? [];
+  const controlById = new Map(controls.map((control) => [control.markId, control]));
+  const marks = Array.isArray(manifest.marks) ? manifest.marks.filter(isRecord) : [];
+  const markInstructions = marks.flatMap((mark) => {
+    if (typeof mark.id !== 'string' || typeof mark.intent !== 'string' || !mark.intent.trim()) return [];
+    const control = controlById.get(mark.id);
+    const location = control ? ` (${annotationEditControlDescription(control)})` : '';
+    return [`${mark.id}${location}: ${mark.intent.trim()}`];
+  });
+  const parts = [
+    globalInstruction ? `Global instruction: ${globalInstruction}` : '',
+    markInstructions.length ? `Marked edits: ${markInstructions.join('; ')}` : '',
+  ].filter(Boolean);
+  return parts.join(' ') || `Instruction: ${execution.prompt?.trim() || 'Apply the marked edits.'}`;
 }
 
 async function recordProviderResult(

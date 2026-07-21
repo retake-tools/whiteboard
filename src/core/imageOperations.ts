@@ -848,6 +848,7 @@ export function executeExistingImageOperationBlock(
       operationBlockId: operationBlock.blockId,
       ...(generationParams ? { generation: generationParams } : {}),
       ...(annotationManifest ? { annotationManifest } : {}),
+      ...(annotatedCompositeAssetId ? { annotatedCompositeAssetId } : {}),
       ...(annotationManifest ? { annotationEditControls: annotationEditControlsFromManifest(annotationManifest) } : {}),
       inputBindings: imageInputBindings
         .filter((binding): binding is typeof binding & { inputRole: ExecutionInputRole } => Boolean(binding.inputRole))

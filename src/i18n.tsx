@@ -412,6 +412,10 @@ type TranslationKey =
   | 'settings.providerLabel'
   | 'settings.modelIds'
   | 'settings.modelIdsPlaceholder'
+  | 'settings.loadingModels'
+  | 'settings.modelsFromCli'
+  | 'settings.modelCatalogUnavailable'
+  | 'settings.catalogDefault'
   | 'settings.createConnection'
   | 'settings.deleteConnection'
   | 'settings.duplicateConnection'
@@ -928,6 +932,10 @@ const translations: Record<Locale, Translations> = {
     'settings.providerLabel': 'Provider label',
     'settings.modelIds': 'Model ID',
     'settings.modelIdsPlaceholder': 'Exact model ID used by this connection',
+    'settings.loadingModels': 'Loading models from Codex CLI…',
+    'settings.modelsFromCli': 'Searchable models reported by Codex CLI',
+    'settings.modelCatalogUnavailable': 'The CLI model catalog is unavailable; you can still enter an exact model ID.',
+    'settings.catalogDefault': 'default',
     'settings.createConnection': 'Create connection',
     'settings.deleteConnection': 'Delete',
     'settings.duplicateConnection': 'Duplicate connection',
@@ -1439,6 +1447,10 @@ const translations: Record<Locale, Translations> = {
     'settings.providerLabel': '服务商标识',
     'settings.modelIds': '模型 ID',
     'settings.modelIdsPlaceholder': '填写这条连接实际调用的唯一模型 ID',
+    'settings.loadingModels': '正在从 Codex CLI 获取模型…',
+    'settings.modelsFromCli': '可搜索的模型来自 Codex CLI',
+    'settings.modelCatalogUnavailable': '暂时无法获取 CLI 模型目录；仍可手动填写准确的模型 ID。',
+    'settings.catalogDefault': '默认',
     'settings.createConnection': '创建连接',
     'settings.deleteConnection': '删除',
     'settings.duplicateConnection': '复制连接',

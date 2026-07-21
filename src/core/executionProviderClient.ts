@@ -4,11 +4,29 @@ import type {
 } from './executionProviders';
 import { cacheExecutionProviderSettings } from './executionProviderPreferences';
 
+export interface CodexAppServerModelOption {
+  id: string;
+  displayName: string;
+  description: string;
+  isDefault: boolean;
+  inputModalities: Array<'text' | 'image'>;
+  upgrade?: string;
+}
+
+export interface CodexAppServerModelCatalog {
+  version?: string;
+  models: CodexAppServerModelOption[];
+}
+
 export async function loadExecutionProviderSettings(projectId?: string): Promise<ExecutionProviderSettingsSnapshot> {
   const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
   const snapshot = await readJsonResponse<ExecutionProviderSettingsSnapshot>(await fetch(`/api/local/settings/execution${query}`));
   cacheExecutionProviderSettings(projectId, snapshot);
   return snapshot;
+}
+
+export async function loadCodexAppServerModels(): Promise<CodexAppServerModelCatalog> {
+  return readJsonResponse<CodexAppServerModelCatalog>(await fetch('/api/local/settings/execution/codex-app-server/models'));
 }
 
 export async function createExecutionProviderConnection(input: {

@@ -49,6 +49,7 @@ import { startVolcengineArkImageGeneration } from './volcengine-ark-image-servic
 import { startTextGeneration } from './text-generation-service';
 import { installExecutionEventStream } from './execution-events';
 import { startCodexAppServerImageGeneration } from './codex-app-server-image-service';
+import { listCodexAppServerModels } from './codex-app-server-client';
 
 type MiddlewareContainer = {
   use(
@@ -82,6 +83,11 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
 
           if (method === 'GET' && url.pathname === '/settings/execution') {
             sendJson(res, await listExecutionProviderSettings(url.searchParams.get('projectId') ?? undefined));
+            return;
+          }
+
+          if (method === 'GET' && url.pathname === '/settings/execution/codex-app-server/models') {
+            sendJson(res, await listCodexAppServerModels());
             return;
           }
 

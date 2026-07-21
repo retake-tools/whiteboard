@@ -83,7 +83,7 @@ const fixedConnections: FixedConnectionDefinition[] = [
     connectorId: 'codex-app-server',
     displayName: 'Codex App Server',
     providerLabel: 'Codex',
-    configurable: false,
+    configurable: true,
   },
   {
     connectionId: 'dreamina',
@@ -340,11 +340,22 @@ export async function checkExecutionConnection(
       await (dependencies.probeDreaminaCli ?? probeDreaminaCliConnection)();
       checkMessage = 'Dreamina CLI executable verified. Login and membership are validated again when a task is submitted.';
     } else if (summary.connectorId === 'codex-app-server') {
-      const result = await (dependencies.probeCodexAppServer ?? probeCodexAppServerConnection)();
-      if (!result.capabilities.imageGeneration) {
+      if (!summary.modelId) throw new Error('Choose one Codex App Server model before testing the connection.');
+      const result = await (dependencies.probeCodexAppServer ?? probeCodexAppServerConnection)(summary.modelId);
+      if (summary.enabledUseCases.includes('image') && !result.capabilities.imageGeneration) {
         throw new Error('Codex App Server is authenticated, but this runtime does not expose built-in image generation.');
       }
-      checkMessage = `Codex App Server text streaming and built-in image generation are available (${result.authMode}).`;
+      if (summary.enabledUseCases.includes('image') && !result.selectedModel?.inputModalities.includes('image')) {
+        throw new Error(`Codex model “${summary.modelId}” does not accept image input. Choose an image-capable model or make this a text-only connection.`);
+      }
+      const upgrade = result.selectedModel?.upgrade
+        ? ` The selected model is scheduled to migrate to ${result.selectedModel.upgrade}.`
+        : '';
+      const verifiedCapabilities = [
+        summary.enabledUseCases.includes('text') ? 'text streaming' : '',
+        summary.enabledUseCases.includes('image') ? 'image input and built-in image generation' : '',
+      ].filter(Boolean).join(', ');
+      checkMessage = `Codex App Server ${result.version ?? 'unknown version'} is ready with ${summary.modelId} (${result.authMode}); ${verifiedCapabilities || 'the selected runtime'} verified.${upgrade}`;
     } else if (summary.connectorId === 'openai-compatible') {
       const connection = await resolveExecutionConnection(connectionId);
       if (!connection?.apiKey || !connection.baseUrl || !connection.model) {

@@ -2,10 +2,12 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
+import { cliUpgradeMessage, cliVersionAtLeast, readCliVersion } from './cli-runtime-diagnostic';
 
 export interface CodexAppServerAvailability {
   available: boolean;
   executablePath?: string;
+  version?: string;
   reason?: string;
 }
 
@@ -18,6 +20,18 @@ export interface CodexAppServerCapabilities {
 export interface CodexAppServerProbeResult {
   authMode: string;
   capabilities: CodexAppServerCapabilities;
+  version?: string;
+  models: CodexAppServerModel[];
+  selectedModel?: CodexAppServerModel;
+}
+
+export interface CodexAppServerModel {
+  id: string;
+  displayName: string;
+  description: string;
+  isDefault: boolean;
+  inputModalities: Array<'text' | 'image'>;
+  upgrade?: string;
 }
 
 export interface CodexAppServerImageResult {
@@ -47,19 +61,32 @@ export interface RunCodexAppServerTurnInput {
 
 const probeTimeoutMs = 10_000;
 const turnTimeoutMs = 10 * 60_000;
+const minimumCodexCliVersion = '0.136.0';
 
 export function codexAppServerAvailability(
   environment: NodeJS.ProcessEnv = process.env,
 ): CodexAppServerAvailability {
   const executablePath = discoverCodexExecutable(environment);
-  return executablePath
-    ? { available: true, executablePath }
-    : { available: false, reason: 'Codex CLI was not found. Install Codex or set CODEX_CLI_PATH on the Retake server.' };
+  if (!executablePath) {
+    return { available: false, reason: 'Codex CLI was not found. Install Codex, or set CODEX_CLI_PATH on the Retake server.' };
+  }
+  const version = readCliVersion(executablePath);
+  return version && !cliVersionAtLeast(version, minimumCodexCliVersion)
+    ? {
+        available: false,
+        executablePath,
+        version,
+        reason: codexUpgradeMessage(version),
+      }
+    : { available: true, executablePath, ...(version ? { version } : {}) };
 }
 
 export async function probeCodexAppServerConnection(
+  selectedModelId?: string,
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<CodexAppServerProbeResult> {
+  const availability = codexAppServerAvailability(environment);
+  if (!availability.available) throw new Error(availability.reason || 'Codex CLI is unavailable.');
   const session = createCodexAppServerSession(environment, probeTimeoutMs);
   try {
     await session.initialize();
@@ -72,13 +99,44 @@ export async function probeCodexAppServerConnection(
     const rawCapabilities = isRecord(capabilitiesResult.capabilities)
       ? capabilitiesResult.capabilities
       : capabilitiesResult;
+    const models = await listModelsInSession(session).catch((error) => {
+      throw new Error(withCodexUpgradeHint(error, availability.version));
+    });
+    const selectedModel = selectedModelId
+      ? models.find((model) => model.id === selectedModelId)
+      : models.find((model) => model.isDefault);
+    if (selectedModelId && !selectedModel) {
+      throw new Error(`Model “${selectedModelId}” is not available for this Codex account. Refresh the model list and choose an available model.`);
+    }
     return {
       authMode: typeof account?.type === 'string' ? account.type : 'external-provider',
+      ...(availability.version ? { version: availability.version } : {}),
+      models,
+      ...(selectedModel ? { selectedModel } : {}),
       capabilities: {
         imageGeneration: rawCapabilities.imageGeneration === true,
         namespaceTools: rawCapabilities.namespaceTools === true,
         webSearch: rawCapabilities.webSearch === true,
       },
+    };
+  } finally {
+    session.close();
+  }
+}
+
+export async function listCodexAppServerModels(
+  environment: NodeJS.ProcessEnv = process.env,
+): Promise<{ version?: string; models: CodexAppServerModel[] }> {
+  const availability = codexAppServerAvailability(environment);
+  if (!availability.available) throw new Error(availability.reason || 'Codex CLI is unavailable.');
+  const session = createCodexAppServerSession(environment, probeTimeoutMs);
+  try {
+    await session.initialize();
+    return {
+      ...(availability.version ? { version: availability.version } : {}),
+      models: await listModelsInSession(session).catch((error) => {
+        throw new Error(withCodexUpgradeHint(error, availability.version));
+      }),
     };
   } finally {
     session.close();
@@ -325,6 +383,50 @@ function discoverCodexExecutable(environment: NodeJS.ProcessEnv): string | undef
   if (pathMatch) return pathMatch;
   return ['/opt/homebrew/bin/codex', '/usr/local/bin/codex']
     .find((candidate) => existsSync(candidate));
+}
+
+async function listModelsInSession(session: CodexAppServerSession): Promise<CodexAppServerModel[]> {
+  const models: CodexAppServerModel[] = [];
+  let cursor: string | null = null;
+  do {
+    const result = await session.request('model/list', { cursor, includeHidden: false, limit: 100 });
+    const data = Array.isArray(result.data) ? result.data : [];
+    models.push(...data.flatMap((value) => codexModelFromWire(value)));
+    cursor = typeof result.nextCursor === 'string' ? result.nextCursor : null;
+  } while (cursor);
+  if (!models.length) throw new Error('Codex App Server returned no available models.');
+  return models;
+}
+
+function codexModelFromWire(value: unknown): CodexAppServerModel[] {
+  if (!isRecord(value) || typeof value.id !== 'string') return [];
+  const modalities = Array.isArray(value.inputModalities)
+    ? value.inputModalities.filter((item): item is 'text' | 'image' => item === 'text' || item === 'image')
+    : ['text', 'image'] as Array<'text' | 'image'>;
+  return [{
+    id: value.id,
+    displayName: typeof value.displayName === 'string' ? value.displayName : value.id,
+    description: typeof value.description === 'string' ? value.description : '',
+    isDefault: value.isDefault === true,
+    inputModalities: modalities,
+    ...(typeof value.upgrade === 'string' ? { upgrade: value.upgrade } : {}),
+  }];
+}
+
+function withCodexUpgradeHint(error: unknown, version?: string): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/method not found|unknown method|invalid.*model\/list/i.test(message)) {
+    return `${message} ${codexUpgradeMessage(version)}`;
+  }
+  return message;
+}
+
+function codexUpgradeMessage(version?: string): string {
+  return cliUpgradeMessage({
+    runtimeName: 'Codex CLI',
+    version,
+    upgradeCommands: ['brew upgrade --cask codex', 'npm install -g @openai/codex@latest'],
+  });
 }
 
 function normalizeImageDataUrl(value: string): string {

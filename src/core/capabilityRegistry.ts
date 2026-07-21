@@ -33,7 +33,6 @@ export const codexAppServerTextAdapterDefinition: AdapterDefinition = {
   adapterClass: 'agent_runtime.text',
   routeKind: 'codex_app_server',
   provider: 'codex',
-  model: 'gpt-5.4',
   supportedCapabilityIds: ['text.generate'],
   inputProfiles: [{
     profileId: 'text_prompt',
@@ -57,8 +56,7 @@ export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
   adapterClass: 'agent_runtime.media',
   routeKind: 'codex_app_server',
   provider: 'codex',
-  model: 'gpt-5.4',
-  supportedCapabilityIds: ['image.text_to_image', 'image.image_to_image'],
+  supportedCapabilityIds: ['image.text_to_image', 'image.image_to_image', 'image.annotation_edit'],
   inputProfiles: [
     {
       profileId: 'codex_image_generation',
@@ -67,6 +65,11 @@ export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
     },
     {
       profileId: 'codex_image_edit',
+      requiredSlots: ['prompt', 'source_image'],
+      optionalSlots: ['references'],
+    },
+    {
+      profileId: 'codex_annotation_edit',
       requiredSlots: ['prompt', 'source_image'],
       optionalSlots: ['references'],
     },

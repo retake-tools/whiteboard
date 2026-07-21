@@ -354,6 +354,19 @@ assert.match(
 );
 const codexAppServer = settings.connections.find((connection) => connection.connectionId === 'codex-app-server');
 assert.ok(codexAppServer, 'Codex App Server must be present as a fixed Agent Host connection.');
+assert.equal(codexAppServer.configurable, true);
+assert.equal(codexAppServer.deletable, false);
+assert.equal(codexAppServer.supportedCapabilityIds.includes('image.annotation_edit'), true);
+settings = await updateExecutionConnection('codex-app-server', { modelId: 'gpt-5.6-sol' });
+assert.equal(settings.connections.find((connection) => connection.connectionId === 'codex-app-server')?.modelId, 'gpt-5.6-sol');
+const duplicatedCodex = await duplicateExecutionConnection('codex-app-server');
+const duplicatedCodexConnection = duplicatedCodex.snapshot.connections.find(
+  (connection) => connection.connectionId === duplicatedCodex.duplicatedConnectionId,
+);
+assert.equal(duplicatedCodexConnection?.connectorId, 'codex-app-server');
+assert.equal(duplicatedCodexConnection?.modelId, 'gpt-5.6-sol');
+assert.equal(duplicatedCodexConnection?.deletable, true);
+settings = await deleteExecutionConnection(duplicatedCodex.duplicatedConnectionId);
 await saveExecutionDefault({
   useCase: 'video',
   connectionId: previewConnection.connectionId,

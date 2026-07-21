@@ -18,9 +18,11 @@ import {
   createExecutionProviderConnection,
   deleteExecutionProviderConnection,
   duplicateExecutionProviderConnection,
+  loadCodexAppServerModels,
   loadExecutionProviderSettings,
   saveExecutionProviderDefault,
   updateExecutionProviderConnection,
+  type CodexAppServerModelCatalog,
 } from '../core/executionProviderClient';
 import type {
   ExecutionConnectionStatus,
@@ -39,6 +41,7 @@ interface ExecutionProvidersSettingsProps {
 }
 
 interface ConnectionDraft {
+  connectorId: string;
   templateId: string;
   displayName: string;
   providerLabel: string;
@@ -50,6 +53,7 @@ interface ConnectionDraft {
 
 const executionUseCases: ExecutionUseCase[] = ['text', 'image', 'video', 'audio'];
 const emptyDraft: ConnectionDraft = {
+  connectorId: '',
   templateId: '',
   displayName: '',
   providerLabel: '',
@@ -68,6 +72,9 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
   const [editingId, setEditingId] = useState<string>();
   const [isCreating, setIsCreating] = useState(false);
   const [draft, setDraft] = useState<ConnectionDraft>(emptyDraft);
+  const [codexModels, setCodexModels] = useState<CodexAppServerModelCatalog>();
+  const [codexModelsLoading, setCodexModelsLoading] = useState(false);
+  const [codexModelsError, setCodexModelsError] = useState<string>();
 
   useEffect(() => {
     let active = true;
@@ -82,6 +89,15 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
     };
   }, [onClose, projectId]);
 
+  useEffect(() => {
+    if ((!isCreating && !editingId) || draft.connectorId !== 'codex-app-server' || codexModels || codexModelsLoading || codexModelsError) return;
+    setCodexModelsLoading(true);
+    void loadCodexAppServerModels()
+      .then((catalog) => setCodexModels(catalog))
+      .catch((caught) => setCodexModelsError(errorMessage(caught)))
+      .finally(() => setCodexModelsLoading(false));
+  }, [codexModels, codexModelsError, codexModelsLoading, draft.connectorId, editingId, isCreating]);
+
   function beginCreate(): void {
     const template = snapshot?.connectionTemplates[0];
     setEditingId(undefined);
@@ -94,6 +110,7 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
     setIsCreating(false);
     setEditingId(connection.connectionId);
     setDraft({
+      connectorId: connection.connectorId,
       templateId: connection.templateId ?? '',
       displayName: connection.displayName,
       providerLabel: connection.providerLabel,
@@ -251,6 +268,9 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
                 <ConnectionForm
                   busy={busyId === 'create'}
                   draft={draft}
+                  codexModels={codexModels}
+                  codexModelsError={codexModelsError}
+                  codexModelsLoading={codexModelsLoading}
                   templates={snapshot.connectionTemplates}
                   onCancel={cancelForm}
                   onDraftChange={setDraft}
@@ -265,6 +285,9 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
                     busy={busyId === connection.connectionId}
                     connection={connection}
                     draft={draft}
+                    codexModels={codexModels}
+                    codexModelsError={codexModelsError}
+                    codexModelsLoading={codexModelsLoading}
                     editing={editingId === connection.connectionId}
                     onBeginConfigure={() => beginConfigure(connection)}
                     onCancelConfigure={cancelForm}
@@ -295,8 +318,11 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
   );
 }
 
-function ConnectionForm({ busy, draft, templates, onCancel, onDraftChange, onSave, t }: {
+function ConnectionForm({ busy, codexModels, codexModelsError, codexModelsLoading, draft, templates, onCancel, onDraftChange, onSave, t }: {
   busy: boolean;
+  codexModels?: CodexAppServerModelCatalog;
+  codexModelsError?: string;
+  codexModelsLoading: boolean;
   draft: ConnectionDraft;
   templates?: ExecutionConnectionTemplate[];
   onCancel: () => void;
@@ -314,9 +340,38 @@ function ConnectionForm({ busy, draft, templates, onCancel, onDraftChange, onSav
       ) : null}
       <label><span>{t('settings.connectionName')}</span><input value={draft.displayName} onChange={(event) => onDraftChange({ ...draft, displayName: event.currentTarget.value })} /></label>
       <label><span>{t('settings.providerLabel')}</span><input value={draft.providerLabel} onChange={(event) => onDraftChange({ ...draft, providerLabel: event.currentTarget.value })} /></label>
-      <label><span>{t('settings.baseUrl')}</span><input value={draft.baseUrl} onChange={(event) => onDraftChange({ ...draft, baseUrl: event.currentTarget.value })} /></label>
-      <label><span>{t('settings.modelIds')}</span><input placeholder={t('settings.modelIdsPlaceholder')} value={draft.modelId} onChange={(event) => onDraftChange({ ...draft, modelId: event.currentTarget.value })} /></label>
-      <label><span>{t('settings.apiKey')}</span><input type="password" autoComplete="off" placeholder={t(templates ? 'settings.apiKeyCreatePlaceholder' : 'settings.apiKeyPlaceholder')} value={draft.apiKey} onChange={(event) => onDraftChange({ ...draft, apiKey: event.currentTarget.value })} /></label>
+      {draft.connectorId !== 'codex-app-server' ? <label><span>{t('settings.baseUrl')}</span><input value={draft.baseUrl} onChange={(event) => onDraftChange({ ...draft, baseUrl: event.currentTarget.value })} /></label> : null}
+      <label>
+        <span>{t('settings.modelIds')}</span>
+        <input
+          list={draft.connectorId === 'codex-app-server' ? 'codex-app-server-models' : undefined}
+          placeholder={t('settings.modelIdsPlaceholder')}
+          value={draft.modelId}
+          onChange={(event) => onDraftChange({ ...draft, modelId: event.currentTarget.value })}
+        />
+      </label>
+      {draft.connectorId === 'codex-app-server' ? (
+        <>
+          <datalist id="codex-app-server-models">
+            {codexModels?.models.filter((model) =>
+              !draft.enabledUseCases.includes('image') || model.inputModalities.includes('image')).map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.displayName}
+                {model.isDefault ? ` · ${t('settings.catalogDefault')}` : ''}
+                {model.upgrade ? ` · → ${model.upgrade}` : ''}
+              </option>
+            ))}
+          </datalist>
+          <p className="execution-connection-form-note">
+            {codexModelsLoading
+              ? t('settings.loadingModels')
+              : codexModels
+                ? `${t('settings.modelsFromCli')} ${codexModels.version ?? ''}`
+                : `${t('settings.modelCatalogUnavailable')} ${codexModelsError ?? ''}`}
+          </p>
+        </>
+      ) : null}
+      {draft.connectorId !== 'codex-app-server' ? <label><span>{t('settings.apiKey')}</span><input type="password" autoComplete="off" placeholder={t(templates ? 'settings.apiKeyCreatePlaceholder' : 'settings.apiKeyPlaceholder')} value={draft.apiKey} onChange={(event) => onDraftChange({ ...draft, apiKey: event.currentTarget.value })} /></label> : null}
       <fieldset className="execution-use-case-fieldset">
         <legend>{t('settings.useCases')}</legend>
         <p>{t('settings.useCasesDescription')}</p>
@@ -342,8 +397,11 @@ function ConnectionForm({ busy, draft, templates, onCancel, onDraftChange, onSav
   );
 }
 
-function ConnectionCard({ busy, connection, draft, duplicating, editing, onBeginConfigure, onCancelConfigure, onCheck, onDelete, onDuplicate, onDraftChange, onSave, t }: {
+function ConnectionCard({ busy, codexModels, codexModelsError, codexModelsLoading, connection, draft, duplicating, editing, onBeginConfigure, onCancelConfigure, onCheck, onDelete, onDuplicate, onDraftChange, onSave, t }: {
   busy: boolean;
+  codexModels?: CodexAppServerModelCatalog;
+  codexModelsError?: string;
+  codexModelsLoading: boolean;
   connection: ExecutionConnectionSummary;
   draft: ConnectionDraft;
   duplicating: boolean;
@@ -380,7 +438,7 @@ function ConnectionCard({ busy, connection, draft, duplicating, editing, onBegin
       {connection.lastError ? <p className="execution-connection-error">{connection.lastError}</p> : null}
       {['openai-compatible', 'anthropic-native', 'google-native', 'volcengine-ark', 'byteplus-modelark'].includes(connection.connectorId) ? <p className="execution-connection-check-note">{t('settings.checkMayCost')}</p> : null}
       {editing ? (
-        <ConnectionForm busy={busy} draft={draft} onCancel={onCancelConfigure} onDraftChange={onDraftChange} onSave={onSave} t={t} />
+        <ConnectionForm busy={busy} codexModels={codexModels} codexModelsError={codexModelsError} codexModelsLoading={codexModelsLoading} draft={draft} onCancel={onCancelConfigure} onDraftChange={onDraftChange} onSave={onSave} t={t} />
       ) : (
         <footer>
           {connection.deletable ? <button type="button" className="is-danger" onClick={onDelete}><Trash2 size={13} /> {t('settings.deleteConnection')}</button> : null}
@@ -453,6 +511,7 @@ function useCaseLabel(useCase: ExecutionUseCase, t: I18nContextValue['t']): stri
 
 function draftFromTemplate(template: ExecutionConnectionTemplate): ConnectionDraft {
   return {
+    connectorId: template.connectorId,
     templateId: template.templateId,
     displayName: template.displayName,
     providerLabel: template.providerLabel,
