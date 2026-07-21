@@ -341,27 +341,23 @@ function ConnectionForm({ busy, codexModels, codexModelsError, codexModelsLoadin
       <label><span>{t('settings.connectionName')}</span><input value={draft.displayName} onChange={(event) => onDraftChange({ ...draft, displayName: event.currentTarget.value })} /></label>
       <label><span>{t('settings.providerLabel')}</span><input value={draft.providerLabel} onChange={(event) => onDraftChange({ ...draft, providerLabel: event.currentTarget.value })} /></label>
       {draft.connectorId !== 'codex-app-server' ? <label><span>{t('settings.baseUrl')}</span><input value={draft.baseUrl} onChange={(event) => onDraftChange({ ...draft, baseUrl: event.currentTarget.value })} /></label> : null}
-      <label>
-        <span>{t('settings.modelIds')}</span>
-        <input
-          list={draft.connectorId === 'codex-app-server' ? 'codex-app-server-models' : undefined}
-          placeholder={t('settings.modelIdsPlaceholder')}
-          value={draft.modelId}
-          onChange={(event) => onDraftChange({ ...draft, modelId: event.currentTarget.value })}
-        />
-      </label>
       {draft.connectorId === 'codex-app-server' ? (
         <>
-          <datalist id="codex-app-server-models">
-            {codexModels?.models.filter((model) =>
-              !draft.enabledUseCases.includes('image') || model.inputModalities.includes('image')).map((model) => (
-              <option key={model.id} value={model.id}>
-                {model.displayName}
-                {model.isDefault ? ` · ${t('settings.catalogDefault')}` : ''}
-                {model.upgrade ? ` · → ${model.upgrade}` : ''}
-              </option>
-            ))}
-          </datalist>
+          <label>
+            <span>{t('settings.modelIds')}</span>
+            <select
+              value={draft.modelId}
+              disabled={codexModelsLoading}
+              onChange={(event) => onDraftChange({ ...draft, modelId: event.currentTarget.value })}
+            >
+              {!codexModels?.models.some((model) => model.id === draft.modelId) && draft.modelId
+                ? <option value={draft.modelId}>{draft.modelId}</option>
+                : null}
+              {codexModels?.models.map((model) => (
+                <option key={model.id} value={model.id}>{model.displayName}</option>
+              ))}
+            </select>
+          </label>
           <p className="execution-connection-form-note">
             {codexModelsLoading
               ? t('settings.loadingModels')
@@ -370,7 +366,16 @@ function ConnectionForm({ busy, codexModels, codexModelsError, codexModelsLoadin
                 : `${t('settings.modelCatalogUnavailable')} ${codexModelsError ?? ''}`}
           </p>
         </>
-      ) : null}
+      ) : (
+        <label>
+          <span>{t('settings.modelIds')}</span>
+          <input
+            placeholder={t('settings.modelIdsPlaceholder')}
+            value={draft.modelId}
+            onChange={(event) => onDraftChange({ ...draft, modelId: event.currentTarget.value })}
+          />
+        </label>
+      )}
       {draft.connectorId !== 'codex-app-server' ? <label><span>{t('settings.apiKey')}</span><input type="password" autoComplete="off" placeholder={t(templates ? 'settings.apiKeyCreatePlaceholder' : 'settings.apiKeyPlaceholder')} value={draft.apiKey} onChange={(event) => onDraftChange({ ...draft, apiKey: event.currentTarget.value })} /></label> : null}
       <fieldset className="execution-use-case-fieldset">
         <legend>{t('settings.useCases')}</legend>

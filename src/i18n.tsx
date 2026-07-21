@@ -415,7 +415,6 @@ type TranslationKey =
   | 'settings.loadingModels'
   | 'settings.modelsFromCli'
   | 'settings.modelCatalogUnavailable'
-  | 'settings.catalogDefault'
   | 'settings.createConnection'
   | 'settings.deleteConnection'
   | 'settings.duplicateConnection'
@@ -933,9 +932,8 @@ const translations: Record<Locale, Translations> = {
     'settings.modelIds': 'Model ID',
     'settings.modelIdsPlaceholder': 'Exact model ID used by this connection',
     'settings.loadingModels': 'Loading models from Codex CLI…',
-    'settings.modelsFromCli': 'Searchable models reported by Codex CLI',
-    'settings.modelCatalogUnavailable': 'The CLI model catalog is unavailable; you can still enter an exact model ID.',
-    'settings.catalogDefault': 'default',
+    'settings.modelsFromCli': 'Model list reported by Codex CLI',
+    'settings.modelCatalogUnavailable': 'The CLI model list is unavailable. Check or upgrade Codex CLI, then try again.',
     'settings.createConnection': 'Create connection',
     'settings.deleteConnection': 'Delete',
     'settings.duplicateConnection': 'Duplicate connection',
@@ -1448,9 +1446,8 @@ const translations: Record<Locale, Translations> = {
     'settings.modelIds': '模型 ID',
     'settings.modelIdsPlaceholder': '填写这条连接实际调用的唯一模型 ID',
     'settings.loadingModels': '正在从 Codex CLI 获取模型…',
-    'settings.modelsFromCli': '可搜索的模型来自 Codex CLI',
-    'settings.modelCatalogUnavailable': '暂时无法获取 CLI 模型目录；仍可手动填写准确的模型 ID。',
-    'settings.catalogDefault': '默认',
+    'settings.modelsFromCli': '模型列表来自 Codex CLI',
+    'settings.modelCatalogUnavailable': '暂时无法获取 CLI 模型列表，请检查或升级 Codex CLI 后重试。',
     'settings.createConnection': '创建连接',
     'settings.deleteConnection': '删除',
     'settings.duplicateConnection': '复制连接',
