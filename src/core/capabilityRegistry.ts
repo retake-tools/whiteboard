@@ -1,6 +1,30 @@
 import type { AdapterDefinition, CapabilityDefinition } from './capabilityContracts';
 import { definitionForLegacyCapability } from './legacyCapabilityAdapter';
 
+export const textGenerateCapabilityDefinition: CapabilityDefinition = definitionForLegacyCapability('text.generate');
+
+export const aiSdkTextAdapterDefinition: AdapterDefinition = {
+  schemaVersion: 1,
+  adapterId: 'retake.text.ai-sdk',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-text-ai-sdk-v0',
+  adapterClass: 'text.generate',
+  routeKind: 'direct_api',
+  supportedCapabilityIds: ['text.generate'],
+  inputProfiles: [{
+    profileId: 'text_prompt',
+    requiredSlots: ['prompt'],
+    optionalSlots: [],
+  }],
+  constraints: {
+    outputCount: { min: 1, max: 1 },
+    durableAssetOutput: true,
+    outputMimeType: 'text/markdown',
+  },
+  credentialRefType: 'provider_api_key',
+  availability: 'installed',
+};
+
 export const videoGenerateCapabilityDefinition: CapabilityDefinition = {
   schemaVersion: 1,
   capabilityId: 'video.generate',
@@ -222,6 +246,7 @@ export const volcengineArkSeedreamImageAdapterDefinition: AdapterDefinition = {
 };
 
 export function capabilityDefinitionFor(capabilityId: string): CapabilityDefinition {
+  if (capabilityId === textGenerateCapabilityDefinition.capabilityId) return textGenerateCapabilityDefinition;
   if (capabilityId === videoGenerateCapabilityDefinition.capabilityId) return videoGenerateCapabilityDefinition;
   return definitionForLegacyCapability(capabilityId);
 }

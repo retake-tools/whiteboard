@@ -9,6 +9,7 @@ import {
   type ContractValidationIssue,
 } from '../src/core/capabilityContracts';
 import {
+  aiSdkTextAdapterDefinition,
   dreaminaCliAdapterDefinition,
   seedanceModelArkAdapterDefinition,
   videoGenerateCapabilityDefinition,
@@ -17,6 +18,7 @@ import {
 import { definitionForLegacyCapability } from '../src/core/legacyCapabilityAdapter';
 
 const legacyCapabilityIds = [
+  'text.generate',
   'image.text_to_image',
   'image.image_to_image',
   'image.annotation_edit',
@@ -41,6 +43,12 @@ assert.deepEqual(textToImage.inputSlots.map((slot) => slot.slotId), ['prompt', '
 assert.equal(requiredSlot(textToImage, 'prompt').cardinality, 'one');
 assert.equal(requiredSlot(textToImage, 'references').cardinality, 'many');
 assert.equal(requiredOutputSlot(textToImage, 'images').cardinality, 'many');
+
+const textGenerate = requiredDefinition('text.generate');
+assert.deepEqual(textGenerate.inputSlots.map((slot) => slot.slotId), ['prompt']);
+assert.deepEqual(textGenerate.outputSlots.map((slot) => slot.slotId), ['documents']);
+assert.equal(requiredOutputSlot(textGenerate, 'documents').artifactType, 'markdown_document');
+assert.deepEqual(textGenerate.supportedAdapterClasses, ['text.generate', 'agent_runtime.text', 'manual.import']);
 
 const imageToImage = requiredDefinition('image.image_to_image');
 assert.deepEqual(imageToImage.inputSlots.map((slot) => slot.slotId), ['prompt', 'source_image', 'references']);
@@ -178,6 +186,7 @@ const providerCliAdapter: AdapterDefinition = {
 };
 
 assertNoIssues(validateAdapterDefinition(providerCliAdapter), 'valid provider_cli adapter');
+assertNoIssues(validateAdapterDefinition(aiSdkTextAdapterDefinition), 'valid AI SDK text adapter');
 assertNoIssues(validateAdapterDefinition(seedanceModelArkAdapterDefinition), 'valid Seedance ModelArk adapter');
 assertNoIssues(validateAdapterDefinition(dreaminaCliAdapterDefinition), 'valid Dreamina CLI adapter');
 assertNoIssues(validateAdapterDefinition(volcengineArkSeedreamImageAdapterDefinition), 'valid Volcengine Ark Seedream image adapter');

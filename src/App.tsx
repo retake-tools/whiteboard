@@ -23,6 +23,7 @@ import { useGroupController } from './app/useGroupController';
 import { useBlockActions } from './app/useBlockActions';
 import { useAppEventBindings } from './app/useAppEventBindings';
 import { useVideoGenerationController } from './app/useVideoGenerationController';
+import { useTextGenerationController } from './app/useTextGenerationController';
 import { WhiteboardCanvas } from './app/WhiteboardCanvas';
 
 export function App(): ReactElement {
@@ -153,6 +154,15 @@ export function App(): ReactElement {
     updateSnapshot,
   });
   const { addBlock, deleteBlockIds, deleteSelection, duplicateSelection } = blockActions;
+  const textGenerationController = useTextGenerationController({
+    centerWorkflowBlocks,
+    persistSnapshot,
+    setOperationToast,
+    setSelectedBlocks,
+    snapshotRef,
+    t,
+    updateSnapshot,
+  });
   useVideoGenerationController({
     setOperationToast,
     setSelectedBlocks,
@@ -188,6 +198,7 @@ export function App(): ReactElement {
     snapshot,
     snapshotRef,
     startExistingOperationBlock,
+    startTextGenerationOperation: textGenerationController.startTextGenerationOperation,
     t,
     updateOperationCapability,
     updateOperationConnection,
@@ -360,6 +371,7 @@ export function App(): ReactElement {
         activeTool={activeCanvasTool}
         onAddBlock={addBlock}
         onCreateImageToImage={createImageToImageDraftFromMenu}
+        onCreateText={textGenerationController.createTextGenerationDraft}
         onCreateTextToImage={() => createTextToImageDraftOperation()}
         onSetActiveTool={setActiveCanvasTool}
       />

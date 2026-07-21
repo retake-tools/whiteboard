@@ -49,6 +49,7 @@ interface OperationInputControllerOptions {
     block: BlockRecord;
     operation: SwitchableOperationMode;
   }) => Promise<void>;
+  startTextGenerationOperation: (block: BlockRecord) => Promise<void>;
   t: ReturnType<typeof useI18n>['t'];
   updateOperationCapability: (blockId: string, operation: SwitchableOperationMode) => void;
   updateOperationConnection: (blockId: string, connectionId: string) => void;
@@ -69,6 +70,7 @@ export function useOperationInputController(options: OperationInputControllerOpt
     snapshot,
     snapshotRef,
     startExistingOperationBlock,
+    startTextGenerationOperation,
     t,
     updateOperationCapability,
     updateOperationConnection,
@@ -94,6 +96,7 @@ export function useOperationInputController(options: OperationInputControllerOpt
   }
 
   function operationPlaceholderForBlock(operationBlock: BlockRecord): string {
+    if (operationBlock.data.capabilityId === 'text.generate') return t('operationToolbar.promptPlaceholder');
     const mode = operationBlock.data.operationMode;
     if (operationBlock.data.operationVariant === 'create_similar') {
       return imageOperationDefaultPrompt('create_similar', t);
@@ -237,6 +240,7 @@ export function useOperationInputController(options: OperationInputControllerOpt
       if (!detail?.blockId) return;
       const block = snapshotRef.current.blocks.find((candidate) => candidate.blockId === detail.blockId && candidate.type === 'operation');
       if (!block || blockLockedByGroup(snapshotRef.current, block.blockId) || block.data.status === 'running') return;
+      if (block.data.capabilityId === 'text.generate' && block.data.status === 'queued') return;
       if (block.data.status === 'queued') {
         void (detail.queuedConfigurationStale ? refreshQueuedOperationPrompt(block) : copyQueuedOperationPrompt(block));
         return;
@@ -247,7 +251,11 @@ export function useOperationInputController(options: OperationInputControllerOpt
         setOperationToast({ id: `operation-input:${block.blockId}`, title: t('feedback.inputRequired'), body: issue ? t(operationReadinessMessageKey(issue)) : undefined, tone: 'error' });
         return;
       }
-      void startExistingOperationBlock({ block, operation: operationModeFromBlock(block) });
+      if (block.data.capabilityId === 'text.generate') {
+        void startTextGenerationOperation(block);
+      } else {
+        void startExistingOperationBlock({ block, operation: operationModeFromBlock(block) });
+      }
     }
     window.addEventListener('retake:run-operation', onRunOperation);
     return () => window.removeEventListener('retake:run-operation', onRunOperation);

@@ -40,6 +40,8 @@ export function extensionForMime(mimeType?: string): string {
   if (mimeType === 'image/webp') return '.webp';
   if (mimeType === 'image/svg+xml') return '.svg';
   if (mimeType === 'video/mp4') return '.mp4';
+  if (mimeType === 'text/markdown') return '.md';
+  if (mimeType === 'text/plain') return '.txt';
   return '.bin';
 }
 
@@ -63,6 +65,8 @@ export function mimeForExtension(extension: string): string {
   if (extension === '.webp') return 'image/webp';
   if (extension === '.svg') return 'image/svg+xml';
   if (extension === '.mp4') return 'video/mp4';
+  if (extension === '.md' || extension === '.markdown') return 'text/markdown';
+  if (extension === '.txt') return 'text/plain';
   return 'application/octet-stream';
 }
 
@@ -70,5 +74,6 @@ export function kindForMime(mimeType?: string): AssetKind {
   if (mimeType?.startsWith('video/')) return 'video';
   if (mimeType?.startsWith('audio/')) return 'audio';
   if (mimeType?.startsWith('image/')) return 'image';
+  if (mimeType === 'text/markdown' || mimeType === 'text/plain') return 'document';
   return 'other';
 }

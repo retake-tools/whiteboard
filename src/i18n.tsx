@@ -156,6 +156,9 @@ type TranslationKey =
   | 'feedback.seedreamCompleted'
   | 'feedback.seedreamCompletedNotice'
   | 'feedback.seedreamFailed'
+  | 'feedback.textGenerationStarted'
+  | 'feedback.textGenerationCompleted'
+  | 'feedback.textGenerationFailed'
   | 'feedback.queuedExecutionCanceled'
   | 'feedback.runningExecutionCanceled'
   | 'feedback.runningExecutionCancelConfirm'
@@ -276,6 +279,7 @@ type TranslationKey =
   | 'operation.createSimilar.title'
   | 'operation.generateImage.prompt'
   | 'operation.generateImage.title'
+  | 'operation.generateText.title'
   | 'operation.annotationEdit.prompt'
   | 'operation.annotationEdit.title'
   | 'operation.quickEdit.prompt'
@@ -286,6 +290,7 @@ type TranslationKey =
   | 'operationToolbar.duration'
   | 'operationToolbar.executor'
   | 'operationToolbar.generatePrompt'
+  | 'operationToolbar.generateText'
   | 'operationToolbar.generateAgain'
   | 'operationToolbar.generator'
   | 'operationToolbar.localProcessing'
@@ -495,6 +500,8 @@ type TranslationKey =
   | 'toolbar.showMiniMap'
   | 'toolbar.styleTransfer'
   | 'toolbar.textToImage'
+  | 'toolbar.textCreation'
+  | 'toolbar.generateText'
   | 'toolbar.textToVideo'
   | 'toolbar.undo'
   | 'toolbar.videoCreation'
@@ -662,6 +669,9 @@ const translations: Record<Locale, Translations> = {
     'feedback.seedreamCompleted': 'Seedream generation completed',
     'feedback.seedreamCompletedNotice': 'Generated images were saved as Retake assets.',
     'feedback.seedreamFailed': 'Seedream generation failed',
+    'feedback.textGenerationStarted': 'Text generation started',
+    'feedback.textGenerationCompleted': 'Generated Markdown was saved as a Retake asset.',
+    'feedback.textGenerationFailed': 'Text generation failed',
     'feedback.queuedExecutionCanceled': 'The queued execution and all result placeholders were removed.',
     'feedback.runningExecutionCanceled': 'Writeback was canceled. Codex generation may continue outside Retake.',
     'feedback.runningExecutionCancelConfirm': 'Codex has already started this execution. Cancel it and remove all result placeholders? Generation may continue in Codex, but Retake will reject writeback.',
@@ -782,6 +792,7 @@ const translations: Record<Locale, Translations> = {
     'operation.createSimilar.title': 'Create similar image',
     'operation.generateImage.prompt': 'Generate image from prompt',
     'operation.generateImage.title': 'Text to image',
+    'operation.generateText.title': 'Generate text',
     'operation.annotationEdit.prompt': 'Edit image from annotation note',
     'operation.annotationEdit.title': 'Annotation Edit',
     'operation.quickEdit.prompt': 'Describe how to transform the source image...',
@@ -792,6 +803,7 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.duration': 'Duration',
     'operationToolbar.executor': 'Executor',
     'operationToolbar.generatePrompt': 'Generate prompt',
+    'operationToolbar.generateText': 'Generate text',
     'operationToolbar.generateAgain': 'Generate again',
     'operationToolbar.generator': 'Generator',
     'operationToolbar.localProcessing': 'Local processing',
@@ -1001,6 +1013,8 @@ const translations: Record<Locale, Translations> = {
     'toolbar.showMiniMap': 'Show minimap',
     'toolbar.styleTransfer': 'Style transfer',
     'toolbar.textToImage': 'Text to image',
+    'toolbar.textCreation': 'Text creation',
+    'toolbar.generateText': 'Generate text',
     'toolbar.textToVideo': 'Text to video',
     'toolbar.undo': 'Undo (Cmd/Ctrl+Z)',
     'toolbar.videoCreation': 'Video creation',
@@ -1163,6 +1177,9 @@ const translations: Record<Locale, Translations> = {
     'feedback.seedreamCompleted': 'Seedream 生成完成',
     'feedback.seedreamCompletedNotice': '生成图片已保存为 Retake Asset。',
     'feedback.seedreamFailed': 'Seedream 生成失败',
+    'feedback.textGenerationStarted': '文本生成已开始',
+    'feedback.textGenerationCompleted': '生成的 Markdown 已保存为 Retake Asset。',
+    'feedback.textGenerationFailed': '文本生成失败',
     'feedback.queuedExecutionCanceled': '已取消等待中的执行，并移除全部结果占位块。',
     'feedback.runningExecutionCanceled': '已取消 Retake 写回；Codex 中的生成可能仍会继续。',
     'feedback.runningExecutionCancelConfirm': 'Codex 已开始执行。是否取消整次执行并移除全部结果占位块？Codex 中的生成可能仍会继续，但 Retake 将拒绝后续写回。',
@@ -1283,6 +1300,7 @@ const translations: Record<Locale, Translations> = {
     'operation.createSimilar.title': '生成同款图片',
     'operation.generateImage.prompt': '根据 prompt 生成图片',
     'operation.generateImage.title': '文生图',
+    'operation.generateText.title': '生成文本',
     'operation.annotationEdit.prompt': '根据标注备注编辑图片',
     'operation.annotationEdit.title': '标注编辑',
     'operation.quickEdit.prompt': '描述要如何基于源图生成新图片...',
@@ -1293,6 +1311,7 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.duration': '时长',
     'operationToolbar.executor': '执行方式',
     'operationToolbar.generatePrompt': '生成 Prompt',
+    'operationToolbar.generateText': '生成文本',
     'operationToolbar.generateAgain': '再次生成',
     'operationToolbar.generator': '生成方式',
     'operationToolbar.localProcessing': '本地处理',
@@ -1502,6 +1521,8 @@ const translations: Record<Locale, Translations> = {
     'toolbar.showMiniMap': '显示小地图',
     'toolbar.styleTransfer': '风格转绘',
     'toolbar.textToImage': '文生图',
+    'toolbar.textCreation': '文本创作',
+    'toolbar.generateText': '生成文本',
     'toolbar.textToVideo': '文生视频',
     'toolbar.undo': '撤销 (Cmd/Ctrl+Z)',
     'toolbar.videoCreation': '视频创作',

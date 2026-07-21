@@ -109,8 +109,12 @@ function legacyOutputSlots(schema: CapabilitySchema): CapabilityOutputSlotDefini
     slotId: uniqueSlotId(outputSlotId(contract.type), usedSlotIds),
     semanticRole: `generated_${contract.type}`,
     dataType: contract.type,
-    artifactType: contract.type === 'image' ? 'image' : 'video_clip',
-    schemaRef: contract.type === 'image' ? 'retake.image-set/v1' : 'retake.video-set/v1',
+    artifactType: contract.type === 'image' ? 'image' : contract.type === 'video' ? 'video_clip' : 'markdown_document',
+    schemaRef: contract.type === 'image'
+      ? 'retake.image-set/v1'
+      : contract.type === 'video'
+        ? 'retake.video-set/v1'
+        : 'retake.markdown-document/v1',
     cardinality: schema.paramsSchema.count ? 'many' : 'one',
     projectionBlockTypes: [contract.type],
   }));
@@ -150,7 +154,9 @@ function semanticRoleForType(type: CapabilityInputType): string {
 }
 
 function outputSlotId(type: CapabilityOutputType): string {
-  return type === 'image' ? 'images' : 'videos';
+  if (type === 'image') return 'images';
+  if (type === 'video') return 'videos';
+  return 'documents';
 }
 
 function capabilityCategory(capabilityId: string): string {
@@ -179,10 +185,14 @@ function legacyAdapterClasses(schema: CapabilitySchema): string[] {
         : 'image.generate');
     } else if (output.type === 'video') {
       classes.add('video.generate');
+    } else if (output.type === 'text') {
+      classes.add('text.generate');
     }
   }
   if (schema.supportedAdapters.some((adapter) => adapter === 'mcp_agent' || adapter === 'cli_agent')) {
-    classes.add('agent_runtime.media');
+    classes.add(schema.outputContracts.some((output) => output.type === 'text')
+      ? 'agent_runtime.text'
+      : 'agent_runtime.media');
   }
   if (schema.supportedAdapters.includes('local_canvas')) classes.add('local.transform');
   if (schema.supportedAdapters.includes('manual_import')) classes.add('manual.import');

@@ -107,7 +107,7 @@ function outputAssetIdsForSlot(
   execution: ExecutionRecord,
   dataType: CapabilityDefinition['outputSlots'][number]['dataType'],
 ): string[] {
-  if (dataType !== 'image' && dataType !== 'video') return [];
+  if (dataType !== 'image' && dataType !== 'video' && dataType !== 'text' && dataType !== 'document') return [];
   return [...execution.outputAssetIds];
 }
 

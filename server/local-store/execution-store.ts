@@ -157,6 +157,22 @@ export async function updateVideoResultBlock(input: {
   return updateMediaResultBlock({ ...input, blockType: 'video' });
 }
 
+export async function updateTextResultBlock(input: {
+  projectId: string;
+  boardId: string;
+  executionId: string;
+  assetId: string;
+  markdown: string;
+  resultBlockId?: string;
+  title?: string;
+}): Promise<{ snapshot: BoardSnapshot; block: BlockRecord; execution: ExecutionRecord }> {
+  return updateMediaResultBlock({
+    ...input,
+    blockType: 'text',
+    body: input.markdown,
+  });
+}
+
 async function updateMediaResultBlock(input: {
   projectId: string;
   boardId: string;
@@ -165,7 +181,7 @@ async function updateMediaResultBlock(input: {
   resultBlockId?: string;
   title?: string;
   body?: string;
-  blockType: 'image' | 'video';
+  blockType: 'image' | 'text' | 'video';
 }): Promise<{ snapshot: BoardSnapshot; block: BlockRecord; execution: ExecutionRecord }> {
   const snapshot = await loadSnapshot(input.projectId, input.boardId);
   const execution = findExecutionOrThrow(snapshot, input.executionId);
@@ -178,7 +194,8 @@ async function updateMediaResultBlock(input: {
   }
   const block = snapshot.blocks.find((candidate) => candidate.blockId === resultBlockId);
   if (!block || block.type !== input.blockType) {
-    throw new Error(`${input.blockType === 'image' ? 'Image' : 'Video'} result block not found: ${resultBlockId ?? 'missing'}`);
+    const label = input.blockType === 'image' ? 'Image' : input.blockType === 'video' ? 'Video' : 'Text';
+    throw new Error(`${label} result block not found: ${resultBlockId ?? 'missing'}`);
   }
 
   const now = new Date().toISOString();
@@ -281,7 +298,7 @@ function syncExecutionBlocks(snapshot: BoardSnapshot, execution: ExecutionRecord
   const outputBlockIds = new Set(execution.outputBlockIds);
   for (const block of snapshot.blocks) {
     if (block.data.sourceExecutionId !== execution.executionId) continue;
-    if (outputBlockIds.has(block.blockId) && (block.type === 'image' || block.type === 'video') && block.data.assetId) {
+    if (outputBlockIds.has(block.blockId) && (block.type === 'image' || block.type === 'video' || block.type === 'text') && block.data.assetId) {
       block.data.status = 'succeeded';
     }
     else {
@@ -295,7 +312,7 @@ function syncExecutionBlocks(snapshot: BoardSnapshot, execution: ExecutionRecord
 function incompleteExecutionResultBlockIds(snapshot: BoardSnapshot, execution: ExecutionRecord): string[] {
   return execution.outputBlockIds.filter((blockId) => {
     const block = snapshot.blocks.find((candidate) => candidate.blockId === blockId);
-    return (block?.type === 'image' || block?.type === 'video') && typeof block.data.assetId !== 'string';
+    return (block?.type === 'image' || block?.type === 'video' || block?.type === 'text') && typeof block.data.assetId !== 'string';
   });
 }
 

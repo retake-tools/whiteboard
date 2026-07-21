@@ -14,6 +14,7 @@ export {
   getExecution,
   markExecutionRunning,
   updateImageResultBlock,
+  updateTextResultBlock,
   updateVideoResultBlock,
 } from './local-store/execution-store';
 export {

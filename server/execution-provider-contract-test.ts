@@ -283,6 +283,7 @@ assert.equal(openAiCompatibleConnections.length, 3, 'One connector must support 
 assert.notEqual(openAiCompatibleConnections[0]?.connectionId, openAiCompatibleConnections[1]?.connectionId);
 assert.equal(openAiCompatibleConnections.find((connection) => connection.displayName === 'Personal OpenRouter')?.modelId, 'provider/model-a');
 assert.equal(openAiCompatibleConnections.find((connection) => connection.displayName === 'OpenRouter Claude')?.modelId, 'anthropic/claude-sonnet');
+assert.equal(openAiCompatibleConnections.every((connection) => connection.supportedCapabilityIds.includes('text.generate')), true);
 assert.equal(settings.connectionTemplates.some((template) => template.templateId === 'openrouter'), true);
 assert.equal(settings.connectionTemplates.some((template) => template.templateId === 'anthropic-native'), true);
 assert.equal(settings.connectionTemplates.some((template) => template.templateId === 'google-native'), true);
@@ -310,6 +311,8 @@ const claudeConnection = settings.connections.find((connection) => connection.di
 const geminiConnection = settings.connections.find((connection) => connection.displayName === 'Gemini Writing');
 const seedreamConnection = settings.connections.find((connection) => connection.displayName === 'Seedream Production');
 assert.ok(claudeConnection && geminiConnection && seedreamConnection);
+assert.deepEqual(claudeConnection.supportedCapabilityIds, ['text.generate']);
+assert.deepEqual(geminiConnection.supportedCapabilityIds, ['text.generate']);
 assert.equal(seedreamConnection.status, 'untested');
 assert.deepEqual(seedreamConnection.supportedCapabilityIds, ['image.image_to_image', 'image.text_to_image']);
 settings = await checkExecutionConnection(claudeConnection.connectionId, undefined, {

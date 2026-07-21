@@ -21,6 +21,7 @@ interface FloatingToolbarProps {
   activeTool: CanvasTool;
   onAddBlock: (type: Extract<BlockType, 'group' | 'image' | 'operation' | 'text' | 'video'>) => void;
   onCreateImageToImage: () => void;
+  onCreateText: () => void;
   onCreateTextToImage: () => void;
   onSetActiveTool: (tool: CanvasTool) => void;
 }
@@ -29,6 +30,7 @@ export function FloatingToolbar({
   activeTool,
   onAddBlock,
   onCreateImageToImage,
+  onCreateText,
   onCreateTextToImage,
   onSetActiveTool,
 }: FloatingToolbarProps): ReactElement {
@@ -56,6 +58,9 @@ export function FloatingToolbar({
         <MenuItem icon={<ImageIcon size={15} />} label={t('toolbar.addImage')} onClick={() => onAddBlock('image')} />
         <MenuItem icon={<Video size={15} />} label={t('toolbar.addVideo')} onClick={() => onAddBlock('video')} />
         <MenuItem icon={<Play size={15} />} label={t('toolbar.addOperation')} onClick={() => onAddBlock('operation')} />
+      </ToolbarMenu>
+      <ToolbarMenu icon={<FileText size={18} />} label={t('toolbar.textCreation')}>
+        <MenuItem icon={<FileText size={15} />} label={t('toolbar.generateText')} onClick={onCreateText} />
       </ToolbarMenu>
       <ToolbarMenu icon={<Sparkles size={18} />} label={t('toolbar.imageCreation')}>
         <MenuItem icon={<Sparkles size={15} />} label={t('toolbar.textToImage')} onClick={onCreateTextToImage} />

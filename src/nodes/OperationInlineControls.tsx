@@ -1,4 +1,4 @@
-import { AlertCircle, Check, ChevronRight, Clipboard, Loader2, RefreshCw } from 'lucide-react';
+import { AlertCircle, Check, ChevronRight, Clipboard, FileText, Loader2, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { isLocalCanvasCapability, operationReadinessMessageKey, schemaForCapability } from '../core/capabilities';
 import {
@@ -61,6 +61,7 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
   const operation = operationModeFromCapability(data);
   const capabilityId = capabilityIdForOperationMode(operation, data);
+  const isTextGeneration = capabilityId === 'text.generate';
   const paramsSchema = schemaForCapability(capabilityId).paramsSchema;
   const profile = generationProfileById(data.generationProfileId);
   const providerSettings = useSyncExternalStore(
@@ -330,8 +331,10 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
           dispatchRunOperation(blockId, queuedConfigurationStale);
         }}
       >
-        {isRunning ? (
+        {isRunning || (isTextGeneration && isQueued) ? (
           <Loader2 size={15} />
+        ) : isTextGeneration && !isRepeat ? (
+          <FileText size={15} />
         ) : isQueued && queuedConfigurationStale ? (
           <RefreshCw size={15} />
         ) : isQueued ? (
@@ -342,8 +345,10 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
           <Clipboard size={15} />
         )}
         <span>
-          {isRunning
+          {isRunning || (isTextGeneration && isQueued)
             ? t('operationToolbar.running')
+            : isTextGeneration
+              ? t(isRepeat ? 'operationToolbar.generateAgain' : 'operationToolbar.generateText')
             : isQueued
               ? t(queuedConfigurationStale ? 'operationToolbar.updatePrompt' : 'feedback.copyPrompt')
               : isRepeat

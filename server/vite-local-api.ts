@@ -46,6 +46,7 @@ import {
 } from './local-store/execution-provider-store';
 import type { ExecutionUseCase } from '../src/core/executionProviders';
 import { startVolcengineArkImageGeneration } from './volcengine-ark-image-service';
+import { startTextGeneration } from './text-generation-service';
 
 type MiddlewareContainer = {
   use(
@@ -529,6 +530,28 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
                 sourceExecutionId: body.sourceExecutionId,
               }),
             );
+            return;
+          }
+
+          const textGenerationMatch = url.pathname.match(/^\/text\/generate\/executions\/([^/]+)\/run$/);
+          if (method === 'POST' && textGenerationMatch) {
+            const [, executionId] = textGenerationMatch;
+            const body = (await readJson(req)) as {
+              projectId?: string;
+              boardId?: string;
+              connectionId?: string;
+            };
+            if (!body.projectId || !body.boardId || !body.connectionId) {
+              sendJson(res, { error: 'projectId, boardId, and connectionId are required' }, 400);
+              return;
+            }
+            const started = await startTextGeneration({
+              projectId: body.projectId,
+              boardId: body.boardId,
+              executionId,
+              connectionId: body.connectionId,
+            });
+            sendJson(res, { snapshot: started.snapshot, execution: started.execution });
             return;
           }
 

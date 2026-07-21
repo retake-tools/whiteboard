@@ -107,7 +107,9 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
       >
         <Icon size={16} />
         <span>{title}</span>
-        {blockType === 'operation' && !isLocalCanvasOperation ? <OperationCapabilityControl blockId={id} data={data as BlockData} /> : null}
+        {blockType === 'operation' && !isLocalCanvasOperation && data.capabilityId !== 'text.generate'
+          ? <OperationCapabilityControl blockId={id} data={data as BlockData} />
+          : null}
         {operationDisplay?.executionBadge ? (
           <span
             className={`block-heading-status status-${operationDisplay.executionBadge.status} ${operationDisplay.executionBadge.historical ? 'is-history' : 'is-active'}`}
@@ -527,7 +529,10 @@ function BlockBody({
       }
       title={title}
       mentionsEnabled={data.promptRole === 'operation_prompt'}
-      readOnly={data.groupContentLocked === true}
+      readOnly={
+        data.groupContentLocked === true ||
+        data.managedTextResult === true
+      }
     />
   );
 }
@@ -702,6 +707,7 @@ function displayBlockTitle(data: BlockData, type: BlockType, t: Translate): stri
     const operationMode = operationModeFromCapability(data);
     const capabilityId = typeof data.capabilityId === 'string' ? data.capabilityId : undefined;
     if (capabilityId === 'image.annotation_edit') return t('operation.annotationEdit.title');
+    if (capabilityId === 'text.generate') return t('operation.generateText.title');
     if (capabilityId === 'image.text_to_image' || capabilityId === 'image.generate') return t('operation.generateImage.title');
     if (operationMode === 'image_to_image') return t('operation.quickEdit.title');
     if (capabilityId === 'image.image_to_image' || capabilityId === 'image.edit') return data.title || t('operation.quickEdit.title');
