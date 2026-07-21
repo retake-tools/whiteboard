@@ -16,6 +16,8 @@ import {
 import { connectedWorkflowBlockIds } from '../src/core/workflowSelection';
 
 const canvasSource = await readFile('src/app/useCanvasController.ts', 'utf8');
+assert.match(canvasSource, /nodeDragActiveRef\.current = true/);
+assert.match(canvasSource, /if \(!nodeDragActiveRef\.current\) setNodes\(createFlowNodesForSelection\(remoteSnapshot\)\)/);
 const canvasViewSource = await readFile('src/app/WhiteboardCanvas.tsx', 'utf8');
 const canvasCss = await readFile('src/styles/canvas.css', 'utf8');
 const blockNodeCss = await readFile('src/nodes/block-node.css', 'utf8');

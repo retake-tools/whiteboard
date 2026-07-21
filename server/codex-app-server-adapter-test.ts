@@ -136,7 +136,7 @@ const imageDraft = createDraftTextToImageOperation(completed, {
     targetAspectRatio: 9 / 16,
     targetWidth: 1152,
     targetHeight: 2048,
-    variationCount: 1,
+    variationCount: 2,
   },
 });
 imageDraft.operationBlock.data.connectionId = connection!.connectionId;
@@ -153,6 +153,21 @@ assert.equal(imageRun.execution.adapterSnapshot?.routeKind, 'codex_app_server');
 assert.equal(imageRun.execution.agentPrompt, undefined);
 await saveSnapshot(completed);
 
+let imageCalls = 0;
+let concurrentImageCalls = 0;
+let maxConcurrentImageCalls = 0;
+let releaseConcurrentImages: (() => void) | undefined;
+const bothImagesStarted = new Promise<void>((resolve) => {
+  releaseConcurrentImages = resolve;
+});
+const concurrentImagesReady = Promise.race([
+  bothImagesStarted,
+  new Promise<never>((_resolve, reject) => setTimeout(
+    () => reject(new Error('Codex App Server candidates did not start concurrently.')),
+    1_000,
+  )),
+]);
+const imageCandidatePrompts = new Set<string>();
 const imageStarted = await startCodexAppServerImageGeneration({
   projectId: completed.project.projectId,
   boardId: completed.board.boardId,
@@ -160,19 +175,29 @@ const imageStarted = await startCodexAppServerImageGeneration({
   connectionId: connection!.connectionId,
 }, {
   runTurn: async (input) => {
+    imageCalls += 1;
+    const callIndex = imageCalls;
+    concurrentImageCalls += 1;
+    maxConcurrentImageCalls = Math.max(maxConcurrentImageCalls, concurrentImageCalls);
+    if (imageCalls === 2) releaseConcurrentImages?.();
+    await concurrentImagesReady;
     assert.match(input.prompt, /^\$imagegen Generate exactly one image/);
     assert.match(input.prompt, /Required output aspect ratio: 9:16 \(portrait, width:height\)/);
     assert.match(input.prompt, /hard output-canvas requirement/);
     assert.match(input.prompt, /do not simulate the requested ratio with letterboxing or padding/);
+    const candidate = input.prompt.match(/candidate ([12]) of 2/)?.[1];
+    assert.ok(candidate);
+    imageCandidatePrompts.add(candidate);
     assert.equal(input.localImagePaths?.length, 0);
     input.onImageGenerationStarted?.();
+    concurrentImageCalls -= 1;
     return {
-      threadId: 'thread_image_test',
-      turnId: 'turn_image_test',
+      threadId: `thread_image_test_${callIndex}`,
+      turnId: `turn_image_test_${callIndex}`,
       text: '',
       image: {
-        itemId: 'image_item_test',
-        dataUrl: `data:image/png;base64,${Buffer.from('codex-image-test').toString('base64')}`,
+        itemId: `image_item_test_${callIndex}`,
+        dataUrl: `data:image/png;base64,${Buffer.from(`codex-image-test-${callIndex}`).toString('base64')}`,
       },
     };
   },
@@ -182,6 +207,9 @@ completed = await loadSnapshot(completed.project.projectId, completed.board.boar
 const imageExecution = completed.executions.find((candidate) => candidate.executionId === imageRun.execution.executionId);
 const imageResult = completed.blocks.find((candidate) => candidate.blockId === imageRun.resultBlock.blockId);
 assert.equal(imageExecution?.status, 'succeeded');
+assert.equal(imageExecution?.outputAssetIds.length, 2);
+assert.equal(maxConcurrentImageCalls, 2, 'Codex App Server candidates must start concurrently.');
+assert.deepEqual([...imageCandidatePrompts].sort(), ['1', '2']);
 assert.ok(imageResult?.data.assetId);
 assert.equal(completed.assets.some((candidate) => candidate.assetId === imageResult.data.assetId), true);
 assert.equal(imageExecution?.params?.codexAppServer && typeof imageExecution.params.codexAppServer, 'object');
@@ -298,5 +326,6 @@ assert.equal(
 console.log(JSON.stringify({
   ok: true,
   capabilities: connection?.supportedCapabilityIds,
+  concurrentImageCandidates: maxConcurrentImageCalls,
   routes: [textExecution?.adapter, imageExecution?.adapter, annotationRun.execution.adapter],
 }));

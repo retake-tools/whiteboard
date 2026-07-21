@@ -14,6 +14,7 @@ import { createAssetFromDataUrl } from './local-store/asset-store';
 import { listExecutionProviderSettings } from './local-store/execution-provider-store';
 import { failExecution, markExecutionRunning, updateImageResultBlock } from './local-store/execution-store';
 import { loadSnapshot, saveSnapshot } from './local-store/snapshot-store';
+import { createSerialTaskQueue } from './serial-task-queue';
 
 interface CodexAppServerImageDependencies {
   runTurn?: typeof runCodexAppServerTurn;
@@ -72,7 +73,8 @@ async function executeCodexImageRun(
   const initial = await loadSnapshot(execution.projectId, execution.boardId);
   const inputAssignments = imageExecutionInputAssignments(execution);
   const localImagePaths = await executionInputImagePaths(initial, inputAssignments);
-  for (let index = 0; index < execution.outputBlockIds.length; index += 1) {
+  const enqueueWrite = createSerialTaskQueue();
+  const results = await Promise.allSettled(execution.outputBlockIds.map(async (resultBlockId, index) => {
     await assertExecutionRunning(execution);
     const result = await (dependencies.runTurn ?? runCodexAppServerTurn)({
       cwd: process.env.TMPDIR || '/tmp',
@@ -90,37 +92,45 @@ async function executeCodexImageRun(
       }),
     });
     if (!result.image) throw new Error('Codex App Server completed without an image result.');
-    const asset = result.image.savedPath
-      ? await importCodexImagePath(execution, result.image.savedPath)
-      : result.image.dataUrl
-        ? await createAssetFromDataUrl({
-          projectId: execution.projectId,
-          sourceExecutionId: execution.executionId,
-          dataUrl: result.image.dataUrl,
-          fileName: `codex-image-${index + 1}.png`,
-          kind: 'image',
-        })
-        : undefined;
-    if (!asset) throw new Error('Codex App Server image result did not contain a saved path or image data.');
-    await recordProviderResult(execution, {
-      index,
-      itemId: result.image.itemId,
-      threadId: result.threadId,
-      turnId: result.turnId,
-      revisedPrompt: result.image.revisedPrompt,
-    });
-    const updated = await updateImageResultBlock({
-      projectId: execution.projectId,
-      boardId: execution.boardId,
-      executionId: execution.executionId,
-      assetId: asset.assetId,
-      resultBlockId: execution.outputBlockIds[index],
-      title: execution.outputBlockIds.length > 1 ? `Codex image ${index + 1}` : 'Codex image',
-      body: 'Generated through Codex App Server and imported into Retake.',
-    });
-    if (updated.execution.status === 'succeeded') {
+    const image = result.image;
+    await enqueueWrite(async () => {
+      await assertExecutionRunning(execution);
+      const asset = image.savedPath
+        ? await importCodexImagePath(execution, image.savedPath)
+        : image.dataUrl
+          ? await createAssetFromDataUrl({
+            projectId: execution.projectId,
+            sourceExecutionId: execution.executionId,
+            dataUrl: image.dataUrl,
+            fileName: `codex-image-${index + 1}.png`,
+            kind: 'image',
+          })
+          : undefined;
+      if (!asset) throw new Error('Codex App Server image result did not contain a saved path or image data.');
+      await recordProviderResult(execution, {
+        index,
+        itemId: image.itemId,
+        threadId: result.threadId,
+        turnId: result.turnId,
+        revisedPrompt: image.revisedPrompt,
+      });
+      const updated = await updateImageResultBlock({
+        projectId: execution.projectId,
+        boardId: execution.boardId,
+        executionId: execution.executionId,
+        assetId: asset.assetId,
+        resultBlockId,
+        title: execution.outputBlockIds.length > 1 ? `Codex image ${index + 1}` : 'Codex image',
+        body: 'Generated through Codex App Server and imported into Retake.',
+      });
       publishExecutionEvent(execution.executionId, { type: 'execution.snapshot', snapshot: updated.snapshot });
-    }
+    });
+  }));
+  const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+  if (failed) {
+    throw failed.reason instanceof Error
+      ? failed.reason
+      : new Error('Codex App Server image generation failed for one or more candidates.');
   }
 }
 

@@ -132,34 +132,51 @@ function resultPlacementCandidates(
   baseX: number,
   baseY: number,
 ): Array<Position & { score: number }> {
-  const horizontalStep = candidateSize.width + 72;
-  const verticalStep = candidateSize.height + 72;
+  const placementGap = 48;
+  const horizontalStep = candidateSize.width + placementGap;
+  const verticalStep = candidateSize.height + placementGap;
   const groupLeft = grouped ? resultGroupPadding.left : 0;
   const groupTop = grouped ? resultGroupPadding.top : 0;
-  const candidates: Array<Position & { score: number }> = [];
+  const candidates: Array<Position & { score: number; order: number }> = [];
+  const seen = new Set<string>();
+  let order = 0;
 
-  for (let distance = 0; distance < 50; distance += 1) {
+  function addCandidate(position: Position, directionPenalty: number): void {
+    const key = `${position.x}:${position.y}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const dx = position.x - baseX;
+    const dy = position.y - baseY;
     candidates.push({
-      x: baseX + distance * horizontalStep,
-      y: baseY,
-      score: distance * horizontalStep,
+      ...position,
+      order: order++,
+      score: Math.hypot(dx, dy) + directionPenalty,
     });
   }
+
+  for (let column = 0; column < 24; column += 1) {
+    addCandidate({ x: baseX + column * horizontalStep, y: baseY }, 0);
+    for (let row = 1; row < 24; row += 1) {
+      addCandidate({ x: baseX + column * horizontalStep, y: baseY - row * verticalStep }, 12);
+      addCandidate({ x: baseX + column * horizontalStep, y: baseY + row * verticalStep }, 24);
+    }
+  }
+
   for (let distance = 1; distance <= 50; distance += 1) {
-    const verticalDistance = 80 + candidateSize.height + (distance - 1) * verticalStep;
-    candidates.push({
+    const verticalDistance = candidateSize.height + placementGap + (distance - 1) * verticalStep;
+    addCandidate({
       x: operationBlock.position.x + groupLeft,
       y: operationBlock.position.y - verticalDistance + groupTop,
-      score: verticalDistance + 48,
-    });
-    candidates.push({
+    }, 36);
+    addCandidate({
       x: operationBlock.position.x + groupLeft,
-      y: operationBlock.position.y + operationBlock.size.height + 80 + (distance - 1) * verticalStep + groupTop,
-      score: verticalDistance + 80,
-    });
+      y: operationBlock.position.y + operationBlock.size.height + placementGap + (distance - 1) * verticalStep + groupTop,
+    }, 48);
   }
 
-  return candidates.sort((left, right) => left.score - right.score);
+  return candidates
+    .sort((left, right) => left.score - right.score || left.order - right.order)
+    .map(({ x, y, score }) => ({ x, y, score }));
 }
 
 function rectanglesOverlap(

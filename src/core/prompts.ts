@@ -62,19 +62,23 @@ export function createImageOperationPrompt(
   });
   const isMultiResult = resultBlocks.length > 1;
   const inputAssignmentLines = inputBindings.flatMap((binding) => {
-    const block = snapshot.blocks.find((candidate) => candidate.blockId === binding.blockId);
+    const block = binding.blockId
+      ? snapshot.blocks.find((candidate) => candidate.blockId === binding.blockId)
+      : undefined;
     const bindingAsset = snapshot.assets.find((candidate) => candidate.assetId === binding.assetId);
     const bindingPath = localAssetPath(snapshot, bindingAsset);
-    const title = block?.data.title?.trim() || binding.blockId;
+    const title = block?.data.title?.trim() || binding.assetId || binding.blockId || 'image input';
     return [
-      `- ${title}: role=${binding.inputRole}, blockId=${binding.blockId}${binding.assetId ? `, assetId=${binding.assetId}` : ''}`,
+      `- ${title}: role=${binding.inputRole}${binding.blockId ? `, blockId=${binding.blockId}` : ''}${binding.assetId ? `, assetId=${binding.assetId}` : ''}`,
       bindingAsset?.storageKey ? `  storageKey: ${bindingAsset.storageKey}` : undefined,
       bindingPath ? `  local path: ${bindingPath}` : undefined,
     ].filter((line): line is string => Boolean(line));
   });
   const inputContractLines = inputBindings.map((binding) => {
-    const block = snapshot.blocks.find((candidate) => candidate.blockId === binding.blockId);
-    const title = block?.data.title?.trim() || binding.blockId;
+    const block = binding.blockId
+      ? snapshot.blocks.find((candidate) => candidate.blockId === binding.blockId)
+      : undefined;
+    const title = block?.data.title?.trim() || binding.assetId || binding.blockId || 'image input';
     return `- ${title} [${binding.inputRole}]: ${inputRoleDefinition(binding.inputRole).promptDirective}`;
   });
 
@@ -288,17 +292,19 @@ export function createImageResultRetryPrompt(snapshot: BoardSnapshot, resultBloc
 
 function readInputBindings(
   value: unknown,
-): Array<{ assetId?: string; blockId: string; inputRole: ExecutionInputRole }> {
+): Array<{ assetId?: string; blockId?: string; inputRole: ExecutionInputRole }> {
   if (!Array.isArray(value)) return [];
   return value.flatMap((binding) => {
     if (!binding || typeof binding !== 'object') return [];
     const record = binding as Record<string, unknown>;
-    if (typeof record.blockId !== 'string' || !isExecutionInputRole(record.inputRole)) return [];
+    const blockId = typeof record.blockId === 'string' ? record.blockId : undefined;
+    const assetId = typeof record.assetId === 'string' ? record.assetId : undefined;
+    if ((!blockId && !assetId) || !isExecutionInputRole(record.inputRole)) return [];
     return [
       {
-        blockId: record.blockId,
+        blockId,
         inputRole: record.inputRole,
-        assetId: typeof record.assetId === 'string' ? record.assetId : undefined,
+        assetId,
       },
     ];
   });

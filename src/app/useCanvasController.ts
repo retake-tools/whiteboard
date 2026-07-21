@@ -94,6 +94,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
   );
   const dropTargetGroupIdRef = useRef<string | undefined>(undefined);
   const dropDetachGroupIdRef = useRef<string | undefined>(undefined);
+  const nodeDragActiveRef = useRef(false);
   const actionPortsRef = useRef<{ deleteBlockIds: (blockIds: string[]) => void }>({ deleteBlockIds: () => undefined });
   const [nodes, setNodes] = useState<RetakeNode[]>(() => createFlowNodes(snapshot));
   const [edges, setEdges] = useState<RetakeEdge[]>(() => createFlowEdges(snapshot));
@@ -124,6 +125,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
 
   connectSessionPorts({
     onBoardLoaded: (loadedSnapshot) => {
+      nodeDragActiveRef.current = false;
       setNodes(createFlowNodesForSelection(loadedSnapshot, []));
       setEdges(createFlowEdgesForSelection(loadedSnapshot, []));
       setSelectedBlockIds([]);
@@ -132,7 +134,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
       restoreBoardViewport(loadedSnapshot);
     },
     onRemoteSnapshot: (remoteSnapshot) => {
-      setNodes(createFlowNodesForSelection(remoteSnapshot));
+      if (!nodeDragActiveRef.current) setNodes(createFlowNodesForSelection(remoteSnapshot));
       setEdges(createFlowEdgesForSelection(remoteSnapshot));
       setSelectedBlockIds((current) => current.filter((blockId) => remoteSnapshot.blocks.some((block) => block.blockId === blockId)));
     },
@@ -200,6 +202,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
   }
 
   const onNodeDrag: OnNodeDrag<RetakeNode> = (_event, node) => {
+    nodeDragActiveRef.current = true;
     const sourceBlock = snapshotRef.current.blocks.find((block) => block.blockId === node.id);
     if (!sourceBlock || blockLockedByGroup(snapshotRef.current, node.id)) return;
     const flowNodes = reactFlowRef.current?.getNodes() ?? nodes;
@@ -209,6 +212,10 @@ export function useCanvasController(options: CanvasControllerOptions) {
     const targetGroupId = findGroupDropTarget(snapshotRef.current, node.id, { ...position, ...size }, collapsedGroupIdsRef.current);
     const isChangingParent = targetGroupId !== sourceBlock.parentGroupId;
     setGroupDropFeedback(isChangingParent ? targetGroupId : undefined, isChangingParent ? sourceBlock.parentGroupId : undefined);
+  };
+
+  const onNodeDragStart: OnNodeDrag<RetakeNode> = () => {
+    nodeDragActiveRef.current = true;
   };
 
   function setGroupDropFeedback(targetGroupId: string | undefined, detachGroupId: string | undefined): void {
@@ -229,32 +236,36 @@ export function useCanvasController(options: CanvasControllerOptions) {
     const draggedBlockIds = new Set([node.id, ...draggedNodes.map((draggedNode) => draggedNode.id)]);
     const topLevelDraggedBlockIds = [...draggedBlockIds].filter((blockId) => !groupAncestorIds(snapshotRef.current, blockId).some((groupId) => draggedBlockIds.has(groupId)));
     setGroupDropFeedback(undefined, undefined);
-    updateSnapshot((current) => {
-      const updatedAt = nowIso();
-      for (const block of current.blocks) {
-        const position = absolutePositions.get(block.blockId);
-        if (!position || (block.position.x === position.x && block.position.y === position.y)) continue;
-        block.position = position;
-        block.updatedAt = updatedAt;
-      }
-      for (const blockId of topLevelDraggedBlockIds) {
-        const block = current.blocks.find((candidate) => candidate.blockId === blockId);
-        const position = absolutePositions.get(blockId);
-        if (!block || !position || blockLockedByGroup(current, blockId)) continue;
-        const previousParent = block.parentGroupId ? current.blocks.find((candidate) => candidate.blockId === block.parentGroupId && candidate.type === 'group') : undefined;
-        if (previousParent && previousParent.data.groupLayoutMode !== 'free') {
-          previousParent.data.groupLayoutMode = 'free';
-          previousParent.updatedAt = updatedAt;
-        }
-        const size = flowNodeSize(flowNodeById.get(blockId), block);
-        const parentGroupId = findGroupDropTarget(current, blockId, { ...position, ...size }, collapsedGroupIdsRef.current);
-        if (parentGroupId !== block.parentGroupId) {
-          block.parentGroupId = parentGroupId;
+    try {
+      updateSnapshot((current) => {
+        const updatedAt = nowIso();
+        for (const block of current.blocks) {
+          const position = absolutePositions.get(block.blockId);
+          if (!position || (block.position.x === position.x && block.position.y === position.y)) continue;
+          block.position = position;
           block.updatedAt = updatedAt;
         }
-      }
-      return touchBoard(current);
-    }, { syncFlow: true, persist: true, history: true });
+        for (const blockId of topLevelDraggedBlockIds) {
+          const block = current.blocks.find((candidate) => candidate.blockId === blockId);
+          const position = absolutePositions.get(blockId);
+          if (!block || !position || blockLockedByGroup(current, blockId)) continue;
+          const previousParent = block.parentGroupId ? current.blocks.find((candidate) => candidate.blockId === block.parentGroupId && candidate.type === 'group') : undefined;
+          if (previousParent && previousParent.data.groupLayoutMode !== 'free') {
+            previousParent.data.groupLayoutMode = 'free';
+            previousParent.updatedAt = updatedAt;
+          }
+          const size = flowNodeSize(flowNodeById.get(blockId), block);
+          const parentGroupId = findGroupDropTarget(current, blockId, { ...position, ...size }, collapsedGroupIdsRef.current);
+          if (parentGroupId !== block.parentGroupId) {
+            block.parentGroupId = parentGroupId;
+            block.updatedAt = updatedAt;
+          }
+        }
+        return touchBoard(current);
+      }, { syncFlow: true, persist: true, history: true });
+    } finally {
+      nodeDragActiveRef.current = false;
+    }
   }
 
   function onConnect(connection: Connection): void {
@@ -555,6 +566,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
     onNodeClick,
     onNodeDoubleClick,
     onNodeDrag,
+    onNodeDragStart,
     onNodeDragStop,
     onNodesChange,
     onSelectionChange,

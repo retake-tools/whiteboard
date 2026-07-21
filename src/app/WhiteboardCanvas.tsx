@@ -110,6 +110,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
         nodeTypes={nodeTypes}
         onNodesChange={canvas.onNodesChange}
         onEdgesChange={canvas.onEdgesChange}
+        onNodeDragStart={canvas.onNodeDragStart}
         onNodeDrag={canvas.onNodeDrag}
         onNodeDragStop={canvas.onNodeDragStop}
         onNodeClick={canvas.onNodeClick}

@@ -5,6 +5,7 @@ import type {
 } from './capabilityContracts';
 import { definitionForLegacyCapability } from './legacyCapabilityAdapter';
 import { capabilityDefinitionFor } from './capabilityRegistry';
+import { isExecutionInputRole } from './inputRoles';
 import type { BlockRecord, BoardSnapshot, ExecutionInputRole, ExecutionRecord } from './types';
 
 export function recordLegacyExecutionContractSnapshot(
@@ -58,9 +59,17 @@ function legacyInputBindings(
       .filter((edge) => edge.targetBlockId === operationBlock.blockId && edge.kind === 'execution_input')
       .map((edge) => [edge.sourceBlockId, edge.inputRole]),
   );
+  const parameterBindings = executionParameterImageBindings(execution);
 
   return definition.inputSlots.flatMap((slot): CapabilityInputBinding[] => {
-    const values = valuesForSlot(slot.slotId, slot.semanticRole, inputBlocks, roleByBlockId, operationBlock);
+    const values = valuesForSlot(
+      slot.slotId,
+      slot.semanticRole,
+      inputBlocks,
+      roleByBlockId,
+      operationBlock,
+      parameterBindings,
+    );
     return values.length > 0 ? [{ slotId: slot.slotId, values }] : [];
   });
 }
@@ -71,6 +80,7 @@ function valuesForSlot(
   inputBlocks: BlockRecord[],
   roleByBlockId: Map<string, ExecutionInputRole | undefined>,
   operationBlock: BlockRecord,
+  parameterBindings: Array<{ assetId: string; blockId?: string; inputRole: ExecutionInputRole }>,
 ): CapabilityBindingValue[] {
   if (semanticRole === 'prompt') {
     const promptBlock = inputBlocks.find((block) => block.type === 'text');
@@ -94,7 +104,39 @@ function valuesForSlot(
     if (slotId === 'source_image' || semanticRole === 'source') return role === 'source';
     return role === semanticRole;
   });
-  return matchingBlocks.map(bindingValueForBlock);
+  const blockValues = matchingBlocks.map(bindingValueForBlock);
+  const blockAssetIds = new Set(blockValues.flatMap((value) => value.kind === 'asset' ? [value.assetId] : []));
+  const parameterValues = parameterBindings
+    .filter((binding) => {
+      if (blockAssetIds.has(binding.assetId)) return false;
+      if (slotId === 'references' || semanticRole === 'reference') {
+        return binding.inputRole !== 'source' && binding.inputRole !== 'annotated_composite';
+      }
+      if (slotId === 'source_image' || semanticRole === 'source') return binding.inputRole === 'source';
+      return binding.inputRole === semanticRole;
+    })
+    .map((binding): CapabilityBindingValue => ({
+      kind: 'asset',
+      assetId: binding.assetId,
+      ...(binding.blockId ? { blockId: binding.blockId } : {}),
+    }));
+  return [...blockValues, ...parameterValues];
+}
+
+function executionParameterImageBindings(
+  execution: ExecutionRecord,
+): Array<{ assetId: string; blockId?: string; inputRole: ExecutionInputRole }> {
+  const bindings = Array.isArray(execution.params?.inputBindings) ? execution.params.inputBindings : [];
+  return bindings.flatMap((binding) => {
+    if (!binding || typeof binding !== 'object') return [];
+    const record = binding as Record<string, unknown>;
+    if (typeof record.assetId !== 'string' || !isExecutionInputRole(record.inputRole)) return [];
+    return [{
+      assetId: record.assetId,
+      blockId: typeof record.blockId === 'string' ? record.blockId : undefined,
+      inputRole: record.inputRole,
+    }];
+  });
 }
 
 function bindingValueForBlock(block: BlockRecord): CapabilityBindingValue {

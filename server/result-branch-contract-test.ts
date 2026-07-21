@@ -15,6 +15,7 @@ import {
   imageOperationResultRowLayout,
 } from '../src/core/imageOperationLayout';
 import {
+  addImageCodexOperation,
   createDraftImageToImageOperation,
   executeExistingImageOperationBlock,
   type ImageGenerationParams,
@@ -56,7 +57,7 @@ const fartherRightLayout = imageOperationResultRowLayout(
   placementResultSize,
   1,
 );
-assert.deepEqual(fartherRightLayout, { x: 786, y: 100 });
+assert.deepEqual(fartherRightLayout, { x: 762, y: 100 });
 const secondRightBlocker = createBlockRecord(placementSnapshot, 'image');
 secondRightBlocker.position = fartherRightLayout;
 secondRightBlocker.size = placementResultSize;
@@ -67,7 +68,7 @@ const upperLayout = imageOperationResultRowLayout(
   placementResultSize,
   1,
 );
-assert.deepEqual(upperLayout, { x: 100, y: -360 });
+assert.deepEqual(upperLayout, { x: 500, y: -328 });
 const upperBlocker = createBlockRecord(placementSnapshot, 'image');
 upperBlocker.position = upperLayout;
 upperBlocker.size = placementResultSize;
@@ -78,7 +79,7 @@ const lowerLayout = imageOperationResultRowLayout(
   placementResultSize,
   1,
 );
-assert.deepEqual(lowerLayout, { x: 100, y: 370 });
+assert.deepEqual(lowerLayout, { x: 500, y: 528 });
 
 const source = createBlockRecord(snapshot, 'image');
 source.position = { x: 180, y: 160 };
@@ -350,6 +351,27 @@ assert.ok(snapshot.historyEvents?.some(
     event.detail?.sourceBlockId === source.blockId,
 ));
 
+const assetOnlyReferenceSnapshot = structuredClone(snapshot);
+const assetOnlyReference: AssetRecord = {
+  ...createSourceAsset(assetOnlyReferenceSnapshot),
+  assetId: 'asset_reference_without_block',
+  storageKey: 'assets/asset_reference_without_block/original.png',
+};
+const assetOnlyReferenceRun = addImageCodexOperation(assetOnlyReferenceSnapshot, {
+  operation: 'generate_image',
+  sourceBlockId: source.blockId,
+  instruction: 'Generate a new shot using the attached image only as visual reference.',
+  referenceAssets: [assetOnlyReference],
+});
+const referenceSlot = assetOnlyReferenceRun.execution.inputBindingsSnapshot?.find(
+  (binding) => binding.slotId === 'references',
+);
+assert.deepEqual(referenceSlot?.values, [{
+  kind: 'asset',
+  assetId: assetOnlyReference.assetId,
+}]);
+assert.match(assetOnlyReferenceRun.prompt, /\[general_reference\]/);
+
 console.log({
   branchCount: 2,
   branchDraftDeletionPreservesSharedSource: true,
@@ -358,6 +380,7 @@ console.log({
   branchResultGroupsIndependent: true,
   batchOutputEdgesAvoidPriorResults: true,
   progressiveWritebackPrompt: true,
+  assetOnlyReferenceContract: true,
   resumableFailedResultPrompt: true,
   sourceLineageVersion: lineage.sourceExecutionVersion,
 });

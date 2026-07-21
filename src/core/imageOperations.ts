@@ -166,6 +166,19 @@ export function addImageCodexOperation(
     }
   }
   const referenceAssetIds = input.referenceAssets?.map((asset) => asset.assetId) ?? [];
+  const inputBindings = [
+    ...(sourceInputRole && sourceBlock.data.assetId
+      ? [{
+          assetId: sourceBlock.data.assetId,
+          blockId: sourceBlock.blockId,
+          inputRole: sourceInputRole,
+        }]
+      : []),
+    ...referenceAssetIds.map((assetId) => ({
+      assetId,
+      inputRole: 'general_reference' as const,
+    })),
+  ];
   const annotationEditControls = input.operation === 'annotation_edit' && input.annotationManifest
     ? annotationEditControlsFromManifest(input.annotationManifest)
     : undefined;
@@ -247,9 +260,9 @@ export function addImageCodexOperation(
     capabilityId,
     adapter,
     status: 'queued',
-    inputBlockIds: [sourceBlock.blockId],
+    inputBlockIds: sourceInputRole ? [sourceBlock.blockId] : [],
     inputAssetIds: [
-      sourceBlock.data.assetId,
+      sourceInputRole ? sourceBlock.data.assetId : undefined,
       input.annotatedCompositeAsset?.assetId,
       ...referenceAssetIds,
     ].filter((assetId): assetId is string => typeof assetId === 'string'),
@@ -277,17 +290,7 @@ export function addImageCodexOperation(
         ? { annotatedCompositeAssetId: input.annotatedCompositeAsset.assetId }
         : {}),
       ...(annotationEditControls ? { annotationEditControls } : {}),
-      ...(sourceInputRole
-        ? {
-            inputBindings: [
-              {
-                assetId: sourceBlock.data.assetId,
-                blockId: sourceBlock.blockId,
-                inputRole: sourceInputRole,
-              },
-            ],
-          }
-        : {}),
+      ...(inputBindings.length ? { inputBindings } : {}),
     },
     startedAt: createdAt,
   };
