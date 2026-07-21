@@ -188,6 +188,39 @@ export const dreaminaCliAdapterDefinition: AdapterDefinition = {
   availability: 'installed',
 };
 
+export const volcengineArkSeedreamImageAdapterDefinition: AdapterDefinition = {
+  schemaVersion: 1,
+  adapterId: 'retake.image.volcengine-ark-seedream',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-image-volcengine-ark-seedream-v0',
+  adapterClass: 'image.generate',
+  routeKind: 'direct_api',
+  provider: 'volcengine-ark',
+  model: 'doubao-seedream-5-0-260128',
+  supportedCapabilityIds: ['image.text_to_image', 'image.image_to_image'],
+  inputProfiles: [
+    {
+      profileId: 'seedream_text_to_image',
+      requiredSlots: ['prompt'],
+      optionalSlots: ['references'],
+    },
+    {
+      profileId: 'seedream_image_to_image',
+      requiredSlots: ['prompt', 'source_image'],
+      optionalSlots: ['references'],
+    },
+  ],
+  constraints: {
+    outputCount: { min: 1, max: 4 },
+    referenceImageCount: { min: 0, max: 10 },
+    resolutions: ['1K', '2K', '4K'],
+    sequentialImageGeneration: false,
+    durableAssetOutput: true,
+  },
+  credentialRefType: 'volcengine_ark_api_key',
+  availability: 'installed',
+};
+
 export function capabilityDefinitionFor(capabilityId: string): CapabilityDefinition {
   if (capabilityId === videoGenerateCapabilityDefinition.capabilityId) return videoGenerateCapabilityDefinition;
   return definitionForLegacyCapability(capabilityId);

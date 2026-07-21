@@ -8,13 +8,16 @@ import type {
   BoardSnapshot,
   ExecutionInputRole,
   ExecutionRecord,
+  GenerationProfileSnapshot,
 } from './types';
+import type { ExecutionConnectionSummary } from './executionProviders';
 import { maxZIndex, touchBoard } from './blockFactory';
 import { fitMediaBlockSize, imageResultColumnGap } from './blockSizing';
 import { createExecutionResultGroup, expandGroupToContents } from './grouping';
 import { syncExecutionOutputContractSnapshot } from './executionContractSnapshot';
 import { createImageOperationPrompt } from './prompts';
 import { recordExecutionConfiguration } from './executionConfiguration';
+import { volcengineArkSeedreamImageAdapterDefinition } from './capabilityRegistry';
 import { imageBlockAspectRatio } from './operationAspectRatio';
 import { imageBranchDraftLayout, imageOperationResultRowLayout } from './imageOperationLayout';
 import {
@@ -63,6 +66,7 @@ interface ImageCodexOperationInput {
 }
 
 interface ExistingOperationBlockInput {
+  connection?: ExecutionConnectionSummary;
   generationParams?: ImageGenerationParams;
   instruction: string;
   operation: SwitchableOperationMode;
@@ -757,9 +761,10 @@ export function executeExistingImageOperationBlock(
     : promptText ?? '';
   if (!instruction) throw new Error('Enter a prompt before running this operation.');
   const generationProfileId = operationBlock.data.generationProfileId ?? defaultGenerationProfileId;
-  const connectionId = typeof operationBlock.data.connectionId === 'string'
+  const connectionId = input.connection?.connectionId ?? (typeof operationBlock.data.connectionId === 'string'
     ? operationBlock.data.connectionId
-    : 'codex-managed';
+    : 'codex-managed');
+  const directApi = input.connection?.connectorId === 'volcengine-ark';
   const generationParams = effectiveGenerationParams(
     generationParamsForSourceImage(
       snapshot,
@@ -769,6 +774,7 @@ export function executeExistingImageOperationBlock(
     ),
     generationProfileId,
     capabilityId,
+    input.connection,
   );
 
   operationBlock.data = {
@@ -776,9 +782,9 @@ export function executeExistingImageOperationBlock(
     title,
     body: instruction,
     status: 'queued',
-    adapter: 'mcp_agent',
-    agentHost: 'codex',
-    triggerMode: 'manual_agent_session',
+    adapter: directApi ? 'direct_api' : 'mcp_agent',
+    agentHost: directApi ? undefined : 'codex',
+    triggerMode: directApi ? 'server_worker' : 'manual_agent_session',
     capabilityId,
     operationMode: operationModeForImageOperation(codexOperation),
     operationVariant: undefined,
@@ -813,7 +819,7 @@ export function executeExistingImageOperationBlock(
     projectId: snapshot.project.projectId,
     boardId: snapshot.board.boardId,
     capabilityId,
-    adapter: 'mcp_agent',
+    adapter: directApi ? 'direct_api' : 'mcp_agent',
     status: 'queued',
     inputBlockIds: [isAnnotationRepeat ? undefined : textBlock?.blockId, ...imageInputBindings.map((binding) => binding.block.blockId)].filter(
       (blockId): blockId is string => typeof blockId === 'string',
@@ -824,14 +830,13 @@ export function executeExistingImageOperationBlock(
     ].filter((assetId): assetId is string => typeof assetId === 'string'),
     outputBlockIds: resultBlocks.map((block) => block.blockId),
     outputAssetIds: [],
-    agentHost: 'codex',
-    triggerMode: 'manual_agent_session',
+    agentHost: directApi ? undefined : 'codex',
+    triggerMode: directApi ? 'server_worker' : 'manual_agent_session',
+    provider: directApi ? input.connection?.providerLabel : undefined,
+    model: directApi ? input.connection?.modelId : undefined,
     connectionId,
     skillId: skillForOperation(codexOperation),
-    generationProfile: {
-      ...snapshotGenerationProfile(operationBlock.data.generationProfileId),
-      connectionId,
-    },
+    generationProfile: imageGenerationProfileSnapshot(input.connection, operationBlock.data.generationProfileId),
     prompt: instruction,
     params: {
       operationBlockId: operationBlock.blockId,
@@ -853,17 +858,32 @@ export function executeExistingImageOperationBlock(
     ensureEdge(snapshot, operationBlock.blockId, outputBlock.blockId, 'execution_output');
   }
   recordExecutionConfiguration(snapshot, execution, operationBlock);
+  if (directApi) {
+    execution.adapterSnapshot = {
+      adapterId: volcengineArkSeedreamImageAdapterDefinition.adapterId,
+      version: volcengineArkSeedreamImageAdapterDefinition.version,
+      definitionHash: volcengineArkSeedreamImageAdapterDefinition.definitionHash,
+      adapterClass: capabilityId === 'image.image_to_image' ? 'image.edit' : 'image.generate',
+      routeKind: volcengineArkSeedreamImageAdapterDefinition.routeKind,
+      provider: volcengineArkSeedreamImageAdapterDefinition.provider,
+      model: input.connection?.modelId ?? volcengineArkSeedreamImageAdapterDefinition.model,
+    };
+  }
   snapshot.executions.unshift(execution);
-  const prompt = createImageOperationPrompt(
-    snapshot,
-    promptFrameBlock ?? resultBlock,
-    operationBlock,
-    resultBlocks,
-    execution,
-  );
-  execution.agentPrompt = prompt;
-  operationBlock.data.agentPrompt = prompt;
-  for (const outputBlock of resultBlocks) outputBlock.data.agentPrompt = prompt;
+  const prompt = directApi
+    ? instruction
+    : createImageOperationPrompt(
+      snapshot,
+      promptFrameBlock ?? resultBlock,
+      operationBlock,
+      resultBlocks,
+      execution,
+    );
+  if (!directApi) {
+    execution.agentPrompt = prompt;
+    operationBlock.data.agentPrompt = prompt;
+    for (const outputBlock of resultBlocks) outputBlock.data.agentPrompt = prompt;
+  }
 
   const historyEvent: BoardHistoryEvent = {
     eventId: createId('history'),
@@ -963,10 +983,22 @@ function effectiveGenerationParams(
   generationParams: ImageGenerationParams | undefined,
   generationProfileId: string,
   capabilityId: string,
+  connection?: ExecutionConnectionSummary,
 ): ImageGenerationParams | undefined {
   if (!generationParams) return undefined;
 
-  const profile = generationProfileById(generationProfileId);
+  const baseProfile = generationProfileById(generationProfileId);
+  const profile = connection?.connectorId === 'volcengine-ark'
+    ? {
+      ...baseProfile,
+      parameterSupport: {
+        ...baseProfile.parameterSupport,
+        aspectRatio: 'supported' as const,
+        count: 'supported' as const,
+        resolution: 'supported' as const,
+      },
+    }
+    : baseProfile;
   const paramsSchema = schemaForCapability(capabilityId).paramsSchema;
   const effective = { ...generationParams };
   delete effective.model;
@@ -1102,7 +1134,7 @@ function findOrCreateOperationResultBlocks(
       outputSlot.data = {
         ...outputSlot.data,
         title: variantTitle(input.title, index, input.count),
-        body: 'Waiting for Codex to generate an image result.',
+        body: 'Waiting for image generation.',
         status: 'queued',
         operationBlockId: input.operationBlock.blockId,
         resultIndex: index,
@@ -1132,7 +1164,7 @@ function findOrCreateOperationResultBlocks(
       zIndex: maxZIndex(snapshot.blocks) + index + 1,
       data: {
         title: variantTitle(input.title, index, input.count),
-        body: 'Waiting for Codex to generate an image result.',
+        body: 'Waiting for image generation.',
         status: 'queued',
         operationBlockId: input.operationBlock.blockId,
         resultIndex: index,
@@ -1147,6 +1179,28 @@ function findOrCreateOperationResultBlocks(
   }
 
   return resultBlocks;
+}
+
+function imageGenerationProfileSnapshot(
+  connection: ExecutionConnectionSummary | undefined,
+  generationProfileId: unknown,
+): GenerationProfileSnapshot {
+  if (!connection || connection.connectorId === 'codex-managed') {
+    return {
+      ...snapshotGenerationProfile(generationProfileId),
+      connectionId: connection?.connectionId ?? 'codex-managed',
+    };
+  }
+  return {
+    generationProfileId: connection.connectionId,
+    name: connection.displayName,
+    version: 1,
+    source: connection.deletable ? 'user' : 'builtin',
+    adapter: 'direct_api',
+    provider: connection.providerLabel,
+    model: connection.modelId,
+    connectionId: connection.connectionId,
+  };
 }
 
 function ensureEdge(

@@ -9,10 +9,12 @@ import {
   type ExecutionProviderSettingsSnapshot,
 } from '../../src/core/executionProviders';
 import { createId } from '../../src/core/id';
+import { probeNativeTextConnection } from '../ai-sdk-native-text-client';
 import { codexAppServerAvailability, probeCodexAppServerConnection } from '../codex-app-server-client';
 import { dreaminaCliAvailability, probeDreaminaCliConnection } from '../dreamina-cli-client';
 import { probeOpenAICompatibleConnection } from '../openai-compatible-client';
 import { probeSeedanceModelArkConnection, readSeedanceModelArkConfig } from '../seedance-modelark-client';
+import { probeVolcengineArkImageConnection } from '../volcengine-ark-image-client';
 import {
   readExecutionConnections,
   readExecutionCredentials,
@@ -54,7 +56,9 @@ export interface ExecutionConnectionCheckDependencies {
   probeCodexAppServer?: typeof probeCodexAppServerConnection;
   probeDreaminaCli?: typeof probeDreaminaCliConnection;
   probeModelArk?: typeof probeSeedanceModelArkConnection;
+  probeNativeText?: typeof probeNativeTextConnection;
   probeOpenAICompatible?: typeof probeOpenAICompatibleConnection;
+  probeVolcengineArkImage?: typeof probeVolcengineArkImageConnection;
 }
 
 const fixedConnections: FixedConnectionDefinition[] = [
@@ -337,6 +341,13 @@ export async function checkExecutionConnection(
       }
       await (dependencies.probeOpenAICompatible ?? probeOpenAICompatibleConnection)(connection);
       checkMessage = 'Authenticated model request succeeded.';
+    } else if (summary.connectorId === 'anthropic-native' || summary.connectorId === 'google-native') {
+      const connection = await resolveExecutionConnection(connectionId);
+      if (!connection?.apiKey || !connection.baseUrl || !connection.model) {
+        throw new Error('API key, base URL, and one model ID are required.');
+      }
+      await (dependencies.probeNativeText ?? probeNativeTextConnection)(summary.connectorId, connection);
+      checkMessage = `Authenticated ${summary.providerLabel} model request succeeded.`;
     } else if (summary.connectorId === 'byteplus-modelark') {
       const connection = await resolveExecutionConnection(connectionId);
       if (!connection?.apiKey || !connection.baseUrl || !connection.model) {
@@ -348,6 +359,13 @@ export async function checkExecutionConnection(
         model: connection.model,
       });
       checkMessage = 'Authenticated ModelArk task-list request succeeded without creating a generation task.';
+    } else if (summary.connectorId === 'volcengine-ark') {
+      const connection = await resolveExecutionConnection(connectionId);
+      if (!connection?.apiKey || !connection.baseUrl || !connection.model) {
+        throw new Error('API key, base URL, and one model ID are required.');
+      }
+      await (dependencies.probeVolcengineArkImage ?? probeVolcengineArkImageConnection)(connection);
+      checkMessage = 'Authenticated Seedream image endpoint validation succeeded without generating an asset.';
     } else if (summary.connectorId === 'codex-managed' || summary.connectorId === 'retake-mock') {
       checkMessage = 'Built-in Retake connection is ready.';
     } else {

@@ -2,6 +2,7 @@ export type ExecutionConnectionKind = 'model_provider' | 'agent_host' | 'provide
 
 export type AdapterImplementationKind =
   | 'ai_sdk'
+  | 'native_api'
   | 'native_async'
   | 'provider_cli'
   | 'agent_bridge'
@@ -154,43 +155,49 @@ const connectors: ExecutionConnectorDefinition[] = [
     connectionMode: 'multiple',
     requiresCredential: true,
     supportedCapabilityIds: [],
-    capabilityClasses: [],
+    capabilityClasses: ['text', 'document'],
   },
   {
     connectorId: 'anthropic-native',
     displayName: 'Anthropic native',
-    description: 'Future official AI SDK connector for Anthropic-native endpoints.',
+    description: 'Official Vercel AI SDK provider for Anthropic-native language models.',
     connectionKind: 'model_provider',
     implementationKind: 'ai_sdk',
-    installStatus: 'available',
+    installStatus: 'installed',
     connectionMode: 'multiple',
     requiresCredential: true,
     supportedCapabilityIds: [],
-    capabilityClasses: [],
+    capabilityClasses: ['text', 'document'],
+    defaultBaseUrl: 'https://api.anthropic.com/v1',
+    defaultModelId: 'claude-sonnet-4-6',
   },
   {
     connectorId: 'google-native',
     displayName: 'Google Gemini native',
-    description: 'Future official AI SDK connector for Gemini-native endpoints.',
+    description: 'Official Vercel AI SDK provider for Google Generative AI language models.',
     connectionKind: 'model_provider',
     implementationKind: 'ai_sdk',
-    installStatus: 'available',
+    installStatus: 'installed',
     connectionMode: 'multiple',
     requiresCredential: true,
     supportedCapabilityIds: [],
-    capabilityClasses: [],
+    capabilityClasses: ['text', 'document'],
+    defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    defaultModelId: 'gemini-2.5-flash',
   },
   {
     connectorId: 'volcengine-ark',
     displayName: 'Volcengine Ark',
-    description: 'Future mainland China Ark image and video connector.',
+    description: 'Mainland China Ark connection using the native Seedream image adapter.',
     connectionKind: 'model_provider',
-    implementationKind: 'native_async',
-    installStatus: 'available',
+    implementationKind: 'native_api',
+    installStatus: 'installed',
     connectionMode: 'multiple',
     requiresCredential: true,
-    supportedCapabilityIds: [],
-    capabilityClasses: [],
+    supportedCapabilityIds: ['image.image_to_image', 'image.text_to_image'],
+    capabilityClasses: ['image'],
+    defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    defaultModelId: 'doubao-seedream-5-0-260128',
   },
 ];
 
@@ -234,6 +241,33 @@ const connectionTemplates: ExecutionConnectionTemplate[] = [
     providerLabel: 'BytePlus ModelArk',
     defaultBaseUrl: 'https://ark.ap-southeast.bytepluses.com/api/v3',
     defaultModelId: 'dreamina-seedance-2-0-260128',
+  },
+  {
+    templateId: 'anthropic-native',
+    connectorId: 'anthropic-native',
+    displayName: 'Anthropic',
+    description: 'Claude through the official Vercel AI SDK Anthropic provider.',
+    providerLabel: 'Anthropic',
+    defaultBaseUrl: 'https://api.anthropic.com/v1',
+    defaultModelId: 'claude-sonnet-4-6',
+  },
+  {
+    templateId: 'google-native',
+    connectorId: 'google-native',
+    displayName: 'Google Gemini',
+    description: 'Gemini through the official Vercel AI SDK Google Generative AI provider.',
+    providerLabel: 'Google',
+    defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    defaultModelId: 'gemini-2.5-flash',
+  },
+  {
+    templateId: 'volcengine-ark-seedream',
+    connectorId: 'volcengine-ark',
+    displayName: 'Volcengine Ark Seedream',
+    description: 'Seedream text-to-image and image-to-image through the mainland China Ark API.',
+    providerLabel: 'Volcengine Ark',
+    defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    defaultModelId: 'doubao-seedream-5-0-260128',
   },
 ];
 

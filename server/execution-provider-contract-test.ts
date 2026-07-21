@@ -5,8 +5,10 @@ import { createBlockRecord } from '../src/core/blockFactory';
 import { cacheExecutionProviderSettings } from '../src/core/executionProviderPreferences';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import type { BoardSnapshot } from '../src/core/types';
+import { generateNativeText } from './ai-sdk-native-text-client';
 import { generateOpenAICompatibleText } from './openai-compatible-client';
 import { probeSeedanceModelArkConnection } from './seedance-modelark-client';
+import { probeVolcengineArkImageConnection, VolcengineArkImageClient } from './volcengine-ark-image-client';
 import {
   checkExecutionConnection,
   createExecutionConnection,
@@ -122,6 +124,82 @@ assert.equal(generated.finishReason, 'stop');
 assert.equal(capturedUrl, 'https://provider.example/v1/chat/completions');
 assert.equal(capturedAuthorization, 'Bearer test-secret-key');
 
+const anthropicGenerated = await generateNativeText('anthropic-native', {
+  apiKey: 'anthropic-test-key',
+  baseUrl: 'https://anthropic.example/v1',
+  model: 'claude-test',
+}, { prompt: 'Return OK', maxOutputTokens: 4 }, async (input, init) => {
+  capturedUrl = String(input);
+  capturedAuthorization = new Headers(init?.headers).get('x-api-key') ?? '';
+  return new Response(JSON.stringify({
+    id: 'msg_retake_test',
+    type: 'message',
+    role: 'assistant',
+    content: [{ type: 'text', text: 'OK' }],
+    model: 'claude-test',
+    stop_reason: 'end_turn',
+    stop_sequence: null,
+    usage: { input_tokens: 3, output_tokens: 1 },
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+});
+assert.equal(anthropicGenerated.text, 'OK');
+assert.equal(capturedUrl, 'https://anthropic.example/v1/messages');
+assert.equal(capturedAuthorization, 'anthropic-test-key');
+
+const googleGenerated = await generateNativeText('google-native', {
+  apiKey: 'google-test-key',
+  baseUrl: 'https://google.example/v1beta',
+  model: 'gemini-test',
+}, { prompt: 'Return OK', maxOutputTokens: 4 }, async (input) => {
+  capturedUrl = String(input);
+  return new Response(JSON.stringify({
+    candidates: [{
+      content: { role: 'model', parts: [{ text: 'OK' }] },
+      finishReason: 'STOP',
+    }],
+    usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 1, totalTokenCount: 4 },
+    modelVersion: 'gemini-test',
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+});
+assert.equal(googleGenerated.text, 'OK');
+assert.match(capturedUrl, /\/models\/gemini-test:generateContent$/);
+
+let capturedArkBody: Record<string, unknown> = {};
+const arkGenerated = await new VolcengineArkImageClient({
+  apiKey: 'ark-test-key',
+  baseUrl: 'https://ark.example/api/v3/',
+  model: 'seedream-test',
+}, async (input, init) => {
+  capturedUrl = String(input);
+  capturedAuthorization = new Headers(init?.headers).get('authorization') ?? '';
+  capturedArkBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+  return new Response(JSON.stringify({
+    model: 'seedream-test',
+    data: [{ b64_json: Buffer.from('image-bytes').toString('base64'), size: '2048x2048' }],
+    usage: { generated_images: 1 },
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+}).generateImage({ prompt: 'Generate an image', images: ['data:image/png;base64,aW1hZ2U='], size: '2K' });
+assert.equal(capturedUrl, 'https://ark.example/api/v3/images/generations');
+assert.equal(capturedAuthorization, 'Bearer ark-test-key');
+assert.equal(capturedArkBody.model, 'seedream-test');
+assert.deepEqual(capturedArkBody.image, ['data:image/png;base64,aW1hZ2U=']);
+assert.equal(arkGenerated.images[0]?.width, 2048);
+
+await probeVolcengineArkImageConnection({
+  apiKey: 'ark-test-key',
+  baseUrl: 'https://ark.example/api/v3/',
+  model: 'seedream-test',
+}, async (input, init) => {
+  capturedUrl = String(input);
+  capturedArkBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+  return new Response(JSON.stringify({ error: { message: 'The prompt field is required.' } }), {
+    status: 400,
+    headers: { 'Content-Type': 'application/json' },
+  });
+});
+assert.equal(capturedUrl, 'https://ark.example/api/v3/images/generations');
+assert.deepEqual(capturedArkBody, { model: 'seedream-test' });
+
 let capturedModelArkMethod = '';
 await probeSeedanceModelArkConnection({
   apiKey: 'modelark-test-key',
@@ -177,6 +255,24 @@ settings = await createExecutionConnection({
   modelId: 'seedance-preview-model',
   apiKey: 'byteplus-preview-secret',
 });
+settings = await createExecutionConnection({
+  templateId: 'anthropic-native',
+  displayName: 'Claude Writing',
+  modelId: 'claude-sonnet-4-6',
+  apiKey: 'anthropic-native-secret',
+});
+settings = await createExecutionConnection({
+  templateId: 'google-native',
+  displayName: 'Gemini Writing',
+  modelId: 'gemini-2.5-flash',
+  apiKey: 'google-native-secret',
+});
+settings = await createExecutionConnection({
+  templateId: 'volcengine-ark-seedream',
+  displayName: 'Seedream Production',
+  modelId: 'doubao-seedream-5-0-260128',
+  apiKey: 'volcengine-ark-secret',
+});
 
 const openAiCompatibleConnections = settings.connections.filter((connection) => connection.connectorId === 'openai-compatible');
 assert.equal(openAiCompatibleConnections.length, 3, 'One connector must support multiple single-model connections.');
@@ -184,6 +280,9 @@ assert.notEqual(openAiCompatibleConnections[0]?.connectionId, openAiCompatibleCo
 assert.equal(openAiCompatibleConnections.find((connection) => connection.displayName === 'Personal OpenRouter')?.modelId, 'provider/model-a');
 assert.equal(openAiCompatibleConnections.find((connection) => connection.displayName === 'OpenRouter Claude')?.modelId, 'anthropic/claude-sonnet');
 assert.equal(settings.connectionTemplates.some((template) => template.templateId === 'openrouter'), true);
+assert.equal(settings.connectionTemplates.some((template) => template.templateId === 'anthropic-native'), true);
+assert.equal(settings.connectionTemplates.some((template) => template.templateId === 'google-native'), true);
+assert.equal(settings.connectionTemplates.some((template) => template.templateId === 'volcengine-ark-seedream'), true);
 assert.equal(JSON.stringify(settings).includes('secret'), false, 'Settings API must never return credentials.');
 
 const internal = openAiCompatibleConnections.find((connection) => connection.displayName === 'Internal Gateway');
@@ -200,11 +299,36 @@ settings = await checkExecutionConnection(internal.connectionId, undefined, {
   },
 });
 assert.equal(settings.connections.find((connection) => connection.connectionId === internal.connectionId)?.status, 'ready');
-await assert.rejects(
-  saveExecutionDefault({ capabilityClass: 'text', connectionId: internal.connectionId }),
-  /does not support text/,
-  'A connection foundation must not become selectable before its Retake execution adapter exists.',
-);
+await saveExecutionDefault({ capabilityClass: 'text', connectionId: internal.connectionId });
+
+const claudeConnection = settings.connections.find((connection) => connection.displayName === 'Claude Writing');
+const geminiConnection = settings.connections.find((connection) => connection.displayName === 'Gemini Writing');
+const seedreamConnection = settings.connections.find((connection) => connection.displayName === 'Seedream Production');
+assert.ok(claudeConnection && geminiConnection && seedreamConnection);
+assert.equal(seedreamConnection.status, 'untested');
+assert.deepEqual(seedreamConnection.supportedCapabilityIds, ['image.image_to_image', 'image.text_to_image']);
+settings = await checkExecutionConnection(claudeConnection.connectionId, undefined, {
+  probeNativeText: async (providerId, config) => {
+    assert.equal(providerId, 'anthropic-native');
+    assert.equal(config.apiKey, 'anthropic-native-secret');
+  },
+});
+settings = await checkExecutionConnection(geminiConnection.connectionId, undefined, {
+  probeNativeText: async (providerId, config) => {
+    assert.equal(providerId, 'google-native');
+    assert.equal(config.apiKey, 'google-native-secret');
+  },
+});
+settings = await checkExecutionConnection(seedreamConnection.connectionId, undefined, {
+  probeVolcengineArkImage: async (config) => {
+    assert.equal(config.apiKey, 'volcengine-ark-secret');
+    assert.equal(config.model, 'doubao-seedream-5-0-260128');
+  },
+});
+assert.equal(settings.connections.find((connection) => connection.connectionId === claudeConnection.connectionId)?.status, 'ready');
+assert.equal(settings.connections.find((connection) => connection.connectionId === geminiConnection.connectionId)?.status, 'ready');
+assert.equal(settings.connections.find((connection) => connection.connectionId === seedreamConnection.connectionId)?.status, 'ready');
+await saveExecutionDefault({ capabilityClass: 'image', connectionId: seedreamConnection.connectionId });
 
 const previewConnection = settings.connections.find((connection) => connection.displayName === 'BytePlus Preview Account');
 assert.ok(previewConnection);
@@ -233,7 +357,10 @@ const workspaceSaveResponse = await saveExecutionDefault({
   responseProjectId: 'project_provider_test',
 });
 assert.equal(workspaceSaveResponse.projectDefaults[0]?.connectionId, 'retake-mock');
-assert.equal(workspaceSaveResponse.workspaceDefaults[0]?.connectionId, previewConnection.connectionId);
+assert.equal(
+  workspaceSaveResponse.workspaceDefaults.find((selection) => selection.capabilityClass === 'video')?.connectionId,
+  previewConnection.connectionId,
+);
 
 const board = structuredClone(defaultSnapshot) as BoardSnapshot;
 board.project.projectId = 'project_provider_test';
@@ -251,6 +378,18 @@ const personal = openAiCompatibleConnections.find((connection) => connection.dis
 assert.ok(personal);
 settings = await deleteExecutionConnection(personal.connectionId, 'project_provider_test');
 assert.equal(settings.connections.some((connection) => connection.connectionId === personal.connectionId), false);
+settings = await deleteExecutionConnection(seedreamConnection.connectionId, 'project_provider_test');
+assert.equal(settings.connections.some((connection) => connection.connectionId === seedreamConnection.connectionId), false);
+assert.equal(
+  settings.workspaceDefaults.some((selection) => selection.connectionId === seedreamConnection.connectionId),
+  false,
+  'Deleting a connection must remove defaults that point to it.',
+);
+const credentialsAfterDelete = JSON.parse(
+  await readFile(path.join(retakeRoot, 'settings', 'credentials.json'), 'utf8'),
+) as { credentials: Record<string, unknown> };
+assert.equal(personal.connectionId in credentialsAfterDelete.credentials, false, 'Deleting a connection must hard-delete its credential.');
+assert.equal(seedreamConnection.connectionId in credentialsAfterDelete.credentials, false, 'Deleting a selected connection must hard-delete its credential.');
 
 const metadataText = await readFile(path.join(retakeRoot, 'settings', 'execution-connections.json'), 'utf8');
 assert.equal(metadataText.includes('secret'), false, 'Connection metadata must not contain API keys.');

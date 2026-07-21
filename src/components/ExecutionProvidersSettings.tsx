@@ -352,7 +352,7 @@ function ConnectionCard({ busy, connection, draft, duplicating, editing, onBegin
       {connection.lastCheckedAt ? <p className="execution-connection-check-result"><strong>{t('settings.lastTested')}:</strong> {new Date(connection.lastCheckedAt).toLocaleString()}</p> : null}
       {connection.lastCheckMessage ? <p className="execution-connection-check-result">{connection.lastCheckMessage}</p> : null}
       {connection.lastError ? <p className="execution-connection-error">{connection.lastError}</p> : null}
-      {connection.connectorId === 'openai-compatible' || connection.connectorId === 'byteplus-modelark' ? <p className="execution-connection-check-note">{t('settings.checkMayCost')}</p> : null}
+      {['openai-compatible', 'anthropic-native', 'google-native', 'volcengine-ark', 'byteplus-modelark'].includes(connection.connectorId) ? <p className="execution-connection-check-note">{t('settings.checkMayCost')}</p> : null}
       {editing ? (
         <ConnectionForm busy={busy} draft={draft} onCancel={onCancelConfigure} onDraftChange={onDraftChange} onSave={onSave} t={t} />
       ) : (

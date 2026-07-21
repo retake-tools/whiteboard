@@ -45,6 +45,7 @@ import {
   updateExecutionConnection,
 } from './local-store/execution-provider-store';
 import type { ExecutionCapabilityClass } from '../src/core/executionProviders';
+import { startVolcengineArkImageGeneration } from './volcengine-ark-image-service';
 
 type MiddlewareContainer = {
   use(
@@ -166,6 +167,28 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               projectId: body.projectId,
               responseProjectId: body.responseProjectId,
             }));
+            return;
+          }
+
+          const arkImageExecutionMatch = url.pathname.match(/^\/image\/volcengine-ark\/executions\/([^/]+)\/run$/);
+          if (method === 'POST' && arkImageExecutionMatch) {
+            const [, executionId] = arkImageExecutionMatch;
+            const body = (await readJson(req)) as {
+              projectId?: string;
+              boardId?: string;
+              connectionId?: string;
+            };
+            if (!body.projectId || !body.boardId || !body.connectionId) {
+              sendJson(res, { error: 'projectId, boardId, and connectionId are required' }, 400);
+              return;
+            }
+            const started = await startVolcengineArkImageGeneration({
+              projectId: body.projectId,
+              boardId: body.boardId,
+              executionId,
+              connectionId: body.connectionId,
+            });
+            sendJson(res, { snapshot: started.snapshot, execution: started.execution }, 202);
             return;
           }
 

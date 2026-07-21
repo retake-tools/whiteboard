@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { createImageAssetFromDataUrl, getAssetPreviewUrl } from '../core/assetStore';
+import { loadBoardSnapshot } from '../core/boardStore';
 import { localizedBlockData } from '../core/blockLocalization';
 import { createBlockRecord, touchBoard } from '../core/blockFactory';
 import { blockLockedByGroup } from '../core/grouping';
@@ -29,7 +30,9 @@ import {
   operationReadinessMessageKey,
 } from '../core/capabilities';
 import { cancelExecution } from '../core/executionLifecycle';
+import { executionConnection, executionDefaultConnection } from '../core/executionProviderPreferences';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
+import { startVolcengineArkImage } from '../core/volcengineArkImageClient';
 import type { OperationToast, PromptPreview } from '../components/OperationFeedback';
 import type { useI18n } from '../i18n';
 import {
@@ -254,6 +257,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         textBlockPlaceholder: imageOperationDefaultPrompt(operation, t),
         operationTitle: imageOperationTitle(operation, t),
       });
+      result.operationBlock.data.connectionId = preferredImageConnection(current);
       selectedWorkflowIds = imageBranchDraftSelectionBlockIds(block, result.textBlock, result.operationBlock);
       if (draftOptions.centerWorkflow) centerBlockGroup(current, selectedWorkflowIds);
       return current;
@@ -292,6 +296,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         textBlockBody: input.instruction?.trim() || '',
         textBlockPlaceholder: imageOperationDefaultPrompt('generate_image', t),
       });
+      result.operationBlock.data.connectionId = preferredImageConnection(current);
       selectedWorkflowIds = input.slotBlock
         ? [input.slotBlock.blockId, result.textBlock.blockId, result.operationBlock.blockId]
         : [result.textBlock.blockId, result.operationBlock.blockId];
@@ -348,12 +353,27 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     let resultBlockIds: string[] = [];
     let executionId = '';
     let inputBlockIds: string[] = [];
+    let selectedConnectionId = '';
+    let usesVolcengineArk = false;
     const copyKey = `prompt:${input.block.blockId}`;
     try {
       await persistSnapshot(snapshotRef.current, { requireLocalApi: true });
       const nextSnapshot = updateSnapshot((current) => {
         const currentOperationBlock = current.blocks.find((block) => block.blockId === input.block.blockId);
         if (!currentOperationBlock || blockLockedByGroup(current, currentOperationBlock.blockId)) return current;
+        selectedConnectionId = typeof currentOperationBlock.data.connectionId === 'string'
+          ? currentOperationBlock.data.connectionId
+          : 'codex-managed';
+        const connection = executionConnection(selectedConnectionId, current.project.projectId);
+        if (!connection || connection.status !== 'ready' || !connection.supportedCapabilityIds.includes(
+          capabilityIdForOperationMode(input.operation),
+        )) {
+          throw new Error(t('feedback.connectionUnavailable'));
+        }
+        if (connection.connectorId !== 'codex-managed' && connection.connectorId !== 'volcengine-ark') {
+          throw new Error(t('feedback.connectionAdapterUnavailable'));
+        }
+        usesVolcengineArk = connection.connectorId === 'volcengine-ark';
         const hasPendingImageRole = current.edges.some((edge) => {
           if (edge.targetBlockId !== input.block.blockId || edge.kind !== 'execution_input' || edge.inputRole) return false;
           const sourceBlock = current.blocks.find((block) => block.blockId === edge.sourceBlockId);
@@ -365,6 +385,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
           operation: input.operation,
           instruction: '',
           generationParams: generationParamsFromBlock(currentOperationBlock),
+          connection,
         });
         operationPrompt = result.prompt;
         resultBlockIds = result.resultBlocks.map((resultBlock) => resultBlock.blockId);
@@ -375,6 +396,24 @@ export function useImageOperationController(options: ImageOperationControllerOpt
       await persistSnapshot(nextSnapshot, { requireLocalApi: true });
       setSelectedBlock(nextSnapshot, input.block.blockId);
       const blockIds = [...inputBlockIds, input.block.blockId, ...resultBlockIds].filter(Boolean);
+      if (usesVolcengineArk) {
+        const started = await startVolcengineArkImage({
+          projectId: nextSnapshot.project.projectId,
+          boardId: nextSnapshot.board.boardId,
+          executionId,
+          connectionId: selectedConnectionId,
+        });
+        const runningSnapshot = updateSnapshot(() => started.snapshot, { persist: false, history: true });
+        setSelectedBlocks(runningSnapshot, started.execution.outputBlockIds);
+        setOperationToast({
+          id: executionId,
+          title: t('feedback.seedreamStarted'),
+          body: t('feedback.seedreamCostNotice'),
+          tone: 'success',
+        });
+        await pollDirectImageExecution(executionId, runningSnapshot);
+        return;
+      }
       setPromptPreview({ title: t('feedback.promptTitle'), prompt: operationPrompt, copyKey, executionId, blockIds });
       await copyPromptWithHistory({ blockIds, copyKey, executionId, prompt: operationPrompt, source: 'prompt_preview' });
       closePromptPreviewAfterCopy(copyKey);
@@ -384,6 +423,38 @@ export function useImageOperationController(options: ImageOperationControllerOpt
       const currentOperationBlock = snapshotRef.current.blocks.find((block) => block.blockId === input.block.blockId && block.type === 'operation');
       const readinessIssue = currentOperationBlock ? operationReadinessFor(snapshotRef.current, currentOperationBlock).issues[0] : undefined;
       setOperationToast({ id: input.block.blockId, title: readinessIssue ? t('feedback.inputRequired') : t('feedback.handoffUnavailable'), body: readinessIssue ? t(operationReadinessMessageKey(readinessIssue)) : errorMessage, tone: 'error' });
+    }
+  }
+
+  async function pollDirectImageExecution(executionId: string, scope: BoardSnapshot): Promise<void> {
+    while (true) {
+      await delay(1_500);
+      const latest = await loadBoardSnapshot({
+        projectId: scope.project.projectId,
+        boardId: scope.board.boardId,
+      });
+      const execution = latest.executions.find((candidate) => candidate.executionId === executionId);
+      if (
+        snapshotRef.current.project.projectId === scope.project.projectId &&
+        snapshotRef.current.board.boardId === scope.board.boardId
+      ) {
+        updateSnapshot(() => latest, { persist: false, history: false });
+      }
+      if (!execution) throw new Error(`Image execution disappeared while waiting: ${executionId}`);
+      if (execution.status === 'queued' || execution.status === 'running') continue;
+      setOperationToast({
+        id: executionId,
+        title: t(execution.status === 'succeeded'
+          ? 'feedback.seedreamCompleted'
+          : execution.status === 'canceled'
+            ? 'feedback.executionCanceled'
+            : 'feedback.seedreamFailed'),
+        body: execution.status === 'succeeded'
+          ? t('feedback.seedreamCompletedNotice')
+          : execution.errorMessage ?? t('feedback.seedreamFailed'),
+        tone: execution.status === 'succeeded' ? 'success' : execution.status === 'canceled' ? undefined : 'error',
+      });
+      return;
     }
   }
 
@@ -478,4 +549,14 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     updateOperationGenerationParams,
     updateOperationGenerationProfile,
   };
+}
+
+function preferredImageConnection(snapshot: BoardSnapshot): string {
+  const defaultConnectionId = executionDefaultConnection('image', snapshot.project.projectId);
+  const defaultConnection = executionConnection(defaultConnectionId, snapshot.project.projectId);
+  return defaultConnection?.status === 'ready' ? defaultConnection.connectionId : 'codex-managed';
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }

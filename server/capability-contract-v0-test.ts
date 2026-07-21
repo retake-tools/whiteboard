@@ -8,7 +8,12 @@ import {
   type CapabilityExecutionRequest,
   type ContractValidationIssue,
 } from '../src/core/capabilityContracts';
-import { dreaminaCliAdapterDefinition, seedanceModelArkAdapterDefinition, videoGenerateCapabilityDefinition } from '../src/core/capabilityRegistry';
+import {
+  dreaminaCliAdapterDefinition,
+  seedanceModelArkAdapterDefinition,
+  videoGenerateCapabilityDefinition,
+  volcengineArkSeedreamImageAdapterDefinition,
+} from '../src/core/capabilityRegistry';
 import { definitionForLegacyCapability } from '../src/core/legacyCapabilityAdapter';
 
 const legacyCapabilityIds = [
@@ -175,6 +180,7 @@ const providerCliAdapter: AdapterDefinition = {
 assertNoIssues(validateAdapterDefinition(providerCliAdapter), 'valid provider_cli adapter');
 assertNoIssues(validateAdapterDefinition(seedanceModelArkAdapterDefinition), 'valid Seedance ModelArk adapter');
 assertNoIssues(validateAdapterDefinition(dreaminaCliAdapterDefinition), 'valid Dreamina CLI adapter');
+assertNoIssues(validateAdapterDefinition(volcengineArkSeedreamImageAdapterDefinition), 'valid Volcengine Ark Seedream image adapter');
 
 const unboundProviderCliAdapter = structuredClone(providerCliAdapter);
 delete unboundProviderCliAdapter.executionBinding;

@@ -69,9 +69,10 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
     currentExecutionProviderSettings,
   );
   const compatibleConnections = operationExecutionConnections(providerSettings?.connections ?? [], capabilityId);
-  const selectedConnection = compatibleConnections.find((connection) => connection.connectionId === data.connectionId)
-    ?? compatibleConnections.find((connection) => connection.connectionId === 'codex-managed')
-    ?? compatibleConnections[0];
+  const selectedConnection = typeof data.connectionId === 'string'
+    ? compatibleConnections.find((connection) => connection.connectionId === data.connectionId)
+    : compatibleConnections.find((connection) => connection.connectionId === 'codex-managed') ?? compatibleConnections[0];
+  const parameterProfile = generationProfileForConnection(profile, selectedConnection);
   const sourceAspectRatio = operation === 'image_to_image'
     ? finiteNumber(data.operationSourceAspectRatio)
     : undefined;
@@ -84,7 +85,7 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
     ? [{ label: t('operationToolbar.sourceAspectRatio'), value: 'source' as const }, ...standardAspectOptions]
     : standardAspectOptions;
   const hasVisibleParams = parameterKeys.some(
-    (key) => paramsSchema[key] && generationParameterVisible(profile, key),
+    (key) => paramsSchema[key] && generationParameterVisible(parameterProfile, key),
   );
   const displayState = operationDisplayState(data);
   const { isQueued, isRunning, readinessIssue, showReadinessIssue } = displayState;
@@ -187,13 +188,13 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
             }}
           >
             <span>{t('operationToolbar.params')}</span>
-            <strong>{operationParamsSummary(params, paramsSchema, profile, t('operationToolbar.sourceAspectRatio'))}</strong>
+            <strong>{operationParamsSummary(params, paramsSchema, parameterProfile, t('operationToolbar.sourceAspectRatio'))}</strong>
             <ChevronRight size={15} />
           </button>
           {isParamsOpen && !isLocked ? (
             <div className="operation-side-popover operation-param-popover">
-              {paramsSchema.aspectRatio && generationParameterVisible(profile, 'aspectRatio') ? (
-                <ParameterGroup title={t('context.aspectRatio')} parameter="aspectRatio" profile={profile}>
+              {paramsSchema.aspectRatio && generationParameterVisible(parameterProfile, 'aspectRatio') ? (
+                <ParameterGroup title={t('context.aspectRatio')} parameter="aspectRatio" profile={parameterProfile}>
                   <div className="operation-param-options is-aspect-options">
                     {availableAspectOptions.map((option) => (
                       <button
@@ -213,8 +214,8 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
                   </div>
                 </ParameterGroup>
               ) : null}
-              {paramsSchema.resolution && generationParameterVisible(profile, 'resolution') ? (
-                <ParameterGroup title={t('context.resolution')} parameter="resolution" profile={profile}>
+              {paramsSchema.resolution && generationParameterVisible(parameterProfile, 'resolution') ? (
+                <ParameterGroup title={t('context.resolution')} parameter="resolution" profile={parameterProfile}>
                   <div className="operation-param-options">
                     {resolutionOptions.map((option) => (
                       <button
@@ -233,8 +234,8 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
                   </div>
                 </ParameterGroup>
               ) : null}
-              {paramsSchema.count && generationParameterVisible(profile, 'count') ? (
-                <ParameterGroup title={t('operationToolbar.count')} parameter="count" profile={profile}>
+              {paramsSchema.count && generationParameterVisible(parameterProfile, 'count') ? (
+                <ParameterGroup title={t('operationToolbar.count')} parameter="count" profile={parameterProfile}>
                   <div className="operation-param-options">
                     {[1, 2, 3, 4].map((count) => (
                       <button
@@ -253,8 +254,8 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
                   </div>
                 </ParameterGroup>
               ) : null}
-              {paramsSchema.duration && generationParameterVisible(profile, 'duration') ? (
-                <ParameterGroup title={t('operationToolbar.duration')} parameter="duration" profile={profile}>
+              {paramsSchema.duration && generationParameterVisible(parameterProfile, 'duration') ? (
+                <ParameterGroup title={t('operationToolbar.duration')} parameter="duration" profile={parameterProfile}>
                   <div className="operation-param-options">
                     {durationOptions.map((duration) => (
                       <button
@@ -273,8 +274,8 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
                   </div>
                 </ParameterGroup>
               ) : null}
-              {paramsSchema.motion && generationParameterVisible(profile, 'motion') ? (
-                <ParameterGroup title={t('operationToolbar.motion')} parameter="motion" profile={profile}>
+              {paramsSchema.motion && generationParameterVisible(parameterProfile, 'motion') ? (
+                <ParameterGroup title={t('operationToolbar.motion')} parameter="motion" profile={parameterProfile}>
                   <div className="operation-param-options">
                     {motionOptions.map((option) => (
                       <button
@@ -293,8 +294,8 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
                   </div>
                 </ParameterGroup>
               ) : null}
-              {paramsSchema.strength && generationParameterVisible(profile, 'strength') ? (
-                <ParameterGroup title={t('operationToolbar.strength')} parameter="strength" profile={profile}>
+              {paramsSchema.strength && generationParameterVisible(parameterProfile, 'strength') ? (
+                <ParameterGroup title={t('operationToolbar.strength')} parameter="strength" profile={parameterProfile}>
                   <label className="operation-param-strength">
                     <input
                       type="range"
@@ -437,6 +438,22 @@ function operationExecutionConnections(
   capabilityId: string,
 ): ExecutionConnectionSummary[] {
   return connections.filter((connection) => connection.supportedCapabilityIds.includes(capabilityId));
+}
+
+function generationProfileForConnection(
+  profile: GenerationProfile,
+  connection: ExecutionConnectionSummary | undefined,
+): GenerationProfile {
+  if (connection?.connectorId !== 'volcengine-ark') return profile;
+  return {
+    ...profile,
+    parameterSupport: {
+      ...profile.parameterSupport,
+      aspectRatio: 'supported',
+      count: 'supported',
+      resolution: 'supported',
+    },
+  };
 }
 
 function connectionLabel(connection: ExecutionConnectionSummary): string {

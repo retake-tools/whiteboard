@@ -147,8 +147,15 @@ type TranslationKey =
   | 'feedback.taskCreatedCopyFailed'
   | 'feedback.taskCreatedCopied'
   | 'feedback.handoffUnavailable'
+  | 'feedback.connectionUnavailable'
+  | 'feedback.connectionAdapterUnavailable'
   | 'feedback.inputRequired'
   | 'feedback.executionCanceled'
+  | 'feedback.seedreamStarted'
+  | 'feedback.seedreamCostNotice'
+  | 'feedback.seedreamCompleted'
+  | 'feedback.seedreamCompletedNotice'
+  | 'feedback.seedreamFailed'
   | 'feedback.queuedExecutionCanceled'
   | 'feedback.runningExecutionCanceled'
   | 'feedback.runningExecutionCancelConfirm'
@@ -643,8 +650,15 @@ const translations: Record<Locale, Translations> = {
     'feedback.taskCreatedCopyFailed': 'Prompt preview is ready, but clipboard copy failed.',
     'feedback.taskCreatedCopied': 'Prompt copied. Continue in Codex to generate the result.',
     'feedback.handoffUnavailable': 'Codex handoff unavailable',
+    'feedback.connectionUnavailable': 'The selected connection is unavailable. Test it or choose another connection in Settings or this Operation.',
+    'feedback.connectionAdapterUnavailable': 'The selected connection does not have an installed image execution adapter.',
     'feedback.inputRequired': 'Complete the operation inputs',
     'feedback.executionCanceled': 'Execution canceled',
+    'feedback.seedreamStarted': 'Seedream generation started',
+    'feedback.seedreamCostNotice': 'Volcengine Ark is generating paid image results in the background.',
+    'feedback.seedreamCompleted': 'Seedream generation completed',
+    'feedback.seedreamCompletedNotice': 'Generated images were saved as Retake assets.',
+    'feedback.seedreamFailed': 'Seedream generation failed',
     'feedback.queuedExecutionCanceled': 'The queued execution and all result placeholders were removed.',
     'feedback.runningExecutionCanceled': 'Writeback was canceled. Codex generation may continue outside Retake.',
     'feedback.runningExecutionCancelConfirm': 'Codex has already started this execution. Cancel it and remove all result placeholders? Generation may continue in Codex, but Retake will reject writeback.',
@@ -900,7 +914,7 @@ const translations: Record<Locale, Translations> = {
     'settings.defaults': 'Defaults',
     'settings.configure': 'Configure',
     'settings.checkConnection': 'Test connection',
-    'settings.checkMayCost': 'OpenAI-compatible tests send a minimal text request and may incur a small provider charge. ModelArk tests only list tasks and do not create a generation task.',
+    'settings.checkMayCost': 'OpenAI-compatible, Anthropic, and Gemini tests send a minimal paid text request. Volcengine Ark validates the authenticated image endpoint without generating an asset. ModelArk only lists tasks.',
     'settings.lastTested': 'Last tested',
     'settings.testRequired': 'Save the connection, then test it before using it for execution.',
     'settings.saveConnection': 'Save connection',
@@ -1134,8 +1148,15 @@ const translations: Record<Locale, Translations> = {
     'feedback.taskCreatedCopyFailed': '提示预览已生成，但复制到剪贴板失败。',
     'feedback.taskCreatedCopied': '提示已复制。继续在 Codex 中生成结果。',
     'feedback.handoffUnavailable': '暂时无法交给 Codex',
+    'feedback.connectionUnavailable': '当前选择的连接不可用，请在 Settings 测试连接，或在默认值 / 当前 Operation 中手动更换。',
+    'feedback.connectionAdapterUnavailable': '当前连接尚未安装图片执行 Adapter。',
     'feedback.inputRequired': '请完善操作输入',
     'feedback.executionCanceled': '已取消执行',
+    'feedback.seedreamStarted': 'Seedream 已开始生成',
+    'feedback.seedreamCostNotice': '火山方舟正在后台生成付费图片结果。',
+    'feedback.seedreamCompleted': 'Seedream 生成完成',
+    'feedback.seedreamCompletedNotice': '生成图片已保存为 Retake Asset。',
+    'feedback.seedreamFailed': 'Seedream 生成失败',
     'feedback.queuedExecutionCanceled': '已取消等待中的执行，并移除全部结果占位块。',
     'feedback.runningExecutionCanceled': '已取消 Retake 写回；Codex 中的生成可能仍会继续。',
     'feedback.runningExecutionCancelConfirm': 'Codex 已开始执行。是否取消整次执行并移除全部结果占位块？Codex 中的生成可能仍会继续，但 Retake 将拒绝后续写回。',
@@ -1391,7 +1412,7 @@ const translations: Record<Locale, Translations> = {
     'settings.defaults': '默认值',
     'settings.configure': '配置',
     'settings.checkConnection': '测试连接',
-    'settings.checkMayCost': 'OpenAI-compatible 测试会发送一次极小的文本请求，可能产生少量费用；ModelArk 测试只读取任务列表，不会创建生成任务。',
+    'settings.checkMayCost': 'OpenAI-compatible、Anthropic 和 Gemini 测试会发送一次极小的付费文本请求；火山方舟只校验图片端点和鉴权，不生成资产；ModelArk 只读取任务列表。',
     'settings.lastTested': '上次测试',
     'settings.testRequired': '请先保存连接，再完成测试后用于执行。',
     'settings.saveConnection': '保存连接',
