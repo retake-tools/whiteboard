@@ -275,6 +275,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
 
   function connectionKindForBlocks(sourceBlock?: BlockRecord, targetBlock?: BlockRecord): BoardEdgeRecord['kind'] {
     if (targetBlock?.type === 'operation' && sourceBlock?.type !== 'operation') return 'execution_input';
+    if (targetBlock?.type === 'video' && sourceBlock?.type === 'image') return 'execution_input';
     if (sourceBlock?.type === 'operation' && targetBlock?.type !== 'operation') return 'execution_output';
     return 'visual_note';
   }

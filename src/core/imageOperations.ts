@@ -12,6 +12,7 @@ import type {
 import { maxZIndex, touchBoard } from './blockFactory';
 import { fitMediaBlockSize, imageResultColumnGap } from './blockSizing';
 import { createExecutionResultGroup, expandGroupToContents } from './grouping';
+import { syncExecutionOutputContractSnapshot } from './executionContractSnapshot';
 import { createImageOperationPrompt } from './prompts';
 import { recordExecutionConfiguration } from './executionConfiguration';
 import { imageBlockAspectRatio } from './operationAspectRatio';
@@ -616,6 +617,7 @@ export function completeLocalImageOperation(
   execution.status = 'succeeded';
   execution.completedAt = completedAt;
   execution.outputAssetIds = [asset.assetId];
+  syncExecutionOutputContractSnapshot(execution);
   delete execution.errorMessage;
   operationBlock.data.status = 'succeeded';
   operationBlock.updatedAt = completedAt;
@@ -658,6 +660,7 @@ export function failLocalImageOperation(
   const completedAt = nowIso();
   execution.status = 'failed';
   execution.completedAt = completedAt;
+  syncExecutionOutputContractSnapshot(execution);
   execution.errorMessage = input.errorMessage;
   const blockIds = [
     typeof execution.params?.operationBlockId === 'string' ? execution.params.operationBlockId : undefined,

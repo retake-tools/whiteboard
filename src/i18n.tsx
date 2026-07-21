@@ -21,6 +21,34 @@ type TranslationKey =
   | 'block.video.body'
   | 'block.videoPlaceholder'
   | 'block.video.title'
+  | 'videoGeneration.count'
+  | 'videoGeneration.aspectRatio'
+  | 'videoGeneration.dreaminaCompleted'
+  | 'videoGeneration.dreaminaCompletedNotice'
+  | 'videoGeneration.dreaminaCostNotice'
+  | 'videoGeneration.dreaminaStarted'
+  | 'videoGeneration.duration'
+  | 'videoGeneration.failed'
+  | 'videoGeneration.generateMock'
+  | 'videoGeneration.generateDreamina'
+  | 'videoGeneration.generateSeedance'
+  | 'videoGeneration.mockCompleted'
+  | 'videoGeneration.mockNotice'
+  | 'videoGeneration.mockResult'
+  | 'videoGeneration.profileMock'
+  | 'videoGeneration.profile'
+  | 'videoGeneration.profileMockOption'
+  | 'videoGeneration.profileDreamina'
+  | 'videoGeneration.profileDreaminaOption'
+  | 'videoGeneration.profileSeedance'
+  | 'videoGeneration.profileSeedanceOption'
+  | 'videoGeneration.prompt'
+  | 'videoGeneration.promptPlaceholder'
+  | 'videoGeneration.running'
+  | 'videoGeneration.seedanceCompleted'
+  | 'videoGeneration.seedanceCompletedNotice'
+  | 'videoGeneration.seedanceCostNotice'
+  | 'videoGeneration.seedanceStarted'
   | 'configuration.capability'
   | 'configuration.initial'
   | 'configuration.input'
@@ -440,6 +468,34 @@ const translations: Record<Locale, Translations> = {
     'block.video.body': 'Video preview should load lazily in later spikes.',
     'block.videoPlaceholder': 'Video asset placeholder',
     'block.video.title': 'Video block',
+    'videoGeneration.count': 'Count',
+    'videoGeneration.aspectRatio': 'Ratio',
+    'videoGeneration.dreaminaCompleted': 'Dreamina CLI video generation completed',
+    'videoGeneration.dreaminaCompletedNotice': 'The Dreamina VIP result was imported into Retake AssetStore and attached to its result block.',
+    'videoGeneration.dreaminaCostNotice': 'This uses seedance2.0_vip on the signed-in Dreamina account. Each requested result is a separate task and consumes membership credits.',
+    'videoGeneration.dreaminaStarted': 'Dreamina CLI video generation started',
+    'videoGeneration.duration': 'Duration',
+    'videoGeneration.failed': 'Video generation failed',
+    'videoGeneration.generateMock': 'Generate mock video',
+    'videoGeneration.generateDreamina': 'Generate with Dreamina VIP',
+    'videoGeneration.generateSeedance': 'Generate with Seedance',
+    'videoGeneration.mockCompleted': 'Mock video results created',
+    'videoGeneration.mockNotice': 'This verifies the Retake execution path only. No provider was called and no usage was charged.',
+    'videoGeneration.mockResult': 'Mock video result',
+    'videoGeneration.profileMock': 'Profile: Retake mock · no provider cost',
+    'videoGeneration.profile': 'Execution profile',
+    'videoGeneration.profileMockOption': 'Retake Mock (free)',
+    'videoGeneration.profileDreamina': 'Profile: official Dreamina CLI · seedance2.0_vip · remote tasks cannot be canceled',
+    'videoGeneration.profileDreaminaOption': 'Dreamina CLI (VIP membership)',
+    'videoGeneration.profileSeedance': 'Profile: Seedance 2.0 · ModelArk direct API · provider charges apply',
+    'videoGeneration.profileSeedanceOption': 'Seedance 2.0 (paid)',
+    'videoGeneration.prompt': 'Video prompt',
+    'videoGeneration.promptPlaceholder': 'Describe motion, camera, subject, and scene...',
+    'videoGeneration.running': 'Generating…',
+    'videoGeneration.seedanceCompleted': 'Seedance video generation completed',
+    'videoGeneration.seedanceCompletedNotice': 'The generated video was imported into Retake AssetStore and attached to its result block.',
+    'videoGeneration.seedanceCostNotice': 'This calls the configured ModelArk account. Each requested result is a separate paid provider task.',
+    'videoGeneration.seedanceStarted': 'Seedance video generation started',
     'configuration.capability': 'Capability',
     'configuration.initial': 'Initial',
     'configuration.input': 'Images',
@@ -854,6 +910,34 @@ const translations: Record<Locale, Translations> = {
     'block.video.body': '视频预览会在后续版本中按需加载。',
     'block.videoPlaceholder': '视频素材占位',
     'block.video.title': '视频块',
+    'videoGeneration.count': '数量',
+    'videoGeneration.aspectRatio': '画幅',
+    'videoGeneration.dreaminaCompleted': '即梦 CLI 视频生成完成',
+    'videoGeneration.dreaminaCompletedNotice': '即梦 VIP 生成结果已导入 Retake AssetStore，并绑定到对应结果 Block。',
+    'videoGeneration.dreaminaCostNotice': '本次使用当前已登录即梦账户的 seedance2.0_vip；每个结果都会独立提交并消耗会员额度。',
+    'videoGeneration.dreaminaStarted': '即梦 CLI 视频生成已开始',
+    'videoGeneration.duration': '时长',
+    'videoGeneration.failed': '视频生成失败',
+    'videoGeneration.generateMock': '生成测试视频',
+    'videoGeneration.generateDreamina': '使用即梦 VIP 生成',
+    'videoGeneration.generateSeedance': '使用 Seedance 生成',
+    'videoGeneration.mockCompleted': '已生成测试视频结果',
+    'videoGeneration.mockNotice': '本次只验证 Retake 执行链路，没有调用供应商，也不会产生模型费用。',
+    'videoGeneration.mockResult': '测试视频结果',
+    'videoGeneration.profileMock': '执行配置：Retake Mock · 不调用供应商',
+    'videoGeneration.profile': '执行配置',
+    'videoGeneration.profileMockOption': 'Retake Mock（免费）',
+    'videoGeneration.profileDreamina': '执行配置：即梦官方 CLI · seedance2.0_vip · 远端任务提交后不可取消',
+    'videoGeneration.profileDreaminaOption': '即梦 CLI（VIP 会员）',
+    'videoGeneration.profileSeedance': '执行配置：Seedance 2.0 · ModelArk Direct API · 会产生供应商费用',
+    'videoGeneration.profileSeedanceOption': 'Seedance 2.0（付费）',
+    'videoGeneration.prompt': '视频提示词',
+    'videoGeneration.promptPlaceholder': '描述动作、镜头、主体和场景…',
+    'videoGeneration.running': '生成中…',
+    'videoGeneration.seedanceCompleted': 'Seedance 视频生成完成',
+    'videoGeneration.seedanceCompletedNotice': '生成视频已导入 Retake AssetStore，并绑定到对应结果 Block。',
+    'videoGeneration.seedanceCostNotice': '本次会调用已配置的 ModelArk 账户；每个结果对应一个独立的付费供应商任务。',
+    'videoGeneration.seedanceStarted': 'Seedance 视频生成已开始',
     'configuration.capability': '能力',
     'configuration.initial': '首次生成',
     'configuration.input': '图片',

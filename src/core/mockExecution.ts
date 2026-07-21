@@ -1,5 +1,6 @@
 import { createGeneratedImageAsset } from './assetStore';
 import { maxZIndex, touchBoard } from './blockFactory';
+import { syncExecutionOutputContractSnapshot } from './executionContractSnapshot';
 import { createId, nowIso } from './id';
 import type { AssetRecord, BlockRecord, BoardSnapshot, ExecutionRecord } from './types';
 
@@ -122,6 +123,7 @@ export function addMockExecutionResult(
       operationBlockId,
     };
     existingExecution.completedAt = nowIso();
+    syncExecutionOutputContractSnapshot(existingExecution);
   }
 
   return touchBoard(snapshot);

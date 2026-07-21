@@ -1,5 +1,12 @@
 import type { Edge, Node } from '@xyflow/react';
 import type { AnnotationDraft } from './imageAnnotations';
+import type {
+  AdapterDefinition,
+  BlockExecutionDraft,
+  CapabilityDefinitionLock,
+  CapabilityInputBinding,
+  SkillDefinitionLock,
+} from './capabilityContracts';
 
 export type BlockType = 'text' | 'image' | 'video' | 'operation' | 'group';
 
@@ -40,7 +47,14 @@ export type OperationReadinessIssue =
   | 'source_image_missing'
   | 'text_input_missing';
 
-export type AdapterKind = 'direct_api' | 'mcp_agent' | 'cli_agent' | 'local_canvas' | 'manual_import' | 'mock';
+export type AdapterKind =
+  | 'direct_api'
+  | 'provider_cli'
+  | 'mcp_agent'
+  | 'cli_agent'
+  | 'local_canvas'
+  | 'manual_import'
+  | 'mock';
 
 export type AgentHost = 'codex' | 'claude' | 'cursor' | 'other';
 
@@ -148,6 +162,33 @@ export interface ExecutionRecord {
   configurationFingerprint?: string;
   operationVersion?: number;
   previousExecutionId?: string;
+  requestId?: string;
+  capabilityLock?: CapabilityDefinitionLock;
+  skillSnapshot?: SkillDefinitionLock;
+  adapterSnapshot?: Pick<
+    AdapterDefinition,
+    | 'adapterId'
+    | 'version'
+    | 'definitionHash'
+    | 'adapterClass'
+    | 'routeKind'
+    | 'provider'
+    | 'model'
+  >;
+  inputBindingsSnapshot?: CapabilityInputBinding[];
+  outputSlotResults?: ExecutionOutputSlotResult[];
+  resultSummary?: ExecutionResultSummary;
+}
+
+export interface ExecutionOutputSlotResult {
+  slotId: string;
+  assetIds: string[];
+}
+
+export interface ExecutionResultSummary {
+  requested: number;
+  succeeded: number;
+  failed: number;
 }
 
 export interface ExecutionConfigurationInputSnapshot {
@@ -280,6 +321,7 @@ export interface BlockData {
   executionChangeKinds?: ExecutionConfigurationChangeKind[];
   executionVersion?: number;
   executionStatus?: ExecutionStatus;
+  executionDraft?: BlockExecutionDraft;
 }
 
 export interface BlockRecord {

@@ -304,6 +304,16 @@ export function executionInputRoleOptionsFor(
   sourceBlock: BlockRecord,
   operationBlock: BlockRecord,
 ): ExecutionInputRole[] {
+  if (operationBlock.type === 'video') {
+    if (sourceBlock.type !== 'image') return [];
+    return [
+      'first_frame',
+      'last_frame',
+      'character_reference',
+      'environment_reference',
+      'general_reference',
+    ];
+  }
   if (operationBlock.type !== 'operation') return [];
 
   const capabilityId =

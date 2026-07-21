@@ -774,6 +774,132 @@
   font-size: 12px;
 }
 
+.video-generation-form {
+  display: grid;
+  gap: 7px;
+  padding: 10px 12px 12px;
+}
+
+.video-generation-form textarea {
+  box-sizing: border-box;
+  min-height: 44px;
+  max-height: 58px;
+  resize: vertical;
+  border: 1px solid var(--retake-border-subtle);
+  border-radius: 7px;
+  padding: 7px 8px;
+  background: var(--retake-surface-elevated);
+  color: var(--retake-text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.video-generation-fields {
+  display: flex;
+  gap: 8px;
+}
+
+.video-generation-profile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: var(--retake-text-secondary);
+  font-size: 10px;
+}
+
+.video-generation-profile select {
+  min-width: 0;
+  border: 1px solid var(--retake-border-subtle);
+  border-radius: 6px;
+  background: var(--retake-surface-elevated);
+  color: var(--retake-text);
+  font-size: 11px;
+}
+
+.video-generation-fields label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  color: var(--retake-text-secondary);
+  font-size: 10px;
+}
+
+.video-generation-fields select {
+  min-width: 50px;
+  border: 1px solid var(--retake-border-subtle);
+  border-radius: 6px;
+  background: var(--retake-surface-elevated);
+  color: var(--retake-text);
+  font-size: 11px;
+}
+
+.video-generate-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 28px;
+  border: 0;
+  border-radius: 7px;
+  background: #f97316;
+  color: white;
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.video-generate-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.video-generation-form > small {
+  color: var(--retake-text-subtle);
+  font-size: 9px;
+  text-align: center;
+}
+
+.video-result-body {
+  position: relative;
+  height: 100%;
+  min-height: 122px;
+  overflow: hidden;
+  background: #111827;
+}
+
+.video-result-body video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.video-mock-result {
+  display: flex;
+  height: 100%;
+  min-height: 122px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #fed7aa;
+  background: linear-gradient(145deg, #111827, #431407);
+  font-size: 11px;
+}
+
+.video-result-body > .status-pill {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+}
+
+.video-info-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;

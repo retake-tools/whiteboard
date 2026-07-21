@@ -1,5 +1,6 @@
 import { connectedInputBlocks, isLocalCanvasCapability, promptTextFromInputs } from './capabilities';
 import { sourceImageAspectRatio } from './operationAspectRatio';
+import { recordLegacyExecutionContractSnapshot } from './executionContractSnapshot';
 import type {
   BlockRecord,
   BoardSnapshot,
@@ -138,6 +139,7 @@ export function recordExecutionConfiguration(
 
   execution.configuration = configuration;
   execution.configurationFingerprint = configurationFingerprint(configuration);
+  recordLegacyExecutionContractSnapshot(snapshot, execution, operationBlock);
 }
 
 export function assignExecutionVersion(snapshot: BoardSnapshot, execution: ExecutionRecord): void {

@@ -44,7 +44,16 @@ export function cancelExecution(
   if (!execution || !executionIsActive(execution)) return { execution, removedBlockIds: [] };
 
   const updatedAt = nowIso();
-  const outputBlockIds = new Set(execution.outputBlockIds);
+  const shortcutBlockId = typeof execution.params?.shortcutBlockId === 'string'
+    ? execution.params.shortcutBlockId
+    : undefined;
+  const outputBlockIds = new Set(
+    execution.outputBlockIds.filter((blockId) => {
+      if (blockId === shortcutBlockId) return false;
+      const block = snapshot.blocks.find((candidate) => candidate.blockId === blockId);
+      return !block?.data.assetId;
+    }),
+  );
   const resultGroupIds = new Set(
     snapshot.blocks
       .filter(
@@ -78,6 +87,21 @@ export function cancelExecution(
   snapshot.edges = snapshot.edges.filter(
     (edge) => !removedBlockIds.has(edge.sourceBlockId) && !removedBlockIds.has(edge.targetBlockId),
   );
+
+  const preservedShortcutBlock = shortcutBlockId
+    ? snapshot.blocks.find((block) => block.blockId === shortcutBlockId && block.type === 'video')
+    : undefined;
+  if (preservedShortcutBlock && !preservedShortcutBlock.data.assetId) {
+    preservedShortcutBlock.data = {
+      ...preservedShortcutBlock.data,
+      title: 'Video block',
+      status: undefined,
+      sourceExecutionId: undefined,
+      resultIndex: undefined,
+      resultCount: undefined,
+    };
+    preservedShortcutBlock.updatedAt = updatedAt;
+  }
 
   const operationBlockId = executionOperationBlockId(execution);
   const operationBlock = snapshot.blocks.find(

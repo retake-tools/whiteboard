@@ -64,9 +64,9 @@ export function FloatingToolbar({
         <MenuItem disabled icon={<Sparkles size={15} />} label={t('toolbar.styleTransfer')} />
       </ToolbarMenu>
       <ToolbarMenu icon={<Clapperboard size={18} />} label={t('toolbar.videoCreation')}>
-        <MenuItem disabled icon={<FileText size={15} />} label={t('toolbar.textToVideo')} />
-        <MenuItem disabled icon={<ImageIcon size={15} />} label={t('toolbar.imageToVideo')} />
-        <MenuItem disabled icon={<Clapperboard size={15} />} label={t('toolbar.firstLastFrameVideo')} />
+        <MenuItem icon={<FileText size={15} />} label={t('toolbar.textToVideo')} onClick={() => onAddBlock('video')} />
+        <MenuItem icon={<ImageIcon size={15} />} label={t('toolbar.imageToVideo')} onClick={() => onAddBlock('video')} />
+        <MenuItem icon={<Clapperboard size={15} />} label={t('toolbar.firstLastFrameVideo')} onClick={() => onAddBlock('video')} />
       </ToolbarMenu>
       <div className="toolbar-divider" />
       <ToolButton isPressed={activeTool === 'group'} label={t('toolbar.addGroup')} onClick={() => onAddBlock('group')}>

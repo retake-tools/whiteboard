@@ -82,6 +82,8 @@ const completed = completeLocalImageOperation(snapshot, {
 
 assert.equal(completed.execution.status, 'succeeded');
 assert.deepEqual(completed.execution.outputAssetIds, [resultAsset.assetId]);
+assert.deepEqual(completed.execution.outputSlotResults, [{ slotId: 'images', assetIds: [resultAsset.assetId] }]);
+assert.deepEqual(completed.execution.resultSummary, { requested: 1, succeeded: 1, failed: 0 });
 assert.equal(completed.operationBlock.data.status, 'succeeded');
 assert.equal(completed.resultBlock.data.status, 'succeeded');
 assert.equal(completed.resultBlock.data.assetId, resultAsset.assetId);

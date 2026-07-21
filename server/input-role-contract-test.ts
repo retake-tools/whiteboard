@@ -268,6 +268,20 @@ if (
 ) {
   throw new Error('Expected a queued execution to preserve configuration without consuming a version');
 }
+if (
+  execution.execution.capabilityLock?.capabilityId !== 'image.image_to_image' ||
+  execution.execution.capabilityLock.definitionHash !== 'legacy:image.image_to_image:schema-v1' ||
+  execution.execution.adapterSnapshot?.adapterId !== 'codex-managed' ||
+  execution.execution.adapterSnapshot.routeKind !== 'mcp_manual' ||
+  execution.execution.inputBindingsSnapshot?.find((binding) => binding.slotId === 'prompt')?.values[0]?.kind !== 'block' ||
+  execution.execution.inputBindingsSnapshot?.find((binding) => binding.slotId === 'source_image')?.values[0]?.kind !== 'asset' ||
+  execution.execution.inputBindingsSnapshot?.find((binding) => binding.slotId === 'references')?.values[0]?.kind !== 'asset' ||
+  execution.execution.outputSlotResults?.[0]?.slotId !== 'images' ||
+  execution.execution.resultSummary?.requested !== 2 ||
+  execution.execution.resultSummary.succeeded !== 0
+) {
+  throw new Error('Expected the queued execution to preserve the V0 named-slot contract snapshot');
+}
 const queuedGroupNode = createFlowNodes(snapshot).find(
   (node) => node.data.groupExecutionId === execution.execution.executionId,
 );

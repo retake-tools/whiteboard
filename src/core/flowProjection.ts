@@ -59,7 +59,9 @@ export function createFlowNodes(
   const selectedBlockIds = new Set(options.selectedBlockIds ?? []);
   const selectionScopeBlockIds = new Set(groupSelectionScopeBlockIds(snapshot, options.selectedBlockIds ?? []));
   const selectedOperation = snapshot.blocks.find(
-    (block) => block.blockId === options.selectedOperationBlockId && block.type === 'operation',
+    (block) =>
+      block.blockId === options.selectedOperationBlockId &&
+      (block.type === 'operation' || block.type === 'video'),
   );
   const inputMetadataByBlockId = new Map(
     snapshot.edges

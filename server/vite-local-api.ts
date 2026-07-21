@@ -31,6 +31,10 @@ import {
   validateCodexProjectBinding,
 } from './local-store';
 import type { BoardSnapshot } from '../src/core/types';
+import { seedanceModelArkAvailability } from './seedance-modelark-client';
+import { cancelSeedanceVideoGeneration, startSeedanceVideoGeneration } from './seedance-video-service';
+import { dreaminaCliAvailability } from './dreamina-cli-client';
+import { cancelDreaminaCliVideoGeneration, startDreaminaCliVideoGeneration } from './dreamina-cli-video-service';
 
 type MiddlewareContainer = {
   use(
@@ -59,6 +63,110 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
 
           if (method === 'GET' && url.pathname === '/health') {
             sendJson(res, { ok: true, service: 'retake-whiteboard' });
+            return;
+          }
+
+          if (method === 'GET' && url.pathname === '/video/seedance-modelark/availability') {
+            sendJson(res, seedanceModelArkAvailability());
+            return;
+          }
+
+          if (method === 'GET' && url.pathname === '/video/dreamina-cli/availability') {
+            sendJson(res, await dreaminaCliAvailability());
+            return;
+          }
+
+          if (method === 'POST' && url.pathname === '/video/dreamina-cli/generate') {
+            const body = (await readJson(req)) as {
+              projectId?: string;
+              boardId?: string;
+              targetBlockId?: string;
+              prompt?: string;
+              durationSeconds?: number;
+              outputCount?: number;
+              aspectRatio?: string;
+            };
+            if (!body.projectId || !body.boardId || !body.targetBlockId || typeof body.prompt !== 'string') {
+              sendJson(res, { error: 'projectId, boardId, targetBlockId, and prompt are required' }, 400);
+              return;
+            }
+            const started = await startDreaminaCliVideoGeneration({
+              projectId: body.projectId,
+              boardId: body.boardId,
+              targetBlockId: body.targetBlockId,
+              prompt: body.prompt,
+              durationSeconds: body.durationSeconds ?? 8,
+              outputCount: body.outputCount ?? 1,
+              aspectRatio: body.aspectRatio ?? '9:16',
+            });
+            sendJson(res, { snapshot: started.snapshot, execution: started.execution }, 202);
+            return;
+          }
+
+          const cancelDreaminaMatch = url.pathname.match(/^\/video\/dreamina-cli\/executions\/([^/]+)\/cancel$/);
+          if (method === 'POST' && cancelDreaminaMatch) {
+            const [, executionId] = cancelDreaminaMatch;
+            const body = (await readJson(req)) as { projectId?: string; boardId?: string; remoteOnly?: boolean };
+            if (!body.projectId || !body.boardId) {
+              sendJson(res, { error: 'projectId and boardId are required' }, 400);
+              return;
+            }
+            sendJson(res, await cancelDreaminaCliVideoGeneration({
+              projectId: body.projectId,
+              boardId: body.boardId,
+              executionId,
+              remoteOnly: body.remoteOnly,
+            }));
+            return;
+          }
+
+          if (method === 'POST' && url.pathname === '/video/seedance-modelark/generate') {
+            const body = (await readJson(req)) as {
+              projectId?: string;
+              boardId?: string;
+              targetBlockId?: string;
+              prompt?: string;
+              durationSeconds?: number;
+              outputCount?: number;
+              aspectRatio?: string;
+            };
+            if (!body.projectId || !body.boardId || !body.targetBlockId || typeof body.prompt !== 'string') {
+              sendJson(res, { error: 'projectId, boardId, targetBlockId, and prompt are required' }, 400);
+              return;
+            }
+            const started = await startSeedanceVideoGeneration({
+              projectId: body.projectId,
+              boardId: body.boardId,
+              targetBlockId: body.targetBlockId,
+              prompt: body.prompt,
+              durationSeconds: body.durationSeconds ?? 8,
+              outputCount: body.outputCount ?? 1,
+              aspectRatio: body.aspectRatio,
+            });
+            sendJson(res, { snapshot: started.snapshot, execution: started.execution }, 202);
+            return;
+          }
+
+          const cancelSeedanceMatch = url.pathname.match(/^\/video\/seedance-modelark\/executions\/([^/]+)\/cancel$/);
+          if (method === 'POST' && cancelSeedanceMatch) {
+            const [, executionId] = cancelSeedanceMatch;
+            const body = (await readJson(req)) as {
+              projectId?: string;
+              boardId?: string;
+              providerTaskIds?: string[];
+              remoteOnly?: boolean;
+            };
+            if (!body.projectId || !body.boardId) {
+              sendJson(res, { error: 'projectId and boardId are required' }, 400);
+              return;
+            }
+            sendJson(res, await cancelSeedanceVideoGeneration({
+              projectId: body.projectId,
+              boardId: body.boardId,
+              executionId,
+              providerTaskIds: body.providerTaskIds,
+              remoteOnly: body.remoteOnly,
+            }));
             return;
           }
 

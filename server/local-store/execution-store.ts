@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { assignExecutionVersion } from '../../src/core/executionConfiguration';
+import { syncExecutionOutputContractSnapshot } from '../../src/core/executionContractSnapshot';
 import type { AssetRecord, BlockRecord, BoardSnapshot, ExecutionRecord } from '../../src/core/types';
 import { touchSnapshot } from './context';
 import { readAssetMetadata } from './asset-files';
@@ -94,6 +95,7 @@ export async function completeExecution(input: {
   execution.status = 'succeeded';
   execution.outputBlockIds = mergeUnique(execution.outputBlockIds, input.outputBlockIds ?? []);
   execution.outputAssetIds = mergeUnique(execution.outputAssetIds, input.outputAssetIds ?? []);
+  syncExecutionOutputContractSnapshot(execution);
   execution.completedAt = new Date().toISOString();
   delete execution.errorMessage;
   markExecutionBlocks(snapshot, input.executionId, 'succeeded');
@@ -111,6 +113,13 @@ export async function failExecution(input: { projectId: string; boardId: string;
   execution.status = 'failed';
   execution.completedAt = new Date().toISOString();
   execution.errorMessage = input.errorMessage;
+  const succeeded = execution.outputBlockIds.length - failedResultBlockIds.length;
+  execution.resultSummary = {
+    requested: execution.outputBlockIds.length,
+    succeeded,
+    failed: failedResultBlockIds.length,
+  };
+  syncExecutionOutputContractSnapshot(execution);
   syncExecutionBlocks(snapshot, execution);
   appendHistoryEvent(snapshot, {
     type: 'execution_failed',
@@ -133,6 +142,31 @@ export async function updateImageResultBlock(input: {
   title?: string;
   body?: string;
 }): Promise<{ snapshot: BoardSnapshot; block: BlockRecord; execution: ExecutionRecord }> {
+  return updateMediaResultBlock({ ...input, blockType: 'image' });
+}
+
+export async function updateVideoResultBlock(input: {
+  projectId: string;
+  boardId: string;
+  executionId: string;
+  assetId: string;
+  resultBlockId?: string;
+  title?: string;
+  body?: string;
+}): Promise<{ snapshot: BoardSnapshot; block: BlockRecord; execution: ExecutionRecord }> {
+  return updateMediaResultBlock({ ...input, blockType: 'video' });
+}
+
+async function updateMediaResultBlock(input: {
+  projectId: string;
+  boardId: string;
+  executionId: string;
+  assetId: string;
+  resultBlockId?: string;
+  title?: string;
+  body?: string;
+  blockType: 'image' | 'video';
+}): Promise<{ snapshot: BoardSnapshot; block: BlockRecord; execution: ExecutionRecord }> {
   const snapshot = await loadSnapshot(input.projectId, input.boardId);
   const execution = findExecutionOrThrow(snapshot, input.executionId);
   assertExecutionRunning(execution, 'update a result for');
@@ -143,7 +177,9 @@ export async function updateImageResultBlock(input: {
     throw new Error(`Result block is not assigned to execution ${input.executionId}: ${resultBlockId ?? 'missing'}`);
   }
   const block = snapshot.blocks.find((candidate) => candidate.blockId === resultBlockId);
-  if (!block || block.type !== 'image') throw new Error(`Image result block not found: ${resultBlockId ?? 'missing'}`);
+  if (!block || block.type !== input.blockType) {
+    throw new Error(`${input.blockType === 'image' ? 'Image' : 'Video'} result block not found: ${resultBlockId ?? 'missing'}`);
+  }
 
   const now = new Date().toISOString();
   block.data = {
@@ -159,9 +195,10 @@ export async function updateImageResultBlock(input: {
   const wasSucceeded = execution.status === 'succeeded';
   execution.outputAssetIds = mergeUnique(execution.outputAssetIds, [input.assetId]);
   execution.outputBlockIds = mergeUnique(execution.outputBlockIds, [block.blockId]);
+  syncExecutionOutputContractSnapshot(execution);
   const allOutputsComplete = execution.outputBlockIds.every((outputBlockId) => {
     const outputBlock = snapshot.blocks.find((candidate) => candidate.blockId === outputBlockId);
-    return outputBlock?.type === 'image' && typeof outputBlock.data.assetId === 'string';
+    return outputBlock?.type === input.blockType && typeof outputBlock.data.assetId === 'string';
   });
   execution.status = allOutputsComplete ? 'succeeded' : 'running';
   if (allOutputsComplete) execution.completedAt = now;
@@ -244,7 +281,9 @@ function syncExecutionBlocks(snapshot: BoardSnapshot, execution: ExecutionRecord
   const outputBlockIds = new Set(execution.outputBlockIds);
   for (const block of snapshot.blocks) {
     if (block.data.sourceExecutionId !== execution.executionId) continue;
-    if (outputBlockIds.has(block.blockId) && block.type === 'image' && block.data.assetId) block.data.status = 'succeeded';
+    if (outputBlockIds.has(block.blockId) && (block.type === 'image' || block.type === 'video') && block.data.assetId) {
+      block.data.status = 'succeeded';
+    }
     else {
       block.data.status = execution.status;
       if (execution.status === 'queued' || execution.status === 'running' || execution.status === 'failed') delete block.data.statusVisualDismissed;
@@ -256,7 +295,7 @@ function syncExecutionBlocks(snapshot: BoardSnapshot, execution: ExecutionRecord
 function incompleteExecutionResultBlockIds(snapshot: BoardSnapshot, execution: ExecutionRecord): string[] {
   return execution.outputBlockIds.filter((blockId) => {
     const block = snapshot.blocks.find((candidate) => candidate.blockId === blockId);
-    return block?.type === 'image' && typeof block.data.assetId !== 'string';
+    return (block?.type === 'image' || block?.type === 'video') && typeof block.data.assetId !== 'string';
   });
 }
 

@@ -14,7 +14,7 @@ import {
 } from '../core/grouping';
 import { saveCollapsedGroupIds } from '../core/groupViewState';
 import { createId, nowIso } from '../core/id';
-import type { BlockType, BoardSnapshot } from '../core/types';
+import type { BlockType, BoardSnapshot, ExecutionRecord } from '../core/types';
 import type { useI18n } from '../i18n';
 
 interface BlockActionsOptions {
@@ -114,6 +114,19 @@ export function useBlockActions(options: BlockActionsOptions) {
       for (const parentGroupId of affectedParentIds) fitGroupToChildren(current, parentGroupId);
       return touchBoard(current);
     }, { persist: true, history: true });
+    for (const execution of activeExecutions) {
+      if (execution.adapterSnapshot?.adapterId !== 'retake.video.seedance-modelark'
+        && execution.adapterSnapshot?.adapterId !== 'retake.video.dreamina-cli') continue;
+      window.dispatchEvent(new CustomEvent('retake:cancel-provider-execution', {
+        detail: {
+          projectId: execution.projectId,
+          boardId: execution.boardId,
+          executionId: execution.executionId,
+          adapterId: execution.adapterSnapshot.adapterId,
+          providerTaskIds: providerTaskIds(execution),
+        },
+      }));
+    }
     if (canceledExecutionCount > 0) setOperationToast({ id: `execution-canceled:${Date.now()}`, title: t('feedback.executionCanceled'), body: t(hasRunningExecution ? 'feedback.runningExecutionCanceled' : 'feedback.queuedExecutionCanceled'), tone: 'success' });
     if (deletedBlockIds.length === 0) return;
     const deletedIdSet = new Set(deletedBlockIds);
@@ -158,4 +171,11 @@ export function useBlockActions(options: BlockActionsOptions) {
   }
 
   return { addBlock, deleteBlockIds, deleteSelection, duplicateSelection };
+}
+
+function providerTaskIds(execution: ExecutionRecord): string[] {
+  const modelArk = execution.params?.modelArk;
+  if (!modelArk || typeof modelArk !== 'object' || Array.isArray(modelArk)) return [];
+  const taskIds = (modelArk as Record<string, unknown>).providerTaskIds;
+  return Array.isArray(taskIds) ? taskIds.filter((value): value is string => typeof value === 'string') : [];
 }

@@ -14,6 +14,26 @@ export async function readAssetMetadata(projectId: string, assetId: string): Pro
   return JSON.parse(await readFile(path.join(assetDir, 'metadata.json'), 'utf8')) as AssetRecord;
 }
 
+export async function readAssetAsDataUrl(projectId: string, assetId: string): Promise<string> {
+  const metadata = await readAssetMetadata(projectId, assetId);
+  const absoluteStoragePath = await resolveAssetStoragePath(projectId, assetId);
+  const bytes = await readFile(absoluteStoragePath);
+  if (bytes.byteLength >= 30 * 1024 * 1024) throw new Error(`Seedance image input exceeds 30 MB: ${assetId}`);
+  if (!metadata.mimeType.startsWith('image/') || metadata.mimeType === 'image/svg+xml') {
+    throw new Error(`Seedance requires a supported raster image input: ${assetId}`);
+  }
+  return `data:${metadata.mimeType};base64,${bytes.toString('base64')}`;
+}
+
+export async function resolveAssetStoragePath(projectId: string, assetId: string): Promise<string> {
+  const projectDir = path.join(projectsRoot, projectId);
+  const metadata = await readAssetMetadata(projectId, assetId);
+  const absoluteStoragePath = path.resolve(projectDir, metadata.storageKey);
+  const allowedRoot = `${path.resolve(projectDir)}${path.sep}`;
+  if (!absoluteStoragePath.startsWith(allowedRoot)) throw new Error(`Asset storage path escapes its project: ${assetId}`);
+  return absoluteStoragePath;
+}
+
 export function extensionForMime(mimeType?: string): string {
   if (mimeType === 'image/png') return '.png';
   if (mimeType === 'image/jpeg') return '.jpg';

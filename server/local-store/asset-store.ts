@@ -109,6 +109,54 @@ export async function createAssetFromDataUrl(input: {
   return asset;
 }
 
+export async function importAssetFromUrl(input: {
+  projectId: string;
+  sourceExecutionId?: string;
+  sourceUrl: string;
+  duration?: number;
+  fetchImpl?: typeof fetch;
+}): Promise<AssetRecord> {
+  await assertSourceExecutionAcceptsAssets(input.projectId, input.sourceExecutionId);
+  const sourceUrl = new URL(input.sourceUrl);
+  if (sourceUrl.protocol !== 'https:' && sourceUrl.protocol !== 'http:') {
+    throw new Error('Generated asset URL must use HTTP or HTTPS.');
+  }
+  const response = await (input.fetchImpl ?? fetch)(sourceUrl, { redirect: 'follow' });
+  if (!response.ok) throw new Error(`Generated video download failed (${response.status}).`);
+  const declaredLength = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declaredLength) && declaredLength > 1024 * 1024 * 1024) {
+    throw new Error('Generated video exceeds the 1 GB Retake import limit.');
+  }
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (bytes.byteLength > 1024 * 1024 * 1024) throw new Error('Generated video exceeds the 1 GB Retake import limit.');
+  const mimeType = response.headers.get('content-type')?.split(';')[0] || 'video/mp4';
+  if (!mimeType.startsWith('video/')) throw new Error(`Generated result is not a video (${mimeType}).`);
+
+  await ensureWorkspace();
+  const assetId = `asset_${randomUUID().slice(0, 8)}`;
+  const projectDir = path.join(projectsRoot, input.projectId);
+  const assetDir = path.join(projectDir, 'assets', assetId);
+  const extension = extensionForMime(mimeType) || '.mp4';
+  const fileName = `original${extension}`;
+  const storageKey = path.join(assetDir, fileName);
+  const asset: AssetRecord = {
+    assetId,
+    projectId: input.projectId,
+    kind: 'video',
+    mimeType,
+    storageProvider: 'local',
+    storageKey: path.relative(projectDir, storageKey),
+    previewUrl: `/api/local/assets/${input.projectId}/${assetId}/${fileName}`,
+    duration: input.duration,
+    sourceExecutionId: input.sourceExecutionId,
+    createdAt: new Date().toISOString(),
+  };
+  await mkdir(assetDir, { recursive: true });
+  await writeFile(storageKey, bytes);
+  await persistAsset(assetDir, asset);
+  return asset;
+}
+
 async function persistAsset(assetDir: string, asset: AssetRecord): Promise<void> {
   await writeJson(path.join(assetDir, 'metadata.json'), asset);
   await appendAssetImportedHistory(asset);

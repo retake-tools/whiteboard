@@ -64,7 +64,19 @@ function dataForType(type: BlockType): BlockRecord['data'] {
   if (type === 'video') {
     return {
       title: 'Video block',
-      body: 'Video preview should load lazily in later spikes.',
+      body: 'Connect optional image references, then generate through the selected video profile.',
+      executionDraft: {
+        schemaVersion: 1,
+        capabilityId: 'video.generate',
+        executionProfileId: 'video-mock',
+        prompt: '',
+        parameters: {
+          aspectRatio: '9:16',
+          durationSeconds: 8,
+          outputCount: 1,
+          qualityTier: 'preview',
+        },
+      },
     };
   }
 

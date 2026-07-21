@@ -1,10 +1,11 @@
 // Compatibility facade: server callers keep one stable import surface while
 // persistence responsibilities live in focused modules under local-store/.
-export { readAssetFile } from './local-store/asset-files';
+export { readAssetFile, resolveAssetStoragePath } from './local-store/asset-files';
 export {
   createAssetFromDataUrl,
   createMockGeneratedAsset,
   importAssetFromPath,
+  importAssetFromUrl,
 } from './local-store/asset-store';
 export {
   completeExecution,
@@ -13,6 +14,7 @@ export {
   getExecution,
   markExecutionRunning,
   updateImageResultBlock,
+  updateVideoResultBlock,
 } from './local-store/execution-store';
 export {
   ensureDefaultSnapshot,

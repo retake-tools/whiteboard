@@ -21,6 +21,7 @@ import { useCanvasController } from './app/useCanvasController';
 import { useGroupController } from './app/useGroupController';
 import { useBlockActions } from './app/useBlockActions';
 import { useAppEventBindings } from './app/useAppEventBindings';
+import { useVideoGenerationController } from './app/useVideoGenerationController';
 import { WhiteboardCanvas } from './app/WhiteboardCanvas';
 
 export function App(): ReactElement {
@@ -147,6 +148,13 @@ export function App(): ReactElement {
     updateSnapshot,
   });
   const { addBlock, deleteBlockIds, deleteSelection, duplicateSelection } = blockActions;
+  useVideoGenerationController({
+    setOperationToast,
+    setSelectedBlocks,
+    snapshotRef,
+    t,
+    updateSnapshot,
+  });
   connectCanvasActions({ deleteBlockIds });
   const annotationController = useAnnotationController({
     scheduleAnnotationDraftPersist,

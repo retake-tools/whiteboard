@@ -145,7 +145,9 @@ export function useOperationInputController(options: OperationInputControllerOpt
       if (!edge) return current;
       const sourceBlock = current.blocks.find((block) => block.blockId === edge.sourceBlockId);
       const operationBlock = current.blocks.find(
-        (block) => block.blockId === edge.targetBlockId && block.type === 'operation',
+        (block) =>
+          block.blockId === edge.targetBlockId &&
+          (block.type === 'operation' || block.type === 'video'),
       );
       if (!sourceBlock || !operationBlock || blockLockedByGroup(current, sourceBlock.blockId) || blockLockedByGroup(current, operationBlock.blockId)) return current;
       const supportedRoles = executionInputRoleOptionsFor(sourceBlock, operationBlock);

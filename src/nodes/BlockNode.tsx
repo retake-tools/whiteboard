@@ -12,6 +12,7 @@ import { InputRoleOptionList, inputRoleTitle } from '../components/InputRoleOpti
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { AnnotationOperationPreviewButton } from './AnnotationOperationPreviewButton';
 import { OperationInlineControls } from './OperationInlineControls';
+import { VideoBlockBody } from './VideoBlockBody';
 
 const iconByType = {
   text: FileText,
@@ -502,12 +503,7 @@ function BlockBody({
   }
 
   if (type === 'video') {
-    return (
-      <div className="video-placeholder">
-        <Video size={28} />
-        <span>{t('block.videoPlaceholder')}</span>
-      </div>
-    );
+    return <VideoBlockBody blockId={blockId} data={data} />;
   }
 
   if (type === 'operation') {

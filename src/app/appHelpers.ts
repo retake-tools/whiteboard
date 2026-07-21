@@ -94,14 +94,16 @@ export function selectedOperationBlockIdFor(snapshot: BoardSnapshot, blockIds: s
   if (blockIds.length !== 1) return undefined;
   const selectedBlockId = blockIds[0];
   const selectedOperation = snapshot.blocks.find(
-    (block) => block.blockId === selectedBlockId && block.type === 'operation',
+    (block) => block.blockId === selectedBlockId && (block.type === 'operation' || block.type === 'video'),
   );
   if (selectedOperation) return selectedOperation.blockId;
   return snapshot.edges.find(
     (edge) =>
       edge.sourceBlockId === selectedBlockId &&
       edge.kind === 'execution_input' &&
-      snapshot.blocks.some((block) => block.blockId === edge.targetBlockId && block.type === 'operation'),
+      snapshot.blocks.some(
+        (block) => block.blockId === edge.targetBlockId && (block.type === 'operation' || block.type === 'video'),
+      ),
   )?.targetBlockId;
 }
 
@@ -140,7 +142,7 @@ export function applyOperationInputRoleBadges(
 ): RetakeNode[] {
   const selectedOperationBlockId = selectedOperationBlockIdFor(snapshot, selectedBlockIds);
   const selectedOperation = snapshot.blocks.find(
-    (block) => block.blockId === selectedOperationBlockId && block.type === 'operation',
+    (block) => block.blockId === selectedOperationBlockId && (block.type === 'operation' || block.type === 'video'),
   );
   const inputMetadataByBlockId = new Map(
     snapshot.edges

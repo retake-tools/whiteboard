@@ -14,6 +14,7 @@ import { defaultSnapshot } from '../src/core/sampleBoard';
 import { loadCollapsedGroupIds, saveCollapsedGroupIds } from '../src/core/groupViewState';
 import type { BlockRecord } from '../src/core/types';
 import { I18nProvider } from '../src/i18n';
+import { VideoBlockBody } from '../src/nodes/VideoBlockBody';
 
 const localStorageValues = new Map<string, string>([['retake.locale', 'en']]);
 Object.defineProperty(globalThis, 'localStorage', {
@@ -131,6 +132,46 @@ assert.ok(basicElementsMenuStart >= 0 && basicElementsMenuEnd > basicElementsMen
 assert.doesNotMatch(floatingToolbarMarkup.slice(basicElementsMenuStart, basicElementsMenuEnd), /Add group/);
 assert.equal(floatingToolbarMarkup.match(/aria-label="Add group"/g)?.length, 1);
 assert.ok(floatingToolbarMarkup.indexOf('aria-label="Add group"') > floatingToolbarMarkup.indexOf('aria-label="Video creation"'));
+
+const videoDraftMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <VideoBlockBody
+      blockId="video_draft"
+      data={{
+        title: 'Video block',
+        executionDraft: {
+          schemaVersion: 1,
+          capabilityId: 'video.generate',
+          executionProfileId: 'video-mock',
+          prompt: 'Camera pushes toward the subject.',
+          parameters: { durationSeconds: 8, outputCount: 3 },
+        },
+      }}
+    />
+  </I18nProvider>,
+);
+assert.match(videoDraftMarkup, /Camera pushes toward the subject/);
+assert.match(videoDraftMarkup, /Generate mock video/);
+assert.match(videoDraftMarkup, /Retake mock · no provider cost/);
+assert.match(videoDraftMarkup, /<option value="8" selected="">8s<\/option>/);
+assert.match(videoDraftMarkup, /<option value="3" selected="">3<\/option>/);
+
+const videoResultMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <VideoBlockBody
+      blockId="video_result"
+      data={{
+        title: 'Video result',
+        assetId: 'asset_mock_video',
+        previewUrl: 'local-mock://video/result.mp4',
+        sourceExecutionId: 'exec_video',
+        status: 'succeeded',
+      }}
+    />
+  </I18nProvider>,
+);
+assert.match(videoResultMarkup, /Mock video result/);
+assert.match(videoResultMarkup, /Show execution details/);
 
 const queuedOperationMarkup = renderToStaticMarkup(
   <I18nProvider>
