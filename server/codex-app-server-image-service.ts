@@ -170,17 +170,39 @@ function rasterMimeType(bytes: Buffer): 'image/jpeg' | 'image/png' | 'image/webp
 function imagegenPrompt(execution: ExecutionRecord, hasInputs: boolean): string {
   const instruction = execution.prompt?.trim();
   if (!instruction) throw new Error('Image generation requires a non-empty prompt.');
+  const geometry = imageGenerationGeometryInstruction(execution);
+  if (execution.capabilityId === 'image.annotation_edit') {
+    const annotationInstructions = annotationPromptInstructions(execution);
+    return `$imagegen Edit the clean source image using the final attached annotated composite as a visual instruction layer. ${annotationInstructions} The colored marks, arrows, outlines, labels, and brush overlays are instructions only: do not retain them in the final image. Preserve all unmentioned content.${geometry} Generate exactly one clean revised image. Do not call other tools or copy the result.`;
+  }
+  return hasInputs
+    ? `$imagegen Edit the attached image according to this instruction: ${instruction}.${geometry} Preserve all unmentioned content. Generate exactly one revised image. Do not call other tools or copy the result.`
+    : `$imagegen Generate exactly one image from this instruction: ${instruction}.${geometry} Generate the composition directly on the requested canvas. Do not call other tools or copy the result.`;
+}
+
+function imageGenerationGeometryInstruction(execution: ExecutionRecord): string {
   const generation = isRecord(execution.params?.generation) ? execution.params.generation : {};
   const width = finiteNumber(generation.targetWidth);
   const height = finiteNumber(generation.targetHeight);
-  const dimensions = width && height ? ` Target composition: ${Math.round(width)}x${Math.round(height)}.` : '';
-  if (execution.capabilityId === 'image.annotation_edit') {
-    const annotationInstructions = annotationPromptInstructions(execution);
-    return `$imagegen Edit the clean source image using the final attached annotated composite as a visual instruction layer. ${annotationInstructions} The colored marks, arrows, outlines, labels, and brush overlays are instructions only: do not retain them in the final image. Preserve all unmentioned content.${dimensions} Generate exactly one clean revised image. Do not call other tools or copy the result.`;
-  }
-  return hasInputs
-    ? `$imagegen Edit the attached image according to this instruction: ${instruction}.${dimensions} Preserve all unmentioned content. Generate exactly one revised image. Do not call other tools or copy the result.`
-    : `$imagegen Generate exactly one image from this instruction: ${instruction}.${dimensions} Do not call other tools or copy the result.`;
+  const targetRatio = finiteNumber(generation.targetAspectRatio) ?? (width && height ? width / height : undefined);
+  const preset = typeof generation.aspectRatioPreset === 'string' ? generation.aspectRatioPreset.trim() : '';
+  const orientation = targetRatio
+    ? targetRatio < 0.95 ? 'portrait' : targetRatio > 1.05 ? 'landscape' : 'square'
+    : undefined;
+  const aspectInstruction = preset === 'source'
+    ? ' Preserve the source image aspect ratio as the output canvas.'
+    : preset
+      ? ` Required output aspect ratio: ${preset}${orientation ? ` (${orientation}, width:height)` : ' (width:height)'}.`
+      : targetRatio
+        ? ` Required output aspect ratio: ${targetRatio.toFixed(3)} width/height${orientation ? ` (${orientation})` : ''}.`
+        : '';
+  const dimensions = width && height
+    ? ` Target pixel dimensions: ${Math.round(width)}x${Math.round(height)}.`
+    : '';
+  const hardConstraint = aspectInstruction
+    ? ' Treat the aspect ratio as a hard output-canvas requirement: do not substitute another orientation, and do not simulate the requested ratio with letterboxing or padding.'
+    : '';
+  return `${aspectInstruction}${dimensions}${hardConstraint}`;
 }
 
 function annotationPromptInstructions(execution: ExecutionRecord): string {

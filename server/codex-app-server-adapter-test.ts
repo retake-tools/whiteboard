@@ -128,7 +128,13 @@ const imageDraft = createDraftTextToImageOperation(completed, {
   operationTitle: 'Generate image',
   textBlockBody: 'A cinematic orange cat director.',
   textBlockTitle: 'Prompt',
-  generationParams: { targetWidth: 1024, targetHeight: 1024, variationCount: 1 },
+  generationParams: {
+    aspectRatioPreset: '9:16',
+    targetAspectRatio: 9 / 16,
+    targetWidth: 1152,
+    targetHeight: 2048,
+    variationCount: 1,
+  },
 });
 imageDraft.operationBlock.data.connectionId = connection!.connectionId;
 const imageRun = executeExistingImageOperationBlock(completed, {
@@ -152,6 +158,9 @@ const imageStarted = await startCodexAppServerImageGeneration({
 }, {
   runTurn: async (input) => {
     assert.match(input.prompt, /^\$imagegen Generate exactly one image/);
+    assert.match(input.prompt, /Required output aspect ratio: 9:16 \(portrait, width:height\)/);
+    assert.match(input.prompt, /hard output-canvas requirement/);
+    assert.match(input.prompt, /do not simulate the requested ratio with letterboxing or padding/);
     assert.equal(input.localImagePaths?.length, 0);
     input.onImageGenerationStarted?.();
     return {

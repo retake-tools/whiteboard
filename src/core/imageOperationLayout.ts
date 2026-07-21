@@ -108,24 +108,58 @@ export function imageOperationResultRowLayout(
   };
   const baseX = operationBlock.position.x + operationBlock.size.width + 80;
   const baseY = operationBlock.position.y;
-  const laneStep = candidateSize.height + 72;
+  const candidates = resultPlacementCandidates(operationBlock, candidateSize, grouped, baseX, baseY);
 
-  for (let lane = 0; lane < 200; lane += 1) {
-    const direction = lane === 0 ? 0 : lane % 2 === 1 ? 1 : -1;
-    const distance = Math.ceil(lane / 2);
-    const resultY = baseY + direction * distance * laneStep;
+  for (const candidate of candidates) {
     const candidatePosition = {
-      x: baseX - (grouped ? resultGroupPadding.left : 0),
-      y: resultY - (grouped ? resultGroupPadding.top : 0),
+      x: candidate.x - (grouped ? resultGroupPadding.left : 0),
+      y: candidate.y - (grouped ? resultGroupPadding.top : 0),
     };
     if (scopeBlocks.every(
       (block) => !rectanglesOverlap(candidatePosition, candidateSize, block.position, block.size, collisionGap),
     )) {
-      return { x: baseX, y: resultY };
+      return { x: candidate.x, y: candidate.y };
     }
   }
 
-  return { x: baseX, y: baseY + laneStep };
+  return { x: baseX, y: baseY + candidateSize.height + 72 };
+}
+
+function resultPlacementCandidates(
+  operationBlock: BlockRecord,
+  candidateSize: Size,
+  grouped: boolean,
+  baseX: number,
+  baseY: number,
+): Array<Position & { score: number }> {
+  const horizontalStep = candidateSize.width + 72;
+  const verticalStep = candidateSize.height + 72;
+  const groupLeft = grouped ? resultGroupPadding.left : 0;
+  const groupTop = grouped ? resultGroupPadding.top : 0;
+  const candidates: Array<Position & { score: number }> = [];
+
+  for (let distance = 0; distance < 50; distance += 1) {
+    candidates.push({
+      x: baseX + distance * horizontalStep,
+      y: baseY,
+      score: distance * horizontalStep,
+    });
+  }
+  for (let distance = 1; distance <= 50; distance += 1) {
+    const verticalDistance = 80 + candidateSize.height + (distance - 1) * verticalStep;
+    candidates.push({
+      x: operationBlock.position.x + groupLeft,
+      y: operationBlock.position.y - verticalDistance + groupTop,
+      score: verticalDistance + 48,
+    });
+    candidates.push({
+      x: operationBlock.position.x + groupLeft,
+      y: operationBlock.position.y + operationBlock.size.height + 80 + (distance - 1) * verticalStep + groupTop,
+      score: verticalDistance + 80,
+    });
+  }
+
+  return candidates.sort((left, right) => left.score - right.score);
 }
 
 function rectanglesOverlap(

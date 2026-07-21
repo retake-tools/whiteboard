@@ -12,6 +12,7 @@ import {
 import { createFlowEdges, createFlowNodes } from '../src/core/flowProjection';
 import {
   imageBranchDraftSelectionBlockIds,
+  imageOperationResultRowLayout,
 } from '../src/core/imageOperationLayout';
 import {
   createDraftImageToImageOperation,
@@ -30,6 +31,54 @@ snapshot.edges = [];
 snapshot.assets = [];
 snapshot.executions = [];
 snapshot.historyEvents = [];
+
+const placementSnapshot = migrateBoardSnapshot(structuredClone(defaultSnapshot) as BoardSnapshot);
+placementSnapshot.blocks = [];
+const placementOperation = createBlockRecord(placementSnapshot, 'operation');
+placementOperation.position = { x: 100, y: 100 };
+placementOperation.size = { width: 320, height: 190 };
+placementSnapshot.blocks.push(placementOperation);
+const placementResultSize = { width: 214, height: 380 };
+const directRightLayout = imageOperationResultRowLayout(
+  placementSnapshot,
+  placementOperation,
+  placementResultSize,
+  1,
+);
+assert.deepEqual(directRightLayout, { x: 500, y: 100 });
+const firstRightBlocker = createBlockRecord(placementSnapshot, 'image');
+firstRightBlocker.position = directRightLayout;
+firstRightBlocker.size = placementResultSize;
+placementSnapshot.blocks.push(firstRightBlocker);
+const fartherRightLayout = imageOperationResultRowLayout(
+  placementSnapshot,
+  placementOperation,
+  placementResultSize,
+  1,
+);
+assert.deepEqual(fartherRightLayout, { x: 786, y: 100 });
+const secondRightBlocker = createBlockRecord(placementSnapshot, 'image');
+secondRightBlocker.position = fartherRightLayout;
+secondRightBlocker.size = placementResultSize;
+placementSnapshot.blocks.push(secondRightBlocker);
+const upperLayout = imageOperationResultRowLayout(
+  placementSnapshot,
+  placementOperation,
+  placementResultSize,
+  1,
+);
+assert.deepEqual(upperLayout, { x: 100, y: -360 });
+const upperBlocker = createBlockRecord(placementSnapshot, 'image');
+upperBlocker.position = upperLayout;
+upperBlocker.size = placementResultSize;
+placementSnapshot.blocks.push(upperBlocker);
+const lowerLayout = imageOperationResultRowLayout(
+  placementSnapshot,
+  placementOperation,
+  placementResultSize,
+  1,
+);
+assert.deepEqual(lowerLayout, { x: 100, y: 370 });
 
 const source = createBlockRecord(snapshot, 'image');
 source.position = { x: 180, y: 160 };

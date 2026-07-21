@@ -366,14 +366,16 @@ if (rerun.execution.operationVersion !== undefined) {
 }
 assignExecutionVersion(snapshot, rerun.execution);
 rerun.execution.status = 'running';
-const firstBatchBottom = Math.max(
-  ...execution.resultBlocks.map((block) => block.position.y + block.size.height),
-);
 if (
   rerun.resultBlocks.some((block) => execution.execution.outputBlockIds.includes(block.blockId)) ||
-  rerun.resultBlocks.some((block) => block.position.y <= firstBatchBottom)
+  rerun.resultBlocks.some((rerunBlock) => execution.resultBlocks.some((priorBlock) => !(
+    rerunBlock.position.x + rerunBlock.size.width <= priorBlock.position.x ||
+    priorBlock.position.x + priorBlock.size.width <= rerunBlock.position.x ||
+    rerunBlock.position.y + rerunBlock.size.height <= priorBlock.position.y ||
+    priorBlock.position.y + priorBlock.size.height <= rerunBlock.position.y
+  )))
 ) {
-  throw new Error('Expected reruns to preserve prior results and start a new execution row');
+  throw new Error('Expected reruns to preserve prior results and use a separate available region');
 }
 const rerunChanges = configurationChanges(
   executionConfiguration(execution.execution),
