@@ -72,6 +72,15 @@ export async function dreaminaCliAvailability(environment: NodeJS.ProcessEnv = p
   }
 }
 
+export async function probeDreaminaCliConnection(
+  environment: NodeJS.ProcessEnv = process.env,
+  runner: DreaminaCommandRunner = runDreaminaCommand,
+): Promise<void> {
+  const config = readDreaminaCliConfig(environment);
+  if (!config) throw new Error('Dreamina CLI was not found. Install it or set DREAMINA_CLI_PATH on the Retake server.');
+  await runner(config.executablePath, ['--version'], { timeoutMs: config.commandTimeoutMs });
+}
+
 export class DreaminaCliClient {
   constructor(
     private readonly config: DreaminaCliConfig,

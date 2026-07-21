@@ -312,6 +312,7 @@ function ConnectionForm({ busy, draft, templates, onCancel, onDraftChange, onSav
       <label><span>{t('settings.baseUrl')}</span><input value={draft.baseUrl} onChange={(event) => onDraftChange({ ...draft, baseUrl: event.currentTarget.value })} /></label>
       <label><span>{t('settings.modelIds')}</span><input placeholder={t('settings.modelIdsPlaceholder')} value={draft.modelId} onChange={(event) => onDraftChange({ ...draft, modelId: event.currentTarget.value })} /></label>
       <label><span>{t('settings.apiKey')}</span><input type="password" autoComplete="off" placeholder={t(templates ? 'settings.apiKeyCreatePlaceholder' : 'settings.apiKeyPlaceholder')} value={draft.apiKey} onChange={(event) => onDraftChange({ ...draft, apiKey: event.currentTarget.value })} /></label>
+      <p className="execution-connection-form-note">{t('settings.testRequired')}</p>
       <div><button type="button" onClick={onCancel}>{t('projectBoard.cancel')}</button><button type="button" className="is-primary" disabled={busy || !draft.templateId || !draft.displayName.trim() || !draft.modelId.trim()} onClick={onSave}>{t(templates ? 'settings.createConnection' : 'settings.saveConnection')}</button></div>
     </div>
   );
@@ -348,8 +349,10 @@ function ConnectionCard({ busy, connection, draft, duplicating, editing, onBegin
         {connection.supportedCapabilityIds.length ? connection.supportedCapabilityIds.map((capabilityId) => <span key={capabilityId}>{capabilityId}</span>) : <span>{t('settings.noBoundCapabilities')}</span>}
       </div>
       {connection.modelId ? <div className="execution-capability-list"><strong>{t('settings.models')}</strong><span>{connection.modelId}</span></div> : null}
+      {connection.lastCheckedAt ? <p className="execution-connection-check-result"><strong>{t('settings.lastTested')}:</strong> {new Date(connection.lastCheckedAt).toLocaleString()}</p> : null}
+      {connection.lastCheckMessage ? <p className="execution-connection-check-result">{connection.lastCheckMessage}</p> : null}
       {connection.lastError ? <p className="execution-connection-error">{connection.lastError}</p> : null}
-      {connection.connectorId === 'openai-compatible' ? <p className="execution-connection-check-note">{t('settings.checkMayCost')}</p> : null}
+      {connection.connectorId === 'openai-compatible' || connection.connectorId === 'byteplus-modelark' ? <p className="execution-connection-check-note">{t('settings.checkMayCost')}</p> : null}
       {editing ? (
         <ConnectionForm busy={busy} draft={draft} onCancel={onCancelConfigure} onDraftChange={onDraftChange} onSave={onSave} t={t} />
       ) : (
@@ -357,7 +360,7 @@ function ConnectionCard({ busy, connection, draft, duplicating, editing, onBegin
           {connection.deletable ? <button type="button" className="is-danger" onClick={onDelete}><Trash2 size={13} /> {t('settings.deleteConnection')}</button> : null}
           {connection.configurable ? <button type="button" className="is-icon" aria-label={t('settings.duplicateConnection')} title={t('settings.duplicateConnection')} disabled={duplicating} onClick={onDuplicate}>{duplicating ? <Loader2 size={13} /> : <Copy size={13} />}</button> : null}
           {connection.configurable ? <button type="button" onClick={onBeginConfigure}>{t('settings.configure')}</button> : null}
-          {connection.connectionId !== 'retake-mock' && connection.connectionId !== 'codex-managed' ? <button type="button" disabled={busy} onClick={onCheck}><RefreshCw size={13} /> {t('settings.checkConnection')}</button> : null}
+          {connection.connectionId !== 'retake-mock' && connection.connectionId !== 'codex-managed' ? <button type="button" data-connection-test={connection.connectionId} disabled={busy} onClick={onCheck}><RefreshCw size={13} /> {t('settings.checkConnection')}</button> : null}
         </footer>
       )}
     </article>
@@ -409,6 +412,7 @@ function statusLabel(status: ExecutionConnectionStatus, t: I18nContextValue['t']
   if (status === 'not_installed') return t('settings.statusNotInstalled');
   if (status === 'needs_credentials') return t('settings.statusNeedsCredentials');
   if (status === 'needs_login') return t('settings.statusNeedsLogin');
+  if (status === 'untested') return t('settings.statusUntested');
   if (status === 'checking') return t('settings.statusChecking');
   if (status === 'ready') return t('settings.statusReady');
   return t('settings.statusUnavailable');

@@ -51,6 +51,7 @@ interface OperationInputControllerOptions {
   }) => Promise<void>;
   t: ReturnType<typeof useI18n>['t'];
   updateOperationCapability: (blockId: string, operation: SwitchableOperationMode) => void;
+  updateOperationConnection: (blockId: string, connectionId: string) => void;
   updateOperationGenerationParams: (blockId: string, params: ImageGenerationParams) => void;
   updateOperationGenerationProfile: (blockId: string, profileId: string) => void;
   updateSnapshot: (
@@ -70,6 +71,7 @@ export function useOperationInputController(options: OperationInputControllerOpt
     startExistingOperationBlock,
     t,
     updateOperationCapability,
+    updateOperationConnection,
     updateOperationGenerationParams,
     updateOperationGenerationProfile,
     updateSnapshot,
@@ -260,6 +262,10 @@ export function useOperationInputController(options: OperationInputControllerOpt
       const detail = (event as CustomEvent<{ blockId?: string; generationProfileId?: string }>).detail;
       if (detail?.blockId && detail.generationProfileId) updateOperationGenerationProfile(detail.blockId, detail.generationProfileId);
     }
+    function onUpdateConnection(event: Event): void {
+      const detail = (event as CustomEvent<{ blockId?: string; connectionId?: string }>).detail;
+      if (detail?.blockId && detail.connectionId) updateOperationConnection(detail.blockId, detail.connectionId);
+    }
     function onUpdateCapability(event: Event): void {
       const detail = (event as CustomEvent<{ blockId?: string; operation?: SwitchableOperationMode }>).detail;
       if (detail?.blockId && detail.operation) updateOperationCapability(detail.blockId, detail.operation);
@@ -274,12 +280,14 @@ export function useOperationInputController(options: OperationInputControllerOpt
     }
     window.addEventListener('retake:update-operation-generation-params', onUpdateParams);
     window.addEventListener('retake:update-operation-generation-profile', onUpdateProfile);
+    window.addEventListener('retake:update-operation-connection', onUpdateConnection);
     window.addEventListener('retake:update-operation-capability', onUpdateCapability);
     window.addEventListener('retake:update-operation-input-role', onUpdateRole);
     window.addEventListener('retake:remove-operation-input', onRemoveInput);
     return () => {
       window.removeEventListener('retake:update-operation-generation-params', onUpdateParams);
       window.removeEventListener('retake:update-operation-generation-profile', onUpdateProfile);
+      window.removeEventListener('retake:update-operation-connection', onUpdateConnection);
       window.removeEventListener('retake:update-operation-capability', onUpdateCapability);
       window.removeEventListener('retake:update-operation-input-role', onUpdateRole);
       window.removeEventListener('retake:remove-operation-input', onRemoveInput);

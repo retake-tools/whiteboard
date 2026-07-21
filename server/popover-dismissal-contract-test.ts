@@ -42,6 +42,10 @@ assert.match(
   'annotation editing must intercept canvas clicks so selection changes cannot unmount the editor',
 );
 assert.match(componentSources[3].source, /insideSelector: '\.operation-option-popover-wrap'/);
+assert.match(componentSources[3].source, /currentExecutionProviderSettings/);
+assert.match(componentSources[3].source, /supportedCapabilityIds\.includes\(capabilityId\)/);
+assert.match(componentSources[3].source, /option\.status !== 'ready'/);
+assert.match(componentSources[3].source, /retake:update-operation-connection/);
 
 console.log({
   capturePhaseOutsideClick: true,

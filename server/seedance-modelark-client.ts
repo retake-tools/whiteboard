@@ -134,6 +134,22 @@ export class SeedanceModelArkClient {
   }
 }
 
+export async function probeSeedanceModelArkConnection(
+  config: Pick<SeedanceModelArkConfig, 'apiKey' | 'baseUrl' | 'model'>,
+  fetchImpl: FetchLike = fetch,
+): Promise<void> {
+  const query = new URLSearchParams({ model: config.model, page_size: '1' });
+  const response = await fetchImpl(
+    `${config.baseUrl.replace(/\/$/, '')}/contents/generations/tasks?${query.toString()}`,
+    {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json' },
+    },
+  );
+  if (!response.ok) throw await responseError(response, `ModelArk connection test failed (${response.status}).`);
+  await response.json().catch(() => undefined);
+}
+
 function positiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;

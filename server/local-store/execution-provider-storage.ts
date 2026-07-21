@@ -16,6 +16,7 @@ export interface StoredExecutionConnection {
   baseUrl?: string;
   modelId?: string;
   lastCheckedAt?: string;
+  lastCheckMessage?: string;
   lastError?: string;
   updatedAt: string;
 }
@@ -112,6 +113,7 @@ function migrateV1Connection(value: Record<string, unknown>): StoredExecutionCon
     baseUrl: typeof value.baseUrl === 'string' ? value.baseUrl : connector.defaultBaseUrl,
     ...(modelId ? { modelId } : {}),
     ...(typeof value.lastCheckedAt === 'string' ? { lastCheckedAt: value.lastCheckedAt } : {}),
+    ...(typeof value.lastCheckMessage === 'string' ? { lastCheckMessage: value.lastCheckMessage } : {}),
     ...(typeof value.lastError === 'string' ? { lastError: value.lastError } : {}),
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : new Date().toISOString(),
   }];
@@ -140,6 +142,7 @@ function migrateV2Connection(value: Record<string, unknown>): StoredExecutionCon
     ...(cleanString(value.baseUrl) ? { baseUrl: cleanString(value.baseUrl) } : {}),
     ...(modelId ? { modelId } : {}),
     ...(cleanString(value.lastCheckedAt) ? { lastCheckedAt: cleanString(value.lastCheckedAt) } : {}),
+    ...(cleanString(value.lastCheckMessage) ? { lastCheckMessage: cleanString(value.lastCheckMessage) } : {}),
     ...(cleanString(value.lastError) ? { lastError: cleanString(value.lastError) } : {}),
     updatedAt: cleanString(value.updatedAt) || new Date().toISOString(),
   }];

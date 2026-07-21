@@ -84,6 +84,7 @@ export function restoreExecutionConfiguration(
     ...operationBlock.data,
     body: configuration.prompt,
     capabilityId: configuration.capabilityId,
+    connectionId: configuration.connectionId,
     generationParams: structuredClone(configuration.generationParams),
     generationProfileId: configuration.generationProfileId,
     operationMode: configuration.capabilityId === 'image.text_to_image' ? 'text_to_image' : 'image_to_image',

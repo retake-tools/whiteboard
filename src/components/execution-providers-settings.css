@@ -232,7 +232,8 @@
 }
 
 .execution-status.is-needs_credentials,
-.execution-status.is-needs_login {
+.execution-status.is-needs_login,
+.execution-status.is-untested {
   background: #fffaeb;
   color: #b54708;
 }
@@ -285,6 +286,14 @@
 .execution-connection-check-note {
   margin: 0;
   color: #667085;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.execution-connection-check-result,
+.execution-connection-form-note {
+  margin: 0;
+  color: #475467;
   font-size: 10px;
   line-height: 1.45;
 }
@@ -380,6 +389,10 @@
 }
 
 .execution-create-connection-form > div {
+  grid-column: 1 / -1;
+}
+
+.execution-create-connection-form > .execution-connection-form-note {
   grid-column: 1 / -1;
 }
 

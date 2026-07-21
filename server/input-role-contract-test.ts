@@ -80,6 +80,9 @@ const textDefaultDraft = createDraftTextToImageOperation(textDefaultSnapshot, {
   textBlockTitle: 'Prompt',
 });
 const textDefaultParams = textDefaultDraft.operationBlock.data.generationParams as ImageGenerationParams | undefined;
+if (textDefaultDraft.operationBlock.data.connectionId !== 'codex-managed') {
+  throw new Error('Expected image Operation drafts to bind the built-in Codex MCP connection explicitly');
+}
 if (
   textDefaultParams?.aspectRatioPreset !== '9:16' ||
   Math.abs((textDefaultParams.targetAspectRatio ?? 0) - 9 / 16) > 0.001
@@ -212,6 +215,13 @@ const execution = executeExistingImageOperationBlock(snapshot, {
   instruction: '',
   generationParams: { strength: 0.8, targetAspectRatio: 9 / 16, variationCount: 2 },
 });
+if (
+  execution.execution.connectionId !== 'codex-managed' ||
+  execution.execution.generationProfile?.connectionId !== 'codex-managed' ||
+  execution.execution.configuration?.connectionId !== 'codex-managed'
+) {
+  throw new Error('Expected image execution history to snapshot the selected execution connection');
+}
 if (
   execution.resultBlocks.length !== 2 ||
   execution.resultBlocks.some((block) => block.size.width !== 214 || block.size.height !== 380) ||

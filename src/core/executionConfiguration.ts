@@ -71,6 +71,10 @@ export function currentOperationConfiguration(
 
   return normalizeConfiguration({
     capabilityId,
+    connectionId:
+      typeof operationBlock.data.connectionId === 'string'
+        ? operationBlock.data.connectionId
+        : undefined,
     generationParams,
     generationProfileId:
       typeof operationBlock.data.generationProfileId === 'string'
@@ -127,6 +131,9 @@ export function recordExecutionConfiguration(
       : {};
   const configuration = normalizeConfiguration({
     capabilityId: execution.capabilityId,
+    connectionId:
+      execution.connectionId ??
+      (typeof operationBlock.data.connectionId === 'string' ? operationBlock.data.connectionId : undefined),
     generationParams,
     generationProfileId:
       execution.generationProfile?.generationProfileId ??
@@ -166,6 +173,7 @@ export function executionConfiguration(execution: ExecutionRecord): ExecutionCon
       : {};
   return normalizeConfiguration({
     capabilityId: execution.capabilityId,
+    connectionId: execution.connectionId ?? execution.generationProfile?.connectionId,
     generationParams,
     generationProfileId: execution.generationProfile?.generationProfileId,
     imageInputs: inputBindings.map((binding) => ({
@@ -182,6 +190,7 @@ export function configurationFingerprint(configuration: ExecutionConfigurationSn
   const normalized = normalizeConfiguration(configuration);
   const value = stableStringify({
     capabilityId: normalized.capabilityId,
+    connectionId: normalized.connectionId,
     generationProfileId: normalized.generationProfileId,
     imageInputs: normalized.imageInputs.map(({ assetId, blockId, inputRole }) => ({ assetId, blockId, inputRole })),
     parameters: normalized.parameters,
@@ -211,6 +220,9 @@ export function configurationChanges(
   }
   if (previous.generationProfileId !== current.generationProfileId) {
     changes.push({ kind: 'profile', key: 'generationProfileId', previous: previous.generationProfileId, current: current.generationProfileId });
+  }
+  if (previous.connectionId !== current.connectionId) {
+    changes.push({ kind: 'profile', key: 'connectionId', previous: previous.connectionId, current: current.connectionId });
   }
 
   const previousParameters = new Map((previous.parameters ?? []).map((parameter) => [parameter.key, parameter]));
@@ -339,6 +351,7 @@ function normalizeConfiguration(configuration: ExecutionConfigurationSnapshot): 
   const generationParams = sortRecord(configuration.generationParams);
   return {
     capabilityId: configuration.capabilityId,
+    connectionId: configuration.connectionId,
     generationParams,
     generationProfileId: configuration.generationProfileId,
     imageInputs: [...configuration.imageInputs].sort((left, right) => left.blockId.localeCompare(right.blockId)),

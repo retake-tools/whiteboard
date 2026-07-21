@@ -187,6 +187,7 @@ export function addImageCodexOperation(
         input.operation === 'annotation_edit' ? input.annotatedCompositeAsset?.assetId : undefined,
       annotationManifest:
         input.operation === 'annotation_edit' ? input.annotationManifest : undefined,
+      connectionId: 'codex-managed',
       generationParams,
       generationProfileId,
       referenceAssetIds: referenceAssetIds.length ? referenceAssetIds : undefined,
@@ -242,8 +243,12 @@ export function addImageCodexOperation(
     outputAssetIds: [],
     agentHost: 'codex',
     triggerMode: 'manual_agent_session',
+    connectionId: 'codex-managed',
     skillId: skillForOperation(input.operation),
-    generationProfile: snapshotGenerationProfile(operationBlock.data.generationProfileId),
+    generationProfile: {
+      ...snapshotGenerationProfile(operationBlock.data.generationProfileId),
+      connectionId: 'codex-managed',
+    },
     prompt: instruction || input.defaultPrompt || title,
     params: {
       operationBlockId: operationBlock.blockId,
@@ -385,6 +390,7 @@ export function createDraftImageToImageOperation(
       sourceBlockId: sourceBlock.blockId,
       sourceAssetId: sourceBlock.data.assetId,
       promptSourceBlockId: textBlock.blockId,
+      connectionId: 'codex-managed',
       generationProfileId: defaultGenerationProfileId,
       generationParams: generationParamsForSourceImage(snapshot, sourceBlock, undefined, true),
     },
@@ -458,6 +464,7 @@ export function createDraftTextToImageOperation(
       triggerMode: 'manual_agent_session',
       capabilityId: 'image.text_to_image',
       operationMode: 'text_to_image',
+      connectionId: 'codex-managed',
       generationParams: generationParamsForTextToImage(input.generationParams, true),
       generationProfileId: defaultGenerationProfileId,
       promptSourceBlockId: textBlock.blockId,
@@ -750,6 +757,9 @@ export function executeExistingImageOperationBlock(
     : promptText ?? '';
   if (!instruction) throw new Error('Enter a prompt before running this operation.');
   const generationProfileId = operationBlock.data.generationProfileId ?? defaultGenerationProfileId;
+  const connectionId = typeof operationBlock.data.connectionId === 'string'
+    ? operationBlock.data.connectionId
+    : 'codex-managed';
   const generationParams = effectiveGenerationParams(
     generationParamsForSourceImage(
       snapshot,
@@ -775,6 +785,7 @@ export function executeExistingImageOperationBlock(
     sourceBlockId: sourceBlock?.blockId,
     sourceAssetId: sourceBlock?.data.assetId,
     promptSourceBlockId: isAnnotationRepeat ? undefined : textBlock?.blockId,
+    connectionId,
     generationParams,
     generationProfileId,
     sourceExecutionId: executionId,
@@ -815,8 +826,12 @@ export function executeExistingImageOperationBlock(
     outputAssetIds: [],
     agentHost: 'codex',
     triggerMode: 'manual_agent_session',
+    connectionId,
     skillId: skillForOperation(codexOperation),
-    generationProfile: snapshotGenerationProfile(operationBlock.data.generationProfileId),
+    generationProfile: {
+      ...snapshotGenerationProfile(operationBlock.data.generationProfileId),
+      connectionId,
+    },
     prompt: instruction,
     params: {
       operationBlockId: operationBlock.blockId,

@@ -8,6 +8,7 @@ import { createAssetFromDataUrl } from './local-store/asset-store';
 import { loadSnapshot, resetWorkspace, saveSnapshot } from './local-store/snapshot-store';
 import {
   dreaminaCliAvailability,
+  probeDreaminaCliConnection,
   type DreaminaCliConfig,
   type DreaminaCommandRunner,
 } from './dreamina-cli-client';
@@ -26,6 +27,15 @@ const config: DreaminaCliConfig = {
 const availability = await dreaminaCliAvailability({ DREAMINA_CLI_PATH: fileURLToPath(import.meta.url) });
 assert.equal(availability.available, true);
 assert.equal(availability.credentialRefType, 'dreamina_oauth_session');
+let probeArgs: string[] = [];
+await probeDreaminaCliConnection(
+  { DREAMINA_CLI_PATH: fileURLToPath(import.meta.url) },
+  async (_executablePath, args) => {
+    probeArgs = args;
+    return { payload: {}, stdout: 'dreamina test', stderr: '' };
+  },
+);
+assert.deepEqual(probeArgs, ['--version']);
 
 const snapshot = await resetWorkspace();
 const firstFrameAsset = await createAssetFromDataUrl({

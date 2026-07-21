@@ -38,10 +38,13 @@ export function maxZIndex(blocks: BlockRecord[]): number {
 
 function dataForType(type: BlockType, projectId: string): BlockRecord['data'] {
   if (type === 'operation') {
+    const imageSelection = executionDefaultSelection('image', projectId);
+    const imageConnection = executionConnection(imageSelection?.connectionId, projectId);
     return {
       title: 'New operation',
       body: 'Choose capability, inputs, and execution adapter.',
       capabilityId: 'image.text_to_image',
+      connectionId: imageConnection?.status === 'ready' ? imageConnection.connectionId : 'codex-managed',
       generationProfileId: defaultGenerationProfileId,
     };
   }
@@ -65,7 +68,8 @@ function dataForType(type: BlockType, projectId: string): BlockRecord['data'] {
   if (type === 'video') {
     const selection = executionDefaultSelection('video', projectId);
     const connection = executionConnection(selection?.connectionId, projectId);
-    const executionProfileId = videoProfileForConnector(connection?.connectorId);
+    const readyConnection = connection?.status === 'ready' ? connection : undefined;
+    const executionProfileId = videoProfileForConnector(readyConnection?.connectorId);
     return {
       title: 'Video block',
       body: 'Connect optional image references, then generate through the selected video profile.',
@@ -73,7 +77,7 @@ function dataForType(type: BlockType, projectId: string): BlockRecord['data'] {
         schemaVersion: 1,
         capabilityId: 'video.generate',
         executionProfileId,
-        ...(selection?.connectionId ? { connectionId: selection.connectionId } : {}),
+        ...(readyConnection ? { connectionId: readyConnection.connectionId } : {}),
         prompt: '',
         parameters: {
           aspectRatio: '9:16',

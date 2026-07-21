@@ -1,11 +1,15 @@
 import { AlertCircle, Check, ChevronRight, Clipboard, Loader2, RefreshCw } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { isLocalCanvasCapability, operationReadinessMessageKey, schemaForCapability } from '../core/capabilities';
+import {
+  currentExecutionProviderSettings,
+  subscribeExecutionProviderSettings,
+} from '../core/executionProviderPreferences';
+import type { ExecutionConnectionStatus, ExecutionConnectionSummary } from '../core/executionProviders';
 import {
   generationParameterSupport,
   generationParameterVisible,
   generationProfileById,
-  generationProfilesForCapability,
   type GenerationParameterKey,
   type GenerationProfile,
 } from '../core/generationProfiles';
@@ -59,7 +63,15 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
   const capabilityId = capabilityIdForOperationMode(operation, data);
   const paramsSchema = schemaForCapability(capabilityId).paramsSchema;
   const profile = generationProfileById(data.generationProfileId);
-  const availableProfiles = generationProfilesForCapability(capabilityId);
+  const providerSettings = useSyncExternalStore(
+    subscribeExecutionProviderSettings,
+    currentExecutionProviderSettings,
+    currentExecutionProviderSettings,
+  );
+  const compatibleConnections = operationExecutionConnections(providerSettings?.connections ?? [], capabilityId);
+  const selectedConnection = compatibleConnections.find((connection) => connection.connectionId === data.connectionId)
+    ?? compatibleConnections.find((connection) => connection.connectionId === 'codex-managed')
+    ?? compatibleConnections[0];
   const sourceAspectRatio = operation === 'image_to_image'
     ? finiteNumber(data.operationSourceAspectRatio)
     : undefined;
@@ -75,7 +87,8 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
     (key) => paramsSchema[key] && generationParameterVisible(profile, key),
   );
   const displayState = operationDisplayState(data);
-  const { isQueued, isRunning, readinessIssue, runDisabled, showReadinessIssue } = displayState;
+  const { isQueued, isRunning, readinessIssue, showReadinessIssue } = displayState;
+  const runDisabled = displayState.runDisabled || Boolean(providerSettings && selectedConnection?.status !== 'ready');
   const isLocked = data.groupContentLocked === true;
   const isRepeat = Boolean(data.sourceExecutionId);
   const queuedConfigurationStale = data.operationQueuedConfigurationStale === true;
@@ -133,27 +146,29 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
           }}
         >
           <span>{t('operationToolbar.generator')}</span>
-          <strong>{profile.name}</strong>
+          <strong>{selectedConnection ? connectionLabel(selectedConnection) : providerSettings ? t('settings.noCompatibleConnection') : profile.name}</strong>
           <ChevronRight size={15} />
         </button>
         {isGeneratorOpen && !isLocked ? (
           <div className="operation-side-popover operation-generator-popover">
-            {availableProfiles.map((option) => (
+            {compatibleConnections.map((option) => (
               <button
-                key={option.generationProfileId}
+                key={option.connectionId}
                 type="button"
-                className={profile.generationProfileId === option.generationProfileId ? 'is-selected' : undefined}
+                className={selectedConnection?.connectionId === option.connectionId ? 'is-selected' : undefined}
+                disabled={option.status !== 'ready'}
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => {
                   event.stopPropagation();
-                  dispatchUpdateOperationGenerationProfile(blockId, option.generationProfileId);
+                  dispatchUpdateOperationConnection(blockId, option.connectionId);
                   setIsGeneratorOpen(false);
                 }}
               >
-                <span>{option.name}</span>
-                {profile.generationProfileId === option.generationProfileId ? <Check size={14} /> : null}
+                <span>{connectionLabel(option)}{option.status === 'ready' ? '' : ` · ${connectionStatusText(option.status, t)}`}</span>
+                {selectedConnection?.connectionId === option.connectionId ? <Check size={14} /> : null}
               </button>
             ))}
+            {compatibleConnections.length === 0 ? <button type="button" disabled>{t('settings.noCompatibleConnection')}</button> : null}
           </div>
         ) : null}
       </div>
@@ -409,12 +424,36 @@ function dispatchUpdateOperationGenerationParams(
   );
 }
 
-function dispatchUpdateOperationGenerationProfile(blockId: string, generationProfileId: string): void {
+function dispatchUpdateOperationConnection(blockId: string, connectionId: string): void {
   window.dispatchEvent(
-    new CustomEvent('retake:update-operation-generation-profile', {
-      detail: { blockId, generationProfileId },
+    new CustomEvent('retake:update-operation-connection', {
+      detail: { blockId, connectionId },
     }),
   );
+}
+
+function operationExecutionConnections(
+  connections: ExecutionConnectionSummary[],
+  capabilityId: string,
+): ExecutionConnectionSummary[] {
+  return connections.filter((connection) => connection.supportedCapabilityIds.includes(capabilityId));
+}
+
+function connectionLabel(connection: ExecutionConnectionSummary): string {
+  return `${connection.displayName}${connection.modelId ? ` · ${connection.modelId}` : ''}`;
+}
+
+function connectionStatusText(
+  status: ExecutionConnectionStatus,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  if (status === 'not_installed') return t('settings.statusNotInstalled');
+  if (status === 'needs_credentials') return t('settings.statusNeedsCredentials');
+  if (status === 'needs_login') return t('settings.statusNeedsLogin');
+  if (status === 'untested') return t('settings.statusUntested');
+  if (status === 'checking') return t('settings.statusChecking');
+  if (status === 'ready') return t('settings.statusReady');
+  return t('settings.statusUnavailable');
 }
 
 function operationModeFromCapability(data: BlockData): SwitchableOperationMode {

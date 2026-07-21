@@ -6,6 +6,7 @@ import { cacheExecutionProviderSettings } from '../src/core/executionProviderPre
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import type { BoardSnapshot } from '../src/core/types';
 import { generateOpenAICompatibleText } from './openai-compatible-client';
+import { probeSeedanceModelArkConnection } from './seedance-modelark-client';
 import {
   checkExecutionConnection,
   createExecutionConnection,
@@ -77,7 +78,13 @@ try {
   assert.equal(environmentConnection?.baseUrl, 'https://environment.example/api/v3');
   assert.equal(environmentConnection?.modelId, 'environment-seedance-model');
   assert.equal((await resolveExecutionConnection('byteplus-modelark'))?.model, 'environment-seedance-model');
-  await checkExecutionConnection('byteplus-modelark');
+  await checkExecutionConnection('byteplus-modelark', undefined, {
+    probeModelArk: async (config) => {
+      assert.equal(config.apiKey, 'environment-test-key');
+      assert.equal(config.baseUrl, 'https://environment.example/api/v3');
+      assert.equal(config.model, 'environment-seedance-model');
+    },
+  });
   assert.equal((await resolveExecutionConnection('byteplus-modelark'))?.model, 'environment-seedance-model');
 } finally {
   restoreEnvironment('SEEDANCE_MODELARK_API_KEY', previousModelArkEnvironment.apiKey);
@@ -114,6 +121,24 @@ assert.equal(generated.text, 'OK');
 assert.equal(generated.finishReason, 'stop');
 assert.equal(capturedUrl, 'https://provider.example/v1/chat/completions');
 assert.equal(capturedAuthorization, 'Bearer test-secret-key');
+
+let capturedModelArkMethod = '';
+await probeSeedanceModelArkConnection({
+  apiKey: 'modelark-test-key',
+  baseUrl: 'https://ark.example/api/v3/',
+  model: 'seedance-test-model',
+}, async (input, init) => {
+  capturedUrl = String(input);
+  capturedAuthorization = new Headers(init?.headers).get('authorization') ?? '';
+  capturedModelArkMethod = init?.method ?? '';
+  return new Response(JSON.stringify({ items: [], total: 0 }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+});
+assert.equal(capturedUrl, 'https://ark.example/api/v3/contents/generations/tasks?model=seedance-test-model&page_size=1');
+assert.equal(capturedAuthorization, 'Bearer modelark-test-key');
+assert.equal(capturedModelArkMethod, 'GET');
 
 await updateExecutionConnection('byteplus-modelark', {
   modelId: 'dreamina-seedance-2-0-260128',
@@ -163,10 +188,18 @@ assert.equal(JSON.stringify(settings).includes('secret'), false, 'Settings API m
 
 const internal = openAiCompatibleConnections.find((connection) => connection.displayName === 'Internal Gateway');
 assert.ok(internal);
+assert.equal(internal.status, 'untested');
 const resolvedInternal = await resolveExecutionConnection(internal.connectionId);
 assert.equal(resolvedInternal?.apiKey, 'internal-gateway-secret');
 assert.equal(resolvedInternal?.baseUrl, 'https://ai.studio.example/v1');
 assert.equal(resolvedInternal?.model, 'script-v2');
+settings = await checkExecutionConnection(internal.connectionId, undefined, {
+  probeOpenAICompatible: async (config) => {
+    assert.equal(config.apiKey, 'internal-gateway-secret');
+    assert.equal(config.model, 'script-v2');
+  },
+});
+assert.equal(settings.connections.find((connection) => connection.connectionId === internal.connectionId)?.status, 'ready');
 await assert.rejects(
   saveExecutionDefault({ capabilityClass: 'text', connectionId: internal.connectionId }),
   /does not support text/,
@@ -175,6 +208,20 @@ await assert.rejects(
 
 const previewConnection = settings.connections.find((connection) => connection.displayName === 'BytePlus Preview Account');
 assert.ok(previewConnection);
+assert.equal(previewConnection.status, 'untested');
+settings = await checkExecutionConnection(previewConnection.connectionId, undefined, {
+  probeModelArk: async (config) => {
+    assert.equal(config.apiKey, 'byteplus-preview-secret');
+    assert.equal(config.model, 'seedance-preview-model');
+  },
+});
+assert.equal(settings.connections.find((connection) => connection.connectionId === previewConnection.connectionId)?.status, 'ready');
+assert.match(
+  settings.connections.find((connection) => connection.connectionId === previewConnection.connectionId)?.lastCheckMessage ?? '',
+  /without creating a generation task/,
+);
+const codexAppServer = settings.connections.find((connection) => connection.connectionId === 'codex-app-server');
+assert.ok(codexAppServer, 'Codex App Server must be present as a fixed Agent Host connection.');
 await saveExecutionDefault({
   capabilityClass: 'video',
   connectionId: previewConnection.connectionId,

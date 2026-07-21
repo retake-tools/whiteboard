@@ -405,6 +405,8 @@ type TranslationKey =
   | 'settings.configure'
   | 'settings.checkConnection'
   | 'settings.checkMayCost'
+  | 'settings.lastTested'
+  | 'settings.testRequired'
   | 'settings.saveConnection'
   | 'settings.apiKey'
   | 'settings.apiKeyCreatePlaceholder'
@@ -426,6 +428,7 @@ type TranslationKey =
   | 'settings.statusNotInstalled'
   | 'settings.statusNeedsCredentials'
   | 'settings.statusNeedsLogin'
+  | 'settings.statusUntested'
   | 'settings.statusChecking'
   | 'settings.statusReady'
   | 'settings.statusUnavailable'
@@ -896,8 +899,10 @@ const translations: Record<Locale, Translations> = {
     'settings.noBoundCapabilities': 'Connector foundation only',
     'settings.defaults': 'Defaults',
     'settings.configure': 'Configure',
-    'settings.checkConnection': 'Check',
-    'settings.checkMayCost': 'Connection checks send a minimal text request and may incur a small provider charge.',
+    'settings.checkConnection': 'Test connection',
+    'settings.checkMayCost': 'OpenAI-compatible tests send a minimal text request and may incur a small provider charge. ModelArk tests only list tasks and do not create a generation task.',
+    'settings.lastTested': 'Last tested',
+    'settings.testRequired': 'Save the connection, then test it before using it for execution.',
     'settings.saveConnection': 'Save connection',
     'settings.apiKey': 'API key / secret',
     'settings.apiKeyCreatePlaceholder': 'Enter the API key or secret for this connection',
@@ -919,6 +924,7 @@ const translations: Record<Locale, Translations> = {
     'settings.statusNotInstalled': 'Not installed',
     'settings.statusNeedsCredentials': 'Needs credentials',
     'settings.statusNeedsLogin': 'Needs login',
+    'settings.statusUntested': 'Untested',
     'settings.statusChecking': 'Checking',
     'settings.statusReady': 'Ready',
     'settings.statusUnavailable': 'Unavailable',
@@ -1384,8 +1390,10 @@ const translations: Record<Locale, Translations> = {
     'settings.noBoundCapabilities': '仅连接基础，尚未绑定执行能力',
     'settings.defaults': '默认值',
     'settings.configure': '配置',
-    'settings.checkConnection': '检测',
-    'settings.checkMayCost': '连接检测会发送一次极小的文本请求，可能产生少量服务商费用。',
+    'settings.checkConnection': '测试连接',
+    'settings.checkMayCost': 'OpenAI-compatible 测试会发送一次极小的文本请求，可能产生少量费用；ModelArk 测试只读取任务列表，不会创建生成任务。',
+    'settings.lastTested': '上次测试',
+    'settings.testRequired': '请先保存连接，再完成测试后用于执行。',
     'settings.saveConnection': '保存连接',
     'settings.apiKey': 'API Key / Secret',
     'settings.apiKeyCreatePlaceholder': '填写此连接使用的 API Key 或 Secret',
@@ -1407,6 +1415,7 @@ const translations: Record<Locale, Translations> = {
     'settings.statusNotInstalled': '未安装',
     'settings.statusNeedsCredentials': '需要凭据',
     'settings.statusNeedsLogin': '需要登录',
+    'settings.statusUntested': '未测试',
     'settings.statusChecking': '检测中',
     'settings.statusReady': '可用',
     'settings.statusUnavailable': '不可用',

@@ -408,6 +408,16 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     }, { persist: true });
   }
 
+  function updateOperationConnection(blockId: string, connectionId: string): void {
+    updateSnapshot((current) => {
+      const operationBlock = current.blocks.find((block) => block.blockId === blockId && block.type === 'operation');
+      if (!operationBlock || blockLockedByGroup(current, blockId)) return current;
+      operationBlock.data = { ...operationBlock.data, connectionId };
+      operationBlock.updatedAt = nowIso();
+      return touchBoard(current);
+    }, { persist: true });
+  }
+
   function updateOperationCapability(blockId: string, operation: SwitchableOperationMode): void {
     updateSnapshot((current) => {
       const operationBlock = current.blocks.find((block) => block.blockId === blockId && block.type === 'operation');
@@ -464,6 +474,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     startExistingOperationBlock,
     startImageCodexOperation,
     updateOperationCapability,
+    updateOperationConnection,
     updateOperationGenerationParams,
     updateOperationGenerationProfile,
   };

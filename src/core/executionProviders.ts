@@ -11,6 +11,7 @@ export type ExecutionConnectionStatus =
   | 'not_installed'
   | 'needs_credentials'
   | 'needs_login'
+  | 'untested'
   | 'checking'
   | 'ready'
   | 'unavailable';
@@ -61,6 +62,7 @@ export interface ExecutionConnectionSummary {
   baseUrl?: string;
   modelId?: string;
   lastCheckedAt?: string;
+  lastCheckMessage?: string;
   lastError?: string;
 }
 
@@ -93,8 +95,8 @@ const connectors: ExecutionConnectorDefinition[] = [
   },
   {
     connectorId: 'codex-managed',
-    displayName: 'Codex Managed',
-    description: 'Codex host with the Retake MCP bridge and installed skills.',
+    displayName: 'Codex MCP',
+    description: 'Prompt-driven Codex route with the Retake MCP bridge and installed skills.',
     connectionKind: 'agent_host',
     implementationKind: 'agent_bridge',
     installStatus: 'installed',
@@ -102,6 +104,18 @@ const connectors: ExecutionConnectorDefinition[] = [
     requiresCredential: false,
     supportedCapabilityIds: ['image.annotation_edit', 'image.image_to_image', 'image.text_to_image'],
     capabilityClasses: ['image', 'agent'],
+  },
+  {
+    connectorId: 'codex-app-server',
+    displayName: 'Codex App Server',
+    description: 'Local Codex rich-client protocol for authentication, threads, approvals, and streamed agent events.',
+    connectionKind: 'agent_host',
+    implementationKind: 'agent_bridge',
+    installStatus: 'installed',
+    connectionMode: 'fixed',
+    requiresCredential: false,
+    supportedCapabilityIds: [],
+    capabilityClasses: [],
   },
   {
     connectorId: 'dreamina',

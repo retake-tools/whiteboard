@@ -9,9 +9,10 @@ import {
   type ExecutionProviderSettingsSnapshot,
 } from '../../src/core/executionProviders';
 import { createId } from '../../src/core/id';
-import { dreaminaCliAvailability } from '../dreamina-cli-client';
+import { codexAppServerAvailability, probeCodexAppServerConnection } from '../codex-app-server-client';
+import { dreaminaCliAvailability, probeDreaminaCliConnection } from '../dreamina-cli-client';
 import { probeOpenAICompatibleConnection } from '../openai-compatible-client';
-import { readSeedanceModelArkConfig } from '../seedance-modelark-client';
+import { probeSeedanceModelArkConnection, readSeedanceModelArkConfig } from '../seedance-modelark-client';
 import {
   readExecutionConnections,
   readExecutionCredentials,
@@ -49,6 +50,13 @@ interface FixedConnectionDefinition {
   configurable: boolean;
 }
 
+export interface ExecutionConnectionCheckDependencies {
+  probeCodexAppServer?: typeof probeCodexAppServerConnection;
+  probeDreaminaCli?: typeof probeDreaminaCliConnection;
+  probeModelArk?: typeof probeSeedanceModelArkConnection;
+  probeOpenAICompatible?: typeof probeOpenAICompatibleConnection;
+}
+
 const fixedConnections: FixedConnectionDefinition[] = [
   {
     connectionId: 'retake-mock',
@@ -60,7 +68,14 @@ const fixedConnections: FixedConnectionDefinition[] = [
   {
     connectionId: 'codex-managed',
     connectorId: 'codex-managed',
-    displayName: 'Codex Managed',
+    displayName: 'Codex MCP',
+    providerLabel: 'Codex',
+    configurable: false,
+  },
+  {
+    connectionId: 'codex-app-server',
+    connectorId: 'codex-app-server',
+    displayName: 'Codex App Server',
     providerLabel: 'Codex',
     configurable: false,
   },
@@ -115,6 +130,7 @@ export async function listExecutionProviderSettings(projectId?: string): Promise
       enabled,
       hasCredential,
       installStatus: connector.installStatus,
+      lastCheckedAt: stored?.lastCheckedAt,
       lastError: stored?.lastError,
       requiresCredential: connector.requiresCredential,
     });
@@ -137,6 +153,7 @@ export async function listExecutionProviderSettings(projectId?: string): Promise
       ...(baseUrl ? { baseUrl } : {}),
       ...(modelId ? { modelId } : {}),
       ...(stored?.lastCheckedAt ? { lastCheckedAt: stored.lastCheckedAt } : {}),
+      ...(stored?.lastCheckMessage ? { lastCheckMessage: stored.lastCheckMessage } : {}),
       ...(stored?.lastError ? { lastError: stored.lastError } : {}),
     };
   }));
@@ -299,26 +316,46 @@ export async function deleteExecutionConnection(
 export async function checkExecutionConnection(
   connectionId: string,
   projectId?: string,
+  dependencies: ExecutionConnectionCheckDependencies = {},
 ): Promise<ExecutionProviderSettingsSnapshot> {
   const settings = await listExecutionProviderSettings(projectId);
   const summary = settings.connections.find((connection) => connection.connectionId === connectionId);
   if (!summary) throw new Error(`Execution connection not found: ${connectionId}`);
   let error: string | undefined;
+  let checkMessage: string | undefined;
   try {
     if (summary.connectorId === 'dreamina') {
-      const availability = await dreaminaCliAvailability();
-      if (!availability.available) throw new Error(availability.reason);
+      await (dependencies.probeDreaminaCli ?? probeDreaminaCliConnection)();
+      checkMessage = 'Dreamina CLI executable verified. Login and membership are validated again when a task is submitted.';
+    } else if (summary.connectorId === 'codex-app-server') {
+      const result = await (dependencies.probeCodexAppServer ?? probeCodexAppServerConnection)();
+      checkMessage = `Codex App Server handshake succeeded (${result.authMode}).`;
     } else if (summary.connectorId === 'openai-compatible') {
       const connection = await resolveExecutionConnection(connectionId);
       if (!connection?.apiKey || !connection.baseUrl || !connection.model) {
-        throw new Error('API key, base URL, and at least one model are required.');
+        throw new Error('API key, base URL, and one model ID are required.');
       }
-      await probeOpenAICompatibleConnection(connection);
-    } else if (summary.connectorId === 'byteplus-modelark' && !await resolveExecutionConnection(connectionId)) {
-      throw new Error('API key, base URL, and at least one model are required.');
+      await (dependencies.probeOpenAICompatible ?? probeOpenAICompatibleConnection)(connection);
+      checkMessage = 'Authenticated model request succeeded.';
+    } else if (summary.connectorId === 'byteplus-modelark') {
+      const connection = await resolveExecutionConnection(connectionId);
+      if (!connection?.apiKey || !connection.baseUrl || !connection.model) {
+        throw new Error('API key, base URL, and one model ID are required.');
+      }
+      await (dependencies.probeModelArk ?? probeSeedanceModelArkConnection)({
+        apiKey: connection.apiKey,
+        baseUrl: connection.baseUrl,
+        model: connection.model,
+      });
+      checkMessage = 'Authenticated ModelArk task-list request succeeded without creating a generation task.';
+    } else if (summary.connectorId === 'codex-managed' || summary.connectorId === 'retake-mock') {
+      checkMessage = 'Built-in Retake connection is ready.';
+    } else {
+      throw new Error(`Connection testing is not implemented for ${summary.connectorId}.`);
     }
   } catch (caught) {
     error = caught instanceof Error ? caught.message : 'Connection check failed.';
+    checkMessage = undefined;
   }
 
   const connectionsFile = await readExecutionConnections();
@@ -337,6 +374,7 @@ export async function checkExecutionConnection(
     baseUrl: existing?.baseUrl || summary.baseUrl || connector.defaultBaseUrl,
     modelId: existing?.modelId || summary.modelId || connector.defaultModelId,
     lastCheckedAt: now,
+    ...(checkMessage ? { lastCheckMessage: checkMessage } : {}),
     lastError: error,
     updatedAt: now,
   };
@@ -417,15 +455,26 @@ async function passiveStatus(input: {
   enabled: boolean;
   hasCredential: boolean;
   installStatus: 'installed' | 'available';
+  lastCheckedAt?: string;
   lastError?: string;
   requiresCredential: boolean;
 }): Promise<ExecutionConnectionStatus> {
   if (input.installStatus !== 'installed') return 'not_installed';
   if (!input.enabled) return 'unavailable';
-  if (input.connectorId === 'dreamina') return (await dreaminaCliAvailability()).available ? 'ready' : 'needs_login';
+  if (input.connectorId === 'dreamina') {
+    if (!(await dreaminaCliAvailability()).available) return 'not_installed';
+    if (!input.lastCheckedAt) return 'untested';
+    return input.lastError ? 'unavailable' : 'ready';
+  }
+  if (input.connectorId === 'codex-app-server') {
+    if (!codexAppServerAvailability().available) return 'not_installed';
+    if (!input.lastCheckedAt) return 'untested';
+    return input.lastError ? 'unavailable' : 'ready';
+  }
   if (input.connectorId === 'codex-managed' || input.connectorId === 'retake-mock') return 'ready';
   if (input.requiresCredential && !input.hasCredential) return 'needs_credentials';
   if (!input.baseUrl || !input.modelId) return 'unavailable';
+  if (!input.lastCheckedAt) return 'untested';
   if (input.lastError) return 'unavailable';
   return 'ready';
 }

@@ -134,6 +134,7 @@ export function App(): ReactElement {
     setPromptPreview,
     startExistingOperationBlock,
     updateOperationCapability,
+    updateOperationConnection,
     updateOperationGenerationParams,
     updateOperationGenerationProfile,
   } = imageOperationController;
@@ -189,6 +190,7 @@ export function App(): ReactElement {
     startExistingOperationBlock,
     t,
     updateOperationCapability,
+    updateOperationConnection,
     updateOperationGenerationParams,
     updateOperationGenerationProfile,
     updateSnapshot,

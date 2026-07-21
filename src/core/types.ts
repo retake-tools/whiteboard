@@ -202,6 +202,7 @@ export interface ExecutionConfigurationInputSnapshot {
 
 export interface ExecutionConfigurationSnapshot {
   capabilityId: string;
+  connectionId?: string;
   generationParams: Record<string, unknown>;
   generationProfileId?: string;
   imageInputs: ExecutionConfigurationInputSnapshot[];
@@ -288,6 +289,7 @@ export interface BlockData {
   status?: ExecutionStatus;
   statusVisualDismissed?: boolean;
   capabilityId?: string;
+  connectionId?: string;
   generationProfileId?: string;
   groupColor?: GroupColor;
   groupCollapsed?: boolean;
