@@ -2,6 +2,7 @@ import {
   Bot,
   CheckCircle2,
   CloudCog,
+  Copy,
   KeyRound,
   Loader2,
   Plus,
@@ -16,6 +17,7 @@ import {
   checkExecutionProviderConnection,
   createExecutionProviderConnection,
   deleteExecutionProviderConnection,
+  duplicateExecutionProviderConnection,
   loadExecutionProviderSettings,
   saveExecutionProviderDefault,
   updateExecutionProviderConnection,
@@ -42,7 +44,7 @@ interface ConnectionDraft {
   providerLabel: string;
   apiKey: string;
   baseUrl: string;
-  modelIds: string;
+  modelId: string;
 }
 
 const capabilityClasses: ExecutionCapabilityClass[] = ['text', 'document', 'image', 'video', 'audio', 'agent'];
@@ -52,7 +54,7 @@ const emptyDraft: ConnectionDraft = {
   providerLabel: '',
   apiKey: '',
   baseUrl: '',
-  modelIds: '',
+  modelId: '',
 };
 
 export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProvidersSettingsProps): ReactElement {
@@ -95,7 +97,7 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
       providerLabel: connection.providerLabel,
       apiKey: '',
       baseUrl: connection.baseUrl ?? '',
-      modelIds: connection.models.map((model) => model.modelId).join('\n'),
+      modelId: connection.modelId ?? '',
     });
     setError(undefined);
   }
@@ -116,7 +118,7 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
         providerLabel: draft.providerLabel,
         projectId,
         baseUrl: draft.baseUrl,
-        models: parseModels(draft.modelIds),
+        modelId: draft.modelId,
         apiKey: draft.apiKey,
       }));
       cancelForm();
@@ -137,7 +139,7 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
         displayName: draft.displayName,
         providerLabel: draft.providerLabel,
         baseUrl: draft.baseUrl,
-        models: parseModels(draft.modelIds),
+        modelId: draft.modelId,
         apiKey: draft.apiKey,
       }));
       cancelForm();
@@ -174,10 +176,26 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
     }
   }
 
+  async function duplicateConnection(connection: ExecutionConnectionSummary): Promise<void> {
+    setBusyId(`duplicate:${connection.connectionId}`);
+    setError(undefined);
+    try {
+      const result = await duplicateExecutionProviderConnection(connection.connectionId, projectId);
+      setSnapshot(result.snapshot);
+      const duplicated = result.snapshot.connections.find(
+        (candidate) => candidate.connectionId === result.duplicatedConnectionId,
+      );
+      if (duplicated) beginConfigure(duplicated);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusyId(undefined);
+    }
+  }
+
   async function saveDefault(
     capabilityClass: ExecutionCapabilityClass,
     connectionId: string,
-    model: string | undefined,
     scope: 'workspace' | 'project',
   ): Promise<void> {
     const busyKey = `${scope}:${capabilityClass}`;
@@ -187,7 +205,6 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
       setSnapshot(await saveExecutionProviderDefault({
         capabilityClass,
         connectionId: connectionId || undefined,
-        model,
         projectId: scope === 'project' ? projectId : undefined,
         responseProjectId: projectId,
       }));
@@ -248,6 +265,8 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
                     onCancelConfigure={cancelForm}
                     onCheck={() => void checkConnection(connection.connectionId)}
                     onDelete={() => void deleteConnection(connection)}
+                    onDuplicate={() => void duplicateConnection(connection)}
+                    duplicating={busyId === `duplicate:${connection.connectionId}`}
                     onDraftChange={setDraft}
                     onSave={() => void saveConnection(connection)}
                     t={t}
@@ -291,22 +310,24 @@ function ConnectionForm({ busy, draft, templates, onCancel, onDraftChange, onSav
       <label><span>{t('settings.connectionName')}</span><input value={draft.displayName} onChange={(event) => onDraftChange({ ...draft, displayName: event.currentTarget.value })} /></label>
       <label><span>{t('settings.providerLabel')}</span><input value={draft.providerLabel} onChange={(event) => onDraftChange({ ...draft, providerLabel: event.currentTarget.value })} /></label>
       <label><span>{t('settings.baseUrl')}</span><input value={draft.baseUrl} onChange={(event) => onDraftChange({ ...draft, baseUrl: event.currentTarget.value })} /></label>
-      <label><span>{t('settings.modelIds')}</span><textarea placeholder={t('settings.modelIdsPlaceholder')} value={draft.modelIds} onChange={(event) => onDraftChange({ ...draft, modelIds: event.currentTarget.value })} /></label>
+      <label><span>{t('settings.modelIds')}</span><input placeholder={t('settings.modelIdsPlaceholder')} value={draft.modelId} onChange={(event) => onDraftChange({ ...draft, modelId: event.currentTarget.value })} /></label>
       <label><span>{t('settings.apiKey')}</span><input type="password" autoComplete="off" placeholder={t(templates ? 'settings.apiKeyCreatePlaceholder' : 'settings.apiKeyPlaceholder')} value={draft.apiKey} onChange={(event) => onDraftChange({ ...draft, apiKey: event.currentTarget.value })} /></label>
-      <div><button type="button" onClick={onCancel}>{t('projectBoard.cancel')}</button><button type="button" className="is-primary" disabled={busy || !draft.templateId || !draft.displayName.trim()} onClick={onSave}>{t(templates ? 'settings.createConnection' : 'settings.saveConnection')}</button></div>
+      <div><button type="button" onClick={onCancel}>{t('projectBoard.cancel')}</button><button type="button" className="is-primary" disabled={busy || !draft.templateId || !draft.displayName.trim() || !draft.modelId.trim()} onClick={onSave}>{t(templates ? 'settings.createConnection' : 'settings.saveConnection')}</button></div>
     </div>
   );
 }
 
-function ConnectionCard({ busy, connection, draft, editing, onBeginConfigure, onCancelConfigure, onCheck, onDelete, onDraftChange, onSave, t }: {
+function ConnectionCard({ busy, connection, draft, duplicating, editing, onBeginConfigure, onCancelConfigure, onCheck, onDelete, onDuplicate, onDraftChange, onSave, t }: {
   busy: boolean;
   connection: ExecutionConnectionSummary;
   draft: ConnectionDraft;
+  duplicating: boolean;
   editing: boolean;
   onBeginConfigure: () => void;
   onCancelConfigure: () => void;
   onCheck: () => void;
   onDelete: () => void;
+  onDuplicate: () => void;
   onDraftChange: (draft: ConnectionDraft) => void;
   onSave: () => void;
   t: I18nContextValue['t'];
@@ -326,7 +347,7 @@ function ConnectionCard({ busy, connection, draft, editing, onBeginConfigure, on
         <strong>{t('settings.capabilities')}</strong>
         {connection.supportedCapabilityIds.length ? connection.supportedCapabilityIds.map((capabilityId) => <span key={capabilityId}>{capabilityId}</span>) : <span>{t('settings.noBoundCapabilities')}</span>}
       </div>
-      {connection.models.length ? <div className="execution-capability-list"><strong>{t('settings.models')}</strong>{connection.models.map((model) => <span key={model.modelId}>{model.displayName || model.modelId}</span>)}</div> : null}
+      {connection.modelId ? <div className="execution-capability-list"><strong>{t('settings.models')}</strong><span>{connection.modelId}</span></div> : null}
       {connection.lastError ? <p className="execution-connection-error">{connection.lastError}</p> : null}
       {connection.connectorId === 'openai-compatible' ? <p className="execution-connection-check-note">{t('settings.checkMayCost')}</p> : null}
       {editing ? (
@@ -334,6 +355,7 @@ function ConnectionCard({ busy, connection, draft, editing, onBeginConfigure, on
       ) : (
         <footer>
           {connection.deletable ? <button type="button" className="is-danger" onClick={onDelete}><Trash2 size={13} /> {t('settings.deleteConnection')}</button> : null}
+          {connection.configurable ? <button type="button" className="is-icon" aria-label={t('settings.duplicateConnection')} title={t('settings.duplicateConnection')} disabled={duplicating} onClick={onDuplicate}>{duplicating ? <Loader2 size={13} /> : <Copy size={13} />}</button> : null}
           {connection.configurable ? <button type="button" onClick={onBeginConfigure}>{t('settings.configure')}</button> : null}
           {connection.connectionId !== 'retake-mock' && connection.connectionId !== 'codex-managed' ? <button type="button" disabled={busy} onClick={onCheck}><RefreshCw size={13} /> {t('settings.checkConnection')}</button> : null}
         </footer>
@@ -347,7 +369,7 @@ function DefaultsPanel({ busyId, connections, projectDefaults, workspaceDefaults
   connections: ExecutionConnectionSummary[];
   projectDefaults: ExecutionDefaultSelection[];
   workspaceDefaults: ExecutionDefaultSelection[];
-  onSave: (capabilityClass: ExecutionCapabilityClass, connectionId: string, model: string | undefined, scope: 'workspace' | 'project') => Promise<void>;
+  onSave: (capabilityClass: ExecutionCapabilityClass, connectionId: string, scope: 'workspace' | 'project') => Promise<void>;
   t: I18nContextValue['t'];
 }): ReactElement {
   return (
@@ -357,24 +379,15 @@ function DefaultsPanel({ busyId, connections, projectDefaults, workspaceDefaults
           <h3>{t(scope === 'workspace' ? 'settings.workspaceDefaults' : 'settings.projectDefaults')}</h3>
           {capabilityClasses.map((capabilityClass) => {
             const compatible = connections.filter((connection) => connection.status === 'ready' && connection.capabilityClasses.includes(capabilityClass));
-            const options: Array<{ connection: ExecutionConnectionSummary; model?: string }> = [];
-            compatible.forEach((connection) => {
-              if (connection.models.length) {
-                connection.models.forEach((model) => options.push({ connection, model: model.modelId }));
-              } else {
-                options.push({ connection });
-              }
-            });
             const selected = (scope === 'workspace' ? workspaceDefaults : projectDefaults).find((value) => value.capabilityClass === capabilityClass);
             return (
               <label key={capabilityClass}>
                 <span>{capabilityLabel(capabilityClass, t)}</span>
-                <select value={selected ? encodeDefaultValue(selected.connectionId, selected.model) : ''} disabled={busyId === `${scope}:${capabilityClass}`} onChange={(event) => {
-                  const decoded = decodeDefaultValue(event.currentTarget.value);
-                  void onSave(capabilityClass, decoded.connectionId, decoded.model, scope);
+                <select value={selected?.connectionId ?? ''} disabled={busyId === `${scope}:${capabilityClass}`} onChange={(event) => {
+                  void onSave(capabilityClass, event.currentTarget.value, scope);
                 }}>
                   <option value="">{scope === 'project' ? t('settings.inheritWorkspace') : t('settings.noCompatibleConnection')}</option>
-                  {options.map(({ connection, model }) => <option key={encodeDefaultValue(connection.connectionId, model)} value={encodeDefaultValue(connection.connectionId, model)}>{connection.displayName}{model ? ` · ${model}` : ''}</option>)}
+                  {compatible.map((connection) => <option key={connection.connectionId} value={connection.connectionId}>{connection.displayName}{connection.modelId ? ` · ${connection.modelId}` : ''}</option>)}
                 </select>
               </label>
             );
@@ -417,21 +430,8 @@ function draftFromTemplate(template: ExecutionConnectionTemplate): ConnectionDra
     providerLabel: template.providerLabel,
     apiKey: '',
     baseUrl: template.defaultBaseUrl ?? '',
-    modelIds: template.defaultModels.map((model) => model.modelId).join('\n'),
+    modelId: template.defaultModelId ?? '',
   };
-}
-
-function parseModels(value: string): Array<{ modelId: string }> {
-  return [...new Set(value.split(/[\n,]/).map((modelId) => modelId.trim()).filter(Boolean))].map((modelId) => ({ modelId }));
-}
-
-function encodeDefaultValue(connectionId: string, model?: string): string {
-  return `${connectionId}\u001f${model ?? ''}`;
-}
-
-function decodeDefaultValue(value: string): { connectionId: string; model?: string } {
-  const [connectionId = '', model = ''] = value.split('\u001f');
-  return { connectionId, ...(model ? { model } : {}) };
 }
 
 function errorMessage(error: unknown): string {

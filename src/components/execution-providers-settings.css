@@ -326,6 +326,15 @@
   color: #b42318;
 }
 
+.execution-connection-card button.is-icon {
+  width: 30px;
+  padding: 6px;
+}
+
+.execution-connection-card button.is-icon .lucide-loader-circle {
+  animation: execution-settings-spin 0.9s linear infinite;
+}
+
 .execution-connection-card button:disabled,
 .execution-connection-form button:disabled {
   cursor: wait;
@@ -349,7 +358,6 @@
 
 .execution-connection-form input,
 .execution-connection-form select,
-.execution-connection-form textarea,
 .execution-default-sections select {
   min-width: 0;
   min-height: 34px;
@@ -359,11 +367,6 @@
   background: #fff;
   color: #202938;
   font: inherit;
-}
-
-.execution-connection-form textarea {
-  min-height: 74px;
-  resize: vertical;
 }
 
 .execution-create-connection-form {

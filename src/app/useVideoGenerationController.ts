@@ -25,7 +25,6 @@ interface VideoDraftUpdate {
   aspectRatio?: string;
   connectionId?: string | null;
   durationSeconds?: number;
-  model?: string | null;
   outputCount?: number;
   prompt?: string;
   executionProfileId?: string;
@@ -50,7 +49,6 @@ export function useVideoGenerationController(options: VideoGenerationControllerO
         ...currentDraft,
         executionProfileId: input.executionProfileId ?? currentDraft.executionProfileId,
         ...connectionField(input.connectionId, currentDraft.connectionId),
-        ...modelField(input.model, currentDraft.model),
         prompt: input.prompt ?? currentDraft.prompt,
         parameters: {
           ...currentDraft.parameters,
@@ -76,7 +74,6 @@ export function useVideoGenerationController(options: VideoGenerationControllerO
     const aspectRatio = stringParam(draft?.parameters.aspectRatio, '9:16');
     const executionProfileId = draft?.executionProfileId ?? 'video-mock';
     const connectionId = draft?.connectionId ?? undefined;
-    const model = draft?.model ?? undefined;
     inFlightBlockIdsRef.current.add(blockId);
     try {
       if (executionProfileId === 'video-seedance-modelark' || executionProfileId === 'video-dreamina-cli') {
@@ -90,7 +87,6 @@ export function useVideoGenerationController(options: VideoGenerationControllerO
           outputCount,
           aspectRatio,
           connectionId,
-          model,
         });
         const nextSnapshot = updateSnapshot(() => started.snapshot, { persist: false, history: true });
         setSelectedBlocks(nextSnapshot, started.execution.outputBlockIds);
@@ -111,7 +107,6 @@ export function useVideoGenerationController(options: VideoGenerationControllerO
         durationSeconds,
         outputCount,
         connectionId,
-        model,
       });
       const nextSnapshot = updateSnapshot(() => completedSnapshot, { persist: true, history: true });
       setSelectedBlocks(nextSnapshot, run.execution.outputBlockIds);
@@ -198,11 +193,6 @@ export function useVideoGenerationController(options: VideoGenerationControllerO
 function connectionField(value: string | null | undefined, fallback: string | null | undefined): { connectionId?: string | null } {
   if (value === undefined) return fallback ? { connectionId: fallback } : {};
   return value ? { connectionId: value } : { connectionId: null };
-}
-
-function modelField(value: string | null | undefined, fallback: string | null | undefined): { model?: string | null } {
-  if (value === undefined) return fallback ? { model: fallback } : {};
-  return value ? { model: value } : { model: null };
 }
 
 function numberParam(value: unknown, fallback: number): number {

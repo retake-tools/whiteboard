@@ -3,7 +3,6 @@ import path from 'node:path';
 import {
   executionConnectorDefinition,
   type ExecutionDefaultSelection,
-  type ExecutionModelConfiguration,
 } from '../../src/core/executionProviders';
 import { retakeRoot, writeJson } from './context';
 
@@ -15,15 +14,14 @@ export interface StoredExecutionConnection {
   displayName: string;
   enabled: boolean;
   baseUrl?: string;
-  models: ExecutionModelConfiguration[];
-  defaultModelId?: string;
+  modelId?: string;
   lastCheckedAt?: string;
   lastError?: string;
   updatedAt: string;
 }
 
 export interface StoredConnectionsFile {
-  schemaVersion: 2;
+  schemaVersion: 3;
   connections: StoredExecutionConnection[];
 }
 
@@ -33,7 +31,7 @@ export interface StoredCredentialsFile {
 }
 
 export interface StoredDefaultsFile {
-  schemaVersion: 1;
+  schemaVersion: 2;
   workspace: ExecutionDefaultSelection[];
   projects: Record<string, ExecutionDefaultSelection[]>;
 }
@@ -49,13 +47,15 @@ export async function readExecutionConnections(): Promise<StoredConnectionsFile>
       schemaVersion?: number;
       connections?: Array<Record<string, unknown>>;
     };
-    if (parsed.schemaVersion === 2) return parsed as unknown as StoredConnectionsFile;
+    if (parsed.schemaVersion === 3) return parsed as unknown as StoredConnectionsFile;
     return {
-      schemaVersion: 2,
-      connections: (parsed.connections ?? []).flatMap(migrateV1Connection),
+      schemaVersion: 3,
+      connections: (parsed.connections ?? []).flatMap(
+        parsed.schemaVersion === 2 ? migrateV2Connection : migrateV1Connection,
+      ),
     };
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { schemaVersion: 2, connections: [] };
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { schemaVersion: 3, connections: [] };
     throw error;
   }
 }
@@ -81,7 +81,17 @@ export async function writeExecutionCredentials(credentials: StoredCredentialsFi
 }
 
 export async function readExecutionDefaults(): Promise<StoredDefaultsFile> {
-  return readOptionalJson(defaultsPath, { schemaVersion: 1, workspace: [], projects: {} });
+  const parsed = await readOptionalJson<{
+    workspace?: Array<Record<string, unknown>>;
+    projects?: Record<string, Array<Record<string, unknown>>>;
+  }>(defaultsPath, { workspace: [], projects: {} });
+  return {
+    schemaVersion: 2,
+    workspace: normalizeDefaults(parsed.workspace ?? []),
+    projects: Object.fromEntries(Object.entries(parsed.projects ?? {}).map(
+      ([projectId, defaults]) => [projectId, normalizeDefaults(defaults)],
+    )),
+  };
 }
 
 export async function writeExecutionDefaults(defaults: StoredDefaultsFile): Promise<void> {
@@ -92,8 +102,7 @@ function migrateV1Connection(value: Record<string, unknown>): StoredExecutionCon
   const providerId = typeof value.providerId === 'string' ? value.providerId : undefined;
   if (!providerId || !executionConnectorDefinition(providerId)) return [];
   const connector = executionConnectorDefinition(providerId)!;
-  const model = typeof value.model === 'string' && value.model.trim() ? value.model.trim() : connector.defaultModels?.[0]?.modelId;
-  const models = model ? [{ modelId: model }] : [];
+  const modelId = cleanString(value.model) || connector.defaultModelId;
   return [{
     connectionId: typeof value.connectionId === 'string' ? value.connectionId : providerId,
     connectorId: providerId,
@@ -101,12 +110,53 @@ function migrateV1Connection(value: Record<string, unknown>): StoredExecutionCon
     displayName: typeof value.displayName === 'string' && value.displayName.trim() ? value.displayName.trim() : connector.displayName,
     enabled: value.enabled !== false,
     baseUrl: typeof value.baseUrl === 'string' ? value.baseUrl : connector.defaultBaseUrl,
-    models,
-    ...(model ? { defaultModelId: model } : {}),
+    ...(modelId ? { modelId } : {}),
     ...(typeof value.lastCheckedAt === 'string' ? { lastCheckedAt: value.lastCheckedAt } : {}),
     ...(typeof value.lastError === 'string' ? { lastError: value.lastError } : {}),
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : new Date().toISOString(),
   }];
+}
+
+function migrateV2Connection(value: Record<string, unknown>): StoredExecutionConnection[] {
+  const connectorId = cleanString(value.connectorId);
+  if (!connectorId || !executionConnectorDefinition(connectorId)) return [];
+  const models = Array.isArray(value.models) ? value.models : [];
+  const defaultModelId = cleanString(value.defaultModelId);
+  const configuredModelIds = models.flatMap((model) => {
+    if (!model || typeof model !== 'object') return [];
+    const modelId = cleanString((model as Record<string, unknown>).modelId);
+    return modelId ? [modelId] : [];
+  });
+  const modelId = defaultModelId && configuredModelIds.includes(defaultModelId)
+    ? defaultModelId
+    : configuredModelIds[0] || executionConnectorDefinition(connectorId)?.defaultModelId;
+  return [{
+    connectionId: cleanString(value.connectionId) || connectorId,
+    connectorId,
+    ...(cleanString(value.templateId) ? { templateId: cleanString(value.templateId) } : {}),
+    ...(cleanString(value.providerLabel) ? { providerLabel: cleanString(value.providerLabel) } : {}),
+    displayName: cleanString(value.displayName) || executionConnectorDefinition(connectorId)!.displayName,
+    enabled: value.enabled !== false,
+    ...(cleanString(value.baseUrl) ? { baseUrl: cleanString(value.baseUrl) } : {}),
+    ...(modelId ? { modelId } : {}),
+    ...(cleanString(value.lastCheckedAt) ? { lastCheckedAt: cleanString(value.lastCheckedAt) } : {}),
+    ...(cleanString(value.lastError) ? { lastError: cleanString(value.lastError) } : {}),
+    updatedAt: cleanString(value.updatedAt) || new Date().toISOString(),
+  }];
+}
+
+function cleanString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function normalizeDefaults(values: Array<Record<string, unknown>>): ExecutionDefaultSelection[] {
+  const capabilityClasses = new Set(['text', 'document', 'image', 'video', 'audio', 'agent']);
+  return values.flatMap((value) => {
+    const capabilityClass = cleanString(value.capabilityClass);
+    const connectionId = cleanString(value.connectionId);
+    if (!capabilityClass || !capabilityClasses.has(capabilityClass) || !connectionId) return [];
+    return [{ capabilityClass: capabilityClass as ExecutionDefaultSelection['capabilityClass'], connectionId }];
+  });
 }
 
 async function readOptionalJson<T>(filePath: string, fallback: T): Promise<T> {

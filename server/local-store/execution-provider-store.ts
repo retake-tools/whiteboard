@@ -6,7 +6,6 @@ import {
   type ExecutionCapabilityClass,
   type ExecutionConnectionStatus,
   type ExecutionDefaultSelection,
-  type ExecutionModelConfiguration,
   type ExecutionProviderSettingsSnapshot,
 } from '../../src/core/executionProviders';
 import { createId } from '../../src/core/id';
@@ -29,8 +28,7 @@ export interface CreateExecutionConnectionInput {
   displayName: string;
   providerLabel?: string;
   baseUrl?: string;
-  models?: ExecutionModelConfiguration[];
-  defaultModelId?: string;
+  modelId?: string;
   apiKey?: string;
 }
 
@@ -39,8 +37,7 @@ export interface UpdateExecutionConnectionInput {
   providerLabel?: string;
   enabled?: boolean;
   baseUrl?: string;
-  models?: ExecutionModelConfiguration[];
-  defaultModelId?: string;
+  modelId?: string;
   apiKey?: string;
 }
 
@@ -105,11 +102,7 @@ export async function listExecutionProviderSettings(projectId?: string): Promise
     const connector = connectorId ? executionConnectorDefinition(connectorId) : undefined;
     if (!connector) return undefined;
     const template = stored?.templateId ? executionConnectionTemplate(stored.templateId) : undefined;
-    const environmentDefaultModelId = environmentModel(connectionId);
-    const models = cloneModels(stored?.models.length
-      ? stored.models
-      : mergeModels(environmentDefaultModelId, connector.defaultModels ?? []));
-    const defaultModelId = stored?.defaultModelId || environmentDefaultModelId || models[0]?.modelId;
+    const modelId = stored?.modelId || environmentModel(connectionId) || connector.defaultModelId;
     const hasCredential = Boolean(credentialsFile.credentials[connectionId]?.apiKey)
       || hasEnvironmentCredential(connectionId);
     const baseUrl = stored?.baseUrl || environmentBaseUrl(connectionId) || template?.defaultBaseUrl || connector.defaultBaseUrl;
@@ -118,7 +111,7 @@ export async function listExecutionProviderSettings(projectId?: string): Promise
       baseUrl,
       connectionId,
       connectorId: connector.connectorId,
-      defaultModelId,
+      modelId,
       enabled,
       hasCredential,
       installStatus: connector.installStatus,
@@ -142,8 +135,7 @@ export async function listExecutionProviderSettings(projectId?: string): Promise
       status,
       hasCredential,
       ...(baseUrl ? { baseUrl } : {}),
-      models,
-      ...(defaultModelId ? { defaultModelId } : {}),
+      ...(modelId ? { modelId } : {}),
       ...(stored?.lastCheckedAt ? { lastCheckedAt: stored.lastCheckedAt } : {}),
       ...(stored?.lastError ? { lastError: stored.lastError } : {}),
     };
@@ -169,8 +161,7 @@ export async function createExecutionConnection(
     throw new Error(`Connection template is unavailable: ${input.templateId}`);
   }
   const displayName = requireText(input.displayName, 'Connection name is required.');
-  const models = normalizeModels(input.models ?? template.defaultModels);
-  const defaultModelId = selectDefaultModel(input.defaultModelId, models);
+  const modelId = cleanOptional(input.modelId) || template.defaultModelId || connector.defaultModelId;
   const connectionId = createId('connection');
   const connectionsFile = await readExecutionConnections();
   connectionsFile.connections.push({
@@ -181,8 +172,7 @@ export async function createExecutionConnection(
     displayName,
     enabled: true,
     baseUrl: cleanOptional(input.baseUrl) || template.defaultBaseUrl || connector.defaultBaseUrl,
-    models,
-    ...(defaultModelId ? { defaultModelId } : {}),
+    ...(modelId ? { modelId } : {}),
     updatedAt: new Date().toISOString(),
   });
   await writeExecutionConnections(connectionsFile);
@@ -204,9 +194,10 @@ export async function updateExecutionConnection(
     throw new Error(`Execution connection is not configurable: ${connectionId}`);
   }
   const template = existing?.templateId ? executionConnectionTemplate(existing.templateId) : undefined;
-  const currentModels = existing?.models.length ? existing.models : connector.defaultModels ?? [];
-  const models = input.models ? normalizeModels(input.models) : cloneModels(currentModels);
-  const defaultModelId = selectDefaultModel(input.defaultModelId ?? existing?.defaultModelId, models);
+  const modelId = cleanOptional(input.modelId)
+    || existing?.modelId
+    || template?.defaultModelId
+    || connector.defaultModelId;
   const next: StoredExecutionConnection = {
     connectionId,
     connectorId: connector.connectorId,
@@ -215,8 +206,7 @@ export async function updateExecutionConnection(
     displayName: cleanOptional(input.displayName) || existing?.displayName || fixed?.displayName || template?.displayName || connector.displayName,
     enabled: input.enabled ?? existing?.enabled ?? true,
     baseUrl: cleanOptional(input.baseUrl) || existing?.baseUrl || template?.defaultBaseUrl || connector.defaultBaseUrl,
-    models,
-    ...(defaultModelId ? { defaultModelId } : {}),
+    ...(modelId ? { modelId } : {}),
     updatedAt: new Date().toISOString(),
   };
   connectionsFile.connections = [
@@ -226,6 +216,55 @@ export async function updateExecutionConnection(
   await writeExecutionConnections(connectionsFile);
   if (cleanOptional(input.apiKey)) await writeExecutionCredential(connectionId, input.apiKey!.trim());
   return listExecutionProviderSettings(projectId);
+}
+
+export async function duplicateExecutionConnection(
+  sourceConnectionId: string,
+  projectId?: string,
+): Promise<{ duplicatedConnectionId: string; snapshot: ExecutionProviderSettingsSnapshot }> {
+  const [settings, connectionsFile, credentials] = await Promise.all([
+    listExecutionProviderSettings(projectId),
+    readExecutionConnections(),
+    readExecutionCredentials(),
+  ]);
+  const source = settings.connections.find((connection) => connection.connectionId === sourceConnectionId);
+  const connector = source ? executionConnectorDefinition(source.connectorId) : undefined;
+  if (!source || !connector || connector.connectionMode !== 'multiple') {
+    throw new Error(`Execution connection cannot be duplicated: ${sourceConnectionId}`);
+  }
+  const existing = connectionsFile.connections.find((connection) => connection.connectionId === sourceConnectionId);
+  const templates = listExecutionConnectionTemplates();
+  const fallbackTemplate = templates.find((template) => template.templateId === source.connectorId)
+    ?? templates.find((template) =>
+      template.connectorId === source.connectorId && template.templateId.startsWith('custom-'));
+  const sourceTemplateId = existing?.templateId || fallbackTemplate?.templateId;
+  const duplicatedConnectionId = createId('connection');
+  connectionsFile.connections.push({
+    connectionId: duplicatedConnectionId,
+    connectorId: source.connectorId,
+    ...(sourceTemplateId ? { templateId: sourceTemplateId } : {}),
+    providerLabel: source.providerLabel,
+    displayName: `${source.displayName} copy`,
+    enabled: true,
+    ...(source.baseUrl ? { baseUrl: source.baseUrl } : {}),
+    ...(source.modelId ? { modelId: source.modelId } : {}),
+    updatedAt: new Date().toISOString(),
+  });
+  const sourceCredential = credentials.credentials[sourceConnectionId];
+  if (sourceCredential) {
+    credentials.credentials[duplicatedConnectionId] = {
+      apiKey: sourceCredential.apiKey,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+  await Promise.all([
+    writeExecutionConnections(connectionsFile),
+    ...(sourceCredential ? [writeExecutionCredentials(credentials)] : []),
+  ]);
+  return {
+    duplicatedConnectionId,
+    snapshot: await listExecutionProviderSettings(projectId),
+  };
 }
 
 export async function deleteExecutionConnection(
@@ -287,9 +326,6 @@ export async function checkExecutionConnection(
   const fixed = fixedConnections.find((connection) => connection.connectionId === connectionId);
   const connector = executionConnectorDefinition(existing?.connectorId ?? fixed?.connectorId ?? '');
   if (!connector) throw new Error(`Execution connector not found for connection: ${connectionId}`);
-  const models = existing?.models.length
-    ? cloneModels(existing.models)
-    : cloneModels(summary.models.length ? summary.models : connector.defaultModels ?? []);
   const now = new Date().toISOString();
   const connection: StoredExecutionConnection = {
     connectionId,
@@ -299,8 +335,7 @@ export async function checkExecutionConnection(
     displayName: existing?.displayName || summary.displayName || fixed?.displayName || connector.displayName,
     enabled: existing?.enabled ?? true,
     baseUrl: existing?.baseUrl || summary.baseUrl || connector.defaultBaseUrl,
-    models,
-    defaultModelId: existing?.defaultModelId || summary.defaultModelId || models[0]?.modelId,
+    modelId: existing?.modelId || summary.modelId || connector.defaultModelId,
     lastCheckedAt: now,
     lastError: error,
     updatedAt: now,
@@ -318,7 +353,6 @@ export async function saveExecutionDefault(input: {
   connectionId?: string;
   projectId?: string;
   responseProjectId?: string;
-  model?: string;
 }): Promise<ExecutionProviderSettingsSnapshot> {
   const defaults = await readExecutionDefaults();
   if (!input.connectionId) {
@@ -338,14 +372,9 @@ export async function saveExecutionDefault(input: {
   if (connection.status !== 'ready') {
     throw new Error(`${input.connectionId} is not ready and cannot be selected as a default.`);
   }
-  const model = cleanOptional(input.model) || connection.defaultModelId;
-  if (model && !connection.models.some((candidate) => candidate.modelId === model)) {
-    throw new Error(`${model} is not configured for ${input.connectionId}.`);
-  }
   const selection: ExecutionDefaultSelection = {
     capabilityClass: input.capabilityClass,
     connectionId: input.connectionId,
-    ...(model ? { model } : {}),
   };
   if (input.projectId) {
     defaults.projects[input.projectId] = replaceDefault(defaults.projects[input.projectId] ?? [], selection);
@@ -356,7 +385,7 @@ export async function saveExecutionDefault(input: {
   return listExecutionProviderSettings(input.responseProjectId ?? input.projectId);
 }
 
-export async function resolveExecutionConnection(connectionId: string, modelOverride?: string): Promise<{
+export async function resolveExecutionConnection(connectionId: string): Promise<{
   connectionId: string;
   connectorId: string;
   providerLabel: string;
@@ -368,9 +397,8 @@ export async function resolveExecutionConnection(connectionId: string, modelOver
   const connection = settings.connections.find((candidate) => candidate.connectionId === connectionId);
   if (!connection || !connection.enabled) return undefined;
   const apiKey = credentials.credentials[connectionId]?.apiKey || environmentApiKey(connectionId);
-  const model = cleanOptional(modelOverride) || connection.defaultModelId;
+  const model = connection.modelId;
   if (!apiKey || !connection.baseUrl || !model) return undefined;
-  if (!connection.models.some((candidate) => candidate.modelId === model)) return undefined;
   return {
     connectionId,
     connectorId: connection.connectorId,
@@ -385,7 +413,7 @@ async function passiveStatus(input: {
   baseUrl?: string;
   connectionId: string;
   connectorId: string;
-  defaultModelId?: string;
+  modelId?: string;
   enabled: boolean;
   hasCredential: boolean;
   installStatus: 'installed' | 'available';
@@ -397,7 +425,7 @@ async function passiveStatus(input: {
   if (input.connectorId === 'dreamina') return (await dreaminaCliAvailability()).available ? 'ready' : 'needs_login';
   if (input.connectorId === 'codex-managed' || input.connectorId === 'retake-mock') return 'ready';
   if (input.requiresCredential && !input.hasCredential) return 'needs_credentials';
-  if (!input.baseUrl || !input.defaultModelId) return 'unavailable';
+  if (!input.baseUrl || !input.modelId) return 'unavailable';
   if (input.lastError) return 'unavailable';
   return 'ready';
 }
@@ -440,38 +468,6 @@ function removeDefault(
 
 function cloneDefaults(defaults: ExecutionDefaultSelection[]): ExecutionDefaultSelection[] {
   return defaults.map((selection) => ({ ...selection }));
-}
-
-function normalizeModels(models: ExecutionModelConfiguration[]): ExecutionModelConfiguration[] {
-  const byId = new Map<string, ExecutionModelConfiguration>();
-  models.forEach((model) => {
-    const modelId = cleanOptional(model.modelId);
-    if (!modelId) return;
-    byId.set(modelId, {
-      modelId,
-      ...(cleanOptional(model.displayName) ? { displayName: model.displayName!.trim() } : {}),
-    });
-  });
-  return [...byId.values()];
-}
-
-function selectDefaultModel(value: string | undefined, models: ExecutionModelConfiguration[]): string | undefined {
-  const requested = cleanOptional(value);
-  return requested && models.some((model) => model.modelId === requested) ? requested : models[0]?.modelId;
-}
-
-function cloneModels(models: ExecutionModelConfiguration[]): ExecutionModelConfiguration[] {
-  return models.map((model) => ({ ...model }));
-}
-
-function mergeModels(
-  preferredModelId: string | undefined,
-  models: ExecutionModelConfiguration[],
-): ExecutionModelConfiguration[] {
-  return normalizeModels([
-    ...(preferredModelId ? [{ modelId: preferredModelId }] : []),
-    ...models,
-  ]);
 }
 
 function requireText(value: string | undefined, message: string): string {

@@ -17,11 +17,6 @@ export type ExecutionConnectionStatus =
 
 export type ExecutionCapabilityClass = 'text' | 'document' | 'image' | 'video' | 'audio' | 'agent';
 
-export interface ExecutionModelConfiguration {
-  modelId: string;
-  displayName?: string;
-}
-
 export interface ExecutionConnectorDefinition {
   connectorId: string;
   displayName: string;
@@ -34,7 +29,7 @@ export interface ExecutionConnectorDefinition {
   supportedCapabilityIds: string[];
   capabilityClasses: ExecutionCapabilityClass[];
   defaultBaseUrl?: string;
-  defaultModels?: ExecutionModelConfiguration[];
+  defaultModelId?: string;
 }
 
 export interface ExecutionConnectionTemplate {
@@ -44,7 +39,7 @@ export interface ExecutionConnectionTemplate {
   description: string;
   providerLabel: string;
   defaultBaseUrl?: string;
-  defaultModels: ExecutionModelConfiguration[];
+  defaultModelId?: string;
 }
 
 export interface ExecutionConnectionSummary {
@@ -64,8 +59,7 @@ export interface ExecutionConnectionSummary {
   status: ExecutionConnectionStatus;
   hasCredential: boolean;
   baseUrl?: string;
-  models: ExecutionModelConfiguration[];
-  defaultModelId?: string;
+  modelId?: string;
   lastCheckedAt?: string;
   lastError?: string;
 }
@@ -73,7 +67,6 @@ export interface ExecutionConnectionSummary {
 export interface ExecutionDefaultSelection {
   capabilityClass: ExecutionCapabilityClass;
   connectionId: string;
-  model?: string;
 }
 
 export interface ExecutionProviderSettingsSnapshot {
@@ -96,7 +89,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     requiresCredential: false,
     supportedCapabilityIds: ['video.generate'],
     capabilityClasses: ['video'],
-    defaultModels: [{ modelId: 'contract-placeholder' }],
+    defaultModelId: 'contract-placeholder',
   },
   {
     connectorId: 'codex-managed',
@@ -121,7 +114,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     requiresCredential: false,
     supportedCapabilityIds: ['video.generate'],
     capabilityClasses: ['video'],
-    defaultModels: [{ modelId: 'seedance2.0_vip' }],
+    defaultModelId: 'seedance2.0_vip',
   },
   {
     connectorId: 'byteplus-modelark',
@@ -135,7 +128,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     supportedCapabilityIds: ['video.generate'],
     capabilityClasses: ['video'],
     defaultBaseUrl: 'https://ark.ap-southeast.bytepluses.com/api/v3',
-    defaultModels: [{ modelId: 'dreamina-seedance-2-0-260128' }],
+    defaultModelId: 'dreamina-seedance-2-0-260128',
   },
   {
     connectorId: 'openai-compatible',
@@ -195,7 +188,6 @@ const connectionTemplates: ExecutionConnectionTemplate[] = [
     description: 'OpenAI API through the shared OpenAI-compatible connector.',
     providerLabel: 'OpenAI',
     defaultBaseUrl: 'https://api.openai.com/v1',
-    defaultModels: [],
   },
   {
     templateId: 'openrouter',
@@ -204,7 +196,6 @@ const connectionTemplates: ExecutionConnectionTemplate[] = [
     description: 'OpenRouter multi-provider API using its OpenAI-compatible endpoint.',
     providerLabel: 'OpenRouter',
     defaultBaseUrl: 'https://openrouter.ai/api/v1',
-    defaultModels: [],
   },
   {
     templateId: 'deepseek',
@@ -213,7 +204,6 @@ const connectionTemplates: ExecutionConnectionTemplate[] = [
     description: 'DeepSeek API using its OpenAI-compatible endpoint.',
     providerLabel: 'DeepSeek',
     defaultBaseUrl: 'https://api.deepseek.com',
-    defaultModels: [],
   },
   {
     templateId: 'custom-openai-compatible',
@@ -221,7 +211,6 @@ const connectionTemplates: ExecutionConnectionTemplate[] = [
     displayName: 'Custom OpenAI-compatible',
     description: 'Any internal gateway or provider that implements the compatible chat API.',
     providerLabel: 'Custom',
-    defaultModels: [],
   },
   {
     templateId: 'byteplus-modelark',
@@ -230,7 +219,7 @@ const connectionTemplates: ExecutionConnectionTemplate[] = [
     description: 'Another BytePlus account, region, or endpoint using the installed native async connector.',
     providerLabel: 'BytePlus ModelArk',
     defaultBaseUrl: 'https://ark.ap-southeast.bytepluses.com/api/v3',
-    defaultModels: [{ modelId: 'dreamina-seedance-2-0-260128' }],
+    defaultModelId: 'dreamina-seedance-2-0-260128',
   },
 ];
 
@@ -244,15 +233,12 @@ export function executionConnectorDefinition(connectorId: string): ExecutionConn
 }
 
 export function listExecutionConnectionTemplates(): ExecutionConnectionTemplate[] {
-  return connectionTemplates.map((template) => ({
-    ...template,
-    defaultModels: cloneModels(template.defaultModels),
-  }));
+  return connectionTemplates.map((template) => ({ ...template }));
 }
 
 export function executionConnectionTemplate(templateId: string): ExecutionConnectionTemplate | undefined {
   const template = connectionTemplates.find((candidate) => candidate.templateId === templateId);
-  return template ? { ...template, defaultModels: cloneModels(template.defaultModels) } : undefined;
+  return template ? { ...template } : undefined;
 }
 
 function cloneConnector(definition: ExecutionConnectorDefinition): ExecutionConnectorDefinition {
@@ -260,10 +246,6 @@ function cloneConnector(definition: ExecutionConnectorDefinition): ExecutionConn
     ...definition,
     supportedCapabilityIds: [...definition.supportedCapabilityIds],
     capabilityClasses: [...definition.capabilityClasses],
-    ...(definition.defaultModels ? { defaultModels: cloneModels(definition.defaultModels) } : {}),
+    ...(definition.defaultModelId ? { defaultModelId: definition.defaultModelId } : {}),
   };
-}
-
-function cloneModels(models: ExecutionModelConfiguration[]): ExecutionModelConfiguration[] {
-  return models.map((model) => ({ ...model }));
 }

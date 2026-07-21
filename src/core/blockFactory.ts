@@ -74,7 +74,6 @@ function dataForType(type: BlockType, projectId: string): BlockRecord['data'] {
         capabilityId: 'video.generate',
         executionProfileId,
         ...(selection?.connectionId ? { connectionId: selection.connectionId } : {}),
-        ...(selection?.model ? { model: selection.model } : {}),
         prompt: '',
         parameters: {
           aspectRatio: '9:16',

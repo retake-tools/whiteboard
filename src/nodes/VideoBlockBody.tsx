@@ -25,8 +25,7 @@ export function VideoBlockBody({ blockId, data }: { blockId: string; data: Block
   const executionChoices = videoExecutionChoices(providerSettings?.connections ?? []);
   const selectedExecutionChoice = executionChoices.find((choice) =>
     choice.executionProfileId === executionProfileId
-      && (!draft?.connectionId || choice.connectionId === draft.connectionId)
-      && (!draft?.model || choice.model === draft.model))
+      && (!draft?.connectionId || choice.connectionId === draft.connectionId))
     ?? executionChoices.find((choice) => choice.executionProfileId === executionProfileId)
     ?? executionChoices[0];
   const usesSeedance = executionProfileId === 'video-seedance-modelark';
@@ -188,7 +187,6 @@ function dispatchUpdateVideoDraft(
     connectionId?: string | null;
     durationSeconds?: number;
     executionProfileId?: string;
-    model?: string | null;
     outputCount?: number;
     prompt?: string;
   },
@@ -201,21 +199,18 @@ interface VideoExecutionChoice {
   disabled?: boolean;
   executionProfileId: string;
   label: string;
-  model?: string;
 }
 
 function videoExecutionChoices(connections: ExecutionConnectionSummary[]): VideoExecutionChoice[] {
   const choices = connections.filter((connection) => connection.capabilityClasses.includes('video')).flatMap((connection) => {
     const executionProfileId = videoProfileForConnector(connection.connectorId);
     if (!executionProfileId) return [];
-    const models = connection.models.length ? connection.models : [{ modelId: '' }];
-    return models.map((model) => ({
+    return [{
       connectionId: connection.connectionId,
       disabled: connection.status !== 'ready',
       executionProfileId,
-      label: `${connection.displayName}${model.modelId ? ` · ${model.displayName || model.modelId}` : ''}`,
-      ...(model.modelId ? { model: model.modelId } : {}),
-    }));
+      label: `${connection.displayName}${connection.modelId ? ` · ${connection.modelId}` : ''}`,
+    }];
   });
   if (choices.length) return choices;
   return [
@@ -233,14 +228,13 @@ function videoProfileForConnector(connectorId: string): string | undefined {
 }
 
 function encodeExecutionChoice(choice: VideoExecutionChoice): string {
-  return [choice.executionProfileId, choice.connectionId, choice.model ?? ''].join('\u001f');
+  return [choice.executionProfileId, choice.connectionId].join('\u001f');
 }
 
 function decodeExecutionChoice(value: string): {
   connectionId: string | null;
   executionProfileId: string;
-  model: string | null;
 } {
-  const [executionProfileId = 'video-mock', connectionId = '', model = ''] = value.split('\u001f');
-  return { executionProfileId, connectionId: connectionId || null, model: model || null };
+  const [executionProfileId = 'video-mock', connectionId = ''] = value.split('\u001f');
+  return { executionProfileId, connectionId: connectionId || null };
 }

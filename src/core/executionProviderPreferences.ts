@@ -51,5 +51,5 @@ export function executionConnection(
   if (!connectionId) return undefined;
   const snapshot = snapshotsByProject.get(projectId) ?? snapshotsByProject.get('');
   const connection = snapshot?.connections.find((candidate) => candidate.connectionId === connectionId);
-  return connection ? { ...connection, models: connection.models.map((model) => ({ ...model })) } : undefined;
+  return connection ? { ...connection } : undefined;
 }

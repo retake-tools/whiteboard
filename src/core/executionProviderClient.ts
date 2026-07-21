@@ -1,6 +1,5 @@
 import type {
   ExecutionCapabilityClass,
-  ExecutionModelConfiguration,
   ExecutionProviderSettingsSnapshot,
 } from './executionProviders';
 import { cacheExecutionProviderSettings } from './executionProviderPreferences';
@@ -18,8 +17,7 @@ export async function createExecutionProviderConnection(input: {
   projectId?: string;
   providerLabel?: string;
   baseUrl?: string;
-  models?: ExecutionModelConfiguration[];
-  defaultModelId?: string;
+  modelId?: string;
   apiKey?: string;
 }): Promise<ExecutionProviderSettingsSnapshot> {
   const snapshot = await readJsonResponse<ExecutionProviderSettingsSnapshot>(await fetch(
@@ -41,8 +39,7 @@ export async function updateExecutionProviderConnection(input: {
   providerLabel?: string;
   enabled?: boolean;
   baseUrl?: string;
-  models?: ExecutionModelConfiguration[];
-  defaultModelId?: string;
+  modelId?: string;
   apiKey?: string;
 }): Promise<ExecutionProviderSettingsSnapshot> {
   const snapshot = await readJsonResponse<ExecutionProviderSettingsSnapshot>(await fetch(
@@ -55,6 +52,21 @@ export async function updateExecutionProviderConnection(input: {
   ));
   cacheExecutionProviderSettings(input.projectId, snapshot);
   return snapshot;
+}
+
+export async function duplicateExecutionProviderConnection(
+  connectionId: string,
+  projectId?: string,
+): Promise<{ duplicatedConnectionId: string; snapshot: ExecutionProviderSettingsSnapshot }> {
+  const result = await readJsonResponse<{ duplicatedConnectionId: string; snapshot: ExecutionProviderSettingsSnapshot }>(
+    await fetch(`/api/local/settings/execution/connections/${encodeURIComponent(connectionId)}/duplicate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId }),
+    }),
+  );
+  cacheExecutionProviderSettings(projectId, result.snapshot);
+  return result;
 }
 
 export async function deleteExecutionProviderConnection(
@@ -94,7 +106,6 @@ export async function saveExecutionProviderDefault(input: {
   connectionId?: string;
   projectId?: string;
   responseProjectId?: string;
-  model?: string;
 }): Promise<ExecutionProviderSettingsSnapshot> {
   const snapshot = await readJsonResponse<ExecutionProviderSettingsSnapshot>(await fetch('/api/local/settings/execution/defaults', {
     method: 'PUT',

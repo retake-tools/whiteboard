@@ -39,6 +39,7 @@ import {
   checkExecutionConnection,
   createExecutionConnection,
   deleteExecutionConnection,
+  duplicateExecutionConnection,
   listExecutionProviderSettings,
   saveExecutionDefault,
   updateExecutionConnection,
@@ -87,8 +88,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               displayName?: string;
               providerLabel?: string;
               baseUrl?: string;
-              models?: Array<{ modelId: string; displayName?: string }>;
-              defaultModelId?: string;
+              modelId?: string;
               apiKey?: string;
             };
             if (!body.templateId || !body.displayName) {
@@ -100,8 +100,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               displayName: body.displayName,
               providerLabel: body.providerLabel,
               baseUrl: body.baseUrl,
-              models: body.models,
-              defaultModelId: body.defaultModelId,
+              modelId: body.modelId,
               apiKey: body.apiKey,
             }, body.projectId), 201);
             return;
@@ -116,8 +115,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               providerLabel?: string;
               enabled?: boolean;
               baseUrl?: string;
-              models?: Array<{ modelId: string; displayName?: string }>;
-              defaultModelId?: string;
+              modelId?: string;
               apiKey?: string;
             };
             sendJson(res, await updateExecutionConnection(connectionId, body, body.projectId));
@@ -128,6 +126,16 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
             const [, connectionId] = executionConnectionMatch;
             const body = (await readJson(req)) as { projectId?: string };
             sendJson(res, await deleteExecutionConnection(connectionId, body.projectId));
+            return;
+          }
+
+          const executionConnectionDuplicateMatch = url.pathname.match(
+            /^\/settings\/execution\/connections\/([^/]+)\/duplicate$/,
+          );
+          if (method === 'POST' && executionConnectionDuplicateMatch) {
+            const [, connectionId] = executionConnectionDuplicateMatch;
+            const body = (await readJson(req)) as { projectId?: string };
+            sendJson(res, await duplicateExecutionConnection(connectionId, body.projectId), 201);
             return;
           }
 
@@ -147,7 +155,6 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               connectionId?: string;
               projectId?: string;
               responseProjectId?: string;
-              model?: string;
             };
             if (!body.capabilityClass) {
               sendJson(res, { error: 'capabilityClass is required' }, 400);
@@ -158,7 +165,6 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               connectionId: body.connectionId,
               projectId: body.projectId,
               responseProjectId: body.responseProjectId,
-              model: body.model,
             }));
             return;
           }
@@ -170,7 +176,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               available: connection.status === 'ready',
               adapterId: 'retake.video.seedance-modelark',
               credentialRefType: 'modelark_api_key',
-              model: connection.defaultModelId,
+              model: connection.modelId,
               ...(connection.status === 'ready' ? {} : { reason: connection.lastError || 'Configure BytePlus ModelArk in Retake Settings.' }),
             } : seedanceModelArkAvailability());
             return;
@@ -235,7 +241,6 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               outputCount?: number;
               aspectRatio?: string;
               connectionId?: string;
-              model?: string;
             };
             if (!body.projectId || !body.boardId || !body.targetBlockId || typeof body.prompt !== 'string') {
               sendJson(res, { error: 'projectId, boardId, targetBlockId, and prompt are required' }, 400);
@@ -250,7 +255,6 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               outputCount: body.outputCount ?? 1,
               aspectRatio: body.aspectRatio,
               connectionId: body.connectionId,
-              model: body.model,
             });
             sendJson(res, { snapshot: started.snapshot, execution: started.execution }, 202);
             return;

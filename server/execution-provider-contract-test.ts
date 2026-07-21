@@ -10,6 +10,7 @@ import {
   checkExecutionConnection,
   createExecutionConnection,
   deleteExecutionConnection,
+  duplicateExecutionConnection,
   listExecutionProviderSettings,
   resolveExecutionConnection,
   saveExecutionDefault,
@@ -36,7 +37,28 @@ await writeFile(path.join(settingsRoot, 'execution-connections.json'), JSON.stri
 }));
 const migrated = await listExecutionProviderSettings();
 assert.equal(migrated.connections.find((connection) => connection.connectionId === 'openai-compatible')?.connectorId, 'openai-compatible');
-assert.equal(migrated.connections.find((connection) => connection.connectionId === 'openai-compatible')?.models[0]?.modelId, 'legacy-model');
+assert.equal(migrated.connections.find((connection) => connection.connectionId === 'openai-compatible')?.modelId, 'legacy-model');
+await writeFile(path.join(settingsRoot, 'execution-connections.json'), JSON.stringify({
+  schemaVersion: 2,
+  connections: [{
+    connectionId: 'connection_v2',
+    connectorId: 'openai-compatible',
+    templateId: 'openrouter',
+    displayName: 'V2 multi-model connection',
+    enabled: true,
+    models: [{ modelId: 'model-a' }, { modelId: 'model-b' }],
+    defaultModelId: 'model-b',
+    updatedAt: '2026-07-21T00:00:00.000Z',
+  }],
+}));
+await writeFile(path.join(settingsRoot, 'execution-defaults.json'), JSON.stringify({
+  schemaVersion: 1,
+  workspace: [{ capabilityClass: 'text', connectionId: 'connection_v2', model: 'model-b' }],
+  projects: {},
+}));
+const migratedV2 = await listExecutionProviderSettings();
+assert.equal(migratedV2.connections.find((connection) => connection.connectionId === 'connection_v2')?.modelId, 'model-b');
+assert.deepEqual(migratedV2.workspaceDefaults, [{ capabilityClass: 'text', connectionId: 'connection_v2' }]);
 await rm(retakeRoot, { recursive: true, force: true });
 
 const previousModelArkEnvironment = {
@@ -53,8 +75,7 @@ try {
     (connection) => connection.connectionId === 'byteplus-modelark',
   );
   assert.equal(environmentConnection?.baseUrl, 'https://environment.example/api/v3');
-  assert.equal(environmentConnection?.defaultModelId, 'environment-seedance-model');
-  assert.equal(environmentConnection?.models[0]?.modelId, 'environment-seedance-model');
+  assert.equal(environmentConnection?.modelId, 'environment-seedance-model');
   assert.equal((await resolveExecutionConnection('byteplus-modelark'))?.model, 'environment-seedance-model');
   await checkExecutionConnection('byteplus-modelark');
   assert.equal((await resolveExecutionConnection('byteplus-modelark'))?.model, 'environment-seedance-model');
@@ -95,46 +116,57 @@ assert.equal(capturedUrl, 'https://provider.example/v1/chat/completions');
 assert.equal(capturedAuthorization, 'Bearer test-secret-key');
 
 await updateExecutionConnection('byteplus-modelark', {
-  models: [{ modelId: 'dreamina-seedance-2-0-260128' }],
+  modelId: 'dreamina-seedance-2-0-260128',
   apiKey: 'byteplus-secret-key',
 });
 let settings = await createExecutionConnection({
   templateId: 'openrouter',
   displayName: 'Personal OpenRouter',
-  models: [{ modelId: 'provider/model-a' }, { modelId: 'provider/model-b' }],
+  modelId: 'provider/model-a',
   apiKey: 'openrouter-personal-secret',
+});
+const personalBeforeDuplicate = settings.connections.find((connection) => connection.displayName === 'Personal OpenRouter');
+assert.ok(personalBeforeDuplicate);
+const duplicatedResult = await duplicateExecutionConnection(personalBeforeDuplicate.connectionId);
+const duplicatedBeforeEdit = duplicatedResult.snapshot.connections.find(
+  (connection) => connection.connectionId === duplicatedResult.duplicatedConnectionId,
+);
+assert.equal(duplicatedBeforeEdit?.modelId, 'provider/model-a');
+assert.equal((await resolveExecutionConnection(duplicatedResult.duplicatedConnectionId))?.apiKey, 'openrouter-personal-secret');
+settings = await updateExecutionConnection(duplicatedResult.duplicatedConnectionId, {
+  displayName: 'OpenRouter Claude',
+  providerLabel: 'Anthropic',
+  modelId: 'anthropic/claude-sonnet',
 });
 settings = await createExecutionConnection({
   templateId: 'custom-openai-compatible',
   displayName: 'Internal Gateway',
   providerLabel: 'Studio AI',
   baseUrl: 'https://ai.studio.example/v1',
-  models: [{ modelId: 'script-v2' }, { modelId: 'review-v1' }],
+  modelId: 'script-v2',
   apiKey: 'internal-gateway-secret',
 });
 settings = await createExecutionConnection({
   templateId: 'byteplus-modelark',
   displayName: 'BytePlus Preview Account',
-  models: [{ modelId: 'seedance-preview-model' }],
+  modelId: 'seedance-preview-model',
   apiKey: 'byteplus-preview-secret',
 });
 
 const openAiCompatibleConnections = settings.connections.filter((connection) => connection.connectorId === 'openai-compatible');
-assert.equal(openAiCompatibleConnections.length, 2, 'One connector must support multiple named connections.');
+assert.equal(openAiCompatibleConnections.length, 3, 'One connector must support multiple single-model connections.');
 assert.notEqual(openAiCompatibleConnections[0]?.connectionId, openAiCompatibleConnections[1]?.connectionId);
-assert.deepEqual(openAiCompatibleConnections.find((connection) => connection.displayName === 'Personal OpenRouter')?.models.map((model) => model.modelId), [
-  'provider/model-a',
-  'provider/model-b',
-]);
+assert.equal(openAiCompatibleConnections.find((connection) => connection.displayName === 'Personal OpenRouter')?.modelId, 'provider/model-a');
+assert.equal(openAiCompatibleConnections.find((connection) => connection.displayName === 'OpenRouter Claude')?.modelId, 'anthropic/claude-sonnet');
 assert.equal(settings.connectionTemplates.some((template) => template.templateId === 'openrouter'), true);
 assert.equal(JSON.stringify(settings).includes('secret'), false, 'Settings API must never return credentials.');
 
 const internal = openAiCompatibleConnections.find((connection) => connection.displayName === 'Internal Gateway');
 assert.ok(internal);
-const resolvedInternal = await resolveExecutionConnection(internal.connectionId, 'review-v1');
+const resolvedInternal = await resolveExecutionConnection(internal.connectionId);
 assert.equal(resolvedInternal?.apiKey, 'internal-gateway-secret');
 assert.equal(resolvedInternal?.baseUrl, 'https://ai.studio.example/v1');
-assert.equal(resolvedInternal?.model, 'review-v1');
+assert.equal(resolvedInternal?.model, 'script-v2');
 await assert.rejects(
   saveExecutionDefault({ capabilityClass: 'text', connectionId: internal.connectionId }),
   /does not support text/,
@@ -146,17 +178,15 @@ assert.ok(previewConnection);
 await saveExecutionDefault({
   capabilityClass: 'video',
   connectionId: previewConnection.connectionId,
-  model: 'seedance-preview-model',
 });
 await saveExecutionDefault({ capabilityClass: 'video', connectionId: 'retake-mock', projectId: 'project_provider_test' });
 const workspaceSaveResponse = await saveExecutionDefault({
   capabilityClass: 'video',
   connectionId: previewConnection.connectionId,
-  model: 'seedance-preview-model',
   responseProjectId: 'project_provider_test',
 });
 assert.equal(workspaceSaveResponse.projectDefaults[0]?.connectionId, 'retake-mock');
-assert.equal(workspaceSaveResponse.workspaceDefaults[0]?.model, 'seedance-preview-model');
+assert.equal(workspaceSaveResponse.workspaceDefaults[0]?.connectionId, previewConnection.connectionId);
 
 const board = structuredClone(defaultSnapshot) as BoardSnapshot;
 board.project.projectId = 'project_provider_test';
@@ -168,7 +198,7 @@ cacheExecutionProviderSettings(board.project.projectId, inheritedDefaults);
 const inheritedVideoBlock = createBlockRecord(board, 'video');
 assert.equal(inheritedVideoBlock.data.executionDraft?.executionProfileId, 'video-seedance-modelark');
 assert.equal(inheritedVideoBlock.data.executionDraft?.connectionId, previewConnection.connectionId);
-assert.equal(inheritedVideoBlock.data.executionDraft?.model, 'seedance-preview-model');
+assert.equal('model' in (inheritedVideoBlock.data.executionDraft ?? {}), false);
 
 const personal = openAiCompatibleConnections.find((connection) => connection.displayName === 'Personal OpenRouter');
 assert.ok(personal);

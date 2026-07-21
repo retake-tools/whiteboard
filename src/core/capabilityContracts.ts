@@ -111,7 +111,6 @@ export interface CapabilityExecutionRequest {
   executionProfileId: string;
   requestedAdapterId?: string | null;
   requestedConnectionId?: string | null;
-  requestedModel?: string | null;
   inputBindings: CapabilityInputBinding[];
   parameters: Record<string, unknown>;
   resultProjection: CapabilityResultProjection;
@@ -126,7 +125,6 @@ export interface BlockExecutionDraft {
   skillId?: string | null;
   executionProfileId: string;
   connectionId?: string | null;
-  model?: string | null;
   prompt: string;
   parameters: Record<string, unknown>;
 }
@@ -318,9 +316,6 @@ export function validateCapabilityExecutionRequest(
   }
   if (input.requestedConnectionId !== undefined && input.requestedConnectionId !== null) {
     requireString(input.requestedConnectionId, '$.requestedConnectionId', issues);
-  }
-  if (input.requestedModel !== undefined && input.requestedModel !== null) {
-    requireString(input.requestedModel, '$.requestedModel', issues);
   }
   if (!isRecord(input.parameters)) issues.push(issue('parameters_invalid', '$.parameters', 'parameters must be an object.'));
   validateResultProjection(input.resultProjection, issues);

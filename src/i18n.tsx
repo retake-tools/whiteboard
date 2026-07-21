@@ -397,6 +397,7 @@ type TranslationKey =
   | 'settings.modelIdsPlaceholder'
   | 'settings.createConnection'
   | 'settings.deleteConnection'
+  | 'settings.duplicateConnection'
   | 'settings.confirmDeleteConnection'
   | 'settings.models'
   | 'settings.noBoundCapabilities'
@@ -880,17 +881,18 @@ const translations: Record<Locale, Translations> = {
     'settings.executionProviders': 'Execution & providers',
     'settings.executionProvidersDescription': 'Configure API connections, local agent hosts, provider CLIs, and capability defaults.',
     'settings.connections': 'Connections',
-    'settings.connectionsDescription': 'Add as many API accounts, endpoints, and internal gateways as you need.',
+    'settings.connectionsDescription': 'Each connection names one exact model, API account, and endpoint.',
     'settings.addConnection': 'Add connection',
     'settings.connectionTemplate': 'Service template',
     'settings.connectionName': 'Connection name',
     'settings.providerLabel': 'Provider label',
-    'settings.modelIds': 'Model IDs',
-    'settings.modelIdsPlaceholder': 'One model ID per line, or separate with commas',
+    'settings.modelIds': 'Model ID',
+    'settings.modelIdsPlaceholder': 'Exact model ID used by this connection',
     'settings.createConnection': 'Create connection',
     'settings.deleteConnection': 'Delete',
+    'settings.duplicateConnection': 'Duplicate connection',
     'settings.confirmDeleteConnection': 'Delete connection',
-    'settings.models': 'Models',
+    'settings.models': 'Model',
     'settings.noBoundCapabilities': 'Connector foundation only',
     'settings.defaults': 'Defaults',
     'settings.configure': 'Configure',
@@ -1367,15 +1369,16 @@ const translations: Record<Locale, Translations> = {
     'settings.executionProviders': '执行与服务商',
     'settings.executionProvidersDescription': '配置 Direct API、本机 Agent Host、Provider CLI，以及各类能力的默认执行方式。',
     'settings.connections': '连接',
-    'settings.connectionsDescription': '可按需要添加多个 API 账号、服务端点或内部模型网关。',
+    'settings.connectionsDescription': '每条连接绑定一个明确的模型、API 账号和服务端点。',
     'settings.addConnection': '添加连接',
     'settings.connectionTemplate': '服务模板',
     'settings.connectionName': '连接名称',
     'settings.providerLabel': '服务商标识',
     'settings.modelIds': '模型 ID',
-    'settings.modelIdsPlaceholder': '每行填写一个模型 ID，也可以用逗号分隔',
+    'settings.modelIdsPlaceholder': '填写这条连接实际调用的唯一模型 ID',
     'settings.createConnection': '创建连接',
     'settings.deleteConnection': '删除',
+    'settings.duplicateConnection': '复制连接',
     'settings.confirmDeleteConnection': '确认删除连接',
     'settings.models': '模型',
     'settings.noBoundCapabilities': '仅连接基础，尚未绑定执行能力',
