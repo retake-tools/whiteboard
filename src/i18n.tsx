@@ -486,8 +486,8 @@ type TranslationKey =
   | 'toolbar.duplicateSelection'
   | 'toolbar.fitView'
   | 'toolbar.firstLastFrameVideo'
+  | 'toolbar.generation'
   | 'toolbar.hideMiniMap'
-  | 'toolbar.imageCreation'
   | 'toolbar.imageToImage'
   | 'toolbar.imageToVideo'
   | 'toolbar.menu'
@@ -500,11 +500,9 @@ type TranslationKey =
   | 'toolbar.showMiniMap'
   | 'toolbar.styleTransfer'
   | 'toolbar.textToImage'
-  | 'toolbar.textCreation'
   | 'toolbar.generateText'
   | 'toolbar.textToVideo'
   | 'toolbar.undo'
-  | 'toolbar.videoCreation'
   | 'toolbar.viewportControls'
   | 'toolbar.zoomIn'
   | 'toolbar.zoomLevel'
@@ -999,8 +997,8 @@ const translations: Record<Locale, Translations> = {
     'toolbar.duplicateSelection': 'Duplicate selected blocks',
     'toolbar.fitView': 'Fit view',
     'toolbar.firstLastFrameVideo': 'First/last frame video',
+    'toolbar.generation': 'Generate',
     'toolbar.hideMiniMap': 'Hide minimap',
-    'toolbar.imageCreation': 'Image creation',
     'toolbar.imageToImage': 'Image to image',
     'toolbar.imageToVideo': 'Image to video',
     'toolbar.menu': 'Open menu',
@@ -1013,11 +1011,9 @@ const translations: Record<Locale, Translations> = {
     'toolbar.showMiniMap': 'Show minimap',
     'toolbar.styleTransfer': 'Style transfer',
     'toolbar.textToImage': 'Text to image',
-    'toolbar.textCreation': 'Text creation',
     'toolbar.generateText': 'Generate text',
     'toolbar.textToVideo': 'Text to video',
     'toolbar.undo': 'Undo (Cmd/Ctrl+Z)',
-    'toolbar.videoCreation': 'Video creation',
     'toolbar.viewportControls': 'Viewport controls',
     'toolbar.zoomIn': 'Zoom in',
     'toolbar.zoomLevel': 'Zoom level',
@@ -1507,8 +1503,8 @@ const translations: Record<Locale, Translations> = {
     'toolbar.duplicateSelection': '复制选中块',
     'toolbar.fitView': '适应画布',
     'toolbar.firstLastFrameVideo': '首尾帧生视频',
+    'toolbar.generation': '生成',
     'toolbar.hideMiniMap': '隐藏小地图',
-    'toolbar.imageCreation': '图片创作',
     'toolbar.imageToImage': '图生图',
     'toolbar.imageToVideo': '图生视频',
     'toolbar.menu': '打开菜单',
@@ -1521,11 +1517,9 @@ const translations: Record<Locale, Translations> = {
     'toolbar.showMiniMap': '显示小地图',
     'toolbar.styleTransfer': '风格转绘',
     'toolbar.textToImage': '文生图',
-    'toolbar.textCreation': '文本创作',
     'toolbar.generateText': '生成文本',
     'toolbar.textToVideo': '文生视频',
     'toolbar.undo': '撤销 (Cmd/Ctrl+Z)',
-    'toolbar.videoCreation': '视频创作',
     'toolbar.viewportControls': '视图控制',
     'toolbar.zoomIn': '放大',
     'toolbar.zoomLevel': '缩放比例',
