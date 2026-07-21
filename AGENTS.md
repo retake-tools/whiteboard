@@ -77,6 +77,23 @@ Use the existing project shape before introducing new patterns.
   dependencies, logs, or internal research. Run `npm run plugin:package:test`
   after changing plugin packaging or installation scripts.
 
+## Branch And Delivery Workflow
+
+Treat `main` as public, stable, and releasable.
+
+- Start large, multi-turn, or cross-layer features on a dedicated branch from an
+  up-to-date `main`. Agent-created branches should use `codex/<feature>` by
+  default.
+- It is acceptable to commit and push incomplete work to its feature branch,
+  but do not merge partially implemented or partially verified features into
+  `main`.
+- Merge a feature into `main` only after its coherent scope is complete, the
+  relevant verification has passed, product status documentation is current,
+  and the user has confirmed that it should ship.
+- Small, self-contained fixes may land directly on `main` when they are complete
+  and verified in the same task. When scope or release readiness is uncertain,
+  use a feature branch.
+
 ## Documentation
 
 Internal planning and research documents live under `docs/` and are ignored by
