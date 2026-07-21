@@ -180,7 +180,8 @@ const annotatedComposite = await createAssetFromDataUrl({
   fileName: 'annotated-composite.png',
   kind: 'image',
 });
-const annotationDraft = addImageCodexOperation(completed, {
+const annotationRun = addImageCodexOperation(completed, {
+  connection: connection!,
   operation: 'annotation_edit',
   sourceBlockId: imageResult!.blockId,
   instruction: 'Make the marked collar blue.',
@@ -200,17 +201,11 @@ const annotationDraft = addImageCodexOperation(completed, {
     }],
   },
 });
-completed.executions = completed.executions.filter((candidate) => candidate.executionId !== annotationDraft.execution.executionId);
-const annotationRun = executeExistingImageOperationBlock(completed, {
-  connection: connection!,
-  generationParams: { targetWidth: 1024, targetHeight: 1024, variationCount: 1 },
-  instruction: '',
-  operation: 'image_to_image',
-  operationBlockId: annotationDraft.operationBlock.blockId,
-});
 assert.equal(annotationRun.execution.adapter, 'codex_app_server');
 assert.equal(annotationRun.execution.capabilityId, 'image.annotation_edit');
 assert.equal(annotationRun.execution.params?.annotatedCompositeAssetId, annotatedComposite.assetId);
+assert.equal(annotationRun.execution.agentPrompt, undefined);
+assert.equal(annotationRun.operationBlock.data.agentPrompt, undefined);
 await saveSnapshot(completed);
 
 const annotationStarted = await startCodexAppServerImageGeneration({

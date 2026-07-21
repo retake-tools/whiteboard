@@ -84,9 +84,9 @@ export function App(): ReactElement {
   const {
     activeCanvasTool,
     canvasAreaRef,
-    centerBlockGroup,
     centeredBlockPosition,
     centerWorkflowBlocks,
+    focusWorkflowBlocks,
     collapsedGroupIdsRef,
     connectActions: connectCanvasActions,
     createFlowEdgesForSelection,
@@ -107,9 +107,9 @@ export function App(): ReactElement {
       ? snapshot.blocks.find((block) => block.blockId === selectedBlockIds[0])
       : undefined;
   const imageOperationController = useImageOperationController({
-    centerBlockGroup,
     centeredBlockPosition,
     centerWorkflowBlocks,
+    focusWorkflowBlocks,
     persistSnapshot,
     selectedBlock,
     setSelectedBlock,
@@ -156,6 +156,7 @@ export function App(): ReactElement {
   const { addBlock, deleteBlockIds, deleteSelection, duplicateSelection } = blockActions;
   const textGenerationController = useTextGenerationController({
     centerWorkflowBlocks,
+    focusWorkflowBlocks,
     persistSnapshot,
     setOperationToast,
     setSelectedBlocks,

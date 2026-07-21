@@ -1,4 +1,4 @@
-import { AlertCircle, Check, ChevronRight, Clipboard, FileText, Loader2, RefreshCw } from 'lucide-react';
+import { AlertCircle, Check, ChevronRight, Clipboard, FileText, Loader2, Play, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { isLocalCanvasCapability, operationReadinessMessageKey, schemaForCapability } from '../core/capabilities';
 import {
@@ -73,6 +73,9 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
   const selectedConnection = typeof data.connectionId === 'string'
     ? compatibleConnections.find((connection) => connection.connectionId === data.connectionId)
     : compatibleConnections.find((connection) => connection.connectionId === 'codex-managed') ?? compatibleConnections[0];
+  const usesPromptHandoff = selectedConnection
+    ? selectedConnection.connectorId === 'codex-managed'
+    : (data.connectionId ?? 'codex-managed') === 'codex-managed';
   const parameterProfile = generationProfileForConnection(profile, selectedConnection);
   const sourceAspectRatio = operation === 'image_to_image'
     ? finiteNumber(data.operationSourceAspectRatio)
@@ -90,7 +93,8 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
   );
   const displayState = operationDisplayState(data);
   const { isQueued, isRunning, readinessIssue, showReadinessIssue } = displayState;
-  const runDisabled = displayState.runDisabled || Boolean(providerSettings && selectedConnection?.status !== 'ready');
+  const automatedPending = !usesPromptHandoff && isQueued;
+  const runDisabled = displayState.runDisabled || automatedPending || Boolean(providerSettings && selectedConnection?.status !== 'ready');
   const isLocked = data.groupContentLocked === true;
   const isRepeat = Boolean(data.sourceExecutionId);
   const queuedConfigurationStale = data.operationQueuedConfigurationStale === true;
@@ -331,10 +335,12 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
           dispatchRunOperation(blockId, queuedConfigurationStale);
         }}
       >
-        {isRunning || (isTextGeneration && isQueued) ? (
+        {isRunning || automatedPending ? (
           <Loader2 size={15} />
         ) : isTextGeneration && !isRepeat ? (
           <FileText size={15} />
+        ) : !usesPromptHandoff && !isRepeat ? (
+          <Play size={15} />
         ) : isQueued && queuedConfigurationStale ? (
           <RefreshCw size={15} />
         ) : isQueued ? (
@@ -345,15 +351,15 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
           <Clipboard size={15} />
         )}
         <span>
-          {isRunning || (isTextGeneration && isQueued)
+          {isRunning || automatedPending
             ? t('operationToolbar.running')
             : isTextGeneration
               ? t(isRepeat ? 'operationToolbar.generateAgain' : 'operationToolbar.generateText')
-            : isQueued
+            : usesPromptHandoff && isQueued
               ? t(queuedConfigurationStale ? 'operationToolbar.updatePrompt' : 'feedback.copyPrompt')
               : isRepeat
                 ? t('operationToolbar.generateAgain')
-                : t('operationToolbar.generatePrompt')}
+                : t(usesPromptHandoff ? 'operationToolbar.generatePrompt' : 'operationToolbar.generateImage')}
         </span>
       </button>
     </div>

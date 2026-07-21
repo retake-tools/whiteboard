@@ -295,6 +295,7 @@ type TranslationKey =
   | 'operationToolbar.duration'
   | 'operationToolbar.executor'
   | 'operationToolbar.generatePrompt'
+  | 'operationToolbar.generateImage'
   | 'operationToolbar.generateText'
   | 'operationToolbar.generateAgain'
   | 'operationToolbar.generator'
@@ -814,6 +815,7 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.duration': 'Duration',
     'operationToolbar.executor': 'Executor',
     'operationToolbar.generatePrompt': 'Generate prompt',
+    'operationToolbar.generateImage': 'Generate image',
     'operationToolbar.generateText': 'Generate text',
     'operationToolbar.generateAgain': 'Generate again',
     'operationToolbar.generator': 'Generator',
@@ -1328,6 +1330,7 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.duration': '时长',
     'operationToolbar.executor': '执行方式',
     'operationToolbar.generatePrompt': '生成 Prompt',
+    'operationToolbar.generateImage': '生成图片',
     'operationToolbar.generateText': '生成文本',
     'operationToolbar.generateAgain': '再次生成',
     'operationToolbar.generator': '生成方式',

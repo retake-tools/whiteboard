@@ -55,6 +55,7 @@ export interface ImageGenerationParams {
 }
 
 interface ImageCodexOperationInput {
+  connection?: ExecutionConnectionSummary;
   operation: ImageCodexOperation;
   sourceBlockId: string;
   instruction?: string;
@@ -132,6 +133,11 @@ export function addImageCodexOperation(
   const executionId = createId('exec');
   const createdAt = nowIso();
   const capabilityId = capabilityForOperation(input.operation);
+  const directApi = input.connection?.connectorId === 'volcengine-ark';
+  const codexAppServer = input.connection?.connectorId === 'codex-app-server';
+  const automated = directApi || codexAppServer;
+  const adapter = directApi ? 'direct_api' : codexAppServer ? 'codex_app_server' : 'mcp_agent';
+  const connectionId = input.connection?.connectionId ?? 'codex-managed';
   const title = input.taskTitle ?? titleForOperation(input.operation);
   const instruction = input.instruction?.trim();
   const sourceInputRole: ExecutionInputRole | undefined =
@@ -146,6 +152,7 @@ export function addImageCodexOperation(
     ),
     generationProfileId,
     capabilityId,
+    input.connection,
   );
   if (
     input.annotatedCompositeAsset &&
@@ -179,9 +186,9 @@ export function addImageCodexOperation(
       title,
       body: instruction || input.defaultPrompt || title,
       status: 'queued',
-      adapter: 'mcp_agent',
-      agentHost: 'codex',
-      triggerMode: 'manual_agent_session',
+      adapter,
+      agentHost: directApi ? undefined : 'codex',
+      triggerMode: directApi ? 'server_worker' : codexAppServer ? 'agent_bridge' : 'manual_agent_session',
       capabilityId,
       operationMode: operationModeForImageOperation(input.operation),
       operationVariant:
@@ -194,7 +201,7 @@ export function addImageCodexOperation(
         input.operation === 'annotation_edit' ? input.annotatedCompositeAsset?.assetId : undefined,
       annotationManifest:
         input.operation === 'annotation_edit' ? input.annotationManifest : undefined,
-      connectionId: 'codex-managed',
+      connectionId,
       generationParams,
       generationProfileId,
       referenceAssetIds: referenceAssetIds.length ? referenceAssetIds : undefined,
@@ -238,7 +245,7 @@ export function addImageCodexOperation(
     projectId: snapshot.project.projectId,
     boardId: snapshot.board.boardId,
     capabilityId,
-    adapter: 'mcp_agent',
+    adapter,
     status: 'queued',
     inputBlockIds: [sourceBlock.blockId],
     inputAssetIds: [
@@ -248,13 +255,15 @@ export function addImageCodexOperation(
     ].filter((assetId): assetId is string => typeof assetId === 'string'),
     outputBlockIds: resultBlocks.map((block) => block.blockId),
     outputAssetIds: [],
-    agentHost: 'codex',
-    triggerMode: 'manual_agent_session',
-    connectionId: 'codex-managed',
+    agentHost: directApi ? undefined : 'codex',
+    triggerMode: directApi ? 'server_worker' : codexAppServer ? 'agent_bridge' : 'manual_agent_session',
+    provider: automated ? input.connection?.providerLabel : undefined,
+    model: automated ? input.connection?.modelId : undefined,
+    connectionId,
     skillId: skillForOperation(input.operation),
     generationProfile: {
       ...snapshotGenerationProfile(operationBlock.data.generationProfileId),
-      connectionId: 'codex-managed',
+      connectionId,
     },
     prompt: instruction || input.defaultPrompt || title,
     params: {
@@ -263,6 +272,9 @@ export function addImageCodexOperation(
       ...(referenceAssetIds.length ? { referenceAssetIds } : {}),
       ...(input.operation === 'annotation_edit' && input.annotationManifest
         ? { annotationManifest: input.annotationManifest }
+        : {}),
+      ...(input.operation === 'annotation_edit' && input.annotatedCompositeAsset?.assetId
+        ? { annotatedCompositeAssetId: input.annotatedCompositeAsset.assetId }
         : {}),
       ...(annotationEditControls ? { annotationEditControls } : {}),
       ...(sourceInputRole
@@ -299,12 +311,40 @@ export function addImageCodexOperation(
     });
   }
   recordExecutionConfiguration(snapshot, execution, operationBlock);
+  if (directApi) {
+    execution.adapterSnapshot = {
+      adapterId: volcengineArkSeedreamImageAdapterDefinition.adapterId,
+      version: volcengineArkSeedreamImageAdapterDefinition.version,
+      definitionHash: volcengineArkSeedreamImageAdapterDefinition.definitionHash,
+      adapterClass: capabilityId === 'image.image_to_image' ? 'image.edit' : 'image.generate',
+      routeKind: volcengineArkSeedreamImageAdapterDefinition.routeKind,
+      provider: volcengineArkSeedreamImageAdapterDefinition.provider,
+      model: input.connection?.modelId ?? volcengineArkSeedreamImageAdapterDefinition.model,
+    };
+  } else if (codexAppServer) {
+    execution.adapterSnapshot = {
+      adapterId: codexAppServerImageAdapterDefinition.adapterId,
+      version: codexAppServerImageAdapterDefinition.version,
+      definitionHash: codexAppServerImageAdapterDefinition.definitionHash,
+      adapterClass: codexAppServerImageAdapterDefinition.adapterClass,
+      routeKind: codexAppServerImageAdapterDefinition.routeKind,
+      provider: codexAppServerImageAdapterDefinition.provider,
+      model: input.connection?.modelId ?? codexAppServerImageAdapterDefinition.model,
+    };
+  }
   snapshot.executions.unshift(execution);
   const promptFrameBlock = input.operation === 'generate_image' ? resultBlock : sourceBlock;
-  const prompt = createImageOperationPrompt(snapshot, promptFrameBlock, operationBlock, resultBlocks, execution);
-  execution.agentPrompt = prompt;
-  operationBlock.data.agentPrompt = prompt;
-  for (const outputBlock of resultBlocks) outputBlock.data.agentPrompt = prompt;
+  const prompt = automated
+    ? instruction || input.defaultPrompt || title
+    : createImageOperationPrompt(snapshot, promptFrameBlock, operationBlock, resultBlocks, execution);
+  if (!automated) {
+    execution.agentPrompt = prompt;
+    operationBlock.data.agentPrompt = prompt;
+    for (const outputBlock of resultBlocks) outputBlock.data.agentPrompt = prompt;
+  } else {
+    delete operationBlock.data.agentPrompt;
+    for (const outputBlock of resultBlocks) delete outputBlock.data.agentPrompt;
+  }
   const historyEvent: BoardHistoryEvent = {
     eventId: createId('history'),
     type: 'operation_created',
@@ -900,6 +940,9 @@ export function executeExistingImageOperationBlock(
     execution.agentPrompt = prompt;
     operationBlock.data.agentPrompt = prompt;
     for (const outputBlock of resultBlocks) outputBlock.data.agentPrompt = prompt;
+  } else {
+    delete operationBlock.data.agentPrompt;
+    for (const outputBlock of resultBlocks) delete outputBlock.data.agentPrompt;
   }
 
   const historyEvent: BoardHistoryEvent = {

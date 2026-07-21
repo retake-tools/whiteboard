@@ -30,7 +30,11 @@ import {
   operationReadinessMessageKey,
 } from '../core/capabilities';
 import { cancelExecution } from '../core/executionLifecycle';
-import { executionConnection, executionDefaultConnection } from '../core/executionProviderPreferences';
+import {
+  currentExecutionProviderSettings,
+  executionConnection,
+  executionDefaultConnection,
+} from '../core/executionProviderPreferences';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
 import { startVolcengineArkImage } from '../core/volcengineArkImageClient';
 import { startCodexAppServerImage } from '../core/codexAppServerImageClient';
@@ -44,9 +48,9 @@ import {
 } from './appHelpers';
 
 interface ImageOperationControllerOptions {
-  centerBlockGroup: (snapshot: BoardSnapshot, blockIds: string[]) => void;
   centeredBlockPosition: (size: { width: number; height: number }) => { x: number; y: number };
   centerWorkflowBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
+  focusWorkflowBlocks: (blockIds: string[]) => void;
   persistSnapshot: (snapshot: BoardSnapshot, options?: { requireLocalApi?: boolean }) => Promise<void>;
   selectedBlock?: BlockRecord;
   setSelectedBlock: (snapshot: BoardSnapshot, blockId: string) => void;
@@ -61,9 +65,9 @@ interface ImageOperationControllerOptions {
 
 export function useImageOperationController(options: ImageOperationControllerOptions) {
   const {
-    centerBlockGroup,
     centeredBlockPosition,
     centerWorkflowBlocks,
+    focusWorkflowBlocks,
     persistSnapshot,
     selectedBlock,
     setSelectedBlock,
@@ -193,6 +197,17 @@ export function useImageOperationController(options: ImageOperationControllerOpt
       referenceAssets?: AssetRecord[];
     } = {},
   ): Promise<boolean> {
+    const capabilityId = capabilityIdForImmediateImageOperation(operation);
+    const connection = preferredReadyImageConnection(snapshotRef.current, capabilityId);
+    if (!connection) {
+      setOperationToast({
+        id: `connection:${block.blockId}`,
+        title: t('feedback.handoffUnavailable'),
+        body: t('feedback.connectionUnavailable'),
+        tone: 'error',
+      });
+      return false;
+    }
     try {
       await persistSnapshot(snapshotRef.current, { requireLocalApi: true });
     } catch (error) {
@@ -203,8 +218,11 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     let resultBlockIds: string[] = [];
     let operationBlockId = '';
     let executionId = '';
+    const usesVolcengineArk = connection.connectorId === 'volcengine-ark';
+    const usesCodexAppServer = connection.connectorId === 'codex-app-server';
     const nextSnapshot = updateSnapshot((current) => {
       const result = addImageCodexOperation(current, {
+        connection,
         operation,
         sourceBlockId: block.blockId,
         instruction,
@@ -230,6 +248,48 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     } catch (error) {
       setOperationToast({ id: operationBlockId, title: t('feedback.handoffUnavailable'), body: error instanceof Error ? error.message : t('feedback.localApiUnavailable'), tone: 'error' });
       return false;
+    }
+    if (usesVolcengineArk || usesCodexAppServer) {
+      try {
+        const started = usesVolcengineArk
+          ? await startVolcengineArkImage({
+              projectId: nextSnapshot.project.projectId,
+              boardId: nextSnapshot.board.boardId,
+              executionId,
+              connectionId: connection.connectionId,
+            })
+          : await startCodexAppServerImage({
+              projectId: nextSnapshot.project.projectId,
+              boardId: nextSnapshot.board.boardId,
+              executionId,
+              connectionId: connection.connectionId,
+            });
+        const runningSnapshot = updateSnapshot(() => started.snapshot, { persist: false, history: true });
+        setSelectedBlocks(runningSnapshot, started.execution.outputBlockIds);
+        setOperationToast({
+          id: executionId,
+          title: t(usesCodexAppServer ? 'feedback.codexImageStarted' : 'feedback.seedreamStarted'),
+          body: t(usesCodexAppServer ? 'feedback.codexImageCostNotice' : 'feedback.seedreamCostNotice'),
+          tone: 'success',
+        });
+        void pollDirectImageExecution(executionId, runningSnapshot, usesCodexAppServer ? 'codex' : 'seedream').catch((error) => {
+          setOperationToast({
+            id: executionId,
+            title: t(usesCodexAppServer ? 'feedback.codexImageFailed' : 'feedback.seedreamFailed'),
+            body: error instanceof Error ? error.message : t('feedback.localApiUnavailable'),
+            tone: 'error',
+          });
+        });
+        return true;
+      } catch (error) {
+        setOperationToast({
+          id: executionId,
+          title: t('feedback.handoffUnavailable'),
+          body: error instanceof Error ? error.message : t('feedback.localApiUnavailable'),
+          tone: 'error',
+        });
+        return false;
+      }
     }
     setPromptPreview({ title: t('feedback.promptTitle'), prompt: operationPrompt, copyKey, executionId, blockIds });
     try {
@@ -260,10 +320,13 @@ export function useImageOperationController(options: ImageOperationControllerOpt
       });
       result.operationBlock.data.connectionId = preferredImageConnection(current);
       selectedWorkflowIds = imageBranchDraftSelectionBlockIds(block, result.textBlock, result.operationBlock);
-      if (draftOptions.centerWorkflow) centerBlockGroup(current, selectedWorkflowIds);
+      if (draftOptions.centerWorkflow) centerWorkflowBlocks(current, selectedWorkflowIds);
       return current;
     }, { persist: true, history: true });
-    if (selectedWorkflowIds.length > 0) setSelectedBlocks(nextSnapshot, selectedWorkflowIds);
+    if (selectedWorkflowIds.length > 0) {
+      setSelectedBlocks(nextSnapshot, selectedWorkflowIds);
+      focusWorkflowBlocks(selectedWorkflowIds);
+    }
   }
 
   function createImageToImageDraftFromMenu(): void {
@@ -304,7 +367,10 @@ export function useImageOperationController(options: ImageOperationControllerOpt
       if (!input.slotBlock) centerWorkflowBlocks(current, selectedWorkflowIds);
       return current;
     }, { persist: true, history: true });
-    if (selectedWorkflowIds.length > 0) setSelectedBlocks(nextSnapshot, selectedWorkflowIds);
+    if (selectedWorkflowIds.length > 0) {
+      setSelectedBlocks(nextSnapshot, selectedWorkflowIds);
+      focusWorkflowBlocks(selectedWorkflowIds);
+    }
   }
 
   async function createLocalImageEditOperation(
@@ -584,6 +650,33 @@ function preferredImageConnection(snapshot: BoardSnapshot): string {
   const defaultConnectionId = executionDefaultConnection('image', snapshot.project.projectId);
   const defaultConnection = executionConnection(defaultConnectionId, snapshot.project.projectId);
   return defaultConnection?.status === 'ready' ? defaultConnection.connectionId : 'codex-managed';
+}
+
+function preferredReadyImageConnection(
+  snapshot: BoardSnapshot,
+  capabilityId: string,
+) {
+  const preferredConnection = executionConnection(
+    executionDefaultConnection('image', snapshot.project.projectId),
+    snapshot.project.projectId,
+  );
+  if (
+    preferredConnection?.status === 'ready' &&
+    preferredConnection.supportedCapabilityIds.includes(capabilityId)
+  ) {
+    return preferredConnection;
+  }
+  return currentExecutionProviderSettings()?.connections.find(
+    (connection) =>
+      connection.status === 'ready' &&
+      connection.supportedCapabilityIds.includes(capabilityId),
+  );
+}
+
+function capabilityIdForImmediateImageOperation(operation: ImageCodexOperation): string {
+  if (operation === 'annotation_edit') return 'image.annotation_edit';
+  if (operation === 'generate_image') return 'image.text_to_image';
+  return 'image.image_to_image';
 }
 
 function delay(milliseconds: number): Promise<void> {

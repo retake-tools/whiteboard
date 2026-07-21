@@ -115,6 +115,10 @@ assert.match(canvasSource, /updateAnnotationDraft\(selectedBlock\.blockId, \{ sc
 assert.match(blockNodeSource, /AnnotationOperationPreviewButton/);
 assert.match(annotationOperationPreviewSource, /retake:open-annotation-editor/);
 assert.match(operationControlsSource, /generationParamsForSchema\(nextParams, paramsSchema\)/);
+assert.match(operationControlsSource, /selectedConnection\.connectorId === 'codex-managed'/);
+assert.match(operationControlsSource, /operationToolbar\.generateImage/);
+assert.match(blockNodeSource, /onCompositionStart/);
+assert.match(blockNodeSource, /if \(!composingRef\.current\) dispatchPreviewTextBlock/);
 assert.doesNotMatch(annotationControllerSource, /window\.confirm\(t\('inspector\.annotationDraftRestoreConfirm'\)\)/);
 assert.match(toolbarSource, /historicalAnnotationDraft \?\? annotationDraftForBlock/);
 assert.match(toolbarSource, /if \(historicalAnnotationDraft\)[\s\S]*?setHistoricalAnnotationDraft/);

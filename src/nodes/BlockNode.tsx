@@ -566,8 +566,10 @@ function TextBlockBody({
   title: string;
 }): ReactElement {
   const [draftBody, setDraftBody] = useState(body ?? '');
+  const composingRef = useRef(false);
 
   useEffect(() => {
+    if (composingRef.current) return;
     setDraftBody(body ?? '');
   }, [body]);
 
@@ -592,6 +594,15 @@ function TextBlockBody({
       readOnly={readOnly}
       value={draftBody}
       onBlur={() => commit()}
+      onCompositionStart={() => {
+        composingRef.current = true;
+      }}
+      onCompositionEnd={(event) => {
+        composingRef.current = false;
+        const nextBody = event.currentTarget.value;
+        setDraftBody(nextBody);
+        dispatchPreviewTextBlock(blockId, nextBody);
+      }}
       onChange={(event) => {
         const nextBody = event.target.value;
         const cursorIndex = event.target.selectionStart ?? nextBody.length;
@@ -600,7 +611,7 @@ function TextBlockBody({
           nextBody.length === draftBody.length + 1 &&
           nextBody[cursorIndex - 1] === '@';
         setDraftBody(nextBody);
-        dispatchPreviewTextBlock(blockId, nextBody);
+        if (!composingRef.current) dispatchPreviewTextBlock(blockId, nextBody);
         if (insertedMentionTrigger) {
           dispatchUpdateTextBlock(blockId, nextBody);
           const rect = event.currentTarget.getBoundingClientRect();

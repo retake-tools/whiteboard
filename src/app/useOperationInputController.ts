@@ -16,6 +16,7 @@ import type {
   SwitchableOperationMode,
 } from '../core/imageOperations';
 import { createId, nowIso } from '../core/id';
+import { executionConnection } from '../core/executionProviderPreferences';
 import type {
   BlockRecord,
   BlockType,
@@ -242,6 +243,11 @@ export function useOperationInputController(options: OperationInputControllerOpt
       if (!block || blockLockedByGroup(snapshotRef.current, block.blockId) || block.data.status === 'running') return;
       if (block.data.capabilityId === 'text.generate' && block.data.status === 'queued') return;
       if (block.data.status === 'queued') {
+        const connection = executionConnection(
+          typeof block.data.connectionId === 'string' ? block.data.connectionId : 'codex-managed',
+          snapshotRef.current.project.projectId,
+        );
+        if (connection?.connectorId !== 'codex-managed') return;
         void (detail.queuedConfigurationStale ? refreshQueuedOperationPrompt(block) : copyQueuedOperationPrompt(block));
         return;
       }

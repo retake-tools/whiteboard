@@ -34,6 +34,7 @@ import { loadCollapsedGroupIds } from '../core/groupViewState';
 import { connectedWorkflowBlockIds } from '../core/workflowSelection';
 import { executionInputRoleOptionsFor } from '../core/capabilities';
 import { createId, nowIso } from '../core/id';
+import { moveBlockGroupToNearestFreeArea } from '../core/workflowPlacement';
 import type {
   BlockRecord,
   BoardEdgeRecord,
@@ -396,6 +397,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
       block.updatedAt = updatedAt;
       nextX += block.size.width + gap;
     }
+    moveBlockGroupToNearestFreeArea(current, blocks, center);
   }
 
   function centerBlockGroup(current: BoardSnapshot, blockIds: string[]): void {
@@ -413,6 +415,22 @@ export function useCanvasController(options: CanvasControllerOptions) {
       block.position = { x: block.position.x + deltaX, y: block.position.y + deltaY };
       block.updatedAt = updatedAt;
     }
+    moveBlockGroupToNearestFreeArea(current, blocks, center);
+  }
+
+  function focusWorkflowBlocks(blockIds: string[]): void {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const reactFlow = reactFlowRef.current;
+        if (!reactFlow) return;
+        const nodes = blockIds
+          .map((blockId) => reactFlow.getNode(blockId))
+          .filter((node): node is RetakeNode => Boolean(node));
+        if (nodes.length === 0) return;
+        const bounds = reactFlow.getNodesBounds(nodes);
+        void reactFlow.fitBounds(bounds, { duration: 260, padding: 0.2 });
+      });
+    });
   }
 
   function restoreViewport(viewport: Viewport): void {
@@ -522,6 +540,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
     centerBlockGroup,
     centeredBlockPosition,
     centerWorkflowBlocks,
+    focusWorkflowBlocks,
     collapsedGroupIds,
     collapsedGroupIdsRef,
     connectActions,

@@ -19,6 +19,7 @@ import type { useI18n } from '../i18n';
 
 interface TextGenerationControllerOptions {
   centerWorkflowBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
+  focusWorkflowBlocks: (blockIds: string[]) => void;
   persistSnapshot: (snapshot: BoardSnapshot, options?: { requireLocalApi?: boolean }) => Promise<void>;
   setOperationToast: (toast: OperationToast | undefined) => void;
   setSelectedBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
@@ -33,6 +34,7 @@ interface TextGenerationControllerOptions {
 export function useTextGenerationController(options: TextGenerationControllerOptions) {
   const {
     centerWorkflowBlocks,
+    focusWorkflowBlocks,
     persistSnapshot,
     setOperationToast,
     setSelectedBlocks,
@@ -52,7 +54,10 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
       centerWorkflowBlocks(current, workflowBlockIds);
       return current;
     }, { history: true, persist: true });
-    if (workflowBlockIds.length) setSelectedBlocks(nextSnapshot, workflowBlockIds);
+    if (workflowBlockIds.length) {
+      setSelectedBlocks(nextSnapshot, workflowBlockIds);
+      focusWorkflowBlocks(workflowBlockIds);
+    }
   }
 
   async function startTextGenerationOperation(block: BlockRecord): Promise<void> {
