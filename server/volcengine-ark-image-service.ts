@@ -5,6 +5,7 @@ import { readAssetAsDataUrl } from './local-store/asset-files';
 import { resolveExecutionConnection } from './local-store/execution-provider-store';
 import {
   failExecution,
+  markExecutionAdapterRetryRunning,
   markExecutionRunning,
   recordExecutionRequestPrompts,
   updateImageResultBlock,
@@ -27,6 +28,7 @@ export async function startVolcengineArkImageGeneration(input: {
   boardId: string;
   executionId: string;
   connectionId: string;
+  resultBlockId?: string;
 }, dependencies: ArkImageServiceDependencies = {}): Promise<{
   snapshot: BoardSnapshot;
   execution: ExecutionRecord;
@@ -35,24 +37,30 @@ export async function startVolcengineArkImageGeneration(input: {
   const config = dependencies.config ?? await resolveArkImageConfig(input.connectionId);
   if (!config) throw new Error('Volcengine Ark Seedream is unavailable. Configure and test the connection in Retake Settings.');
   const current = await loadSnapshot(input.projectId, input.boardId);
-  const queued = current.executions.find((candidate) => candidate.executionId === input.executionId);
-  if (!queued || queued.status !== 'queued' || queued.adapter !== 'direct_api') {
-    throw new Error(`Queued Direct API image execution not found: ${input.executionId}`);
+  const execution = current.executions.find((candidate) => candidate.executionId === input.executionId);
+  const expectedStatus = input.resultBlockId ? 'failed' : 'queued';
+  if (!execution || execution.status !== expectedStatus || execution.adapter !== 'direct_api') {
+    throw new Error(`${expectedStatus === 'failed' ? 'Failed' : 'Queued'} Direct API image execution not found: ${input.executionId}`);
   }
-  if (queued.connectionId !== input.connectionId) {
+  if (execution.connectionId !== input.connectionId) {
     throw new Error(`Image execution connection mismatch: ${input.connectionId}`);
   }
-  const started = await markExecutionRunning(input);
+  const started = input.resultBlockId
+    ? await markExecutionAdapterRetryRunning({ ...input, resultBlockId: input.resultBlockId, adapter: 'direct_api' })
+    : await markExecutionRunning(input);
   const client = new VolcengineArkImageClient(config, dependencies.fetchImpl);
-  const completion = executeArkImageRun(started.execution, client).catch(async (error) => {
-    await failExecution({
-      projectId: input.projectId,
-      boardId: input.boardId,
-      executionId: input.executionId,
-      errorMessage: error instanceof Error ? error.message : 'Volcengine Ark image generation failed.',
-    }).catch(() => undefined);
-    throw error;
-  });
+  const resultBlockIds = input.resultBlockId ? [input.resultBlockId] : started.execution.outputBlockIds;
+  const completion = executeArkImageRun(started.execution, client, resultBlockIds)
+    .then(async () => settleIncompleteRetry(input))
+    .catch(async (error) => {
+      await failExecution({
+        projectId: input.projectId,
+        boardId: input.boardId,
+        executionId: input.executionId,
+        errorMessage: error instanceof Error ? error.message : 'Volcengine Ark image generation failed.',
+      }).catch(() => undefined);
+      throw error;
+    });
   void completion.catch(() => undefined);
   return { ...started, completion };
 }
@@ -60,17 +68,18 @@ export async function startVolcengineArkImageGeneration(input: {
 async function executeArkImageRun(
   execution: ExecutionRecord,
   client: VolcengineArkImageClient,
+  resultBlockIds: string[],
 ): Promise<void> {
   const initial = await loadSnapshot(execution.projectId, execution.boardId);
   const inputAssignments = imageExecutionInputAssignments(execution);
   const referenceImages = await executionInputImages(initial, inputAssignments.map((assignment) => assignment.assetId));
   const size = requestedSize(execution);
-  const requests = execution.outputBlockIds.map((outputBlockId, index) => ({
-    index,
+  const requests = resultBlockIds.map((outputBlockId) => ({
+    index: execution.outputBlockIds.indexOf(outputBlockId),
     outputBlockId,
     prompt: createProviderImagePrompt(execution, inputAssignments, {
       dialect: 'provider_api',
-      variantIndex: index,
+      variantIndex: execution.outputBlockIds.indexOf(outputBlockId),
       variantCount: execution.outputBlockIds.length,
     }),
   }));
@@ -81,10 +90,11 @@ async function executeArkImageRun(
     requestPrompts: requests,
   });
   const enqueueWrite = createSerialTaskQueue();
-  const results = await Promise.allSettled(execution.outputBlockIds.map(async (resultBlockId, index) => {
+  const results = await Promise.allSettled(requests.map(async (request) => {
+    const { index, outputBlockId: resultBlockId } = request;
     await assertExecutionRunning(execution);
     const result = await client.generateImage({
-      prompt: requests[index].prompt,
+      prompt: request.prompt,
       images: referenceImages,
       size,
     });
@@ -119,6 +129,24 @@ async function executeArkImageRun(
       ? failed.reason
       : new Error('Volcengine Ark image generation failed for one or more candidates.');
   }
+}
+
+async function settleIncompleteRetry(input: {
+  projectId: string;
+  boardId: string;
+  executionId: string;
+  resultBlockId?: string;
+}): Promise<void> {
+  if (!input.resultBlockId) return;
+  const snapshot = await loadSnapshot(input.projectId, input.boardId);
+  const execution = snapshot.executions.find((candidate) => candidate.executionId === input.executionId);
+  if (execution?.status !== 'running') return;
+  await failExecution({
+    projectId: input.projectId,
+    boardId: input.boardId,
+    executionId: input.executionId,
+    errorMessage: 'One or more image candidates are still incomplete. Retry the remaining failed results.',
+  });
 }
 
 async function executionInputImages(snapshot: BoardSnapshot, assetIds: readonly string[]): Promise<string[]> {

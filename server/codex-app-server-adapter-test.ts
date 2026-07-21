@@ -136,7 +136,7 @@ const imageDraft = createDraftTextToImageOperation(completed, {
     targetAspectRatio: 9 / 16,
     targetWidth: 1152,
     targetHeight: 2048,
-    variationCount: 2,
+    variationCount: 4,
   },
 });
 imageDraft.operationBlock.data.connectionId = connection!.connectionId;
@@ -157,11 +157,11 @@ let imageCalls = 0;
 let concurrentImageCalls = 0;
 let maxConcurrentImageCalls = 0;
 let releaseConcurrentImages: (() => void) | undefined;
-const bothImagesStarted = new Promise<void>((resolve) => {
+const allImagesStarted = new Promise<void>((resolve) => {
   releaseConcurrentImages = resolve;
 });
 const concurrentImagesReady = Promise.race([
-  bothImagesStarted,
+  allImagesStarted,
   new Promise<never>((_resolve, reject) => setTimeout(
     () => reject(new Error('Codex App Server candidates did not start concurrently.')),
     1_000,
@@ -179,13 +179,13 @@ const imageStarted = await startCodexAppServerImageGeneration({
     const callIndex = imageCalls;
     concurrentImageCalls += 1;
     maxConcurrentImageCalls = Math.max(maxConcurrentImageCalls, concurrentImageCalls);
-    if (imageCalls === 2) releaseConcurrentImages?.();
+    if (imageCalls === 4) releaseConcurrentImages?.();
     await concurrentImagesReady;
     assert.match(input.prompt, /^\$imagegen Generate exactly one image/);
     assert.match(input.prompt, /Required output aspect ratio: 9:16 \(portrait, width:height\)/);
     assert.match(input.prompt, /hard output-canvas requirement/);
     assert.match(input.prompt, /do not simulate the requested ratio with letterboxing or padding/);
-    const candidate = input.prompt.match(/candidate ([12]) of 2/)?.[1];
+    const candidate = input.prompt.match(/candidate ([1-4]) of 4/)?.[1];
     assert.ok(candidate);
     imageCandidatePrompts.add(candidate);
     assert.equal(input.localImagePaths?.length, 0);
@@ -207,15 +207,98 @@ completed = await loadSnapshot(completed.project.projectId, completed.board.boar
 const imageExecution = completed.executions.find((candidate) => candidate.executionId === imageRun.execution.executionId);
 const imageResult = completed.blocks.find((candidate) => candidate.blockId === imageRun.resultBlock.blockId);
 assert.equal(imageExecution?.status, 'succeeded');
-assert.equal(imageExecution?.outputAssetIds.length, 2);
-assert.equal(imageExecution?.requestPrompts?.length, 2);
+assert.equal(imageExecution?.outputAssetIds.length, 4);
+assert.equal(imageExecution?.requestPrompts?.length, 4);
 assert.match(imageExecution?.requestPrompts?.[0]?.prompt ?? '', /^\$imagegen Generate exactly one image/);
-assert.match(imageExecution?.requestPrompts?.[1]?.prompt ?? '', /candidate 2 of 2/);
-assert.equal(maxConcurrentImageCalls, 2, 'Codex App Server candidates must start concurrently.');
-assert.deepEqual([...imageCandidatePrompts].sort(), ['1', '2']);
+assert.match(imageExecution?.requestPrompts?.[1]?.prompt ?? '', /candidate 2 of 4/);
+assert.equal(maxConcurrentImageCalls, 4, 'Every requested Codex App Server candidate must start concurrently.');
+assert.deepEqual([...imageCandidatePrompts].sort(), ['1', '2', '3', '4']);
 assert.ok(imageResult?.data.assetId);
 assert.equal(completed.assets.some((candidate) => candidate.assetId === imageResult.data.assetId), true);
 assert.equal(imageExecution?.params?.codexAppServer && typeof imageExecution.params.codexAppServer, 'object');
+
+const partialImageDraft = createDraftTextToImageOperation(completed, {
+  operationTitle: 'Generate partial App Server batch',
+  textBlockBody: 'Generate two candidates and preserve a successful paid draw.',
+  textBlockTitle: 'Prompt',
+  generationParams: {
+    aspectRatioPreset: '1:1',
+    targetAspectRatio: 1,
+    variationCount: 2,
+  },
+});
+partialImageDraft.operationBlock.data.connectionId = connection!.connectionId;
+const partialImageRun = executeExistingImageOperationBlock(completed, {
+  connection: connection!,
+  generationParams: partialImageDraft.operationBlock.data.generationParams,
+  instruction: '',
+  operation: 'text_to_image',
+  operationBlockId: partialImageDraft.operationBlock.blockId,
+});
+await saveSnapshot(completed);
+let partialImageCalls = 0;
+const partialImageStarted = await startCodexAppServerImageGeneration({
+  projectId: completed.project.projectId,
+  boardId: completed.board.boardId,
+  executionId: partialImageRun.execution.executionId,
+  connectionId: connection!.connectionId,
+}, {
+  runTurn: async () => {
+    partialImageCalls += 1;
+    if (partialImageCalls === 2) throw new Error('Synthetic App Server candidate failure.');
+    return {
+      threadId: 'thread_partial_image',
+      turnId: 'turn_partial_image',
+      text: '',
+      image: {
+        itemId: 'image_partial_success',
+        dataUrl: `data:image/png;base64,${Buffer.from('codex-partial-success').toString('base64')}`,
+      },
+    };
+  },
+});
+await assert.rejects(partialImageStarted.completion, /Synthetic App Server candidate failure/);
+let partialImageSnapshot = await loadSnapshot(completed.project.projectId, completed.board.boardId);
+const partialImageExecution = partialImageSnapshot.executions.find(
+  (candidate) => candidate.executionId === partialImageRun.execution.executionId,
+);
+const preservedAppServerAssetId = partialImageExecution?.outputAssetIds[0];
+const failedAppServerResultBlockId = partialImageExecution?.outputBlockIds.find((blockId) =>
+  typeof partialImageSnapshot.blocks.find((block) => block.blockId === blockId)?.data.assetId !== 'string');
+assert.equal(partialImageExecution?.status, 'failed');
+assert.ok(preservedAppServerAssetId && failedAppServerResultBlockId);
+const failedAppServerResultIndex = partialImageExecution.outputBlockIds.indexOf(failedAppServerResultBlockId);
+let appServerRetryCalls = 0;
+const retriedImage = await startCodexAppServerImageGeneration({
+  projectId: completed.project.projectId,
+  boardId: completed.board.boardId,
+  executionId: partialImageRun.execution.executionId,
+  connectionId: connection!.connectionId,
+  resultBlockId: failedAppServerResultBlockId,
+}, {
+  runTurn: async (input) => {
+    appServerRetryCalls += 1;
+    assert.match(input.prompt, new RegExp(`candidate ${failedAppServerResultIndex + 1} of 2`));
+    return {
+      threadId: 'thread_retry_image',
+      turnId: 'turn_retry_image',
+      text: '',
+      image: {
+        itemId: 'image_retry_success',
+        dataUrl: `data:image/png;base64,${Buffer.from('codex-retry-success').toString('base64')}`,
+      },
+    };
+  },
+});
+await retriedImage.completion;
+partialImageSnapshot = await loadSnapshot(completed.project.projectId, completed.board.boardId);
+const retriedImageExecution = partialImageSnapshot.executions.find(
+  (candidate) => candidate.executionId === partialImageRun.execution.executionId,
+);
+assert.equal(appServerRetryCalls, 1, 'Retrying one App Server candidate must issue exactly one paid draw.');
+assert.equal(retriedImageExecution?.status, 'succeeded');
+assert.equal(retriedImageExecution?.outputAssetIds.length, 2);
+assert.equal(retriedImageExecution?.outputAssetIds.includes(preservedAppServerAssetId), true);
 
 const referenceOnlyExecution = structuredClone(imageRun.execution);
 referenceOnlyExecution.inputAssetIds = ['asset_reference_prompt_test'];
@@ -336,5 +419,6 @@ console.log(JSON.stringify({
   ok: true,
   capabilities: connection?.supportedCapabilityIds,
   concurrentImageCandidates: maxConcurrentImageCalls,
+  retriedFailedCandidateCalls: appServerRetryCalls,
   routes: [textExecution?.adapter, imageExecution?.adapter, annotationRun.execution.adapter],
 }));

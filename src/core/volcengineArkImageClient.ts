@@ -5,6 +5,7 @@ export async function startVolcengineArkImage(input: {
   boardId: string;
   executionId: string;
   connectionId: string;
+  resultBlockId?: string;
 }): Promise<{ snapshot: BoardSnapshot; execution: ExecutionRecord }> {
   const response = await fetch(`/api/local/image/volcengine-ark/executions/${encodeURIComponent(input.executionId)}/run`, {
     method: 'POST',
@@ -13,6 +14,7 @@ export async function startVolcengineArkImage(input: {
       projectId: input.projectId,
       boardId: input.boardId,
       connectionId: input.connectionId,
+      resultBlockId: input.resultBlockId,
     }),
   });
   const payload = await response.json() as {

@@ -5,6 +5,7 @@ export async function startCodexAppServerImage(input: {
   boardId: string;
   executionId: string;
   connectionId: string;
+  resultBlockId?: string;
 }): Promise<{ snapshot: BoardSnapshot; execution: ExecutionRecord }> {
   const response = await fetch(`/api/local/image/codex-app-server/executions/${encodeURIComponent(input.executionId)}/run`, {
     method: 'POST',

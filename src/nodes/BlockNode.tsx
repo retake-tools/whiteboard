@@ -439,7 +439,7 @@ function BlockBody({
               </div>
             ) : null}
             <p>{managedResultDescription(data, t)}</p>
-            {data.resultRetryMode === 'codex_prompt' ? (
+            {data.resultRetryMode ? (
               <button
                 type="button"
                 className="image-result-retry-button nodrag nopan"

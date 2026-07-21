@@ -232,10 +232,25 @@ const migratedRetrySnapshot = migrateBoardSnapshot(retrySnapshot);
 const migratedRetryFirstResult = migratedRetrySnapshot.blocks.find(
   (block) => block.blockId === retryFirstResult.blockId,
 );
+const migratedRetryExecution = migratedRetrySnapshot.executions.find(
+  (execution) => execution.executionId === retryExecution.executionId,
+);
+assert.ok(migratedRetryExecution);
 assert.equal(migratedRetryFirstResult?.data.statusVisualDismissed, undefined);
 const retryNodes = createFlowNodes(migratedRetrySnapshot);
 assert.equal(retryNodes.find((node) => node.id === retryFirstResult.blockId)?.data.resultRetryMode, 'codex_prompt');
 assert.equal(retryNodes.find((node) => node.id === retrySecondResult.blockId)?.data.resultRetryMode, undefined);
+migratedRetryExecution.adapter = 'direct_api';
+assert.equal(
+  createFlowNodes(migratedRetrySnapshot).find((node) => node.id === retryFirstResult.blockId)?.data.resultRetryMode,
+  'direct_retry',
+);
+migratedRetryExecution.adapter = 'codex_app_server';
+assert.equal(
+  createFlowNodes(migratedRetrySnapshot).find((node) => node.id === retryFirstResult.blockId)?.data.resultRetryMode,
+  'direct_retry',
+);
+migratedRetryExecution.adapter = 'mcp_agent';
 const retryPrompt = createImageResultRetryPrompt(migratedRetrySnapshot, migratedRetryFirstResult!);
 assert.match(retryPrompt, /Retry exactly one failed Retake Whiteboard image result/);
 assert.match(retryPrompt, new RegExp(`retry resultBlockId: ${retryFirstResult.blockId}`));

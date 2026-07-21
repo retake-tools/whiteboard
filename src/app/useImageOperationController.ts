@@ -165,6 +165,44 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     if (!resultBlock || !execution) return;
     try {
       await persistSnapshot(current, { requireLocalApi: true });
+      if (execution.adapter === 'codex_app_server' || execution.adapter === 'direct_api') {
+        if (!execution.connectionId) throw new Error(t('feedback.connectionUnavailable'));
+        const connection = executionConnection(execution.connectionId, current.project.projectId);
+        const usesCodexAppServer = execution.adapter === 'codex_app_server' && connection?.connectorId === 'codex-app-server';
+        const usesVolcengineArk = execution.adapter === 'direct_api' && connection?.connectorId === 'volcengine-ark';
+        if (!connection || connection.status !== 'ready' || (!usesCodexAppServer && !usesVolcengineArk)) {
+          throw new Error(t('feedback.connectionUnavailable'));
+        }
+        const started = usesCodexAppServer
+          ? await startCodexAppServerImage({
+              projectId: current.project.projectId,
+              boardId: current.board.boardId,
+              executionId: execution.executionId,
+              connectionId: connection.connectionId,
+              resultBlockId: blockId,
+            })
+          : await startVolcengineArkImage({
+              projectId: current.project.projectId,
+              boardId: current.board.boardId,
+              executionId: execution.executionId,
+              connectionId: connection.connectionId,
+              resultBlockId: blockId,
+            });
+        const runningSnapshot = updateSnapshot(() => started.snapshot, { persist: false, history: true });
+        setSelectedBlock(runningSnapshot, blockId);
+        setOperationToast({
+          id: copyKey,
+          title: t('result.retryPromptTitle'),
+          body: t(usesCodexAppServer ? 'feedback.codexImageCostNotice' : 'feedback.seedreamCostNotice'),
+          tone: 'success',
+        });
+        void pollDirectImageExecution(
+          execution.executionId,
+          runningSnapshot,
+          usesCodexAppServer ? 'codex' : 'seedream',
+        );
+        return;
+      }
       const prompt = createImageResultRetryPrompt(current, resultBlock);
       const operationBlockId = typeof resultBlock.data.operationBlockId === 'string' ? resultBlock.data.operationBlockId : undefined;
       const blockIds = [...execution.inputBlockIds, operationBlockId, blockId].filter((candidate): candidate is string => Boolean(candidate));

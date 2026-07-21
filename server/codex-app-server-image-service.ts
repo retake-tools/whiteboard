@@ -14,6 +14,7 @@ import { createAssetFromDataUrl } from './local-store/asset-store';
 import { listExecutionProviderSettings } from './local-store/execution-provider-store';
 import {
   failExecution,
+  markExecutionAdapterRetryRunning,
   markExecutionRunning,
   recordExecutionRequestPrompts,
   updateImageResultBlock,
@@ -30,6 +31,7 @@ export async function startCodexAppServerImageGeneration(input: {
   boardId: string;
   executionId: string;
   connectionId: string;
+  resultBlockId?: string;
 }, dependencies: CodexAppServerImageDependencies = {}): Promise<{
   snapshot: BoardSnapshot;
   execution: ExecutionRecord;
@@ -46,26 +48,32 @@ export async function startCodexAppServerImageGeneration(input: {
     throw new Error('Codex App Server is unavailable. Test the built-in connection in Retake Settings.');
   }
   const current = await loadSnapshot(input.projectId, input.boardId);
-  const queued = current.executions.find((candidate) => candidate.executionId === input.executionId);
-  if (!queued || queued.status !== 'queued' || queued.adapter !== 'codex_app_server') {
-    throw new Error(`Queued Codex App Server image execution not found: ${input.executionId}`);
+  const execution = current.executions.find((candidate) => candidate.executionId === input.executionId);
+  const expectedStatus = input.resultBlockId ? 'failed' : 'queued';
+  if (!execution || execution.status !== expectedStatus || execution.adapter !== 'codex_app_server') {
+    throw new Error(`${expectedStatus === 'failed' ? 'Failed' : 'Queued'} Codex App Server image execution not found: ${input.executionId}`);
   }
-  if (queued.connectionId !== input.connectionId) {
+  if (execution.connectionId !== input.connectionId) {
     throw new Error(`Image execution connection mismatch: ${input.connectionId}`);
   }
 
-  const started = await markExecutionRunning(input);
+  const started = input.resultBlockId
+    ? await markExecutionAdapterRetryRunning({ ...input, resultBlockId: input.resultBlockId, adapter: 'codex_app_server' })
+    : await markExecutionRunning(input);
   publishExecutionEvent(input.executionId, { type: 'execution.started' });
-  const completion = executeCodexImageRun(started.execution, connection.modelId, dependencies).catch(async (error) => {
-    const errorMessage = error instanceof Error ? error.message : 'Codex App Server image generation failed.';
-    const failed = await failExecution({ ...input, errorMessage }).catch(() => undefined);
-    publishExecutionEvent(input.executionId, {
-      type: 'execution.failed',
-      errorMessage,
-      ...(failed ? { snapshot: failed.snapshot } : {}),
+  const resultBlockIds = input.resultBlockId ? [input.resultBlockId] : started.execution.outputBlockIds;
+  const completion = executeCodexImageRun(started.execution, connection.modelId, dependencies, resultBlockIds)
+    .then(async () => settleIncompleteRetry(input))
+    .catch(async (error) => {
+      const errorMessage = error instanceof Error ? error.message : 'Codex App Server image generation failed.';
+      const failed = await failExecution({ ...input, errorMessage }).catch(() => undefined);
+      publishExecutionEvent(input.executionId, {
+        type: 'execution.failed',
+        errorMessage,
+        ...(failed ? { snapshot: failed.snapshot } : {}),
+      });
+      throw error;
     });
-    throw error;
-  });
   void completion.catch(() => undefined);
   return { ...started, completion };
 }
@@ -74,16 +82,17 @@ async function executeCodexImageRun(
   execution: ExecutionRecord,
   model: string,
   dependencies: CodexAppServerImageDependencies,
+  resultBlockIds: string[],
 ): Promise<void> {
   const initial = await loadSnapshot(execution.projectId, execution.boardId);
   const inputAssignments = imageExecutionInputAssignments(execution);
   const localImagePaths = await executionInputImagePaths(initial, inputAssignments);
-  const requests = execution.outputBlockIds.map((outputBlockId, index) => ({
-    index,
+  const requests = resultBlockIds.map((outputBlockId) => ({
+    index: execution.outputBlockIds.indexOf(outputBlockId),
     outputBlockId,
     prompt: createProviderImagePrompt(execution, inputAssignments, {
       dialect: 'codex_imagegen',
-      variantIndex: index,
+      variantIndex: execution.outputBlockIds.indexOf(outputBlockId),
       variantCount: execution.outputBlockIds.length,
     }),
   }));
@@ -94,12 +103,13 @@ async function executeCodexImageRun(
     requestPrompts: requests,
   });
   const enqueueWrite = createSerialTaskQueue();
-  const results = await Promise.allSettled(execution.outputBlockIds.map(async (resultBlockId, index) => {
+  const results = await Promise.allSettled(requests.map(async (request) => {
+    const { index, outputBlockId: resultBlockId } = request;
     await assertExecutionRunning(execution);
     const result = await (dependencies.runTurn ?? runCodexAppServerTurn)({
       cwd: process.env.TMPDIR || '/tmp',
       model,
-      prompt: requests[index].prompt,
+      prompt: request.prompt,
       localImagePaths,
       sandbox: 'workspace-write',
       onImageGenerationStarted: () => publishExecutionEvent(execution.executionId, {
@@ -148,6 +158,24 @@ async function executeCodexImageRun(
       ? failed.reason
       : new Error('Codex App Server image generation failed for one or more candidates.');
   }
+}
+
+async function settleIncompleteRetry(input: {
+  projectId: string;
+  boardId: string;
+  executionId: string;
+  resultBlockId?: string;
+}): Promise<void> {
+  if (!input.resultBlockId) return;
+  const snapshot = await loadSnapshot(input.projectId, input.boardId);
+  const execution = snapshot.executions.find((candidate) => candidate.executionId === input.executionId);
+  if (execution?.status !== 'running') return;
+  await failExecution({
+    projectId: input.projectId,
+    boardId: input.boardId,
+    executionId: input.executionId,
+    errorMessage: 'One or more image candidates are still incomplete. Retry the remaining failed results.',
+  });
 }
 
 async function executionInputImagePaths(

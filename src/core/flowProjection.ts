@@ -218,7 +218,7 @@ export function createFlowNodes(
         block.type === 'image' && block.data.status === 'failed' && !block.data.assetId
           ? sourceExecution?.adapter === 'mcp_agent'
             ? 'codex_prompt'
-            : sourceExecution?.adapter === 'direct_api'
+            : sourceExecution?.adapter === 'direct_api' || sourceExecution?.adapter === 'codex_app_server'
               ? 'direct_retry'
               : undefined
           : undefined,

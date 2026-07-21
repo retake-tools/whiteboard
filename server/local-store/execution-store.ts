@@ -88,6 +88,42 @@ export async function markExecutionRunning(input: { projectId: string; boardId: 
   return { snapshot, execution };
 }
 
+export async function markExecutionAdapterRetryRunning(input: {
+  projectId: string;
+  boardId: string;
+  executionId: string;
+  resultBlockId: string;
+  adapter: Extract<ExecutionRecord['adapter'], 'codex_app_server' | 'direct_api'>;
+}): Promise<{ snapshot: BoardSnapshot; execution: ExecutionRecord }> {
+  const snapshot = await loadSnapshot(input.projectId, input.boardId);
+  const execution = findExecutionOrThrow(snapshot, input.executionId);
+  if (execution.status !== 'failed' || execution.adapter !== input.adapter) {
+    throw new Error(`Failed ${input.adapter} execution not found for retry: ${input.executionId}`);
+  }
+  if (!execution.outputBlockIds.includes(input.resultBlockId)) {
+    throw new Error(`Result block is not assigned to execution ${input.executionId}: ${input.resultBlockId}`);
+  }
+  const resultBlock = snapshot.blocks.find((block) => block.blockId === input.resultBlockId);
+  if (resultBlock?.type !== 'image' || typeof resultBlock.data.assetId === 'string') {
+    throw new Error(`Image result is not available for retry: ${input.resultBlockId}`);
+  }
+
+  execution.status = 'running';
+  delete execution.completedAt;
+  delete execution.errorMessage;
+  syncExecutionBlocks(snapshot, execution);
+  appendHistoryEvent(snapshot, {
+    type: 'execution_started',
+    actor: 'codex',
+    execution,
+    summary: `Execution result retried: ${execution.capabilityId}`,
+    detail: { resumedFromStatus: 'failed', retriedResultBlockIds: [input.resultBlockId] },
+  });
+  touchSnapshot(snapshot);
+  await saveSnapshot(snapshot);
+  return { snapshot, execution };
+}
+
 export async function completeExecution(input: {
   projectId: string;
   boardId: string;
@@ -148,7 +184,11 @@ export async function recordExecutionRequestPrompts(input: {
   const snapshot = await loadSnapshot(input.projectId, input.boardId);
   const execution = findExecutionOrThrow(snapshot, input.executionId);
   assertExecutionRunning(execution, 'record request prompts for');
-  execution.requestPrompts = structuredClone(input.requestPrompts);
+  const promptsByIndex = new Map(
+    execution.requestPrompts?.map((requestPrompt) => [requestPrompt.index, requestPrompt]) ?? [],
+  );
+  for (const requestPrompt of input.requestPrompts) promptsByIndex.set(requestPrompt.index, requestPrompt);
+  execution.requestPrompts = structuredClone([...promptsByIndex.values()].sort((left, right) => left.index - right.index));
   touchSnapshot(snapshot);
   await saveSnapshot(snapshot);
   return { snapshot, execution };

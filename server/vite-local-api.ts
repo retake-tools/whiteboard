@@ -189,6 +189,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               projectId?: string;
               boardId?: string;
               connectionId?: string;
+              resultBlockId?: string;
             };
             if (!body.projectId || !body.boardId || !body.connectionId) {
               sendJson(res, { error: 'projectId, boardId, and connectionId are required' }, 400);
@@ -199,6 +200,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               boardId: body.boardId,
               executionId,
               connectionId: body.connectionId,
+              resultBlockId: body.resultBlockId,
             });
             sendJson(res, { snapshot: started.snapshot, execution: started.execution }, 202);
             return;
@@ -211,6 +213,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               projectId?: string;
               boardId?: string;
               connectionId?: string;
+              resultBlockId?: string;
             };
             if (!body.projectId || !body.boardId || !body.connectionId) {
               sendJson(res, { error: 'projectId, boardId, and connectionId are required' }, 400);
@@ -221,6 +224,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               boardId: body.boardId,
               executionId,
               connectionId: body.connectionId,
+              resultBlockId: body.resultBlockId,
             });
             sendJson(res, { snapshot: started.snapshot, execution: started.execution }, 202);
             return;

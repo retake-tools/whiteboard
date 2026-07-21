@@ -195,6 +195,44 @@ assert.equal(
     typeof partialCompleted.blocks.find((block) => block.blockId === blockId)?.data.assetId === 'string').length,
   1,
 );
+const preservedPaidAssetId = partialExecution?.outputAssetIds[0];
+const failedResultBlockId = partialExecution?.outputBlockIds.find((blockId) =>
+  typeof partialCompleted.blocks.find((block) => block.blockId === blockId)?.data.assetId !== 'string');
+assert.ok(preservedPaidAssetId && failedResultBlockId);
+const failedResultIndex = partialExecution.outputBlockIds.indexOf(failedResultBlockId);
+let retryCalls = 0;
+const retried = await startVolcengineArkImageGeneration({
+  projectId: partialCompleted.project.projectId,
+  boardId: partialCompleted.board.boardId,
+  executionId: partialRun.execution.executionId,
+  connectionId: connection.connectionId,
+  resultBlockId: failedResultBlockId,
+}, {
+  config: {
+    apiKey: 'ark-test-key',
+    baseUrl: 'https://ark.example/api/v3',
+    model: connection.modelId!,
+  },
+  fetchImpl: async (_input, init) => {
+    retryCalls += 1;
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    assert.match(String(body.prompt), new RegExp(`candidate ${failedResultIndex + 1} of 2`));
+    return new Response(JSON.stringify({
+      model: connection.modelId,
+      data: [{ b64_json: Buffer.from('retried-candidate').toString('base64'), size: '1152x2048' }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  },
+});
+await retried.completion;
+const retryCompleted = await loadSnapshot(completed.project.projectId, completed.board.boardId);
+const retryExecution = retryCompleted.executions.find(
+  (candidate) => candidate.executionId === partialRun.execution.executionId,
+);
+assert.equal(retryCalls, 1, 'Retrying one failed candidate must issue exactly one paid draw.');
+assert.equal(retryExecution?.status, 'succeeded');
+assert.equal(retryExecution?.outputAssetIds.length, 2);
+assert.equal(retryExecution?.outputAssetIds.includes(preservedPaidAssetId), true);
+assert.equal(typeof retryCompleted.blocks.find((block) => block.blockId === failedResultBlockId)?.data.assetId, 'string');
 
 await rm(retakeRoot, { recursive: true, force: true });
 console.log(JSON.stringify({
@@ -203,4 +241,5 @@ console.log(JSON.stringify({
   maxConcurrentDraws: maxConcurrentCalls,
   preservedAssets: completedExecution?.outputAssetIds.length,
   partialSuccessAssets: partialExecution?.outputAssetIds.length,
+  retriedFailedCandidateCalls: retryCalls,
 }));
