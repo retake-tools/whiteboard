@@ -121,8 +121,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
           void instance.setViewport(canvas.currentViewportRef.current, { duration: 0 });
         }}
         onMove={(_event, viewport) => {
-          canvas.currentViewportRef.current = viewport;
-          canvas.setCanvasZoom(viewport.zoom);
+          canvas.scheduleViewportPersist(viewport);
         }}
         onMoveEnd={(_event, viewport) => canvas.persistViewport(viewport)}
         onSelectionChange={canvas.onSelectionChange}

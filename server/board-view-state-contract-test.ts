@@ -85,12 +85,15 @@ assert.equal('viewport' in createBlankSnapshot({
 
 const canvasSource = await readFile('src/app/useCanvasController.ts', 'utf8');
 assert.match(canvasSource, /saveBoardViewState\(/, 'canvas viewport changes must use BoardViewStateStore');
+assert.match(canvasSource, /scheduleViewportPersist/, 'in-progress pan and zoom gestures must schedule durable view-state writes');
+assert.match(canvasSource, /pagehide/, 'navigation must flush the final in-progress viewport before the page unloads');
 assert.doesNotMatch(canvasSource, /viewportShowsAnyBlock/, 'a saved empty-space view must remain authoritative until the user chooses fitView');
 assert.doesNotMatch(canvasSource, /updateSnapshot\(\(next\) => \(\{ \.\.\.next, viewport \}\)/, 'viewport must not re-enter snapshot autosave');
 
 console.log({
   boardScopedStorage: true,
   emptySpaceViewPreserved: true,
+  inProgressGestureFlushed: true,
   legacyViewportRemoved: true,
   responsiveCenterRestore: true,
 });

@@ -21,6 +21,7 @@ import {
   minBoardZoom,
   saveBoardViewState,
   viewportBasisFromElement,
+  type BoardViewState,
   type ViewportBasis,
 } from '../core/boardViewStateStore';
 import { createFlowEdges, createFlowNodes } from '../core/flowProjection';
@@ -83,6 +84,8 @@ export function useCanvasController(options: CanvasControllerOptions) {
   const canvasAreaRef = useRef<HTMLElement | null>(null);
   const currentViewportRef = useRef<Viewport>(defaultBoardViewport);
   const boardViewportRestoreTokenRef = useRef(0);
+  const pendingViewportPersistRef = useRef<BoardViewState | undefined>(undefined);
+  const viewportPersistTimerRef = useRef<number | undefined>(undefined);
   const reactFlowRef = useRef<ReactFlowInstance<RetakeNode, RetakeEdge> | null>(null);
   const selectedBlockIdsRef = useRef<string[]>([]);
   const textBlockDraftsRef = useRef<Map<string, string>>(new Map());
@@ -124,6 +127,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
 
   connectSessionPorts({
     onBoardLoaded: (loadedSnapshot) => {
+      flushScheduledViewportPersist();
       nodeDragActiveRef.current = false;
       setNodes(createFlowNodesForSelection(loadedSnapshot, []));
       setEdges(createFlowEdgesForSelection(loadedSnapshot, []));
@@ -142,6 +146,17 @@ export function useCanvasController(options: CanvasControllerOptions) {
       setEdges(createFlowEdgesForSelection(nextSnapshot));
     },
   });
+
+  useEffect(() => {
+    const flushViewport = () => flushScheduledViewportPersist();
+    window.addEventListener('beforeunload', flushViewport);
+    window.addEventListener('pagehide', flushViewport);
+    return () => {
+      window.removeEventListener('beforeunload', flushViewport);
+      window.removeEventListener('pagehide', flushViewport);
+      flushScheduledViewportPersist();
+    };
+  }, []);
 
   useEffect(() => {
     const nextCollapsedGroupIds = loadCollapsedGroupIds(snapshot.project.projectId, snapshot.board.boardId)
@@ -452,18 +467,55 @@ export function useCanvasController(options: CanvasControllerOptions) {
   function persistViewport(viewport: Viewport): void {
     currentViewportRef.current = viewport;
     setCanvasZoom(viewport.zoom);
-    const current = snapshotRef.current;
-    const basis = viewportBasisFromElement(canvasAreaRef.current);
-    const saved = loadBoardViewState(current.project.projectId, current.board.boardId);
+    clearScheduledViewportPersist();
+    persistBoardViewState(boardViewStateFor(
+      snapshotRef.current,
+      viewport,
+      viewportBasisFromElement(canvasAreaRef.current),
+    ));
+  }
+
+  function scheduleViewportPersist(viewport: Viewport): void {
+    currentViewportRef.current = viewport;
+    setCanvasZoom(viewport.zoom);
+    pendingViewportPersistRef.current = boardViewStateFor(
+      snapshotRef.current,
+      viewport,
+      viewportBasisFromElement(canvasAreaRef.current),
+    );
+    if (viewportPersistTimerRef.current !== undefined) return;
+    viewportPersistTimerRef.current = window.setTimeout(flushScheduledViewportPersist, 80);
+  }
+
+  function flushScheduledViewportPersist(): void {
+    if (viewportPersistTimerRef.current !== undefined) {
+      window.clearTimeout(viewportPersistTimerRef.current);
+      viewportPersistTimerRef.current = undefined;
+    }
+    const pending = pendingViewportPersistRef.current;
+    pendingViewportPersistRef.current = undefined;
+    if (pending) persistBoardViewState(pending);
+  }
+
+  function clearScheduledViewportPersist(): void {
+    if (viewportPersistTimerRef.current !== undefined) {
+      window.clearTimeout(viewportPersistTimerRef.current);
+      viewportPersistTimerRef.current = undefined;
+    }
+    pendingViewportPersistRef.current = undefined;
+  }
+
+  function persistBoardViewState(next: BoardViewState): void {
+    const saved = loadBoardViewState(next.projectId, next.boardId);
     if (
       saved &&
-      Math.abs(saved.viewport.x - viewport.x) < 0.5 &&
-      Math.abs(saved.viewport.y - viewport.y) < 0.5 &&
-      Math.abs(saved.viewport.zoom - viewport.zoom) < 0.001 &&
-      Math.abs(saved.viewportBasis.canvasWidth - basis.canvasWidth) < 0.5 &&
-      Math.abs(saved.viewportBasis.canvasHeight - basis.canvasHeight) < 0.5
+      Math.abs(saved.viewport.x - next.viewport.x) < 0.5 &&
+      Math.abs(saved.viewport.y - next.viewport.y) < 0.5 &&
+      Math.abs(saved.viewport.zoom - next.viewport.zoom) < 0.001 &&
+      Math.abs(saved.viewportBasis.canvasWidth - next.viewportBasis.canvasWidth) < 0.5 &&
+      Math.abs(saved.viewportBasis.canvasHeight - next.viewportBasis.canvasHeight) < 0.5
     ) return;
-    saveViewportForBoard(current, viewport, basis);
+    saveBoardViewState(next);
   }
 
   function restoreBoardViewport(loadedSnapshot: BoardSnapshot): void {
@@ -499,14 +551,18 @@ export function useCanvasController(options: CanvasControllerOptions) {
   }
 
   function saveViewportForBoard(current: BoardSnapshot, viewport: Viewport, basis: ViewportBasis): void {
-    saveBoardViewState({
+    persistBoardViewState(boardViewStateFor(current, viewport, basis));
+  }
+
+  function boardViewStateFor(current: BoardSnapshot, viewport: Viewport, basis: ViewportBasis): BoardViewState {
+    return {
       schemaVersion: 1,
       projectId: current.project.projectId,
       boardId: current.board.boardId,
       viewport,
       viewportBasis: basis,
       updatedAt: new Date().toISOString(),
-    });
+    };
   }
 
   useEffect(() => {
@@ -569,6 +625,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
     onSelectionChange,
     persistViewport,
     reactFlowRef,
+    scheduleViewportPersist,
     selectedBlockIds,
     selectedBlockIdsRef,
     selectBlock,
