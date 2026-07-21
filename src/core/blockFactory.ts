@@ -1,6 +1,7 @@
 import { createId, nowIso } from './id';
 import { defaultGenerationProfileId } from './generationProfiles';
 import { defaultBlockSize } from './blockSizing';
+import { executionDefaultConnection } from './executionProviderPreferences';
 import type { BlockRecord, BlockType, BoardSnapshot } from './types';
 
 export function createBlockRecord(
@@ -18,7 +19,7 @@ export function createBlockRecord(
     position: { x: 80 + index * 36, y: 80 + index * 24 },
     size: defaultBlockSize(type),
     zIndex: maxZIndex(snapshot.blocks) + 1,
-    data: dataForType(type),
+    data: dataForType(type, snapshot.project.projectId),
     createdAt,
     updatedAt: createdAt,
   };
@@ -35,7 +36,7 @@ export function maxZIndex(blocks: BlockRecord[]): number {
   return blocks.reduce((max, block) => Math.max(max, block.zIndex), 0);
 }
 
-function dataForType(type: BlockType): BlockRecord['data'] {
+function dataForType(type: BlockType, projectId: string): BlockRecord['data'] {
   if (type === 'operation') {
     return {
       title: 'New operation',
@@ -62,13 +63,14 @@ function dataForType(type: BlockType): BlockRecord['data'] {
   }
 
   if (type === 'video') {
+    const executionProfileId = videoProfileForConnection(executionDefaultConnection('video', projectId));
     return {
       title: 'Video block',
       body: 'Connect optional image references, then generate through the selected video profile.',
       executionDraft: {
         schemaVersion: 1,
         capabilityId: 'video.generate',
-        executionProfileId: 'video-mock',
+        executionProfileId,
         prompt: '',
         parameters: {
           aspectRatio: '9:16',
@@ -84,4 +86,10 @@ function dataForType(type: BlockType): BlockRecord['data'] {
     title: 'Text block',
     body: 'Prompt, script note, reference, or story fragment.',
   };
+}
+
+function videoProfileForConnection(connectionId: string | undefined): string {
+  if (connectionId === 'dreamina') return 'video-dreamina-cli';
+  if (connectionId === 'byteplus-modelark') return 'video-seedance-modelark';
+  return 'video-mock';
 }

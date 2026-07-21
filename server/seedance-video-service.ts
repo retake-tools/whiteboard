@@ -8,6 +8,7 @@ import {
 } from '../src/core/videoGeneration';
 import { importAssetFromUrl } from './local-store/asset-store';
 import { readAssetAsDataUrl } from './local-store/asset-files';
+import { resolveExecutionConnection } from './local-store/execution-provider-store';
 import { failExecution, updateVideoResultBlock } from './local-store/execution-store';
 import { loadSnapshot, saveSnapshot } from './local-store/snapshot-store';
 import {
@@ -36,8 +37,8 @@ export async function startSeedanceVideoGeneration(
   input: VideoGenerationInput & { projectId: string; boardId: string },
   dependencies: SeedanceServiceDependencies = {},
 ): Promise<{ snapshot: BoardSnapshot; execution: ExecutionRecord; completion: Promise<void> }> {
-  const config = dependencies.config ?? readSeedanceModelArkConfig();
-  if (!config) throw new Error('Seedance ModelArk is unavailable. Configure SEEDANCE_MODELARK_API_KEY on the Retake server.');
+  const config = dependencies.config ?? await resolveSeedanceConfig();
+  if (!config) throw new Error('Seedance ModelArk is unavailable. Configure its API key in Retake Settings or on the server.');
   const snapshot = await loadSnapshot(input.projectId, input.boardId);
   const profile = {
     ...seedanceModelArkExecutionProfile,
@@ -78,7 +79,7 @@ export async function cancelSeedanceVideoGeneration(input: {
   const activeRun = activeRuns.get(input.executionId);
   if (input.remoteOnly) {
     activeRun?.abortController.abort(new DOMException('Canceled by user', 'AbortError'));
-    const config = dependencies.config ?? readSeedanceModelArkConfig();
+    const config = dependencies.config ?? await resolveSeedanceConfig();
     const client = activeRun?.client ?? (config ? new SeedanceModelArkClient(config, dependencies.fetchImpl) : undefined);
     const taskIds = activeRun?.taskIds ?? sanitizeProviderTaskIds(input.providerTaskIds);
     return { remoteQueuedTasksCanceled: await cancelQueuedTasks(client, taskIds) };
@@ -93,7 +94,7 @@ export async function cancelSeedanceVideoGeneration(input: {
   await saveSnapshot(snapshot);
 
   activeRun?.abortController.abort(new DOMException('Canceled by user', 'AbortError'));
-  const config = dependencies.config ?? readSeedanceModelArkConfig();
+  const config = dependencies.config ?? await resolveSeedanceConfig();
   const client = activeRun?.client ?? (config ? new SeedanceModelArkClient(config, dependencies.fetchImpl) : undefined);
   const taskIds = activeRun?.taskIds ?? providerTaskIds(execution);
   return { snapshot, remoteQueuedTasksCanceled: await cancelQueuedTasks(client, taskIds) };
@@ -269,4 +270,15 @@ function isAbortError(error: unknown): boolean {
 function seedanceRatio(value: string | undefined): 'adaptive' | '16:9' | '9:16' | '1:1' | '4:3' | '3:4' | '21:9' {
   if (value === '16:9' || value === '9:16' || value === '1:1' || value === '4:3' || value === '3:4' || value === '21:9') return value;
   return 'adaptive';
+}
+
+async function resolveSeedanceConfig(): Promise<SeedanceModelArkConfig | undefined> {
+  const stored = await resolveExecutionConnection('byteplus-modelark');
+  if (!stored) return readSeedanceModelArkConfig();
+  const environment = readSeedanceModelArkConfig();
+  return {
+    ...stored,
+    pollIntervalMs: environment?.pollIntervalMs ?? 5_000,
+    taskTimeoutMs: environment?.taskTimeoutMs ?? 30 * 60_000,
+  };
 }

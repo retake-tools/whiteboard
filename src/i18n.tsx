@@ -385,6 +385,40 @@ type TranslationKey =
   | 'settings.generationProfiles'
   | 'settings.generationProfileBuiltin'
   | 'settings.generationProfileDefault'
+  | 'settings.executionProviders'
+  | 'settings.executionProvidersDescription'
+  | 'settings.connections'
+  | 'settings.defaults'
+  | 'settings.catalog'
+  | 'settings.configure'
+  | 'settings.checkConnection'
+  | 'settings.checkMayCost'
+  | 'settings.saveConnection'
+  | 'settings.apiKey'
+  | 'settings.apiKeyPlaceholder'
+  | 'settings.baseUrl'
+  | 'settings.model'
+  | 'settings.capabilities'
+  | 'settings.credentialsStored'
+  | 'settings.credentialsMissing'
+  | 'settings.packageAvailable'
+  | 'settings.workspaceDefaults'
+  | 'settings.projectDefaults'
+  | 'settings.inheritWorkspace'
+  | 'settings.defaultText'
+  | 'settings.defaultDocument'
+  | 'settings.defaultImage'
+  | 'settings.defaultVideo'
+  | 'settings.defaultAudio'
+  | 'settings.defaultAgent'
+  | 'settings.statusNotInstalled'
+  | 'settings.statusNeedsCredentials'
+  | 'settings.statusNeedsLogin'
+  | 'settings.statusChecking'
+  | 'settings.statusReady'
+  | 'settings.statusUnavailable'
+  | 'settings.loadingProviders'
+  | 'settings.noCompatibleConnection'
   | 'settings.language'
   | 'settings.preferences'
   | 'settings.shortcutClose'
@@ -832,6 +866,40 @@ const translations: Record<Locale, Translations> = {
     'settings.generationProfiles': 'Generation profiles',
     'settings.generationProfileBuiltin': 'Built-in · Read only',
     'settings.generationProfileDefault': 'Default',
+    'settings.executionProviders': 'Execution & providers',
+    'settings.executionProvidersDescription': 'Configure API connections, local agent hosts, provider CLIs, and capability defaults.',
+    'settings.connections': 'Connections',
+    'settings.defaults': 'Defaults',
+    'settings.catalog': 'Available packages',
+    'settings.configure': 'Configure',
+    'settings.checkConnection': 'Check',
+    'settings.checkMayCost': 'Connection checks send a minimal text request and may incur a small provider charge.',
+    'settings.saveConnection': 'Save connection',
+    'settings.apiKey': 'API key',
+    'settings.apiKeyPlaceholder': 'Leave blank to keep the stored key',
+    'settings.baseUrl': 'Base URL',
+    'settings.model': 'Model ID',
+    'settings.capabilities': 'Capabilities',
+    'settings.credentialsStored': 'Credential stored on the Retake server',
+    'settings.credentialsMissing': 'Credential required',
+    'settings.packageAvailable': 'Package not installed',
+    'settings.workspaceDefaults': 'Workspace defaults',
+    'settings.projectDefaults': 'Current project overrides',
+    'settings.inheritWorkspace': 'Inherit workspace default',
+    'settings.defaultText': 'Text',
+    'settings.defaultDocument': 'Document',
+    'settings.defaultImage': 'Image',
+    'settings.defaultVideo': 'Video',
+    'settings.defaultAudio': 'Audio',
+    'settings.defaultAgent': 'Agent',
+    'settings.statusNotInstalled': 'Not installed',
+    'settings.statusNeedsCredentials': 'Needs credentials',
+    'settings.statusNeedsLogin': 'Needs login',
+    'settings.statusChecking': 'Checking',
+    'settings.statusReady': 'Ready',
+    'settings.statusUnavailable': 'Unavailable',
+    'settings.loadingProviders': 'Loading execution providers…',
+    'settings.noCompatibleConnection': 'No compatible ready connection',
     'settings.language': 'Language',
     'settings.preferences': 'Preferences',
     'settings.shortcutClose': 'Close dialogs and panels',
@@ -1274,6 +1342,40 @@ const translations: Record<Locale, Translations> = {
     'settings.generationProfiles': '生成配置',
     'settings.generationProfileBuiltin': '内置 · 只读',
     'settings.generationProfileDefault': '默认',
+    'settings.executionProviders': '执行与服务商',
+    'settings.executionProvidersDescription': '配置 Direct API、本机 Agent Host、Provider CLI，以及各类能力的默认执行方式。',
+    'settings.connections': '连接',
+    'settings.defaults': '默认值',
+    'settings.catalog': '可添加的 Package',
+    'settings.configure': '配置',
+    'settings.checkConnection': '检测',
+    'settings.checkMayCost': '连接检测会发送一次极小的文本请求，可能产生少量服务商费用。',
+    'settings.saveConnection': '保存连接',
+    'settings.apiKey': 'API Key',
+    'settings.apiKeyPlaceholder': '留空则保留服务端已存储的 Key',
+    'settings.baseUrl': 'Base URL',
+    'settings.model': '模型 ID',
+    'settings.capabilities': '支持能力',
+    'settings.credentialsStored': '凭据已存储在 Retake 服务端',
+    'settings.credentialsMissing': '需要配置凭据',
+    'settings.packageAvailable': 'Package 尚未安装',
+    'settings.workspaceDefaults': 'Workspace 默认值',
+    'settings.projectDefaults': '当前 Project 覆盖',
+    'settings.inheritWorkspace': '继承 Workspace 默认值',
+    'settings.defaultText': '文本',
+    'settings.defaultDocument': '文档',
+    'settings.defaultImage': '图片',
+    'settings.defaultVideo': '视频',
+    'settings.defaultAudio': '音频',
+    'settings.defaultAgent': 'Agent',
+    'settings.statusNotInstalled': '未安装',
+    'settings.statusNeedsCredentials': '需要凭据',
+    'settings.statusNeedsLogin': '需要登录',
+    'settings.statusChecking': '检测中',
+    'settings.statusReady': '可用',
+    'settings.statusUnavailable': '不可用',
+    'settings.loadingProviders': '正在加载执行服务商…',
+    'settings.noCompatibleConnection': '没有兼容且可用的连接',
     'settings.language': '语言',
     'settings.preferences': '偏好设置',
     'settings.shortcutClose': '关闭弹窗和面板',

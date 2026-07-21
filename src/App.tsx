@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { BoardHistoryPanel } from './components/BoardHistoryPanel';
 import { ExecutionInspector } from './components/ExecutionInspector';
 import { FloatingToolbar } from './components/FloatingToolbar';
@@ -11,6 +11,7 @@ import { TopBar } from './components/TopBar';
 import { getAssetPreviewUrl } from './core/assetStore';
 import { blockLockedByGroup, groupMediaItems } from './core/grouping';
 import { loadUiPreferences } from './core/uiPreferences';
+import { loadExecutionProviderSettings } from './core/executionProviderClient';
 import { useI18n } from './i18n';
 import { useWorkspaceController } from './app/useWorkspaceController';
 import { useBoardSession } from './app/useBoardSession';
@@ -48,6 +49,9 @@ export function App(): ReactElement {
   const [isMiniMapVisible, setIsMiniMapVisible] = useState(() => initialUiPreferences.current.isMiniMapVisible);
   const [showGrid, setShowGrid] = useState(() => initialUiPreferences.current.showGrid);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  useEffect(() => {
+    void loadExecutionProviderSettings(snapshot.project.projectId).catch(() => undefined);
+  }, [snapshot.project.projectId]);
   const canvasController = useCanvasController({
     connectSessionPorts: connectPorts,
     redo,

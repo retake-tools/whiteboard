@@ -24,13 +24,17 @@ import {
   Undo2,
   X,
 } from 'lucide-react';
-import { useEffect, useRef, useState, type CSSProperties, type MutableRefObject, type ReactElement } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties, type MutableRefObject, type ReactElement } from 'react';
 import type { BoardSnapshot, WorkspaceSummary } from '../core/types';
-import { listGenerationProfiles } from '../core/generationProfiles';
 import { loadUiPreferences, saveUiPreferences } from '../core/uiPreferences';
 import { useI18n, type Locale } from '../i18n';
 import { ProjectBoardMenu } from './ProjectBoardMenu';
 import { TooltipIconButton, TooltipWrapper } from './Tooltip';
+
+const ExecutionProvidersSettings = lazy(async () => {
+  const module = await import('./ExecutionProvidersSettings');
+  return { default: module.ExecutionProvidersSettings };
+});
 
 export type AutosaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -101,6 +105,7 @@ export function TopBar({
   const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useState(false);
   const [keyboardShortcutsPosition, setKeyboardShortcutsPosition] = useState<{ left: number; top: number } | undefined>();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isExecutionSettingsOpen, setIsExecutionSettingsOpen] = useState(false);
   const boardControlRef = useRef<HTMLDivElement | null>(null);
   const keyboardShortcutsRef = useRef<HTMLDivElement | null>(null);
   const settingsRef = useRef<HTMLDivElement | null>(null);
@@ -186,6 +191,15 @@ export function TopBar({
     setIsSettingsOpen(false);
     setIsKeyboardShortcutsOpen(true);
   }
+
+  const openExecutionProviderSettings = useCallback((): void => {
+    setIsSettingsOpen(false);
+    setIsExecutionSettingsOpen(true);
+  }, []);
+
+  const closeExecutionProviderSettings = useCallback((): void => {
+    setIsExecutionSettingsOpen(false);
+  }, []);
 
   return (
     <>
@@ -388,6 +402,7 @@ export function TopBar({
               <SettingsMenu
                 currentLocale={locale}
                 showGrid={showGrid}
+                onOpenExecutionProviders={openExecutionProviderSettings}
                 onOpenKeyboardShortcuts={openKeyboardShortcuts}
                 onSelectLanguage={setLocale}
                 onToggleGrid={onToggleGrid}
@@ -403,48 +418,43 @@ export function TopBar({
           onClose={() => setIsKeyboardShortcutsOpen(false)}
         />
       ) : null}
+      {isExecutionSettingsOpen ? (
+        <Suspense fallback={<div className="execution-settings-backdrop" aria-busy="true" />}>
+          <ExecutionProvidersSettings
+            projectId={snapshot.project.projectId}
+            onClose={closeExecutionProviderSettings}
+          />
+        </Suspense>
+      ) : null}
     </>
   );
 }
 
 function SettingsMenu({
   currentLocale,
+  onOpenExecutionProviders,
   onOpenKeyboardShortcuts,
   showGrid,
   onSelectLanguage,
   onToggleGrid,
 }: {
   currentLocale: Locale;
+  onOpenExecutionProviders: () => void;
   onOpenKeyboardShortcuts: () => void;
   showGrid: boolean;
   onSelectLanguage: (locale: Locale) => void;
   onToggleGrid: () => void;
 }): ReactElement {
   const { t } = useI18n();
-  const generationProfiles = listGenerationProfiles();
 
   return (
     <section className="top-bar-settings-menu" aria-label={t('settings.title')}>
       <div className="settings-menu-group">
-        <button type="button" className="settings-menu-item">
+        <button type="button" className="settings-menu-item" onClick={onOpenExecutionProviders}>
           <Sparkles size={15} />
-          <span>{t('settings.generationProfiles')}</span>
+          <span>{t('settings.executionProviders')}</span>
           <ChevronRight size={14} />
         </button>
-        <div className="settings-submenu" role="menu" aria-label={t('settings.generationProfiles')}>
-          {generationProfiles.map((profile) => (
-            <div key={profile.generationProfileId} className="settings-submenu-row settings-generation-profile-row">
-              <Sparkles size={15} />
-              <span>
-                <strong>{profile.name}</strong>
-                <small>{t('settings.generationProfileBuiltin')}</small>
-              </span>
-              <span className="settings-profile-default">
-                {profile.isDefault ? t('settings.generationProfileDefault') : null}
-              </span>
-            </div>
-          ))}
-        </div>
       </div>
       <div className="settings-menu-group">
         <button type="button" className="settings-menu-item">
