@@ -9,8 +9,7 @@
 /node_modules/
 /dist/
 /.retake/
-/.retake-test/
-/.retake-test-installed/
+/.retake-test*/
 /coverage/
 .playwright-mcp/
 .DS_Store
