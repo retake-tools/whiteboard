@@ -98,6 +98,15 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
       .finally(() => setCodexModelsLoading(false));
   }, [codexModels, codexModelsError, codexModelsLoading, draft.connectorId, editingId, isCreating]);
 
+  useEffect(() => {
+    if ((!isCreating && !editingId) || draft.connectorId !== 'codex-app-server' || draft.modelId || !codexModels) return;
+    const defaultModel = codexModels.models.find((model) => model.isDefault);
+    if (!defaultModel) return;
+    setDraft((current) => current.connectorId === 'codex-app-server' && !current.modelId
+      ? { ...current, modelId: defaultModel.id }
+      : current);
+  }, [codexModels, draft.connectorId, draft.modelId, editingId, isCreating]);
+
   function beginCreate(): void {
     const template = snapshot?.connectionTemplates[0];
     setEditingId(undefined);

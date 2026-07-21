@@ -118,7 +118,6 @@ const connectors: ExecutionConnectorDefinition[] = [
     requiresCredential: false,
     supportedCapabilityIds: ['text.generate', 'image.annotation_edit', 'image.image_to_image', 'image.text_to_image'],
     defaultUseCases: ['text', 'image'],
-    defaultModelId: 'gpt-5.6-terra',
   },
   {
     connectorId: 'dreamina',
@@ -211,7 +210,6 @@ const connectionTemplates: ExecutionConnectionTemplate[] = [
     description: 'Another local Codex App Server connection with one explicit model.',
     providerLabel: 'Codex',
     defaultUseCases: ['text', 'image'],
-    defaultModelId: 'gpt-5.6-terra',
   },
   {
     templateId: 'openai',

@@ -5,7 +5,7 @@ import { defaultSnapshot } from '../src/core/sampleBoard';
 import { createDraftTextGenerationOperation, executeExistingTextGenerationOperation } from '../src/core/textOperations';
 import type { BoardSnapshot } from '../src/core/types';
 import { startCodexAppServerImageGeneration } from './codex-app-server-image-service';
-import { checkExecutionConnection } from './local-store/execution-provider-store';
+import { checkExecutionConnection, listExecutionProviderSettings, updateExecutionConnection } from './local-store/execution-provider-store';
 import { resolveAssetStoragePath } from './local-store/asset-files';
 import { createAssetFromDataUrl } from './local-store/asset-store';
 import { retakeRoot } from './local-store/context';
@@ -24,6 +24,13 @@ assert.match(cliUpgradeMessage({
   upgradeCommands: ['claude update'],
 }), /Claude CLI.*1\.0\.0.*claude update/);
 
+const initialSettings = await listExecutionProviderSettings();
+assert.equal(
+  initialSettings.connections.find((candidate) => candidate.connectionId === 'codex-app-server')?.modelId,
+  undefined,
+  'A fresh App Server connection must wait for model/list instead of using a hard-coded model.',
+);
+await updateExecutionConnection('codex-app-server', { modelId: 'gpt-5.6-terra' });
 const settings = await checkExecutionConnection('codex-app-server', undefined, {
   probeCodexAppServer: async (selectedModelId) => ({
     version: '0.144.6',
