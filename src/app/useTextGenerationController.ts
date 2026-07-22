@@ -50,7 +50,7 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
         ...labels(),
         connectionId: preferredTextConnection(current),
       });
-      workflowBlockIds = [draft.promptBlock.blockId, draft.operationBlock.blockId, draft.resultBlock.blockId];
+      workflowBlockIds = [draft.promptBlock.blockId, draft.operationBlock.blockId];
       centerWorkflowBlocks(current, workflowBlockIds);
       return current;
     }, { history: true, persist: true });

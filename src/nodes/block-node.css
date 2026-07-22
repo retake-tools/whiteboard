@@ -576,7 +576,7 @@
   color: #475569;
   padding: 12px;
   text-align: left;
-  cursor: pointer;
+  cursor: default;
 }
 
 .document-block-body:hover { background: #f4f8fd; }
@@ -585,7 +585,9 @@
 .document-block-outline { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; color: #334155; font-size: 12px; font-weight: 600; }
 .document-block-outline li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .document-block-body > p { display: -webkit-box; flex: 1; min-height: 0; overflow: hidden; margin: 0; color: #64748b; font-size: 12px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 5; }
-.document-block-open { display: inline-flex; align-items: center; align-self: flex-end; gap: 5px; color: #1478e8; font-size: 11px; font-weight: 600; }
+.document-block-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.document-block-actions button { display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 5px; background: transparent; color: #1478e8; padding: 4px 6px; font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
+.document-block-actions button:hover { background: #e5f1ff; }
 
 .image-preview {
   position: relative;

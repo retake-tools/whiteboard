@@ -1,4 +1,4 @@
-import { Clock, ExternalLink } from 'lucide-react';
+import { Clock, ExternalLink, Info } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { useDocumentStream } from '../core/documentStreamStore';
 import { summarizeMarkdown } from '../core/markdownDocument';
@@ -14,15 +14,17 @@ export function DocumentBlockBody({ blockId, data }: { blockId: string; data: Bl
   const characterCount = streamingSummary?.characterCount ?? data.documentCharacterCount ?? 0;
   const status = data.status;
 
+  function openReview(): void {
+    window.dispatchEvent(new CustomEvent('retake:open-document-review', { detail: { blockId } }));
+  }
+
   return (
-    <button
-      type="button"
-      className="document-block-body nodrag nopan"
-      aria-label={t('document.openReview')}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => {
+    <div
+      className="document-block-body"
+      onDoubleClick={(event) => {
+        event.preventDefault();
         event.stopPropagation();
-        window.dispatchEvent(new CustomEvent('retake:open-document-review', { detail: { blockId } }));
+        openReview();
       }}
     >
       <div className="document-block-meta">
@@ -37,7 +39,32 @@ export function DocumentBlockBody({ blockId, data }: { blockId: string; data: Bl
         </ul>
       ) : null}
       <p>{excerpt || (status === 'queued' || status === 'running' ? t('document.waiting') : t('document.empty'))}</p>
-      <span className="document-block-open"><ExternalLink size={13} />{t('document.openReview')}</span>
-    </button>
+      <div className="document-block-actions">
+        {typeof data.sourceExecutionId === 'string' ? (
+          <button
+            type="button"
+            aria-label={t('inspector.openDetails')}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              window.dispatchEvent(new CustomEvent('retake:open-execution-inspector', { detail: { blockId } }));
+            }}
+          >
+            <Info size={13} />{t('inspector.openDetails')}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          aria-label={t('document.openReview')}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            openReview();
+          }}
+        >
+          <ExternalLink size={13} />{t('document.openReview')}
+        </button>
+      </div>
+    </div>
   );
 }

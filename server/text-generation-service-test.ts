@@ -40,7 +40,7 @@ const draft = createDraftTextGenerationOperation(initial, {
   ...labels,
   connectionId: readyOpenAIConnection!.connectionId,
 });
-assert.equal(draft.resultBlock.type, 'document');
+assert.equal(initial.blocks.some((block) => block.type === 'document'), false, 'Draft creation must not pre-create an output block.');
 draft.promptBlock.data.body = 'Write a short Markdown scene about a cat director.';
 const firstRun = executeExistingTextGenerationOperation(initial, {
   connection: readyOpenAIConnection!,
@@ -73,6 +73,10 @@ let completed = await loadSnapshot(initial.project.projectId, initial.board.boar
 const completedFirstExecution = completed.executions.find((execution) => execution.executionId === firstRun.execution.executionId);
 const firstResultBlock = completed.blocks.find((block) => block.blockId === firstRun.resultBlock.blockId);
 assert.equal(completedFirstExecution?.status, 'succeeded');
+assert.equal(completedFirstExecution?.skillId, undefined, 'Generic text generation must not pretend that a Retake Skill ran.');
+assert.equal(completedFirstExecution?.requestPrompts?.length, 1);
+assert.equal(completedFirstExecution?.requestPrompts?.[0]?.outputBlockId, firstRun.resultBlock.blockId);
+assert.match(completedFirstExecution?.requestPrompts?.[0]?.prompt ?? '', /Return only the requested Markdown document/);
 assert.equal(firstResultBlock?.type, 'document');
 assert.equal(firstResultBlock?.data.body, undefined, 'Full Markdown must not be copied into BoardSnapshot.');
 assert.equal(firstResultBlock?.data.title, 'Cat Director');

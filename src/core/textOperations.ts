@@ -17,7 +17,7 @@ export interface TextGenerationLabels {
 export function createDraftTextGenerationOperation(
   snapshot: BoardSnapshot,
   input: TextGenerationLabels & { connectionId?: string },
-): { operationBlock: BlockRecord; promptBlock: BlockRecord; resultBlock: BlockRecord } {
+): { operationBlock: BlockRecord; promptBlock: BlockRecord } {
   const usesCodexAppServer = input.connectionId === 'codex-app-server';
   const promptBlock = createBlockRecord(snapshot, 'text');
   promptBlock.data = {
@@ -37,37 +37,19 @@ export function createDraftTextGenerationOperation(
     triggerMode: usesCodexAppServer ? 'agent_bridge' : 'server_worker',
     ...(input.connectionId ? { connectionId: input.connectionId } : {}),
   };
-  const resultBlock = createBlockRecord(snapshot, 'document');
-  resultBlock.data = {
-    ...resultBlock.data,
-    title: input.resultTitle,
-    placeholder: input.waitingBody,
-    managedDocumentResult: true,
-  };
-
   promptBlock.position = { x: 80, y: 80 };
   operationBlock.position = { x: promptBlock.position.x + promptBlock.size.width + 90, y: promptBlock.position.y };
-  resultBlock.position = { x: operationBlock.position.x + operationBlock.size.width + 90, y: operationBlock.position.y };
   promptBlock.zIndex = maxZIndex(snapshot.blocks) + 1;
   operationBlock.zIndex = promptBlock.zIndex + 1;
-  resultBlock.zIndex = operationBlock.zIndex + 1;
-  snapshot.blocks.push(promptBlock, operationBlock, resultBlock);
-  snapshot.edges.push(
-    {
-      edgeId: createId('edge'),
-      sourceBlockId: promptBlock.blockId,
-      targetBlockId: operationBlock.blockId,
-      kind: 'execution_input',
-    },
-    {
-      edgeId: createId('edge'),
-      sourceBlockId: operationBlock.blockId,
-      targetBlockId: resultBlock.blockId,
-      kind: 'execution_output',
-    },
-  );
+  snapshot.blocks.push(promptBlock, operationBlock);
+  snapshot.edges.push({
+    edgeId: createId('edge'),
+    sourceBlockId: promptBlock.blockId,
+    targetBlockId: operationBlock.blockId,
+    kind: 'execution_input',
+  });
   touchBoard(snapshot);
-  return { operationBlock, promptBlock, resultBlock };
+  return { operationBlock, promptBlock };
 }
 
 export function executeExistingTextGenerationOperation(
@@ -154,7 +136,6 @@ export function executeExistingTextGenerationOperation(
     provider: input.connection.providerLabel,
     model: input.connection.modelId,
     connectionId: input.connection.connectionId,
-    skillId: 'text.general_generation',
     prompt,
     params: {
       operationBlockId: operationBlock.blockId,

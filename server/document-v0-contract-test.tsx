@@ -3,6 +3,17 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SafeMarkdown, safeMarkdownUrl } from '../src/components/SafeMarkdown';
 import { summarizeMarkdown } from '../src/core/markdownDocument';
+import { I18nProvider } from '../src/i18n';
+import { DocumentBlockBody } from '../src/nodes/DocumentBlockBody';
+
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
+  value: { getItem: () => null, setItem: () => undefined },
+});
+Object.defineProperty(globalThis, 'navigator', {
+  configurable: true,
+  value: { language: 'en-US' },
+});
 
 const summary = summarizeMarkdown(`# Title\n\n## Scene one\n\nHello **world**.\n\n### Shot A\n\nAction.`);
 assert.equal(summary.title, 'Title');
@@ -25,4 +36,22 @@ assert.doesNotMatch(rendered, /<script|<iframe|<img|javascript:/i);
 assert.match(rendered, /External image blocked: tracker/);
 assert.match(rendered, /href="https:\/\/example.com"/);
 
-console.log(JSON.stringify({ ok: true, safeMarkdown: true, outlineItems: summary.outline.length }));
+const documentBlock = renderToStaticMarkup(
+  <I18nProvider>
+    <DocumentBlockBody
+      blockId="block_document"
+      data={{
+        documentCharacterCount: 12,
+        documentExcerpt: 'A short document excerpt.',
+        sourceExecutionId: 'exec_document',
+        title: 'Document',
+      }}
+    />
+  </I18nProvider>,
+);
+assert.match(documentBlock, /^<div class="document-block-body"/);
+assert.match(documentBlock, /aria-label="Show execution details"/);
+assert.match(documentBlock, /aria-label="Open review"/);
+assert.doesNotMatch(documentBlock, /^<button/);
+
+console.log(JSON.stringify({ ok: true, safeMarkdown: true, selectableDocumentBody: true, outlineItems: summary.outline.length }));

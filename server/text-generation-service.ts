@@ -4,7 +4,12 @@ import { runCodexAppServerTurn } from './codex-app-server-client';
 import { publishExecutionEvent } from './execution-events';
 import { createAssetFromDataUrl } from './local-store/asset-store';
 import { listExecutionProviderSettings, resolveExecutionConnection } from './local-store/execution-provider-store';
-import { failExecution, markExecutionRunning, updateDocumentResultBlock } from './local-store/execution-store';
+import {
+  failExecution,
+  markExecutionRunning,
+  recordExecutionRequestPrompts,
+  updateDocumentResultBlock,
+} from './local-store/execution-store';
 import { loadSnapshot, saveSnapshot } from './local-store/snapshot-store';
 import { generateOpenAICompatibleText, type OpenAICompatibleTextResult } from './openai-compatible-client';
 
@@ -70,6 +75,16 @@ async function executeTextGeneration(
   const prompt = execution.prompt?.trim();
   if (!prompt) throw new Error('Text generation requires a non-empty prompt.');
   const providerPrompt = `${prompt}\n\nReturn only the requested Markdown document. Do not call tools and do not add process commentary.`;
+  await recordExecutionRequestPrompts({
+    projectId: execution.projectId,
+    boardId: execution.boardId,
+    executionId: execution.executionId,
+    requestPrompts: [{
+      index: 0,
+      outputBlockId: execution.outputBlockIds[0],
+      prompt: providerPrompt,
+    }],
+  });
   const maxOutputTokens = requestedMaxOutputTokens(execution);
   let result: TextGenerationResult;
   if (connection.connectorId === 'codex-app-server') {
