@@ -148,6 +148,10 @@ export function useCanvasController(options: CanvasControllerOptions) {
   });
 
   useEffect(() => {
+    restoreBoardViewport(snapshotRef.current);
+  }, []);
+
+  useEffect(() => {
     const flushViewport = () => flushScheduledViewportPersist();
     window.addEventListener('beforeunload', flushViewport);
     window.addEventListener('pagehide', flushViewport);

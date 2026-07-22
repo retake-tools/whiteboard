@@ -781,10 +781,14 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
             {
               error: error instanceof Error ? error.message : 'Unknown local API error',
             },
-            error instanceof SnapshotWriteConflictError ? 409 : 500,
+            error instanceof SnapshotWriteConflictError ? 409 : isFileNotFoundError(error) ? 404 : 500,
           );
         }
       });
+}
+
+function isFileNotFoundError(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT');
 }
 
 async function readJson(req: IncomingMessage): Promise<unknown> {

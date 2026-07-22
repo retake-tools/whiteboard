@@ -7,6 +7,12 @@ type TranslationKey =
   | 'autosave.idle'
   | 'autosave.saved'
   | 'autosave.saving'
+  | 'autosave.retry'
+  | 'workspace.loadingTitle'
+  | 'workspace.loadingBody'
+  | 'workspace.loadErrorTitle'
+  | 'workspace.loadErrorBody'
+  | 'workspace.retry'
   | 'block.image.body'
   | 'block.image.title'
   | 'block.operation.body'
@@ -530,6 +536,12 @@ const translations: Record<Locale, Translations> = {
     'autosave.idle': 'Autosave is ready',
     'autosave.saved': 'All changes saved locally',
     'autosave.saving': 'Saving locally',
+    'autosave.retry': 'Autosave failed. Retry saving',
+    'workspace.loadingTitle': 'Loading workspace',
+    'workspace.loadingBody': 'Waiting for the Retake local service to load the current board.',
+    'workspace.loadErrorTitle': 'Workspace unavailable',
+    'workspace.loadErrorBody': 'The canvas is locked because Retake could not load an authoritative board snapshot.',
+    'workspace.retry': 'Retry',
     'block.image.body': 'Import or generate an asset to attach assetId.',
     'block.image.title': 'Image block',
     'block.operation.body': 'Choose capability, inputs, and execution adapter.',
@@ -1048,6 +1060,12 @@ const translations: Record<Locale, Translations> = {
     'autosave.idle': '自动保存已就绪',
     'autosave.saved': '更改已保存到本地',
     'autosave.saving': '正在保存到本地',
+    'autosave.retry': '自动保存失败，点击重试',
+    'workspace.loadingTitle': '正在加载工作区',
+    'workspace.loadingBody': '正在等待 Retake 本地服务载入当前画板。',
+    'workspace.loadErrorTitle': '工作区不可用',
+    'workspace.loadErrorBody': 'Retake 未能加载可信的画板快照，画布已停止进入可编辑状态。',
+    'workspace.retry': '重试',
     'block.image.body': '导入或生成素材后会绑定 assetId。',
     'block.image.title': '图片块',
     'block.operation.body': '选择能力、输入和执行适配器。',

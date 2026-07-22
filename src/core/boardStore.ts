@@ -1,78 +1,40 @@
-import { defaultSnapshot } from './sampleBoard';
 import { migrateBoardSnapshot } from './snapshotMigration';
 import type { BoardSnapshot, WorkspaceSummary } from './types';
 
-const storageKey = 'retake.whiteboard.spike.boardSnapshot';
 const currentProjectKey = 'retake.whiteboard.currentProjectId';
 const currentBoardKey = 'retake.whiteboard.currentBoardId';
 
-export type SnapshotSaveResult = {
-  persistedTo: 'local-api' | 'browser-storage';
-};
-
-export function createFallbackBoardSnapshot(): BoardSnapshot {
-  return migrateBoardSnapshot(structuredClone(defaultSnapshot));
-}
-
 export async function loadBoardSnapshot(input?: { projectId?: string; boardId?: string }): Promise<BoardSnapshot> {
-  try {
-    const projectId = input?.projectId ?? localStorage.getItem(currentProjectKey) ?? undefined;
-    const boardId = input?.boardId ?? localStorage.getItem(currentBoardKey) ?? undefined;
-    const query = projectId && boardId ? `?projectId=${encodeURIComponent(projectId)}&boardId=${encodeURIComponent(boardId)}` : '';
-    const response = await fetch(`/api/local/snapshot${query}`);
-    if (response.ok) {
-      const snapshot = migrateBoardSnapshot((await response.json()) as BoardSnapshot);
-      rememberCurrentBoard(snapshot);
-      return snapshot;
-    }
-  } catch {
-    // Browser-only fallback for static preview builds.
+  const remembered = input ?? loadRememberedBoard();
+  const projectId = input?.projectId ?? remembered.projectId;
+  const boardId = input?.boardId ?? remembered.boardId;
+  const query = projectId && boardId ? `?projectId=${encodeURIComponent(projectId)}&boardId=${encodeURIComponent(boardId)}` : '';
+  let response = await fetch(`/api/local/snapshot${query}`);
+  if (!input && query && response.status === 404) {
+    response = await fetch('/api/local/snapshot');
   }
+  if (!response.ok) throw await localApiError(response, 'Failed to load board snapshot');
 
-  const raw = localStorage.getItem(storageKey);
-  if (!raw) return createFallbackBoardSnapshot();
-
-  try {
-    return migrateBoardSnapshot(JSON.parse(raw) as BoardSnapshot);
-  } catch {
-    return createFallbackBoardSnapshot();
-  }
+  const snapshot = migrateBoardSnapshot((await response.json()) as BoardSnapshot);
+  rememberCurrentBoard(snapshot);
+  return snapshot;
 }
 
-export async function saveBoardSnapshot(snapshot: BoardSnapshot): Promise<SnapshotSaveResult> {
-  let response: Response;
-  try {
-    response = await fetch('/api/local/snapshot', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(snapshot),
-    });
-  } catch {
-    // Browser-only fallback for static preview builds.
-    localStorage.setItem(storageKey, JSON.stringify(snapshot));
-    return { persistedTo: 'browser-storage' };
-  }
-
-  if (response.ok) return { persistedTo: 'local-api' };
-  const result = (await response.json().catch(() => undefined)) as { error?: string } | undefined;
-  throw new Error(result?.error ?? `Snapshot save failed with status ${response.status}.`);
+export async function saveBoardSnapshot(snapshot: BoardSnapshot): Promise<void> {
+  const response = await fetch('/api/local/snapshot', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(snapshot),
+  });
+  if (!response.ok) throw await localApiError(response, 'Failed to save board snapshot');
 }
 
 export async function clearBoardSnapshot(): Promise<BoardSnapshot> {
-  try {
-    const response = await fetch('/api/local/reset', { method: 'POST' });
-    if (response.ok) {
-      localStorage.removeItem(storageKey);
-      const snapshot = migrateBoardSnapshot((await response.json()) as BoardSnapshot);
-      rememberCurrentBoard(snapshot);
-      return snapshot;
-    }
-  } catch {
-    // Browser-only fallback for static preview builds.
-  }
-
-  localStorage.removeItem(storageKey);
-  return createFallbackBoardSnapshot();
+  const response = await fetch('/api/local/reset', { method: 'POST' });
+  if (!response.ok) throw await localApiError(response, 'Failed to reset workspace');
+  const snapshot = migrateBoardSnapshot((await response.json()) as BoardSnapshot);
+  rememberCurrentBoard(snapshot);
+  return snapshot;
 }
 
 export async function loadWorkspaceSummary(): Promise<WorkspaceSummary> {
@@ -181,6 +143,8 @@ export function subscribeToBoardSnapshotChanges(input: {
         observedSignature = loadedSignature;
         input.onSnapshot(loadedSnapshot);
       }
+    } catch {
+      // A transient read failure must not replace the in-memory board or create an unhandled rejection.
     } finally {
       inFlight = false;
     }
@@ -197,8 +161,28 @@ export function subscribeToBoardSnapshotChanges(input: {
 }
 
 export function rememberCurrentBoard(snapshot: BoardSnapshot): void {
-  localStorage.setItem(currentProjectKey, snapshot.project.projectId);
-  localStorage.setItem(currentBoardKey, snapshot.board.boardId);
+  try {
+    localStorage.setItem(currentProjectKey, snapshot.project.projectId);
+    localStorage.setItem(currentBoardKey, snapshot.board.boardId);
+  } catch {
+    // Board selection is a convenience preference, not authoritative data.
+  }
+}
+
+function loadRememberedBoard(): { projectId?: string; boardId?: string } {
+  try {
+    return {
+      projectId: localStorage.getItem(currentProjectKey) ?? undefined,
+      boardId: localStorage.getItem(currentBoardKey) ?? undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+async function localApiError(response: Response, fallbackMessage: string): Promise<Error> {
+  const result = (await response.json().catch(() => undefined)) as { error?: string } | undefined;
+  return new Error(result?.error ?? `${fallbackMessage} (${response.status}).`);
 }
 
 async function writeWorkspaceAction<T>(

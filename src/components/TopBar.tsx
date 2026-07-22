@@ -58,6 +58,7 @@ interface TopBarProps {
   onReorderBoards: (projectId: string, boardIds: string[]) => void;
   onReorderProjects: (projectIds: string[]) => void;
   onRefreshBoard: () => void;
+  onRetrySave: () => void;
   onSelectBoard: (projectId: string, boardId: string) => void;
   onToggleGrid: () => void;
   onToggleHistory: () => void;
@@ -86,6 +87,7 @@ export function TopBar({
   onReorderBoards,
   onReorderProjects,
   onRefreshBoard,
+  onRetrySave,
   onSelectBoard,
   onToggleGrid,
   onDeleteSelection,
@@ -389,7 +391,7 @@ export function TopBar({
             <Languages size={16} />
             <span>{locale === 'zh' ? '中' : 'EN'}</span>
           </TooltipIconButton>
-          <AutosaveIndicator status={autosaveStatus} />
+          <AutosaveIndicator status={autosaveStatus} onRetry={onRetrySave} />
           <div ref={settingsRef} className="top-bar-settings-anchor">
             <IconButton
               label={t('toolbar.moreSettings')}
@@ -560,7 +562,7 @@ function ShortcutRow({ keys, label }: { keys: string; label: string }): ReactEle
   );
 }
 
-function AutosaveIndicator({ status }: { status: AutosaveStatus }): ReactElement {
+function AutosaveIndicator({ status, onRetry }: { status: AutosaveStatus; onRetry: () => void }): ReactElement {
   const { t } = useI18n();
 
   if (status === 'saving') {
@@ -573,9 +575,9 @@ function AutosaveIndicator({ status }: { status: AutosaveStatus }): ReactElement
 
   if (status === 'error') {
     return (
-      <TooltipWrapper className="autosave-indicator is-error" label={t('autosave.error')}>
+      <TooltipIconButton className="autosave-indicator is-error" label={t('autosave.retry')} onClick={onRetry}>
         <CloudAlert size={16} />
-      </TooltipWrapper>
+      </TooltipIconButton>
     );
   }
 

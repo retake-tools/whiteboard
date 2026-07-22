@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { Loader2, RefreshCw, TriangleAlert } from 'lucide-react';
 import { BoardHistoryPanel } from './components/BoardHistoryPanel';
 import { ExecutionInspector } from './components/ExecutionInspector';
 import { FloatingToolbar } from './components/FloatingToolbar';
@@ -14,7 +15,7 @@ import { loadUiPreferences } from './core/uiPreferences';
 import { loadExecutionProviderSettings } from './core/executionProviderClient';
 import { useI18n } from './i18n';
 import { useWorkspaceController } from './app/useWorkspaceController';
-import { useBoardSession } from './app/useBoardSession';
+import { useBoardSession, type ReadyBoardSession } from './app/useBoardSession';
 import { useImageOperationController } from './app/useImageOperationController';
 import { useOperationInputController } from './app/useOperationInputController';
 import { useAnnotationController } from './app/useAnnotationController';
@@ -28,6 +29,26 @@ import { WhiteboardCanvas } from './app/WhiteboardCanvas';
 
 export function App(): ReactElement {
   const { t } = useI18n();
+  const boardSession = useBoardSession(t);
+
+  if (boardSession.status === 'loading') {
+    return <WorkspaceLoadState status="loading" />;
+  }
+  if (boardSession.status === 'error') {
+    return (
+      <WorkspaceLoadState
+        status="error"
+        errorMessage={boardSession.errorMessage}
+        onRetry={boardSession.retryLoad}
+      />
+    );
+  }
+
+  return <ReadyApp boardSession={boardSession} />;
+}
+
+function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactElement {
+  const { t } = useI18n();
   const {
     applyLoadedSnapshot,
     autosaveStatus,
@@ -37,12 +58,13 @@ export function App(): ReactElement {
     flushAnnotationDraftPersist,
     persistSnapshot,
     redo,
+    retrySave,
     scheduleAnnotationDraftPersist,
     snapshot,
     snapshotRef,
     undo,
     updateSnapshot,
-  } = useBoardSession(t);
+  } = boardSession;
   const initialUiPreferences = useRef(loadUiPreferences());
   const directImageImportInputRef = useRef<HTMLInputElement | null>(null);
   const pendingDirectImageImportBlockIdRef = useRef<string | undefined>(undefined);
@@ -311,6 +333,7 @@ export function App(): ReactElement {
         onReorderBoards={(projectId, boardIds) => void reorderBoardsFromMenu(projectId, boardIds)}
         onReorderProjects={(projectIds) => void reorderProjectsFromMenu(projectIds)}
         onRefreshBoard={() => void refreshCurrentBoard()}
+        onRetrySave={() => void retrySave()}
         onSelectBoard={(projectId, boardId) => void selectBoard(projectId, boardId)}
         onToggleGrid={() => setShowGrid((current) => !current)}
         onDeleteSelection={deleteSelection}
@@ -428,6 +451,39 @@ export function App(): ReactElement {
         snapshotRef={snapshotRef}
         t={t}
       />
+    </main>
+  );
+}
+
+function WorkspaceLoadState({
+  status,
+  errorMessage,
+  onRetry,
+}: {
+  status: 'loading' | 'error';
+  errorMessage?: string;
+  onRetry?: () => void;
+}): ReactElement {
+  const { t } = useI18n();
+  const loading = status === 'loading';
+  return (
+    <main className="workspace-load-shell">
+      <section
+        className={`workspace-load-card${loading ? '' : ' is-error'}`}
+        role={loading ? 'status' : 'alert'}
+        aria-live="polite"
+      >
+        {loading ? <Loader2 className="workspace-load-spinner" size={24} /> : <TriangleAlert size={24} />}
+        <h1>{t(loading ? 'workspace.loadingTitle' : 'workspace.loadErrorTitle')}</h1>
+        <p>{loading ? t('workspace.loadingBody') : t('workspace.loadErrorBody')}</p>
+        {!loading && errorMessage ? <code>{errorMessage}</code> : null}
+        {!loading && onRetry ? (
+          <button type="button" onClick={onRetry}>
+            <RefreshCw size={16} />
+            {t('workspace.retry')}
+          </button>
+        ) : null}
+      </section>
     </main>
   );
 }
