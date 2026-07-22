@@ -24,6 +24,7 @@ import {
 } from './executionConfiguration';
 import type { BoardSnapshot, GroupColor, RetakeEdge, RetakeNode } from './types';
 import { sourceImageAspectRatio } from './operationAspectRatio';
+import { workflowStepRuntimeForOperation } from './workflowRuntime';
 
 const groupFillColors: Record<GroupColor, string> = {
   transparent: '#f8fafc',
@@ -106,6 +107,12 @@ export function createFlowNodes(
       .filter((block) => block.type === 'operation')
       .map((block) => [block.blockId, operationReadinessFor(readinessSnapshot, block)] as const),
   );
+  const workflowStepRuntimeByOperationId = new Map(
+    (readinessSnapshot.workflowStepRuns ?? []).flatMap((step) => {
+      const view = workflowStepRuntimeForOperation(readinessSnapshot, step.operationBlockId);
+      return view ? [[step.operationBlockId, view] as const] : [];
+    }),
+  );
   const operationChangesById = new Map(
     readinessSnapshot.blocks
       .filter((block) => block.type === 'operation')
@@ -148,6 +155,19 @@ export function createFlowNodes(
     const isCollapsed = block.type === 'group' && collapsedGroupIds.has(block.blockId);
     const contentLocked = blockLockedByGroup(snapshot, block.blockId);
     const operationReadiness = readinessByOperationId.get(block.blockId);
+    const workflowStepRuntime = workflowStepRuntimeByOperationId.get(block.blockId);
+    const operationCanRun = operationReadiness
+      ? operationReadiness.canRun && (!workflowStepRuntime || workflowStepRuntime.canStart)
+      : undefined;
+    const runtimeDependencyPending = workflowStepRuntime
+      && (workflowStepRuntime.status === 'pending' || workflowStepRuntime.status === 'blocked');
+    const operationReadinessIssues = runtimeDependencyPending
+      ? ['workflow_step_not_ready' as const]
+      : operationReadiness?.issues.length
+        ? operationReadiness.issues
+        : workflowStepRuntime && !workflowStepRuntime.canStart
+          ? ['workflow_step_not_ready' as const]
+          : [];
     const operationChanges = operationChangesById.get(block.blockId) ?? [];
     const groupExecutionMetadata = typeof block.data.groupExecutionId === 'string'
       ? executionMetadataById.get(block.data.groupExecutionId)
@@ -199,14 +219,16 @@ export function createFlowNodes(
       operationInputRolePending:
         Boolean(inputMetadataByBlockId.get(block.blockId)?.edgeId) &&
         !inputMetadataByBlockId.get(block.blockId)?.role,
-      operationCanRun: operationReadiness?.canRun,
+      operationCanRun,
       operationChangeCount: operationChanges.length,
       operationChangeKinds: configurationChangeKinds(operationChanges),
       operationQueuedConfigurationStale:
         block.type === 'operation' ? queuedOperationConfigurationIsStale(readinessSnapshot, block) : undefined,
-      operationReadinessIssues: operationReadiness?.issues,
+      operationReadinessIssues,
       operationSourceAspectRatio:
         block.type === 'operation' ? sourceImageAspectRatio(readinessSnapshot, block.blockId) : undefined,
+      workflowStepRunFreshness: workflowStepRuntime?.freshness,
+      workflowStepRunStatus: workflowStepRuntime?.status,
       annotatedCompositePreviewUrl:
         block.type === 'operation'
           ? getAssetPreviewUrl(snapshot.assets, block.data.annotatedCompositeAssetId)

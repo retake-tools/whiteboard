@@ -152,6 +152,15 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
 
   return (
     <div ref={controlsRef} className="operation-inline-controls" aria-label={t('operationToolbar.title')}>
+      {data.workflowStepRunStatus ? (
+        <div className="operation-option-row is-read-only">
+          <span>{t('workflowRuntime.step')}</span>
+          <strong>
+            {t(workflowStepStatusKey(data.workflowStepRunStatus))}
+            {data.workflowStepRunFreshness === 'outdated' ? ` · ${t('workflowRuntime.outdated')}` : ''}
+          </strong>
+        </div>
+      ) : null}
       {compatibleSkills.length > 0 ? (
         <div className="operation-option-popover-wrap">
           <button
@@ -419,6 +428,10 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
       </button>
     </div>
   );
+}
+
+function workflowStepStatusKey(status: NonNullable<BlockData['workflowStepRunStatus']>) {
+  return `workflowRuntime.stepStatus.${status}` as const;
 }
 
 function localAdjustmentParams(value: unknown): { brightness: number; contrast: number; saturation: number } {

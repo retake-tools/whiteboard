@@ -8,6 +8,7 @@ import type {
   SkillDefinitionLock,
 } from './capabilityContracts';
 import type { RetakeSkillSnapshot } from './skillRegistry';
+import type { WorkflowRunRecord, WorkflowStepRunRecord, WorkflowStepRunFreshness, WorkflowStepRunStatus } from './workflowRuntimeContracts';
 
 export type BlockType = 'text' | 'document' | 'image' | 'video' | 'operation' | 'group';
 
@@ -46,7 +47,8 @@ export type OperationReadinessIssue =
   | 'image_role_missing'
   | 'prompt_empty'
   | 'source_image_missing'
-  | 'text_input_missing';
+  | 'text_input_missing'
+  | 'workflow_step_not_ready';
 
 export type AdapterKind =
   | 'direct_api'
@@ -155,6 +157,8 @@ export interface ExecutionRecord {
   model?: string;
   connectionId?: string;
   skillId?: string;
+  workflowRunId?: string;
+  stepRunId?: string;
   generationProfile?: GenerationProfileSnapshot;
   prompt?: string;
   agentPrompt?: string;
@@ -349,6 +353,8 @@ export interface BlockData {
   workflowOutputSlotId?: string;
   workflowProjectionId?: string;
   workflowStepId?: string;
+  workflowStepRunFreshness?: WorkflowStepRunFreshness;
+  workflowStepRunStatus?: WorkflowStepRunStatus;
 }
 
 export interface BlockRecord {
@@ -383,6 +389,8 @@ export interface BoardSnapshot {
   edges: BoardEdgeRecord[];
   assets: AssetRecord[];
   executions: ExecutionRecord[];
+  workflowRuns?: WorkflowRunRecord[];
+  workflowStepRuns?: WorkflowStepRunRecord[];
   historyEvents?: BoardHistoryEvent[];
   groupMigrationVersion?: number;
 }

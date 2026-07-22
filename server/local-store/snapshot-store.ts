@@ -3,6 +3,7 @@ import path from 'node:path';
 import { defaultSnapshot } from '../../src/core/sampleBoard';
 import { migrateBoardSnapshot } from '../../src/core/snapshotMigration';
 import type { BoardRecord, BoardSnapshot, ProjectRecord } from '../../src/core/types';
+import { reconcileWorkflowRuntime } from '../../src/core/workflowRuntime';
 import {
   compareOrderedRecords,
   ensureWorkspace,
@@ -52,6 +53,7 @@ export async function saveSnapshot(snapshot: BoardSnapshot): Promise<void> {
   const snapshotPath = path.join(boardDir, 'snapshot.json');
   const previousSnapshot = await readStoredSnapshot(snapshotPath);
   if (previousSnapshot) protectDurableSnapshotState(normalizedSnapshot, previousSnapshot);
+  reconcileWorkflowRuntime(normalizedSnapshot);
 
   await mkdir(boardDir, { recursive: true });
   await mkdir(path.join(projectDir, 'assets'), { recursive: true });
@@ -145,6 +147,8 @@ export function createBlankSnapshot(input: {
     edges: [],
     assets: [],
     executions: [],
+    workflowRuns: [],
+    workflowStepRuns: [],
     historyEvents: [],
   };
 }
@@ -195,6 +199,8 @@ function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSna
     previous.blocks.some((block) => !fallbackBlockIds.has(block.blockId)) ||
     previous.executions.length > 0 ||
     previous.assets.length > 0 ||
+    (previous.workflowRuns?.length ?? 0) > 0 ||
+    (previous.workflowStepRuns?.length ?? 0) > 0 ||
     (previous.historyEvents?.length ?? 0) > 0;
   if (isEmptyFallbackWrite && previousHasUserData) {
     throw new SnapshotWriteConflictError(
@@ -215,6 +221,16 @@ function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSna
     previous.historyEvents ?? [],
     (event) => event.eventId,
   ).slice(0, 200);
+  incoming.workflowRuns = mergeVersionedRecords(
+    incoming.workflowRuns ?? [],
+    previous.workflowRuns ?? [],
+    (run) => run.workflowRunId,
+  );
+  incoming.workflowStepRuns = mergeVersionedRecords(
+    incoming.workflowStepRuns ?? [],
+    previous.workflowStepRuns ?? [],
+    (step) => step.stepRunId,
+  );
 }
 
 function mergeRecords<T>(incoming: T[], previous: T[], idFor: (record: T) => string): T[] {
@@ -225,4 +241,18 @@ function mergeRecords<T>(incoming: T[], previous: T[], idFor: (record: T) => str
     merged.push(record);
   }
   return merged;
+}
+
+function mergeVersionedRecords<T extends { recordVersion: number }>(
+  incoming: T[],
+  previous: T[],
+  idFor: (record: T) => string,
+): T[] {
+  const previousById = new Map(previous.map((record) => [idFor(record), record]));
+  const merged = incoming.map((record) => {
+    const prior = previousById.get(idFor(record));
+    previousById.delete(idFor(record));
+    return prior && prior.recordVersion > record.recordVersion ? prior : record;
+  });
+  return [...merged, ...previousById.values()];
 }

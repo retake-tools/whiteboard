@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight, Download, ImageIcon, Layers3, Video, X } fro
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { directGroupChildren, descendantBlockIds, groupMediaItems, type GroupMediaItem } from '../core/grouping';
 import type { BlockRecord, BoardSnapshot, GroupKind } from '../core/types';
+import { workflowRunViewForGroup, type WorkflowRunRuntimeView } from '../core/workflowRuntime';
 import { useI18n } from '../i18n';
 import {
   ExecutionDetailContent,
@@ -52,6 +53,7 @@ export function GroupInspector({
     ? snapshot.executions.find((candidate) => candidate.executionId === executionId)
     : undefined;
   const executionContext = execution ? getExecutionDetailContextForExecution(snapshot, execution) : undefined;
+  const workflowRun = groupId ? workflowRunViewForGroup(snapshot, groupId) : undefined;
 
   useEffect(() => {
     setSelectedBlockId(firstMediaBlockId);
@@ -175,6 +177,8 @@ export function GroupInspector({
               group={group}
               mediaCount={mediaItems.length}
               selectedItem={selectedItem}
+              snapshot={snapshot}
+              workflowRun={workflowRun}
             />
             {executionContext ? (
               <ExecutionDetailContent
@@ -209,12 +213,16 @@ function GroupSummary({
   group,
   mediaCount,
   selectedItem,
+  snapshot,
+  workflowRun,
 }: {
   descendantCount: number;
   directItemCount: number;
   group: BlockRecord;
   mediaCount: number;
   selectedItem?: GroupMediaItem;
+  snapshot: BoardSnapshot;
+  workflowRun?: WorkflowRunRuntimeView;
 }): ReactElement {
   const { t } = useI18n();
   const kind = (group.data.groupKind ?? 'manual') as GroupKind;
@@ -231,6 +239,36 @@ function GroupSummary({
         <Meta label={t('group.descendants')} value={String(descendantCount)} />
         <Meta label={t('group.media')} value={String(mediaCount)} />
       </dl>
+      {workflowRun ? (
+        <>
+          <h3>{t('workflowRuntime.run')}</h3>
+          <dl className="execution-inspector-meta">
+            <Meta label={t('workflowRuntime.runId')} value={workflowRun.record.workflowRunId} mono />
+            <Meta label={t('inspector.status')} value={t(workflowRunStatusKey(workflowRun.status))} />
+            <Meta
+              label={t('workflowRuntime.definition')}
+              value={`${workflowRun.record.workflowDefinitionLock.workflowId}@${workflowRun.record.workflowDefinitionLock.version}`}
+              mono
+            />
+          </dl>
+          <h3>{t('workflowRuntime.steps')}</h3>
+          <div className="workflow-run-step-list">
+            {workflowRun.steps.map((step) => {
+              const operation = snapshot.blocks.find((block) => block.blockId === step.record.operationBlockId);
+              return (
+                <div key={step.record.stepRunId} className={`workflow-run-step is-${step.status}`}>
+                  <span>{operation?.data.title ?? step.record.stepId}</span>
+                  <strong>
+                    {t(workflowStepStatusKey(step.status))}
+                    {step.freshness === 'outdated' ? ` · ${t('workflowRuntime.outdated')}` : ''}
+                  </strong>
+                  <small>{t('workflowRuntime.stepExecutions')}: {step.record.executionIds.length}</small>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
       {selectedItem ? (
         <>
           <h3>{t('group.mediaInfo')}</h3>
@@ -245,6 +283,14 @@ function GroupSummary({
       ) : null}
     </section>
   );
+}
+
+function workflowRunStatusKey(status: WorkflowRunRuntimeView['status']) {
+  return `workflowRuntime.runStatus.${status}` as const;
+}
+
+function workflowStepStatusKey(status: WorkflowRunRuntimeView['steps'][number]['status']) {
+  return `workflowRuntime.stepStatus.${status}` as const;
 }
 
 function Meta({ label, mono, value }: { label: string; mono?: boolean; value?: string }): ReactElement | null {

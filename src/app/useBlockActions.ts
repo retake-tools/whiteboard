@@ -150,6 +150,7 @@ export function useBlockActions(options: BlockActionsOptions) {
       const selectedBlocks = current.blocks.filter((block) => copiedIds.has(block.blockId));
       const nextZ = maxZIndex(current.blocks) + 1;
       const idMap = new Map(selectedBlocks.map((block) => [block.blockId, createId('block')]));
+      const workflowProjectionIdMap = new Map<string, string>();
       const externalParentGroupIds = new Set<string>();
       selectedBlocks.forEach((block, index) => {
         const blockId = idMap.get(block.blockId)!;
@@ -158,6 +159,12 @@ export function useBlockActions(options: BlockActionsOptions) {
         if (nextParentGroupId && !idMap.has(block.parentGroupId ?? '')) externalParentGroupIds.add(nextParentGroupId);
         const clonedData = { ...structuredClone(block.data) };
         if (block.type === 'group' && clonedData.groupKind === 'execution_results') { clonedData.groupKind = 'manual'; delete clonedData.groupExecutionId; }
+        if (typeof clonedData.workflowProjectionId === 'string') {
+          const nextProjectionId = workflowProjectionIdMap.get(clonedData.workflowProjectionId) ?? createId('workflow_projection');
+          workflowProjectionIdMap.set(clonedData.workflowProjectionId, nextProjectionId);
+          clonedData.workflowProjectionId = nextProjectionId;
+        }
+        delete clonedData.workflowRunId;
         current.blocks.push({ ...structuredClone(block), blockId, parentGroupId: nextParentGroupId, position: { x: block.position.x + 36, y: block.position.y + 36 }, zIndex: nextZ + index, data: clonedData, createdAt: nowIso(), updatedAt: nowIso() });
       });
       for (const parentGroupId of externalParentGroupIds) expandGroupToContents(current, parentGroupId);

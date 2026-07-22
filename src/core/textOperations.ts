@@ -17,6 +17,7 @@ import {
   type RetakeSkillDefinition,
 } from './skillRegistry';
 import type { BlockRecord, BoardHistoryEvent, BoardSnapshot, ExecutionRecord } from './types';
+import { attachWorkflowExecution } from './workflowRuntime';
 
 export interface TextGenerationLabels {
   inputSlots?: Array<{
@@ -250,6 +251,7 @@ export function executeExistingTextGenerationOperation(
     provider: input.connection.providerLabel,
     model: input.connection.modelId,
   };
+  attachWorkflowExecution(snapshot, operationBlock, execution);
   snapshot.executions.unshift(execution);
   snapshot.historyEvents = [operationHistory(execution, operationBlock, promptBlock, resultBlock), ...(snapshot.historyEvents ?? [])].slice(0, 200);
   touchBoard(snapshot);
@@ -260,12 +262,22 @@ function reusableDraftResult(snapshot: BoardSnapshot, operationBlock: BlockRecor
   const outputBlockIds = snapshot.edges
     .filter((edge) => edge.sourceBlockId === operationBlock.blockId && edge.kind === 'execution_output')
     .map((edge) => edge.targetBlockId);
+  const parentGroup = operationBlock.parentGroupId
+    ? snapshot.blocks.find((block) => block.blockId === operationBlock.parentGroupId && block.type === 'group')
+    : undefined;
+  const activeWorkflowProjection = Boolean(
+    parentGroup?.data.groupKind === 'workflow'
+    && typeof parentGroup.data.workflowRunId === 'string'
+    && parentGroup.data.workflowProjectionId === operationBlock.data.workflowProjectionId,
+  );
   return snapshot.blocks.find((block) =>
     outputBlockIds.includes(block.blockId) &&
     block.type === 'document' &&
     block.data.managedDocumentResult === true &&
-    typeof block.data.sourceExecutionId !== 'string' &&
-    typeof block.data.assetId !== 'string');
+    (
+      activeWorkflowProjection
+      || (typeof block.data.sourceExecutionId !== 'string' && typeof block.data.assetId !== 'string')
+    ));
 }
 
 function createResultBlock(

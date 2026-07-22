@@ -80,6 +80,8 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
     blocks: repairedBlocks,
     edges: migratedEdges,
     executions: migratedExecutions,
+    workflowRuns: legacy.workflowRuns ?? [],
+    workflowStepRuns: legacy.workflowStepRuns ?? [],
   };
   repairGroupRelationships(migratedSnapshot);
   ensureExecutionResultGroups(migratedSnapshot);

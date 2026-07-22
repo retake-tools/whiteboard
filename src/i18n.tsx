@@ -393,6 +393,40 @@ type TranslationKey =
   | 'workflow.storyToStoryboard.name'
   | 'workflow.storyToStoryboard.description'
   | 'workflowDraft.outputPending'
+  | 'workflowRuntime.create'
+  | 'workflowRuntime.createFailed'
+  | 'workflowRuntime.created'
+  | 'workflowRuntime.createdBody'
+  | 'workflowRuntime.definition'
+  | 'workflowRuntime.outdated'
+  | 'workflowRuntime.run'
+  | 'workflowRuntime.runId'
+  | 'workflowRuntime.step'
+  | 'workflowRuntime.stepExecutions'
+  | 'workflowRuntime.stepNotReady'
+  | 'workflowRuntime.steps'
+  | 'workflowRuntime.view'
+  | 'workflowRuntime.runStatus.canceled'
+  | 'workflowRuntime.runStatus.draft'
+  | 'workflowRuntime.runStatus.failed'
+  | 'workflowRuntime.runStatus.needs_attention'
+  | 'workflowRuntime.runStatus.paused'
+  | 'workflowRuntime.runStatus.ready'
+  | 'workflowRuntime.runStatus.running'
+  | 'workflowRuntime.runStatus.succeeded'
+  | 'workflowRuntime.runStatus.waiting_input'
+  | 'workflowRuntime.runStatus.waiting_selection'
+  | 'workflowRuntime.stepStatus.blocked'
+  | 'workflowRuntime.stepStatus.canceled'
+  | 'workflowRuntime.stepStatus.failed'
+  | 'workflowRuntime.stepStatus.pending'
+  | 'workflowRuntime.stepStatus.queued'
+  | 'workflowRuntime.stepStatus.ready'
+  | 'workflowRuntime.stepStatus.running'
+  | 'workflowRuntime.stepStatus.skipped'
+  | 'workflowRuntime.stepStatus.succeeded'
+  | 'workflowRuntime.stepStatus.waiting_input'
+  | 'workflowRuntime.stepStatus.waiting_selection'
   | 'operationInputQuickAdd.add'
   | 'operationInputQuickAdd.addImage'
   | 'operationInputQuickAdd.addText'
@@ -990,6 +1024,40 @@ const translations: Record<Locale, Translations> = {
     'workflow.storyToStoryboard.name': 'Story to storyboard plan',
     'workflow.storyToStoryboard.description': 'Create an editable draft graph from brief through screenplay and production design to storyboard planning.',
     'workflowDraft.outputPending': 'Run the upstream operation to create this document.',
+    'workflowRuntime.create': 'Create Workflow Run',
+    'workflowRuntime.createFailed': 'Workflow Run could not be created',
+    'workflowRuntime.created': 'Workflow Run created',
+    'workflowRuntime.createdBody': 'Ready Steps can now be started manually.',
+    'workflowRuntime.definition': 'Definition',
+    'workflowRuntime.outdated': 'Outdated',
+    'workflowRuntime.run': 'Workflow Run',
+    'workflowRuntime.runId': 'Run ID',
+    'workflowRuntime.step': 'Workflow Step',
+    'workflowRuntime.stepExecutions': 'Executions',
+    'workflowRuntime.stepNotReady': 'This Workflow Step is waiting for its upstream dependencies.',
+    'workflowRuntime.steps': 'Steps',
+    'workflowRuntime.view': 'View Workflow Run',
+    'workflowRuntime.runStatus.canceled': 'Canceled',
+    'workflowRuntime.runStatus.draft': 'Draft',
+    'workflowRuntime.runStatus.failed': 'Failed',
+    'workflowRuntime.runStatus.needs_attention': 'Needs attention',
+    'workflowRuntime.runStatus.paused': 'Paused',
+    'workflowRuntime.runStatus.ready': 'Ready',
+    'workflowRuntime.runStatus.running': 'Running',
+    'workflowRuntime.runStatus.succeeded': 'Succeeded',
+    'workflowRuntime.runStatus.waiting_input': 'Waiting for input',
+    'workflowRuntime.runStatus.waiting_selection': 'Waiting for selection',
+    'workflowRuntime.stepStatus.blocked': 'Blocked',
+    'workflowRuntime.stepStatus.canceled': 'Canceled',
+    'workflowRuntime.stepStatus.failed': 'Failed',
+    'workflowRuntime.stepStatus.pending': 'Pending',
+    'workflowRuntime.stepStatus.queued': 'Queued',
+    'workflowRuntime.stepStatus.ready': 'Ready',
+    'workflowRuntime.stepStatus.running': 'Running',
+    'workflowRuntime.stepStatus.skipped': 'Skipped',
+    'workflowRuntime.stepStatus.succeeded': 'Succeeded',
+    'workflowRuntime.stepStatus.waiting_input': 'Waiting for input',
+    'workflowRuntime.stepStatus.waiting_selection': 'Waiting for selection',
     'operationInputQuickAdd.add': 'Add',
     'operationInputQuickAdd.addImage': 'Add image input',
     'operationInputQuickAdd.addText': 'Add text input',
@@ -1582,6 +1650,40 @@ const translations: Record<Locale, Translations> = {
     'workflow.storyToStoryboard.name': '从 Brief 到故事板计划',
     'workflow.storyToStoryboard.description': '创建从 Brief、剧本、角色与场景设定到故事板计划的可编辑草稿图。',
     'workflowDraft.outputPending': '执行上游 Operation 后将在这里生成文档。',
+    'workflowRuntime.create': '创建 Workflow Run',
+    'workflowRuntime.createFailed': '无法创建 Workflow Run',
+    'workflowRuntime.created': 'Workflow Run 已创建',
+    'workflowRuntime.createdBody': '现在可以手动启动已就绪的 Step。',
+    'workflowRuntime.definition': 'Definition',
+    'workflowRuntime.outdated': '上游已变化',
+    'workflowRuntime.run': 'Workflow Run',
+    'workflowRuntime.runId': 'Run ID',
+    'workflowRuntime.step': 'Workflow Step',
+    'workflowRuntime.stepExecutions': '执行次数',
+    'workflowRuntime.stepNotReady': '这个 Workflow Step 正在等待上游依赖。',
+    'workflowRuntime.steps': 'Steps',
+    'workflowRuntime.view': '查看 Workflow Run',
+    'workflowRuntime.runStatus.canceled': '已取消',
+    'workflowRuntime.runStatus.draft': '草稿',
+    'workflowRuntime.runStatus.failed': '失败',
+    'workflowRuntime.runStatus.needs_attention': '需要处理',
+    'workflowRuntime.runStatus.paused': '已暂停',
+    'workflowRuntime.runStatus.ready': '已就绪',
+    'workflowRuntime.runStatus.running': '运行中',
+    'workflowRuntime.runStatus.succeeded': '已完成',
+    'workflowRuntime.runStatus.waiting_input': '等待输入',
+    'workflowRuntime.runStatus.waiting_selection': '等待选择',
+    'workflowRuntime.stepStatus.blocked': '已阻塞',
+    'workflowRuntime.stepStatus.canceled': '已取消',
+    'workflowRuntime.stepStatus.failed': '失败',
+    'workflowRuntime.stepStatus.pending': '等待上游',
+    'workflowRuntime.stepStatus.queued': '排队中',
+    'workflowRuntime.stepStatus.ready': '已就绪',
+    'workflowRuntime.stepStatus.running': '运行中',
+    'workflowRuntime.stepStatus.skipped': '已跳过',
+    'workflowRuntime.stepStatus.succeeded': '已完成',
+    'workflowRuntime.stepStatus.waiting_input': '等待输入',
+    'workflowRuntime.stepStatus.waiting_selection': '等待选择',
     'operationInputQuickAdd.add': '添加',
     'operationInputQuickAdd.addImage': '添加图片输入',
     'operationInputQuickAdd.addText': '添加文本输入',

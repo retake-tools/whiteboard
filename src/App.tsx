@@ -26,6 +26,7 @@ import { useAppEventBindings } from './app/useAppEventBindings';
 import { useVideoGenerationController } from './app/useVideoGenerationController';
 import { useTextGenerationController } from './app/useTextGenerationController';
 import { useWorkflowDraftController } from './app/useWorkflowDraftController';
+import { useWorkflowRuntimeController } from './app/useWorkflowRuntimeController';
 import { WhiteboardCanvas } from './app/WhiteboardCanvas';
 
 const DocumentReviewWorkspace = lazy(() => import('./components/DocumentReviewWorkspace').then((module) => ({
@@ -207,6 +208,11 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     centerBlockGroup,
     focusWorkflowBlocks,
     setSelectedBlocks,
+    t,
+    updateSnapshot,
+  });
+  const workflowRuntimeController = useWorkflowRuntimeController({
+    setOperationToast,
     t,
     updateSnapshot,
   });
@@ -490,6 +496,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         snapshot={snapshot}
         snapshotRef={snapshotRef}
         t={t}
+        workflowRuntime={workflowRuntimeController}
       />
     </main>
   );

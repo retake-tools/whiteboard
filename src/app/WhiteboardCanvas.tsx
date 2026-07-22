@@ -17,6 +17,8 @@ import type { useBlockActions } from './useBlockActions';
 import type { useCanvasController } from './useCanvasController';
 import type { useGroupController } from './useGroupController';
 import type { useImageOperationController } from './useImageOperationController';
+import type { useWorkflowRuntimeController } from './useWorkflowRuntimeController';
+import { workflowRunViewForGroup } from '../core/workflowRuntime';
 
 const nodeTypes = { text: BlockNode, document: BlockNode, image: BlockNode, video: BlockNode, operation: BlockNode, group: BlockNode } satisfies NodeTypes;
 const edgeTypes = { executionOutput: ExecutionOutputEdge } satisfies EdgeTypes;
@@ -44,6 +46,7 @@ interface WhiteboardCanvasProps {
   snapshot: BoardSnapshot;
   snapshotRef: RefObject<BoardSnapshot>;
   t: ReturnType<typeof useI18n>['t'];
+  workflowRuntime: ReturnType<typeof useWorkflowRuntimeController>;
 }
 
 export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
@@ -70,6 +73,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
     snapshot,
     snapshotRef,
     t,
+    workflowRuntime,
   } = props;
   const pointerIdleTimerRef = useRef<number | undefined>(undefined);
 
@@ -187,6 +191,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
               group={selectedBlock}
               inheritedLocked={selectedGroupInheritedLocked}
               mediaCount={selectedGroupMediaCount}
+              workflowRun={workflowRunViewForGroup(snapshot, selectedBlock.blockId)}
               onBrowse={() => { setHistoryOpen(false); setInspectorBlockId(selectedBlock.blockId); }}
               onDelete={() => { if (window.confirm(t('group.deleteConfirm'))) blockActions.deleteBlockIds([selectedBlock.blockId]); }}
               onDownload={() => groups.downloadGroupAssets(selectedBlock.blockId)}
@@ -195,6 +200,14 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
               onToggleCollapsed={() => groups.toggleGroupCollapsed(selectedBlock.blockId)}
               onUngroup={() => groups.ungroupSelectedGroup(selectedBlock.blockId)}
               onUpdate={(updates) => groups.updateGroup(selectedBlock.blockId, updates)}
+              onWorkflowRun={() => {
+                if (workflowRunViewForGroup(snapshot, selectedBlock.blockId)) {
+                  setHistoryOpen(false);
+                  setInspectorBlockId(selectedBlock.blockId);
+                } else {
+                  workflowRuntime.createWorkflowRun(selectedBlock.blockId);
+                }
+              }}
             />
           </NodeToolbar>
         ) : null}

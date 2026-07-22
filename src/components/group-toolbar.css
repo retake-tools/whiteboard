@@ -82,6 +82,35 @@
   margin: 0 2px;
 }
 
+.workflow-run-control {
+  display: inline-flex;
+  height: 30px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid var(--retake-accent-border);
+  border-radius: 7px;
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.workflow-run-control.is-succeeded {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #15803d;
+}
+
+.workflow-run-control.is-needs_attention,
+.workflow-run-control.is-failed {
+  border-color: #fdba74;
+  background: #fff7ed;
+  color: #c2410c;
+}
+
 .group-toolbar .group-delete-button {
   color: #b42318;
 }

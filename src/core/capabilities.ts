@@ -328,6 +328,7 @@ export function operationReadinessFor(
 export function operationReadinessMessageKey(issue: OperationReadinessIssue) {
   if (issue === 'text_input_missing') return 'operationToolbar.textInputMissing' as const;
   if (issue === 'prompt_empty') return 'feedback.promptRequiredBody' as const;
+  if (issue === 'workflow_step_not_ready') return 'workflowRuntime.stepNotReady' as const;
   if (issue === 'image_input_missing') return 'operationToolbar.imageInputMissing' as const;
   if (issue === 'image_asset_missing') return 'operationToolbar.imageAssetMissing' as const;
   if (issue === 'image_role_missing') return 'operationInputRole.required' as const;

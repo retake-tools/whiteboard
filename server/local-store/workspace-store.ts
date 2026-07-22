@@ -132,7 +132,19 @@ export async function duplicateBoard(input: { projectId: string; boardId: string
   const snapshot = structuredClone(source);
   snapshot.board = { ...snapshot.board, boardId, name: normalizeName(input.name, `${source.board.name} Copy`), createdAt: now, updatedAt: now };
   snapshot.layers = snapshot.layers.map((layer) => ({ ...layer, boardId }));
-  snapshot.blocks = snapshot.blocks.map((block) => ({ ...block, boardId, updatedAt: now }));
+  snapshot.blocks = snapshot.blocks.map((block) => {
+    const data = { ...block.data };
+    delete data.workflowRunId;
+    return { ...block, boardId, data, updatedAt: now };
+  });
+  snapshot.executions = snapshot.executions.map((execution) => {
+    const next = { ...execution };
+    delete next.workflowRunId;
+    delete next.stepRunId;
+    return next;
+  });
+  snapshot.workflowRuns = [];
+  snapshot.workflowStepRuns = [];
   snapshot.project.defaultBoardId = boardId;
   touchSnapshot(snapshot);
   await saveSnapshot(snapshot);

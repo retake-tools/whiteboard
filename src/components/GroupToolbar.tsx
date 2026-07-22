@@ -7,6 +7,7 @@ import {
   Grid2X2,
   LockKeyhole,
   Move,
+  PlayCircle,
   Rows3,
   Scan,
   Trash2,
@@ -14,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import type { BlockRecord, GroupColor, GroupLayoutMode } from '../core/types';
+import type { WorkflowRunRuntimeView } from '../core/workflowRuntime';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
 import { TooltipIconButton } from './Tooltip';
@@ -25,6 +27,7 @@ interface GroupToolbarProps {
   group: BlockRecord;
   inheritedLocked: boolean;
   mediaCount: number;
+  workflowRun?: WorkflowRunRuntimeView;
   onBrowse: () => void;
   onDelete: () => void;
   onDownload: () => void;
@@ -38,6 +41,7 @@ interface GroupToolbarProps {
     positionLocked?: boolean;
     title?: string;
   }) => void;
+  onWorkflowRun: () => void;
 }
 
 export function GroupToolbar({
@@ -45,6 +49,7 @@ export function GroupToolbar({
   group,
   inheritedLocked,
   mediaCount,
+  workflowRun,
   onBrowse,
   onDelete,
   onDownload,
@@ -53,6 +58,7 @@ export function GroupToolbar({
   onToggleCollapsed,
   onUngroup,
   onUpdate,
+  onWorkflowRun,
 }: GroupToolbarProps): ReactElement {
   const { t } = useI18n();
   const [title, setTitle] = useState(group.data.title);
@@ -127,6 +133,17 @@ export function GroupToolbar({
         ))}
       </div>
       <span className="toolbar-divider" />
+      {group.data.groupKind === 'workflow' ? (
+        <button
+          type="button"
+          className={`workflow-run-control${workflowRun ? ` is-${workflowRun.status}` : ''}`}
+          aria-label={t(workflowRun ? 'workflowRuntime.view' : 'workflowRuntime.create')}
+          onClick={onWorkflowRun}
+        >
+          <PlayCircle size={15} />
+          <span>{t(workflowRun ? workflowRunStatusKey(workflowRun.status) : 'workflowRuntime.create')}</span>
+        </button>
+      ) : null}
       <TooltipIconButton label={t('group.browse')} onClick={onBrowse}>
         <GalleryHorizontalEnd size={16} />
       </TooltipIconButton>
@@ -213,4 +230,8 @@ export function GroupToolbar({
       </TooltipIconButton>
     </div>
   );
+}
+
+function workflowRunStatusKey(status: WorkflowRunRuntimeView['status']) {
+  return `workflowRuntime.runStatus.${status}` as const;
 }
