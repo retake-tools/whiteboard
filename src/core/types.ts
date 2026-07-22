@@ -7,6 +7,7 @@ import type {
   CapabilityInputBinding,
   SkillDefinitionLock,
 } from './capabilityContracts';
+import type { RetakeSkillSnapshot } from './skillRegistry';
 
 export type BlockType = 'text' | 'document' | 'image' | 'video' | 'operation' | 'group';
 
@@ -168,7 +169,7 @@ export interface ExecutionRecord {
   previousExecutionId?: string;
   requestId?: string;
   capabilityLock?: CapabilityDefinitionLock;
-  skillSnapshot?: SkillDefinitionLock;
+  skillSnapshot?: SkillDefinitionLock | RetakeSkillSnapshot;
   adapterSnapshot?: Pick<
     AdapterDefinition,
     | 'adapterId'
@@ -303,6 +304,7 @@ export interface BlockData {
   status?: ExecutionStatus;
   statusVisualDismissed?: boolean;
   capabilityId?: string;
+  skillId?: string;
   connectionId?: string;
   generationProfileId?: string;
   groupColor?: GroupColor;

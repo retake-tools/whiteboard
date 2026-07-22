@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 const hookSource = await readFile('src/hooks/useDismissiblePopover.ts', 'utf8');
 const componentPaths = [
   'src/components/ContextToolbar.tsx',
+  'src/components/FloatingToolbar.tsx',
   'src/components/GroupToolbar.tsx',
   'src/nodes/BlockNode.tsx',
   'src/nodes/OperationInlineControls.tsx',
@@ -41,11 +42,11 @@ assert.match(
   /className="annotation-modal-layer nodrag nopan nowheel"/,
   'annotation editing must intercept canvas clicks so selection changes cannot unmount the editor',
 );
-assert.match(componentSources[3].source, /insideSelector: '\.operation-option-popover-wrap'/);
-assert.match(componentSources[3].source, /currentExecutionProviderSettings/);
-assert.match(componentSources[3].source, /supportedCapabilityIds\.includes\(capabilityId\)/);
-assert.match(componentSources[3].source, /option\.status !== 'ready'/);
-assert.match(componentSources[3].source, /retake:update-operation-connection/);
+assert.match(componentSources[4].source, /insideSelector: '\.operation-option-popover-wrap'/);
+assert.match(componentSources[4].source, /currentExecutionProviderSettings/);
+assert.match(componentSources[4].source, /supportedCapabilityIds\.includes\(capabilityId\)/);
+assert.match(componentSources[4].source, /option\.status !== 'ready'/);
+assert.match(componentSources[4].source, /retake:update-operation-connection/);
 
 console.log({
   capturePhaseOutsideClick: true,

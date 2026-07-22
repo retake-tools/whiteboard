@@ -32,6 +32,7 @@ type TranslationKey =
   | 'document.characters'
   | 'document.empty'
   | 'document.externalImageBlocked'
+  | 'document.hideOutline'
   | 'document.loadFailed'
   | 'document.noOutline'
   | 'document.openReview'
@@ -40,6 +41,7 @@ type TranslationKey =
   | 'document.reviewWorkspace'
   | 'document.savedAsset'
   | 'document.source'
+  | 'document.showOutline'
   | 'document.streaming'
   | 'document.viewMode'
   | 'document.waiting'
@@ -186,6 +188,9 @@ type TranslationKey =
   | 'feedback.textGenerationStarted'
   | 'feedback.textGenerationCompleted'
   | 'feedback.textGenerationFailed'
+  | 'feedback.screenplayStarted'
+  | 'feedback.screenplayCompleted'
+  | 'feedback.screenplayFailed'
   | 'feedback.queuedExecutionCanceled'
   | 'feedback.runningExecutionCanceled'
   | 'feedback.runningExecutionCancelConfirm'
@@ -310,6 +315,8 @@ type TranslationKey =
   | 'operation.generateImage.prompt'
   | 'operation.generateImage.title'
   | 'operation.generateText.title'
+  | 'operation.generateScreenplay.title'
+  | 'operation.organizeScreenplay.title'
   | 'operation.annotationEdit.prompt'
   | 'operation.annotationEdit.title'
   | 'operation.quickEdit.prompt'
@@ -322,6 +329,8 @@ type TranslationKey =
   | 'operationToolbar.generatePrompt'
   | 'operationToolbar.generateImage'
   | 'operationToolbar.generateText'
+  | 'operationToolbar.generateScreenplay'
+  | 'operationToolbar.organizeScreenplay'
   | 'operationToolbar.generateAgain'
   | 'operationToolbar.generator'
   | 'operationToolbar.localProcessing'
@@ -341,6 +350,22 @@ type TranslationKey =
   | 'operationToolbar.running'
   | 'operationToolbar.textInputMissing'
   | 'operationToolbar.title'
+  | 'operationToolbar.skill'
+  | 'operationToolbar.selectSkill'
+  | 'skillDock.title'
+  | 'skillDock.recommended'
+  | 'skillDock.more'
+  | 'skillDock.library'
+  | 'skillDock.search'
+  | 'skillDock.screenplayCategory'
+  | 'skill.screenplayFromBrief.name'
+  | 'skill.screenplayFromBrief.description'
+  | 'skill.screenplayFromBrief.input'
+  | 'skill.screenplayFromBrief.placeholder'
+  | 'skill.normalizeScreenplay.name'
+  | 'skill.normalizeScreenplay.description'
+  | 'skill.normalizeScreenplay.input'
+  | 'skill.normalizeScreenplay.placeholder'
   | 'operationInputQuickAdd.add'
   | 'operationInputQuickAdd.addImage'
   | 'operationInputQuickAdd.addText'
@@ -577,6 +602,7 @@ const translations: Record<Locale, Translations> = {
     'document.characters': 'characters',
     'document.empty': 'This document has no content yet.',
     'document.externalImageBlocked': 'External image blocked',
+    'document.hideOutline': 'Hide outline',
     'document.loadFailed': 'Could not load the Markdown asset',
     'document.noOutline': 'No headings yet.',
     'document.openReview': 'Open review',
@@ -585,6 +611,7 @@ const translations: Record<Locale, Translations> = {
     'document.reviewWorkspace': 'Document review',
     'document.savedAsset': 'Saved as Markdown asset',
     'document.source': 'Source',
+    'document.showOutline': 'Show outline',
     'document.streaming': 'Streaming Markdown',
     'document.viewMode': 'Document view',
     'document.waiting': 'Waiting for generated Markdown…',
@@ -731,6 +758,9 @@ const translations: Record<Locale, Translations> = {
     'feedback.textGenerationStarted': 'Text generation started',
     'feedback.textGenerationCompleted': 'Generated Markdown was saved as a Retake asset.',
     'feedback.textGenerationFailed': 'Text generation failed',
+    'feedback.screenplayStarted': 'Screenplay processing started',
+    'feedback.screenplayCompleted': 'Screenplay processing completed',
+    'feedback.screenplayFailed': 'Screenplay processing failed',
     'feedback.queuedExecutionCanceled': 'The queued execution and all result placeholders were removed.',
     'feedback.runningExecutionCanceled': 'Writeback was canceled. Codex generation may continue outside Retake.',
     'feedback.runningExecutionCancelConfirm': 'Codex has already started this execution. Cancel it and remove all result placeholders? Generation may continue in Codex, but Retake will reject writeback.',
@@ -855,6 +885,8 @@ const translations: Record<Locale, Translations> = {
     'operation.generateImage.prompt': 'Generate image from prompt',
     'operation.generateImage.title': 'Text to image',
     'operation.generateText.title': 'Generate text',
+    'operation.generateScreenplay.title': 'Generate screenplay',
+    'operation.organizeScreenplay.title': 'Organize screenplay',
     'operation.annotationEdit.prompt': 'Edit image from annotation note',
     'operation.annotationEdit.title': 'Annotation Edit',
     'operation.quickEdit.prompt': 'Describe how to transform the source image...',
@@ -867,6 +899,8 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.generatePrompt': 'Generate prompt',
     'operationToolbar.generateImage': 'Generate image',
     'operationToolbar.generateText': 'Generate text',
+    'operationToolbar.generateScreenplay': 'Generate screenplay',
+    'operationToolbar.organizeScreenplay': 'Organize screenplay',
     'operationToolbar.generateAgain': 'Generate again',
     'operationToolbar.generator': 'Generator',
     'operationToolbar.localProcessing': 'Local processing',
@@ -886,6 +920,22 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.running': 'Running',
     'operationToolbar.textInputMissing': 'Connect a Text Block to provide the prompt.',
     'operationToolbar.title': 'Operation tools',
+    'operationToolbar.skill': 'Skill',
+    'operationToolbar.selectSkill': 'Select skill',
+    'skillDock.title': 'Skills',
+    'skillDock.recommended': 'Recommended',
+    'skillDock.more': 'More',
+    'skillDock.library': 'Skill library',
+    'skillDock.search': 'Search skills',
+    'skillDock.screenplayCategory': 'Screenplay',
+    'skill.screenplayFromBrief.name': 'Generate screenplay',
+    'skill.screenplayFromBrief.description': 'Create an executable screenplay from a creative brief.',
+    'skill.screenplayFromBrief.input': 'Creative brief',
+    'skill.screenplayFromBrief.placeholder': 'Describe the premise, audience, constraints, characters, and required ending...',
+    'skill.normalizeScreenplay.name': 'Organize screenplay',
+    'skill.normalizeScreenplay.description': 'Organize structure without changing story facts.',
+    'skill.normalizeScreenplay.input': 'Source screenplay',
+    'skill.normalizeScreenplay.placeholder': 'Paste the screenplay to normalize, or select a Document Block first...',
     'operationInputQuickAdd.add': 'Add',
     'operationInputQuickAdd.addImage': 'Add image input',
     'operationInputQuickAdd.addText': 'Add text input',
@@ -1117,6 +1167,7 @@ const translations: Record<Locale, Translations> = {
     'document.characters': '字',
     'document.empty': '这份文档还没有内容。',
     'document.externalImageBlocked': '已阻止外部图片自动加载',
+    'document.hideOutline': '隐藏大纲',
     'document.loadFailed': '无法加载 Markdown 素材',
     'document.noOutline': '尚未生成标题目录。',
     'document.openReview': '打开审阅',
@@ -1125,6 +1176,7 @@ const translations: Record<Locale, Translations> = {
     'document.reviewWorkspace': '文档审阅',
     'document.savedAsset': '已保存为 Markdown 素材',
     'document.source': '源码',
+    'document.showOutline': '显示大纲',
     'document.streaming': '正在流式生成 Markdown',
     'document.viewMode': '文档视图',
     'document.waiting': '正在等待 Markdown 内容…',
@@ -1271,6 +1323,9 @@ const translations: Record<Locale, Translations> = {
     'feedback.textGenerationStarted': '文本生成已开始',
     'feedback.textGenerationCompleted': '生成的 Markdown 已保存为 Retake Asset。',
     'feedback.textGenerationFailed': '文本生成失败',
+    'feedback.screenplayStarted': '剧本处理已开始',
+    'feedback.screenplayCompleted': '剧本处理已完成',
+    'feedback.screenplayFailed': '剧本处理失败',
     'feedback.queuedExecutionCanceled': '已取消等待中的执行，并移除全部结果占位块。',
     'feedback.runningExecutionCanceled': '已取消 Retake 写回；Codex 中的生成可能仍会继续。',
     'feedback.runningExecutionCancelConfirm': 'Codex 已开始执行。是否取消整次执行并移除全部结果占位块？Codex 中的生成可能仍会继续，但 Retake 将拒绝后续写回。',
@@ -1395,6 +1450,8 @@ const translations: Record<Locale, Translations> = {
     'operation.generateImage.prompt': '根据 prompt 生成图片',
     'operation.generateImage.title': '文生图',
     'operation.generateText.title': '生成文本',
+    'operation.generateScreenplay.title': '生成剧本',
+    'operation.organizeScreenplay.title': '整理剧本',
     'operation.annotationEdit.prompt': '根据标注备注编辑图片',
     'operation.annotationEdit.title': '标注编辑',
     'operation.quickEdit.prompt': '描述要如何基于源图生成新图片...',
@@ -1407,6 +1464,8 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.generatePrompt': '生成 Prompt',
     'operationToolbar.generateImage': '生成图片',
     'operationToolbar.generateText': '生成文本',
+    'operationToolbar.generateScreenplay': '生成剧本',
+    'operationToolbar.organizeScreenplay': '整理剧本',
     'operationToolbar.generateAgain': '再次生成',
     'operationToolbar.generator': '生成方式',
     'operationToolbar.localProcessing': '本地处理',
@@ -1426,6 +1485,22 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.running': '执行中',
     'operationToolbar.textInputMissing': '请连接一个文本块作为提示词来源。',
     'operationToolbar.title': '操作工具',
+    'operationToolbar.skill': 'Skill',
+    'operationToolbar.selectSkill': '选择 Skill',
+    'skillDock.title': 'Skill',
+    'skillDock.recommended': '推荐 Skill',
+    'skillDock.more': '更多',
+    'skillDock.library': 'Skill 库',
+    'skillDock.search': '搜索 Skill',
+    'skillDock.screenplayCategory': '剧本',
+    'skill.screenplayFromBrief.name': '生成剧本',
+    'skill.screenplayFromBrief.description': '从创意 Brief 生成可执行的视频剧本。',
+    'skill.screenplayFromBrief.input': '创意 Brief',
+    'skill.screenplayFromBrief.placeholder': '描述题材、受众、约束、角色与必须保留的结局...',
+    'skill.normalizeScreenplay.name': '整理剧本',
+    'skill.normalizeScreenplay.description': '在不改变剧情事实的前提下整理已有剧本。',
+    'skill.normalizeScreenplay.input': '源剧本',
+    'skill.normalizeScreenplay.placeholder': '粘贴需要规范化的剧本，或先选择一个 Document Block...',
     'operationInputQuickAdd.add': '添加',
     'operationInputQuickAdd.addImage': '添加图片输入',
     'operationInputQuickAdd.addText': '添加文本输入',

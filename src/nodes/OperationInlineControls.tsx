@@ -15,6 +15,7 @@ import {
 } from '../core/generationProfiles';
 import type { ImageGenerationParams, SwitchableOperationMode } from '../core/imageOperations';
 import { operationDisplayState } from '../core/operationDisplay';
+import { skillsForCapability } from '../core/skillRegistry';
 import type { BlockData } from '../core/types';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
@@ -59,9 +60,14 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
   const controlsRef = useRef<HTMLDivElement | null>(null);
   const [isParamsOpen, setIsParamsOpen] = useState(false);
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
+  const [isSkillOpen, setIsSkillOpen] = useState(false);
   const operation = operationModeFromCapability(data);
   const capabilityId = capabilityIdForOperationMode(operation, data);
-  const isTextGeneration = capabilityId === 'text.generate';
+  const isTextGeneration = capabilityId === 'text.generate' || capabilityId.startsWith('story.screenplay.');
+  const compatibleSkills = skillsForCapability(capabilityId);
+  const selectedSkill = typeof data.skillId === 'string'
+    ? compatibleSkills.find((skill) => skill.skillId === data.skillId)
+    : undefined;
   const paramsSchema = schemaForCapability(capabilityId).paramsSchema;
   const profile = generationProfileById(data.generationProfileId);
   const providerSettings = useSyncExternalStore(
@@ -129,20 +135,63 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
     if (!isLocked) return;
     setIsParamsOpen(false);
     setIsGeneratorOpen(false);
+    setIsSkillOpen(false);
   }, [isLocked]);
 
   useDismissiblePopover({
-    active: isParamsOpen || isGeneratorOpen,
+    active: isParamsOpen || isGeneratorOpen || isSkillOpen,
     insideSelector: '.operation-option-popover-wrap',
     onDismiss: () => {
       setIsParamsOpen(false);
       setIsGeneratorOpen(false);
+      setIsSkillOpen(false);
     },
     rootRef: controlsRef,
   });
 
   return (
     <div ref={controlsRef} className="operation-inline-controls" aria-label={t('operationToolbar.title')}>
+      {compatibleSkills.length > 0 ? (
+        <div className="operation-option-popover-wrap">
+          <button
+            type="button"
+            className="operation-option-row"
+            aria-expanded={isSkillOpen}
+            disabled={isLocked}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              setIsSkillOpen((current) => !current);
+              setIsGeneratorOpen(false);
+              setIsParamsOpen(false);
+            }}
+          >
+            <span>{t('operationToolbar.skill')}</span>
+            <strong>{selectedSkill ? localizedSkillName(selectedSkill.skillId, t) : t('operationToolbar.selectSkill')}</strong>
+            <ChevronRight size={15} />
+          </button>
+          {isSkillOpen && !isLocked ? (
+            <div className="operation-side-popover operation-generator-popover">
+              {compatibleSkills.map((skill) => (
+                <button
+                  key={skill.skillId}
+                  type="button"
+                  className={selectedSkill?.skillId === skill.skillId ? 'is-selected' : undefined}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    dispatchUpdateOperationSkill(blockId, skill.skillId);
+                    setIsSkillOpen(false);
+                  }}
+                >
+                  <span>{localizedSkillName(skill.skillId, t)}</span>
+                  {selectedSkill?.skillId === skill.skillId ? <Check size={14} /> : null}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <div className="operation-option-popover-wrap">
         <button
           type="button"
@@ -359,7 +408,13 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
           {isRunning || automatedPending
             ? t('operationToolbar.running')
             : isTextGeneration
-              ? t(isRepeat ? 'operationToolbar.generateAgain' : 'operationToolbar.generateText')
+              ? t(isRepeat
+                  ? 'operationToolbar.generateAgain'
+                  : capabilityId.startsWith('story.screenplay.')
+                    ? capabilityId === 'story.screenplay.normalize'
+                      ? 'operationToolbar.organizeScreenplay'
+                      : 'operationToolbar.generateScreenplay'
+                    : 'operationToolbar.generateText')
             : usesPromptHandoff && isQueued
               ? t(queuedConfigurationStale ? 'operationToolbar.updatePrompt' : 'feedback.copyPrompt')
               : isRepeat
@@ -449,11 +504,21 @@ function dispatchUpdateOperationConnection(blockId: string, connectionId: string
   );
 }
 
+function dispatchUpdateOperationSkill(blockId: string, skillId: string): void {
+  window.dispatchEvent(new CustomEvent('retake:update-operation-skill', { detail: { blockId, skillId } }));
+}
+
+function localizedSkillName(skillId: string, t: ReturnType<typeof useI18n>['t']): string {
+  return t(skillId === 'retake.screenplay.normalize'
+    ? 'skill.normalizeScreenplay.name'
+    : 'skill.screenplayFromBrief.name');
+}
+
 function operationExecutionConnections(
   connections: ExecutionConnectionSummary[],
   capabilityId: string,
 ): ExecutionConnectionSummary[] {
-  const useCase = capabilityId.startsWith('text.') ? 'text' : 'image';
+  const useCase = capabilityId.startsWith('text.') || capabilityId.startsWith('story.screenplay.') ? 'text' : 'image';
   return connections.filter((connection) =>
     connection.enabledUseCases.includes(useCase) &&
     connection.supportedCapabilityIds.includes(capabilityId));

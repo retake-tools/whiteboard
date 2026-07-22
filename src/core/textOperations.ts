@@ -1,9 +1,11 @@
 import { aiSdkTextAdapterDefinition, codexAppServerTextAdapterDefinition } from './capabilityRegistry';
+import type { CapabilityInputBinding } from './capabilityContracts';
 import { connectedInputBlocks, promptTextFromInputs } from './capabilities';
 import { createBlockRecord, maxZIndex, touchBoard } from './blockFactory';
 import { recordExecutionConfiguration } from './executionConfiguration';
 import type { ExecutionConnectionSummary } from './executionProviders';
 import { createId, nowIso } from './id';
+import { capabilityForSkill, skillDefinitionFor, snapshotSkill } from './skillRegistry';
 import type { BlockRecord, BoardHistoryEvent, BoardSnapshot, ExecutionRecord } from './types';
 
 export interface TextGenerationLabels {
@@ -52,6 +54,51 @@ export function createDraftTextGenerationOperation(
   return { operationBlock, promptBlock };
 }
 
+export function createDraftSkillOperation(
+  snapshot: BoardSnapshot,
+  input: TextGenerationLabels & {
+    connectionId?: string;
+    selectedBlockIds?: string[];
+    skillId: string;
+  },
+): { operationBlock: BlockRecord; inputBlocks: BlockRecord[] } {
+  const skill = skillDefinitionFor(input.skillId);
+  const capabilityId = capabilityForSkill(skill);
+  const selectedIds = new Set(input.selectedBlockIds ?? []);
+  const selectedInputs = snapshot.blocks.filter((block) =>
+    selectedIds.has(block.blockId) && (block.type === 'text' || block.type === 'document'),
+  );
+  const inputBlocks = selectedInputs.length > 0 ? selectedInputs : [createSkillInputBlock(snapshot, input)];
+  const operationBlock = createBlockRecord(snapshot, 'operation');
+  const usesCodexAppServer = input.connectionId === 'codex-app-server';
+  operationBlock.data = {
+    title: input.operationTitle,
+    body: input.promptPlaceholder,
+    capabilityId,
+    skillId: skill.skillId,
+    adapter: usesCodexAppServer ? 'codex_app_server' : 'direct_api',
+    ...(usesCodexAppServer ? { agentHost: 'codex' as const } : {}),
+    triggerMode: usesCodexAppServer ? 'agent_bridge' : 'server_worker',
+    ...(input.connectionId ? { connectionId: input.connectionId } : {}),
+  };
+  const anchor = inputBlocks[0];
+  operationBlock.position = {
+    x: anchor.position.x + anchor.size.width + 90,
+    y: anchor.position.y,
+  };
+  operationBlock.zIndex = Math.max(maxZIndex(snapshot.blocks), ...inputBlocks.map((block) => block.zIndex)) + 1;
+  if (selectedInputs.length === 0) snapshot.blocks.push(...inputBlocks);
+  snapshot.blocks.push(operationBlock);
+  inputBlocks.forEach((block) => snapshot.edges.push({
+    edgeId: createId('edge'),
+    sourceBlockId: block.blockId,
+    targetBlockId: operationBlock.blockId,
+    kind: 'execution_input',
+  }));
+  touchBoard(snapshot);
+  return { operationBlock, inputBlocks };
+}
+
 export function executeExistingTextGenerationOperation(
   snapshot: BoardSnapshot,
   input: {
@@ -64,19 +111,26 @@ export function executeExistingTextGenerationOperation(
   const operationBlock = snapshot.blocks.find(
     (block) => block.blockId === input.operationBlockId && block.type === 'operation',
   );
-  if (!operationBlock || operationBlock.data.capabilityId !== 'text.generate') {
+  const capabilityId = typeof operationBlock?.data.capabilityId === 'string' ? operationBlock.data.capabilityId : '';
+  if (!operationBlock || !isTextDocumentCapability(capabilityId)) {
     throw new Error(`Text generation operation not found: ${input.operationBlockId}`);
   }
   if (
     input.connection.status !== 'ready' ||
-    !input.connection.supportedCapabilityIds.includes('text.generate') ||
+    !input.connection.supportedCapabilityIds.includes(capabilityId) ||
     !isTextConnector(input.connection.connectorId)
   ) {
-    throw new Error(`Connection cannot execute text.generate: ${input.connection.connectionId}`);
+    throw new Error(`Connection cannot execute ${capabilityId}: ${input.connection.connectionId}`);
   }
-  const promptBlock = connectedInputBlocks(snapshot, operationBlock.blockId).find((block) => block.type === 'text');
-  const prompt = promptTextFromInputs(promptBlock ? [promptBlock] : []);
-  if (!promptBlock || !prompt) throw new Error('Connect a non-empty Text Block before generating text.');
+  const inputBlocks = connectedInputBlocks(snapshot, operationBlock.blockId).filter(
+    (block) => block.type === 'text' || block.type === 'document',
+  );
+  const promptBlock = inputBlocks[0];
+  const prompt = promptTextFromInputs(inputBlocks.filter((block) => block.type === 'text'))
+    || (promptBlock?.type === 'document' ? promptBlock.data.title : '');
+  if (!promptBlock || !prompt || (promptBlock.type === 'document' && typeof promptBlock.data.assetId !== 'string')) {
+    throw new Error('Connect a non-empty Text or Document Block before generating a screenplay.');
+  }
 
   const executionId = createId('exec');
   const createdAt = nowIso();
@@ -112,7 +166,7 @@ export function executeExistingTextGenerationOperation(
     adapter,
     agentHost: usesCodexAppServer ? 'codex' : undefined,
     triggerMode: usesCodexAppServer ? 'agent_bridge' : 'server_worker',
-    capabilityId: 'text.generate',
+    capabilityId,
     connectionId: input.connection.connectionId,
     sourceExecutionId: executionId,
   };
@@ -125,10 +179,10 @@ export function executeExistingTextGenerationOperation(
     executionId,
     projectId: snapshot.project.projectId,
     boardId: snapshot.board.boardId,
-    capabilityId: 'text.generate',
+    capabilityId,
     adapter,
     status: 'queued',
-    inputBlockIds: [promptBlock.blockId],
+    inputBlockIds: inputBlocks.map((block) => block.blockId),
     outputBlockIds: [resultBlock.blockId],
     outputAssetIds: [],
     agentHost: usesCodexAppServer ? 'codex' : undefined,
@@ -136,6 +190,7 @@ export function executeExistingTextGenerationOperation(
     provider: input.connection.providerLabel,
     model: input.connection.modelId,
     connectionId: input.connection.connectionId,
+    skillId: typeof operationBlock.data.skillId === 'string' ? operationBlock.data.skillId : undefined,
     prompt,
     params: {
       operationBlockId: operationBlock.blockId,
@@ -145,6 +200,12 @@ export function executeExistingTextGenerationOperation(
     startedAt: createdAt,
   };
   recordExecutionConfiguration(snapshot, execution, operationBlock);
+  if (execution.skillId) {
+    const skill = skillDefinitionFor(execution.skillId);
+    const bindings = screenplayInputBindings(capabilityId, inputBlocks);
+    execution.inputBindingsSnapshot = bindings;
+    execution.skillSnapshot = snapshotSkill(skill, bindings);
+  }
   const adapterDefinition = usesCodexAppServer ? codexAppServerTextAdapterDefinition : aiSdkTextAdapterDefinition;
   execution.adapterSnapshot = {
     adapterId: adapterDefinition.adapterId,
@@ -231,6 +292,44 @@ function operationHistory(
       resultBlockIds: [resultBlock.blockId],
     },
   };
+}
+
+function createSkillInputBlock(snapshot: BoardSnapshot, input: TextGenerationLabels): BlockRecord {
+  const promptBlock = createBlockRecord(snapshot, 'text');
+  promptBlock.data = {
+    ...promptBlock.data,
+    title: input.promptTitle,
+    body: '',
+    placeholder: input.promptPlaceholder,
+  };
+  promptBlock.position = { x: 80, y: 80 };
+  promptBlock.zIndex = maxZIndex(snapshot.blocks) + 1;
+  return promptBlock;
+}
+
+function screenplayInputBindings(capabilityId: string, blocks: BlockRecord[]): CapabilityInputBinding[] {
+  const values = blocks.map((block) => typeof block.data.assetId === 'string'
+    ? { kind: 'asset' as const, assetId: block.data.assetId, blockId: block.blockId }
+    : { kind: 'block' as const, blockId: block.blockId });
+  if (capabilityId === 'story.screenplay.generate') {
+    return [
+      { slotId: 'brief', values: values.slice(0, 1) },
+      ...(values.length > 1 ? [{ slotId: 'references', values: values.slice(1) }] : []),
+    ];
+  }
+  if (capabilityId === 'story.screenplay.normalize') {
+    return [
+      { slotId: 'source_screenplay', values: values.slice(0, 1) },
+      ...(values.length > 1 ? [{ slotId: 'normalization_instruction', values: values.slice(1, 2) }] : []),
+    ];
+  }
+  return [{ slotId: 'prompt', values }];
+}
+
+export function isTextDocumentCapability(capabilityId: string): boolean {
+  return capabilityId === 'text.generate'
+    || capabilityId === 'story.screenplay.generate'
+    || capabilityId === 'story.screenplay.normalize';
 }
 
 function isTextConnector(connectorId: string): boolean {

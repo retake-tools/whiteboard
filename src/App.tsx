@@ -196,6 +196,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     persistSnapshot,
     setOperationToast,
     setSelectedBlocks,
+    selectedBlockIdsRef,
     snapshotRef,
     t,
     updateSnapshot,
@@ -415,7 +416,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         activeTool={activeCanvasTool}
         onAddBlock={addBlock}
         onCreateImageToImage={createImageToImageDraftFromMenu}
-        onCreateText={textGenerationController.createTextGenerationDraft}
+        onCreateSkill={textGenerationController.createSkillDraft}
         onCreateTextToImage={() => createTextToImageDraftOperation()}
         onSetActiveTool={setActiveCanvasTool}
       />

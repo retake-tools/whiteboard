@@ -10,11 +10,14 @@ import { appendDocumentStream, beginDocumentStream } from '../core/documentStrea
 import { subscribeExecutionEvents } from '../core/executionEventClient';
 import {
   createDraftTextGenerationOperation,
+  createDraftSkillOperation,
   executeExistingTextGenerationOperation,
+  isTextDocumentCapability,
   type TextGenerationLabels,
 } from '../core/textOperations';
 import type { BlockRecord, BoardSnapshot } from '../core/types';
 import type { OperationToast } from '../components/OperationFeedback';
+import { skillEntryPointFor } from '../core/skillRegistry';
 import type { useI18n } from '../i18n';
 
 interface TextGenerationControllerOptions {
@@ -23,6 +26,7 @@ interface TextGenerationControllerOptions {
   persistSnapshot: (snapshot: BoardSnapshot, options?: { requireLocalApi?: boolean }) => Promise<void>;
   setOperationToast: (toast: OperationToast | undefined) => void;
   setSelectedBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
+  selectedBlockIdsRef: RefObject<string[]>;
   snapshotRef: RefObject<BoardSnapshot>;
   t: ReturnType<typeof useI18n>['t'];
   updateSnapshot: (
@@ -38,6 +42,7 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
     persistSnapshot,
     setOperationToast,
     setSelectedBlocks,
+    selectedBlockIdsRef,
     snapshotRef,
     t,
     updateSnapshot,
@@ -60,10 +65,31 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
     }
   }
 
+  function createSkillDraft(skillId: string): void {
+    const entrypoint = skillEntryPointFor(skillId);
+    let workflowBlockIds: string[] = [];
+    const nextSnapshot = updateSnapshot((current) => {
+      const skillLabels = labelsForSkill(skillId);
+      const draft = createDraftSkillOperation(current, {
+        ...skillLabels,
+        connectionId: preferredTextConnection(current, entrypoint.capabilityId),
+        selectedBlockIds: selectedBlockIdsRef.current,
+        skillId: entrypoint.skillId,
+      });
+      workflowBlockIds = [...draft.inputBlocks.map((block) => block.blockId), draft.operationBlock.blockId];
+      centerWorkflowBlocks(current, workflowBlockIds);
+      return current;
+    }, { history: true, persist: true });
+    if (workflowBlockIds.length) {
+      setSelectedBlocks(nextSnapshot, workflowBlockIds);
+      focusWorkflowBlocks(workflowBlockIds);
+    }
+  }
+
   async function startTextGenerationOperation(block: BlockRecord): Promise<void> {
     if (
       block.type !== 'operation' ||
-      block.data.capabilityId !== 'text.generate' ||
+      !isTextDocumentCapability(typeof block.data.capabilityId === 'string' ? block.data.capabilityId : '') ||
       blockLockedByGroup(snapshotRef.current, block.blockId)
     ) return;
     let executionId = '';
@@ -75,7 +101,7 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
         const currentBlock = current.blocks.find((candidate) => candidate.blockId === block.blockId);
         if (!currentBlock || currentBlock.type !== 'operation') return current;
         const preference = resolveExecutionConnectionPreference({
-          capabilityId: 'text.generate',
+          capabilityId: String(currentBlock.data.capabilityId),
           explicitConnectionId: typeof currentBlock.data.connectionId === 'string'
             ? currentBlock.data.connectionId
             : undefined,
@@ -88,7 +114,7 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
         if (!connection || !preference.isUsable) throw new Error(t('feedback.connectionUnavailable'));
         const run = executeExistingTextGenerationOperation(current, {
           connection,
-          labels: labels(),
+          labels: labelsForOperation(currentBlock),
           operationBlockId: currentBlock.blockId,
         });
         executionId = run.execution.executionId;
@@ -129,7 +155,11 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
         });
         const runningSnapshot = updateSnapshot(() => started.snapshot, { history: true, persist: false });
         setSelectedBlocks(runningSnapshot, [resultBlockId]);
-        setOperationToast({ id: executionId, title: t('feedback.textGenerationStarted'), tone: 'success' });
+        setOperationToast({
+          id: executionId,
+          title: t(feedbackTitleKey(currentCapabilityId(block), 'started')),
+          tone: 'success',
+        });
         try {
           const completedSnapshot = await streamCompletion;
           updateSnapshot(() => completedSnapshot, { history: false, persist: false });
@@ -143,7 +173,7 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
     } catch (error) {
       setOperationToast({
         id: executionId || `text-generation:${block.blockId}`,
-        title: t('feedback.textGenerationFailed'),
+        title: t(feedbackTitleKey(currentCapabilityId(block), 'failed')),
         body: error instanceof Error ? error.message : t('feedback.localApiUnavailable'),
         tone: 'error',
       });
@@ -176,9 +206,10 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
     if (!execution) return;
     setOperationToast({
       id: executionId,
-      title: t(execution.status === 'succeeded'
-        ? 'feedback.textGenerationCompleted'
-        : 'feedback.textGenerationFailed'),
+      title: t(feedbackTitleKey(
+        execution.capabilityId,
+        execution.status === 'succeeded' ? 'completed' : 'failed',
+      )),
       body: execution.status === 'failed' ? execution.errorMessage : undefined,
       tone: execution.status === 'succeeded' ? 'success' : 'error',
     });
@@ -194,12 +225,59 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
     };
   }
 
-  return { createTextGenerationDraft, startTextGenerationOperation };
+  function labelsForSkill(skillId: string): TextGenerationLabels {
+    if (skillId === 'retake.screenplay.normalize') {
+      return {
+        operationTitle: t('operation.organizeScreenplay.title'),
+        promptPlaceholder: t('skill.normalizeScreenplay.placeholder'),
+        promptTitle: t('skill.normalizeScreenplay.input'),
+        resultTitle: t('operation.organizeScreenplay.title'),
+        waitingBody: t('resultStatus.queued'),
+      };
+    }
+    return {
+      operationTitle: t('operation.generateScreenplay.title'),
+      promptPlaceholder: t('skill.screenplayFromBrief.placeholder'),
+      promptTitle: t('skill.screenplayFromBrief.input'),
+      resultTitle: t('operation.generateScreenplay.title'),
+      waitingBody: t('resultStatus.queued'),
+    };
+  }
+
+  function labelsForOperation(block: BlockRecord): TextGenerationLabels {
+    return typeof block.data.skillId === 'string' ? labelsForSkill(block.data.skillId) : labels();
+  }
+
+  return { createSkillDraft, createTextGenerationDraft, startTextGenerationOperation };
 }
 
-function preferredTextConnection(snapshot: BoardSnapshot): string | undefined {
+function currentCapabilityId(block: BlockRecord): string {
+  return typeof block.data.capabilityId === 'string' ? block.data.capabilityId : 'text.generate';
+}
+
+function feedbackTitleKey(
+  capabilityId: string,
+  state: 'started' | 'completed' | 'failed',
+):
+  | 'feedback.textGenerationStarted'
+  | 'feedback.textGenerationCompleted'
+  | 'feedback.textGenerationFailed'
+  | 'feedback.screenplayStarted'
+  | 'feedback.screenplayCompleted'
+  | 'feedback.screenplayFailed' {
+  if (!capabilityId.startsWith('story.screenplay.')) {
+    if (state === 'started') return 'feedback.textGenerationStarted';
+    if (state === 'completed') return 'feedback.textGenerationCompleted';
+    return 'feedback.textGenerationFailed';
+  }
+  if (state === 'started') return 'feedback.screenplayStarted';
+  if (state === 'completed') return 'feedback.screenplayCompleted';
+  return 'feedback.screenplayFailed';
+}
+
+function preferredTextConnection(snapshot: BoardSnapshot, capabilityId = 'text.generate'): string | undefined {
   return resolveExecutionConnectionPreference({
-    capabilityId: 'text.generate',
+    capabilityId,
     initialConnectionId: 'codex-app-server',
     projectId: snapshot.project.projectId,
     useCase: 'text',

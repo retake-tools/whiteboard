@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   createDraftTextGenerationOperation,
+  createDraftSkillOperation,
   executeExistingTextGenerationOperation,
 } from '../src/core/textOperations';
+import { operationReadinessFor } from '../src/core/capabilities';
 import {
   checkExecutionConnection,
   createExecutionConnection,
@@ -27,7 +29,11 @@ settings = await checkExecutionConnection(openAIConnection.connectionId, undefin
 });
 const readyOpenAIConnection = settings.connections.find((connection) => connection.connectionId === openAIConnection.connectionId);
 assert.equal(readyOpenAIConnection?.status, 'ready');
-assert.deepEqual(readyOpenAIConnection?.supportedCapabilityIds, ['text.generate']);
+assert.deepEqual(readyOpenAIConnection?.supportedCapabilityIds, [
+  'text.generate',
+  'story.screenplay.generate',
+  'story.screenplay.normalize',
+]);
 
 const labels = {
   operationTitle: 'Generate text',
@@ -145,9 +151,60 @@ assert.notEqual(secondResultBlock?.data.assetId, firstResultBlock.data.assetId);
 assert.equal(completed.assets.some((asset) => asset.assetId === firstAsset!.assetId), true);
 assert.equal(completed.assets.filter((asset) => asset.sourceExecutionId === firstRun.execution.executionId || asset.sourceExecutionId === secondRun.execution.executionId).length, 2);
 
+const normalizeLabels = {
+  operationTitle: 'Organize screenplay',
+  promptPlaceholder: 'Select a screenplay.',
+  promptTitle: 'Source screenplay',
+  resultTitle: 'Organized screenplay',
+  waitingBody: 'Waiting for normalization.',
+};
+const skillDraft = createDraftSkillOperation(completed, {
+  ...normalizeLabels,
+  connectionId: readyOpenAIConnection!.connectionId,
+  selectedBlockIds: [firstResultBlock.blockId],
+  skillId: 'retake.screenplay.normalize',
+});
+assert.deepEqual(skillDraft.inputBlocks.map((block) => block.blockId), [firstResultBlock.blockId]);
+assert.equal(skillDraft.operationBlock.data.capabilityId, 'story.screenplay.normalize');
+assert.equal(operationReadinessFor(completed, skillDraft.operationBlock).canRun, true, 'An asset-backed Document must satisfy screenplay input readiness.');
+const skillRun = executeExistingTextGenerationOperation(completed, {
+  connection: readyOpenAIConnection!,
+  labels: normalizeLabels,
+  operationBlockId: skillDraft.operationBlock.blockId,
+});
+assert.equal(skillRun.execution.skillId, 'retake.screenplay.normalize');
+assert.equal(skillRun.execution.inputBindingsSnapshot?.[0]?.slotId, 'source_screenplay');
+assert.equal('instructionTemplate' in (skillRun.execution.skillSnapshot ?? {}), true);
+await saveSnapshot(completed);
+const skillStarted = await startTextGeneration({
+  projectId: completed.project.projectId,
+  boardId: completed.board.boardId,
+  executionId: skillRun.execution.executionId,
+  connectionId: readyOpenAIConnection!.connectionId,
+}, {
+  generateOpenAICompatible: async (_config, input) => {
+    assert.match(input.prompt, /source screenplay is authoritative/i);
+    assert.match(input.prompt, /# Cat Director/);
+    assert.match(input.prompt, /# Output requirements/);
+    return {
+      text: '# Cat Director\n\nA faithfully normalized first draft.',
+      finishReason: 'stop',
+      usage: { inputTokens: 200, outputTokens: 12 },
+    };
+  },
+});
+await skillStarted.completion;
+completed = await loadSnapshot(completed.project.projectId, completed.board.boardId);
+const completedSkillExecution = completed.executions.find((execution) => execution.executionId === skillRun.execution.executionId);
+assert.equal(completedSkillExecution?.status, 'succeeded');
+assert.equal(completedSkillExecution?.capabilityId, 'story.screenplay.normalize');
+assert.equal(completedSkillExecution?.skillId, 'retake.screenplay.normalize');
+assert.match(completedSkillExecution?.requestPrompts?.[0]?.prompt ?? '', /The source screenplay is authoritative/);
+
 console.log(JSON.stringify({
   ok: true,
-  capabilityId: completedSecondExecution?.capabilityId,
+  capabilityId: completedSkillExecution?.capabilityId,
+  frozenSkillSnapshot: true,
   preservedMarkdownAssets: 2,
   providerRoutes: ['openai-compatible', 'google-native'],
 }));

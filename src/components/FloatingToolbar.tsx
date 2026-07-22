@@ -1,5 +1,6 @@
 import {
   Clapperboard,
+  BookOpen,
   FileText,
   Hand,
   ImageIcon,
@@ -8,10 +9,13 @@ import {
   Play,
   Shapes,
   Sparkles,
+  Search,
   Video,
 } from 'lucide-react';
-import type { ReactElement } from 'react';
+import { useMemo, useRef, useState, type ReactElement } from 'react';
+import { listSkills, type RetakeSkillDefinition } from '../core/skillRegistry';
 import type { BlockType } from '../core/types';
+import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
 import { TooltipIconButton } from './Tooltip';
 
@@ -21,7 +25,7 @@ interface FloatingToolbarProps {
   activeTool: CanvasTool;
   onAddBlock: (type: Extract<BlockType, 'group' | 'image' | 'operation' | 'text' | 'video'>) => void;
   onCreateImageToImage: () => void;
-  onCreateText: () => void;
+  onCreateSkill?: (skillId: string) => void;
   onCreateTextToImage: () => void;
   onSetActiveTool: (tool: CanvasTool) => void;
 }
@@ -30,14 +34,74 @@ export function FloatingToolbar({
   activeTool,
   onAddBlock,
   onCreateImageToImage,
-  onCreateText,
+  onCreateSkill,
   onCreateTextToImage,
   onSetActiveTool,
 }: FloatingToolbarProps): ReactElement {
   const { t } = useI18n();
+  const skillDockRef = useRef<HTMLElement>(null);
+  const [skillLibraryOpen, setSkillLibraryOpen] = useState(false);
+  const [skillQuery, setSkillQuery] = useState('');
+  const skills = useMemo(() => listSkills(), []);
+  const filteredSkills = useMemo(() => {
+    const query = skillQuery.trim().toLocaleLowerCase();
+    return query
+      ? skills.filter((skill) => `${skill.name} ${skill.description}`.toLocaleLowerCase().includes(query))
+      : skills;
+  }, [skillQuery, skills]);
+
+  useDismissiblePopover({
+    active: skillLibraryOpen,
+    onDismiss: () => setSkillLibraryOpen(false),
+    rootRef: skillDockRef,
+  });
 
   return (
-    <nav className="floating-toolbar" aria-label={t('canvas.tools')}>
+    <>
+      <section ref={skillDockRef} className="skill-dock" aria-label={t('skillDock.title')}>
+        <span className="skill-dock-label"><Sparkles size={14} />{t('skillDock.recommended')}</span>
+        {skills.map((skill) => (
+          <button
+            key={skill.skillId}
+            type="button"
+            className="skill-dock-card"
+            onClick={() => {
+              onCreateSkill?.(skill.skillId);
+              setSkillLibraryOpen(false);
+            }}
+          >
+            <strong>{skillDisplayName(skill, t)}</strong>
+            <span>{skillDisplayDescription(skill, t)}</span>
+          </button>
+        ))}
+        <button
+          type="button"
+          className="skill-dock-more"
+          aria-controls="skill-library-popover"
+          aria-expanded={skillLibraryOpen}
+          onClick={() => setSkillLibraryOpen((open) => !open)}
+        >
+          <BookOpen size={15} />{t('skillDock.more')}
+        </button>
+        {skillLibraryOpen ? (
+          <div id="skill-library-popover" className="skill-library-popover" role="dialog" aria-label={t('skillDock.library')}>
+            <header><strong>{t('skillDock.library')}</strong><span>{t('skillDock.screenplayCategory')}</span></header>
+            <label className="skill-library-search">
+              <Search size={15} />
+              <input value={skillQuery} placeholder={t('skillDock.search')} onChange={(event) => setSkillQuery(event.target.value)} />
+            </label>
+            <div className="skill-library-list">
+              {filteredSkills.map((skill) => (
+                <button key={skill.skillId} type="button" onClick={() => { onCreateSkill?.(skill.skillId); setSkillLibraryOpen(false); }}>
+                  <strong>{skillDisplayName(skill, t)}</strong>
+                  <span>{skillDisplayDescription(skill, t)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </section>
+      <nav className="floating-toolbar" aria-label={t('canvas.tools')}>
       <ToolButton
         isPressed={activeTool === 'select'}
         label={t('toolbar.selectTool')}
@@ -60,7 +124,6 @@ export function FloatingToolbar({
         <MenuItem icon={<Play size={15} />} label={t('toolbar.addOperation')} onClick={() => onAddBlock('operation')} />
       </ToolbarMenu>
       <ToolbarMenu icon={<Sparkles size={18} />} label={t('toolbar.generation')}>
-        <MenuItem icon={<FileText size={15} />} label={t('toolbar.generateText')} onClick={onCreateText} />
         <MenuItem icon={<Sparkles size={15} />} label={t('toolbar.textToImage')} onClick={onCreateTextToImage} />
         <MenuItem icon={<ImageIcon size={15} />} label={t('toolbar.imageToImage')} onClick={onCreateImageToImage} />
         <MenuItem disabled icon={<ImageIcon size={15} />} label={t('toolbar.multiImageToImage')} />
@@ -73,8 +136,21 @@ export function FloatingToolbar({
       <ToolButton isPressed={activeTool === 'group'} label={t('toolbar.addGroup')} onClick={() => onAddBlock('group')}>
         <Layers3 size={18} />
       </ToolButton>
-    </nav>
+      </nav>
+    </>
   );
+}
+
+function skillDisplayName(skill: RetakeSkillDefinition, t: ReturnType<typeof useI18n>['t']): string {
+  return t(skill.skillId === 'retake.screenplay.normalize'
+    ? 'skill.normalizeScreenplay.name'
+    : 'skill.screenplayFromBrief.name');
+}
+
+function skillDisplayDescription(skill: RetakeSkillDefinition, t: ReturnType<typeof useI18n>['t']): string {
+  return t(skill.skillId === 'retake.screenplay.normalize'
+    ? 'skill.normalizeScreenplay.description'
+    : 'skill.screenplayFromBrief.description');
 }
 
 function ToolbarMenu({

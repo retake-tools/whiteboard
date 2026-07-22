@@ -17,6 +17,7 @@ import type {
 } from '../core/imageOperations';
 import { createId, nowIso } from '../core/id';
 import { executionConnection } from '../core/executionProviderPreferences';
+import { skillsForCapability } from '../core/skillRegistry';
 import type {
   BlockRecord,
   BlockType,
@@ -98,6 +99,8 @@ export function useOperationInputController(options: OperationInputControllerOpt
 
   function operationPlaceholderForBlock(operationBlock: BlockRecord): string {
     if (operationBlock.data.capabilityId === 'text.generate') return t('operationToolbar.promptPlaceholder');
+    if (operationBlock.data.capabilityId === 'story.screenplay.normalize') return t('skill.normalizeScreenplay.placeholder');
+    if (operationBlock.data.capabilityId === 'story.screenplay.generate') return t('skill.screenplayFromBrief.placeholder');
     const mode = operationBlock.data.operationMode;
     if (operationBlock.data.operationVariant === 'create_similar') {
       return imageOperationDefaultPrompt('create_similar', t);
@@ -241,7 +244,9 @@ export function useOperationInputController(options: OperationInputControllerOpt
       if (!detail?.blockId) return;
       const block = snapshotRef.current.blocks.find((candidate) => candidate.blockId === detail.blockId && candidate.type === 'operation');
       if (!block || blockLockedByGroup(snapshotRef.current, block.blockId) || block.data.status === 'running') return;
-      if (block.data.capabilityId === 'text.generate' && block.data.status === 'queued') return;
+      const isTextDocument = block.data.capabilityId === 'text.generate'
+        || (typeof block.data.capabilityId === 'string' && block.data.capabilityId.startsWith('story.screenplay.'));
+      if (isTextDocument && block.data.status === 'queued') return;
       if (block.data.status === 'queued') {
         const connection = executionConnection(
           typeof block.data.connectionId === 'string' ? block.data.connectionId : 'codex-managed',
@@ -257,7 +262,7 @@ export function useOperationInputController(options: OperationInputControllerOpt
         setOperationToast({ id: `operation-input:${block.blockId}`, title: t('feedback.inputRequired'), body: issue ? t(operationReadinessMessageKey(issue)) : undefined, tone: 'error' });
         return;
       }
-      if (block.data.capabilityId === 'text.generate') {
+      if (isTextDocument) {
         void startTextGenerationOperation(block);
       } else {
         void startExistingOperationBlock({ block, operation: operationModeFromBlock(block) });
@@ -280,6 +285,19 @@ export function useOperationInputController(options: OperationInputControllerOpt
       const detail = (event as CustomEvent<{ blockId?: string; connectionId?: string }>).detail;
       if (detail?.blockId && detail.connectionId) updateOperationConnection(detail.blockId, detail.connectionId);
     }
+    function onUpdateSkill(event: Event): void {
+      const detail = (event as CustomEvent<{ blockId?: string; skillId?: string }>).detail;
+      if (!detail?.blockId || !detail.skillId) return;
+      updateSnapshot((current) => {
+        const operation = current.blocks.find((block) => block.blockId === detail.blockId && block.type === 'operation');
+        if (!operation || blockLockedByGroup(current, operation.blockId)) return current;
+        const capabilityId = typeof operation.data.capabilityId === 'string' ? operation.data.capabilityId : '';
+        if (!skillsForCapability(capabilityId).some((skill) => skill.skillId === detail.skillId)) return current;
+        operation.data.skillId = detail.skillId;
+        operation.updatedAt = nowIso();
+        return touchBoard(current);
+      }, { persist: true, history: true });
+    }
     function onUpdateCapability(event: Event): void {
       const detail = (event as CustomEvent<{ blockId?: string; operation?: SwitchableOperationMode }>).detail;
       if (detail?.blockId && detail.operation) updateOperationCapability(detail.blockId, detail.operation);
@@ -295,6 +313,7 @@ export function useOperationInputController(options: OperationInputControllerOpt
     window.addEventListener('retake:update-operation-generation-params', onUpdateParams);
     window.addEventListener('retake:update-operation-generation-profile', onUpdateProfile);
     window.addEventListener('retake:update-operation-connection', onUpdateConnection);
+    window.addEventListener('retake:update-operation-skill', onUpdateSkill);
     window.addEventListener('retake:update-operation-capability', onUpdateCapability);
     window.addEventListener('retake:update-operation-input-role', onUpdateRole);
     window.addEventListener('retake:remove-operation-input', onRemoveInput);
@@ -302,6 +321,7 @@ export function useOperationInputController(options: OperationInputControllerOpt
       window.removeEventListener('retake:update-operation-generation-params', onUpdateParams);
       window.removeEventListener('retake:update-operation-generation-profile', onUpdateProfile);
       window.removeEventListener('retake:update-operation-connection', onUpdateConnection);
+      window.removeEventListener('retake:update-operation-skill', onUpdateSkill);
       window.removeEventListener('retake:update-operation-capability', onUpdateCapability);
       window.removeEventListener('retake:update-operation-input-role', onUpdateRole);
       window.removeEventListener('retake:remove-operation-input', onRemoveInput);

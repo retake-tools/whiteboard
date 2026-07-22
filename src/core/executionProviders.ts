@@ -81,6 +81,12 @@ export interface ExecutionProviderSettingsSnapshot {
   projectDefaults: ExecutionDefaultSelection[];
 }
 
+const textDocumentCapabilityIds = [
+  'text.generate',
+  'story.screenplay.generate',
+  'story.screenplay.normalize',
+];
+
 const connectors: ExecutionConnectorDefinition[] = [
   {
     connectorId: 'retake-mock',
@@ -116,7 +122,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     installStatus: 'installed',
     connectionMode: 'multiple',
     requiresCredential: false,
-    supportedCapabilityIds: ['text.generate', 'image.annotation_edit', 'image.image_to_image', 'image.text_to_image'],
+    supportedCapabilityIds: [...textDocumentCapabilityIds, 'image.annotation_edit', 'image.image_to_image', 'image.text_to_image'],
     defaultUseCases: ['text', 'image'],
   },
   {
@@ -155,7 +161,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     installStatus: 'installed',
     connectionMode: 'multiple',
     requiresCredential: true,
-    supportedCapabilityIds: ['text.generate'],
+    supportedCapabilityIds: textDocumentCapabilityIds,
     defaultUseCases: ['text'],
   },
   {
@@ -167,7 +173,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     installStatus: 'installed',
     connectionMode: 'multiple',
     requiresCredential: true,
-    supportedCapabilityIds: ['text.generate'],
+    supportedCapabilityIds: textDocumentCapabilityIds,
     defaultUseCases: ['text'],
     defaultBaseUrl: 'https://api.anthropic.com/v1',
     defaultModelId: 'claude-sonnet-4-6',
@@ -181,7 +187,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     installStatus: 'installed',
     connectionMode: 'multiple',
     requiresCredential: true,
-    supportedCapabilityIds: ['text.generate'],
+    supportedCapabilityIds: textDocumentCapabilityIds,
     defaultUseCases: ['text'],
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
     defaultModelId: 'gemini-2.5-flash',

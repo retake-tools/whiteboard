@@ -1,4 +1,4 @@
-import { Clock, ExternalLink, Info } from 'lucide-react';
+import { Clock, ExternalLink } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { useDocumentStream } from '../core/documentStreamStore';
 import { summarizeMarkdown } from '../core/markdownDocument';
@@ -15,7 +15,10 @@ export function DocumentBlockBody({ blockId, data }: { blockId: string; data: Bl
   const status = data.status;
 
   function openReview(): void {
-    window.dispatchEvent(new CustomEvent('retake:open-document-review', { detail: { blockId } }));
+    const eventName = typeof data.sourceExecutionId === 'string'
+      ? 'retake:open-execution-inspector'
+      : 'retake:open-document-review';
+    window.dispatchEvent(new CustomEvent(eventName, { detail: { blockId } }));
   }
 
   return (
@@ -40,19 +43,6 @@ export function DocumentBlockBody({ blockId, data }: { blockId: string; data: Bl
       ) : null}
       <p>{excerpt || (status === 'queued' || status === 'running' ? t('document.waiting') : t('document.empty'))}</p>
       <div className="document-block-actions">
-        {typeof data.sourceExecutionId === 'string' ? (
-          <button
-            type="button"
-            aria-label={t('inspector.openDetails')}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              window.dispatchEvent(new CustomEvent('retake:open-execution-inspector', { detail: { blockId } }));
-            }}
-          >
-            <Info size={13} />{t('inspector.openDetails')}
-          </button>
-        ) : null}
         <button
           type="button"
           aria-label={t('document.openReview')}

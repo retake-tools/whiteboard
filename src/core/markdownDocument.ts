@@ -5,19 +5,18 @@ export interface MarkdownDocumentSummary {
   title: string;
 }
 
+export interface MarkdownHeading {
+  level: number;
+  line: number;
+  text: string;
+}
+
 const maxExcerptLength = 720;
 const maxOutlineItems = 12;
 
 export function summarizeMarkdown(markdown: string, fallbackTitle = 'Markdown document'): MarkdownDocumentSummary {
   const normalized = markdown.replace(/\r\n?/g, '\n').trim();
-  const headings = normalized
-    .split('\n')
-    .flatMap((line) => {
-      const match = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line.trim());
-      if (!match) return [];
-      return [{ level: match[1].length, text: inlineMarkdownToText(match[2]) }];
-    })
-    .filter((heading) => heading.text);
+  const headings = markdownHeadings(normalized);
   const plainText = markdownToPlainText(normalized);
   const excerpt = plainText.length > maxExcerptLength
     ? `${plainText.slice(0, maxExcerptLength).trimEnd()}…`
@@ -29,6 +28,22 @@ export function summarizeMarkdown(markdown: string, fallbackTitle = 'Markdown do
     outline: headings.slice(0, maxOutlineItems).map((heading) => `${'  '.repeat(heading.level - 1)}${heading.text}`),
     title: headings[0]?.level === 1 ? headings[0].text : fallbackTitle,
   };
+}
+
+export function markdownHeadings(markdown: string): MarkdownHeading[] {
+  return markdown
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .flatMap((line, index) => {
+      const match = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line.trim());
+      if (!match) return [];
+      const text = inlineMarkdownToText(match[2]);
+      return text ? [{ level: match[1].length, line: index + 1, text }] : [];
+    });
+}
+
+export function markdownHeadingAnchorId(prefix: string, line: number): string {
+  return `${prefix}-heading-${line}`;
 }
 
 export function markdownToPlainText(markdown: string): string {

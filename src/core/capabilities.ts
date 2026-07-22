@@ -54,6 +54,26 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
     promptSource: 'block',
     supportedAdapters: ['direct_api', 'mcp_agent', 'cli_agent', 'manual_import'],
   },
+  'story.screenplay.generate': {
+    capabilityId: 'story.screenplay.generate',
+    defaultAdapter: 'direct_api',
+    displayNameKey: 'operation.generateScreenplay.title',
+    inputContracts: [{ type: 'text', required: true, source: 'block', min: 1, max: 'many' }],
+    outputContracts: [{ type: 'document' }],
+    paramsSchema: {},
+    promptSource: 'block',
+    supportedAdapters: ['direct_api', 'mcp_agent', 'cli_agent', 'manual_import'],
+  },
+  'story.screenplay.normalize': {
+    capabilityId: 'story.screenplay.normalize',
+    defaultAdapter: 'direct_api',
+    displayNameKey: 'operation.organizeScreenplay.title',
+    inputContracts: [{ type: 'text', required: true, source: 'block', min: 1, max: 'many' }],
+    outputContracts: [{ type: 'document' }],
+    paramsSchema: {},
+    promptSource: 'block',
+    supportedAdapters: ['direct_api', 'mcp_agent', 'cli_agent', 'manual_import'],
+  },
   'image.text_to_image': {
     capabilityId: 'image.text_to_image',
     defaultAdapter: 'mcp_agent',
@@ -229,13 +249,13 @@ export function operationReadinessFor(
 
   for (const contract of schema.inputContracts) {
     if (!contract.required || contract.source !== 'block') continue;
-    const matchingBlocks = inputBlocks.filter((block) => block.type === contract.type);
+    const matchingBlocks = inputBlocks.filter((block) => inputBlockMatchesContract(block, contract.type, capabilityId));
     const min = contract.min ?? 1;
     if (matchingBlocks.length < min) {
       issues.add(contract.type === 'text' ? 'text_input_missing' : 'image_input_missing');
       continue;
     }
-    if (contract.type === 'text' && !promptTextFromInputs(matchingBlocks)) issues.add('prompt_empty');
+    if (contract.type === 'text' && !textualInputReady(matchingBlocks, capabilityId)) issues.add('prompt_empty');
     if (contract.type === 'image') {
       const assetBackedBlocks = matchingBlocks.filter((block) => typeof block.data.assetId === 'string');
       if (assetBackedBlocks.length < min) issues.add('image_asset_missing');
@@ -281,7 +301,7 @@ export function operationInputStateForCapability(
 
   for (const contract of schema.inputContracts) {
     if (!contract.required || contract.source !== 'block') continue;
-    const matchingBlocks = inputBlocks.filter((block) => block.type === contract.type);
+    const matchingBlocks = inputBlocks.filter((block) => inputBlockMatchesContract(block, contract.type, capabilityId));
     const min = contract.min ?? 1;
     if (matchingBlocks.length < min) {
       missingRequiredTypes.push(contract.type);
@@ -291,9 +311,27 @@ export function operationInputStateForCapability(
   return {
     hasImageAssetInput: inputBlocks.some((block) => block.type === 'image' && typeof block.data.assetId === 'string'),
     hasImageInput: inputBlocks.some((block) => block.type === 'image'),
-    hasTextInput: Boolean(promptTextFromInputs(inputBlocks)),
+    hasTextInput: textualInputReady(inputBlocks, capabilityId),
     missingRequiredTypes,
   };
+}
+
+function inputBlockMatchesContract(
+  block: BlockRecord,
+  contractType: CapabilityInputType,
+  capabilityId: string,
+): boolean {
+  if (contractType === 'text' && capabilityId.startsWith('story.screenplay.')) {
+    return block.type === 'text' || block.type === 'document';
+  }
+  return block.type === contractType;
+}
+
+function textualInputReady(blocks: BlockRecord[], capabilityId: string): boolean {
+  if (promptTextFromInputs(blocks)) return true;
+  return capabilityId.startsWith('story.screenplay.') && blocks.some(
+    (block) => block.type === 'document' && typeof block.data.assetId === 'string',
+  );
 }
 
 export function promptTextFromInputs(inputBlocks: BlockRecord[]): string | undefined {

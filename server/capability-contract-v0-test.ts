@@ -14,9 +14,12 @@ import {
   codexAppServerTextAdapterDefinition,
   dreaminaCliAdapterDefinition,
   seedanceModelArkAdapterDefinition,
+  screenplayGenerateCapabilityDefinition,
+  screenplayNormalizeCapabilityDefinition,
   videoGenerateCapabilityDefinition,
   volcengineArkSeedreamImageAdapterDefinition,
 } from '../src/core/capabilityRegistry';
+import { listSkillEntryPoints, listSkills, skillsForCapability } from '../src/core/skillRegistry';
 import { definitionForLegacyCapability } from '../src/core/legacyCapabilityAdapter';
 
 const legacyCapabilityIds = [
@@ -33,8 +36,22 @@ const legacyCapabilityIds = [
 const definitions = new Map<string, CapabilityDefinition>();
 
 assertNoIssues(validateCapabilityDefinition(videoGenerateCapabilityDefinition), 'canonical video.generate definition');
+assertNoIssues(validateCapabilityDefinition(screenplayGenerateCapabilityDefinition), 'canonical screenplay generate definition');
+assertNoIssues(validateCapabilityDefinition(screenplayNormalizeCapabilityDefinition), 'canonical screenplay normalize definition');
 assertNoIssues(validateAdapterDefinition(codexAppServerTextAdapterDefinition), 'Codex App Server text adapter');
 assertNoIssues(validateAdapterDefinition(codexAppServerImageAdapterDefinition), 'Codex App Server image adapter');
+assert.deepEqual(screenplayGenerateCapabilityDefinition.inputSlots.map((slot) => slot.slotId), ['brief', 'references']);
+assert.deepEqual(screenplayNormalizeCapabilityDefinition.inputSlots.map((slot) => slot.slotId), ['source_screenplay', 'normalization_instruction']);
+assert.equal(screenplayGenerateCapabilityDefinition.outputSlots[0]?.artifactType, 'screenplay_master');
+assert.deepEqual(listSkills().map((skill) => skill.skillId), [
+  'retake.screenplay.from-brief',
+  'retake.screenplay.normalize',
+]);
+assert.deepEqual(skillsForCapability('story.screenplay.generate').map((skill) => skill.skillId), ['retake.screenplay.from-brief']);
+assert.deepEqual(listSkillEntryPoints().map((entrypoint) => [entrypoint.kind, entrypoint.entrypointId]), [
+  ['skill', 'skill:retake.screenplay.from-brief'],
+  ['skill', 'skill:retake.screenplay.normalize'],
+]);
 
 for (const capabilityId of legacyCapabilityIds) {
   const definition = definitionForLegacyCapability(capabilityId);

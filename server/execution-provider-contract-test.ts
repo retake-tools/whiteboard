@@ -314,8 +314,9 @@ const claudeConnection = settings.connections.find((connection) => connection.di
 const geminiConnection = settings.connections.find((connection) => connection.displayName === 'Gemini Writing');
 const seedreamConnection = settings.connections.find((connection) => connection.displayName === 'Seedream Production');
 assert.ok(claudeConnection && geminiConnection && seedreamConnection);
-assert.deepEqual(claudeConnection.supportedCapabilityIds, ['text.generate']);
-assert.deepEqual(geminiConnection.supportedCapabilityIds, ['text.generate']);
+const textDocumentCapabilities = ['text.generate', 'story.screenplay.generate', 'story.screenplay.normalize'];
+assert.deepEqual(claudeConnection.supportedCapabilityIds, textDocumentCapabilities);
+assert.deepEqual(geminiConnection.supportedCapabilityIds, textDocumentCapabilities);
 assert.equal(seedreamConnection.status, 'untested');
 assert.deepEqual(seedreamConnection.supportedCapabilityIds, ['image.image_to_image', 'image.text_to_image']);
 settings = await checkExecutionConnection(claudeConnection.connectionId, undefined, {

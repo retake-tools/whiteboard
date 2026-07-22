@@ -27,6 +27,19 @@
     overflow-x: auto;
   }
 
+  .skill-dock {
+    bottom: 70px;
+    max-width: calc(100vw - 20px);
+    overflow-x: auto;
+  }
+
+  .skill-dock-label,
+  .skill-dock-card span {
+    display: none;
+  }
+
+  .skill-dock-card { width: auto; min-width: max-content; }
+
   .canvas-utility-dock {
     bottom: 72px;
     left: 10px;

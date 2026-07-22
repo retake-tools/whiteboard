@@ -12,6 +12,7 @@ import {
 } from './local-store/execution-store';
 import { loadSnapshot, saveSnapshot } from './local-store/snapshot-store';
 import { generateOpenAICompatibleText, type OpenAICompatibleTextResult } from './openai-compatible-client';
+import { resolveTextExecutionPrompt } from './skill-prompt-resolver';
 
 type TextGenerationResult = NativeTextResult | OpenAICompatibleTextResult;
 
@@ -40,11 +41,14 @@ export async function startTextGeneration(input: {
   const current = await loadSnapshot(input.projectId, input.boardId);
   const queued = current.executions.find((candidate) => candidate.executionId === input.executionId);
   const expectedAdapter = connectorId === 'codex-app-server' ? 'codex_app_server' : 'direct_api';
-  if (!queued || queued.status !== 'queued' || queued.adapter !== expectedAdapter || queued.capabilityId !== 'text.generate') {
-    throw new Error(`Queued text.generate execution not found: ${input.executionId}`);
+  if (!queued || queued.status !== 'queued' || queued.adapter !== expectedAdapter || !isTextDocumentCapability(queued.capabilityId)) {
+    throw new Error(`Queued text document execution not found: ${input.executionId}`);
   }
   if (queued.connectionId !== input.connectionId) {
     throw new Error(`Text execution connection mismatch: ${input.connectionId}`);
+  }
+  if (!connectionSummary.supportedCapabilityIds.includes(queued.capabilityId)) {
+    throw new Error(`Connection cannot execute ${queued.capabilityId}: ${input.connectionId}`);
   }
 
   const started = await markExecutionRunning(input);
@@ -72,9 +76,8 @@ async function executeTextGeneration(
   connection: Awaited<ReturnType<typeof listExecutionProviderSettings>>['connections'][number],
   dependencies: TextGenerationDependencies,
 ): Promise<void> {
-  const prompt = execution.prompt?.trim();
-  if (!prompt) throw new Error('Text generation requires a non-empty prompt.');
-  const providerPrompt = `${prompt}\n\nReturn only the requested Markdown document. Do not call tools and do not add process commentary.`;
+  const snapshot = await loadSnapshot(execution.projectId, execution.boardId);
+  const providerPrompt = await resolveTextExecutionPrompt(execution, snapshot);
   await recordExecutionRequestPrompts({
     projectId: execution.projectId,
     boardId: execution.boardId,
@@ -141,7 +144,7 @@ async function executeTextGeneration(
     executionId: execution.executionId,
     assetId: asset.assetId,
     resultBlockId: execution.outputBlockIds[0],
-    title: 'Generated document',
+    title: execution.capabilityId === 'story.screenplay.normalize' ? 'Organized screenplay' : execution.capabilityId === 'story.screenplay.generate' ? 'Generated screenplay' : 'Generated document',
     markdown,
   });
   publishExecutionEvent(execution.executionId, { type: 'execution.snapshot', snapshot: completed.snapshot });
@@ -178,4 +181,10 @@ function isDirectTextConnector(
   connectorId: string,
 ): connectorId is 'anthropic-native' | 'google-native' | 'openai-compatible' {
   return connectorId === 'anthropic-native' || connectorId === 'google-native' || connectorId === 'openai-compatible';
+}
+
+function isTextDocumentCapability(capabilityId: string): boolean {
+  return capabilityId === 'text.generate'
+    || capabilityId === 'story.screenplay.generate'
+    || capabilityId === 'story.screenplay.normalize';
 }

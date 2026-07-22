@@ -1,4 +1,4 @@
-import { ChevronRight, ImageIcon, MessageSquareText, RotateCcw, X } from 'lucide-react';
+import { ChevronRight, FileText, ImageIcon, MessageSquareText, RotateCcw, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useEffect, useState, type ReactElement } from 'react';
 import { inputRoleDefinition, isExecutionInputRole } from '../core/inputRoles';
@@ -197,15 +197,17 @@ export function ExecutionDetailContent({
         </button>
       ) : null}
 
-      <ImageComparison
-        annotatedAsset={annotatedCompositeAsset}
-        annotatedLabel={t('inspector.annotatedComposite')}
-        emptyLabel={t('inspector.none')}
-        inputImages={inputImages}
-        onPreview={openImagePreview}
-        sourceLabel={t('inspector.inputAssets')}
-        title={t('inspector.imageComparison')}
-      />
+      {annotatedCompositeAsset || inputImages.length ? (
+        <ImageComparison
+          annotatedAsset={annotatedCompositeAsset}
+          annotatedLabel={t('inspector.annotatedComposite')}
+          emptyLabel={t('inspector.none')}
+          inputImages={inputImages}
+          onPreview={openImagePreview}
+          sourceLabel={t('inspector.inputAssets')}
+          title={t('inspector.imageComparison')}
+        />
+      ) : null}
       {annotationManifest && onOpenAnnotationEditor ? (
         <button
           type="button"
@@ -227,7 +229,9 @@ export function ExecutionDetailContent({
       <AssetList
         assets={outputAssets}
         emptyLabel={t('inspector.none')}
-        icon={<ImageIcon size={13} />}
+        icon={outputAssets.some((asset) => asset.mimeType.startsWith('image/'))
+          ? <ImageIcon size={13} />
+          : <FileText size={13} />}
         title={t('inspector.outputAssets')}
         onSelect={onSelectAsset}
       />

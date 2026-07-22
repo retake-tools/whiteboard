@@ -56,7 +56,14 @@ const settings = await checkExecutionConnection('codex-app-server', undefined, {
 const connection = settings.connections.find((candidate) => candidate.connectionId === 'codex-app-server');
 assert.equal(connection?.status, 'ready');
 assert.equal(connection?.modelId, 'gpt-5.6-terra');
-assert.deepEqual(connection?.supportedCapabilityIds, ['text.generate', 'image.annotation_edit', 'image.image_to_image', 'image.text_to_image']);
+assert.deepEqual(connection?.supportedCapabilityIds, [
+  'text.generate',
+  'story.screenplay.generate',
+  'story.screenplay.normalize',
+  'image.annotation_edit',
+  'image.image_to_image',
+  'image.text_to_image',
+]);
 
 const snapshot = structuredClone(defaultSnapshot) as BoardSnapshot;
 snapshot.project.projectId = 'project_codex_app_server_test';

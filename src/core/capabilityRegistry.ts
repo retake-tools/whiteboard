@@ -3,19 +3,105 @@ import { definitionForLegacyCapability } from './legacyCapabilityAdapter';
 
 export const textGenerateCapabilityDefinition: CapabilityDefinition = definitionForLegacyCapability('text.generate');
 
+export const screenplayGenerateCapabilityDefinition: CapabilityDefinition = {
+  schemaVersion: 1,
+  capabilityId: 'story.screenplay.generate',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-story-screenplay-generate-v1',
+  category: 'story_development',
+  displayName: 'Generate screenplay',
+  inputSlots: [
+    {
+      slotId: 'brief',
+      semanticRole: 'creative_brief',
+      dataTypes: ['text', 'document'],
+      artifactTypes: ['creative_brief'],
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['inline', 'block', 'asset', 'artifact_revision'],
+    },
+    {
+      slotId: 'references',
+      semanticRole: 'reference',
+      dataTypes: ['text', 'document'],
+      artifactTypes: ['reference'],
+      cardinality: 'many',
+      required: false,
+      bindingKinds: ['block', 'asset', 'artifact_revision'],
+    },
+  ],
+  outputSlots: [{
+    slotId: 'screenplay',
+    semanticRole: 'screenplay',
+    dataType: 'document',
+    artifactType: 'screenplay_master',
+    schemaRef: 'retake.screenplay-markdown/v1',
+    cardinality: 'one',
+    projectionBlockTypes: ['document'],
+  }],
+  runtimeRequirements: ['text_generation', 'durable_asset_output'],
+  supportedAdapterClasses: ['text.document', 'agent_runtime.text'],
+};
+
+export const screenplayNormalizeCapabilityDefinition: CapabilityDefinition = {
+  schemaVersion: 1,
+  capabilityId: 'story.screenplay.normalize',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-story-screenplay-normalize-v1',
+  category: 'story_development',
+  displayName: 'Organize screenplay',
+  inputSlots: [
+    {
+      slotId: 'source_screenplay',
+      semanticRole: 'source_screenplay',
+      dataTypes: ['text', 'document'],
+      artifactTypes: ['screenplay_master'],
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['inline', 'block', 'asset', 'artifact_revision'],
+    },
+    {
+      slotId: 'normalization_instruction',
+      semanticRole: 'instruction',
+      dataTypes: ['text', 'document'],
+      artifactTypes: [],
+      cardinality: 'optional',
+      required: false,
+      bindingKinds: ['inline', 'block', 'asset', 'artifact_revision'],
+    },
+  ],
+  outputSlots: [{
+    slotId: 'screenplay',
+    semanticRole: 'screenplay',
+    dataType: 'document',
+    artifactType: 'screenplay_master',
+    schemaRef: 'retake.screenplay-markdown/v1',
+    cardinality: 'one',
+    projectionBlockTypes: ['document'],
+  }],
+  runtimeRequirements: ['text_generation', 'durable_asset_output'],
+  supportedAdapterClasses: ['text.document', 'agent_runtime.text'],
+};
+
+const textDocumentCapabilityIds = [
+  'text.generate',
+  screenplayGenerateCapabilityDefinition.capabilityId,
+  screenplayNormalizeCapabilityDefinition.capabilityId,
+];
+
 export const aiSdkTextAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.text.ai-sdk',
   version: '0.1.0',
   definitionHash: 'sha256:retake-text-ai-sdk-v0',
-  adapterClass: 'text.generate',
+  adapterClass: 'text.document',
   routeKind: 'direct_api',
-  supportedCapabilityIds: ['text.generate'],
-  inputProfiles: [{
-    profileId: 'text_prompt',
-    requiredSlots: ['prompt'],
-    optionalSlots: [],
-  }],
+  supportedCapabilityIds: textDocumentCapabilityIds,
+  inputProfiles: [
+    { profileId: 'text_prompt', requiredSlots: ['prompt'], optionalSlots: [] },
+    { profileId: 'screenplay_from_brief', requiredSlots: ['brief'], optionalSlots: ['references'] },
+    { profileId: 'screenplay_normalize', requiredSlots: ['source_screenplay'], optionalSlots: ['normalization_instruction'] },
+  ],
   constraints: {
     outputCount: { min: 1, max: 1 },
     durableAssetOutput: true,
@@ -33,12 +119,12 @@ export const codexAppServerTextAdapterDefinition: AdapterDefinition = {
   adapterClass: 'agent_runtime.text',
   routeKind: 'codex_app_server',
   provider: 'codex',
-  supportedCapabilityIds: ['text.generate'],
-  inputProfiles: [{
-    profileId: 'text_prompt',
-    requiredSlots: ['prompt'],
-    optionalSlots: [],
-  }],
+  supportedCapabilityIds: textDocumentCapabilityIds,
+  inputProfiles: [
+    { profileId: 'text_prompt', requiredSlots: ['prompt'], optionalSlots: [] },
+    { profileId: 'screenplay_from_brief', requiredSlots: ['brief'], optionalSlots: ['references'] },
+    { profileId: 'screenplay_normalize', requiredSlots: ['source_screenplay'], optionalSlots: ['normalization_instruction'] },
+  ],
   constraints: {
     outputCount: { min: 1, max: 1 },
     durableAssetOutput: true,
@@ -304,6 +390,8 @@ export const volcengineArkSeedreamImageAdapterDefinition: AdapterDefinition = {
 
 export function capabilityDefinitionFor(capabilityId: string): CapabilityDefinition {
   if (capabilityId === textGenerateCapabilityDefinition.capabilityId) return textGenerateCapabilityDefinition;
+  if (capabilityId === screenplayGenerateCapabilityDefinition.capabilityId) return screenplayGenerateCapabilityDefinition;
+  if (capabilityId === screenplayNormalizeCapabilityDefinition.capabilityId) return screenplayNormalizeCapabilityDefinition;
   if (capabilityId === videoGenerateCapabilityDefinition.capabilityId) return videoGenerateCapabilityDefinition;
   return definitionForLegacyCapability(capabilityId);
 }

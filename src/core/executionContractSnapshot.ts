@@ -3,7 +3,6 @@ import type {
   CapabilityDefinition,
   CapabilityInputBinding,
 } from './capabilityContracts';
-import { definitionForLegacyCapability } from './legacyCapabilityAdapter';
 import { capabilityDefinitionFor } from './capabilityRegistry';
 import { isExecutionInputRole } from './inputRoles';
 import type { BlockRecord, BoardSnapshot, ExecutionInputRole, ExecutionRecord } from './types';
@@ -13,7 +12,7 @@ export function recordLegacyExecutionContractSnapshot(
   execution: ExecutionRecord,
   operationBlock: BlockRecord,
 ): void {
-  const definition = definitionForLegacyCapability(execution.capabilityId);
+  const definition = capabilityDefinitionFor(execution.capabilityId);
   execution.capabilityLock = {
     capabilityId: definition.capabilityId,
     version: definition.version,
@@ -21,13 +20,13 @@ export function recordLegacyExecutionContractSnapshot(
   };
   execution.inputBindingsSnapshot = legacyInputBindings(snapshot, execution, operationBlock, definition);
   execution.adapterSnapshot = legacyAdapterSnapshot(execution, definition);
-  execution.skillSnapshot = execution.skillId
+  execution.skillSnapshot = execution.skillSnapshot ?? (execution.skillId
     ? {
         skillId: execution.skillId,
         version: '0.1.0',
         definitionHash: `legacy:skill:${execution.skillId}:v1`,
       }
-    : undefined;
+    : undefined);
   execution.outputSlotResults = definition.outputSlots.map((slot) => ({
     slotId: slot.slotId,
     assetIds: outputAssetIdsForSlot(execution, slot.dataType),
