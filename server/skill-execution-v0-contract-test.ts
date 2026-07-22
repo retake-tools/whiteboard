@@ -24,7 +24,7 @@ assert.match(toolbarSource, /onCreateWorkflow/);
 assert.match(toolbarSource, /workflowUiDefinitionFor/);
 assert.match(toolbarSource, /aria-expanded=\{skillLibraryOpen\}/);
 assert.equal(shouldShowSkillDock({ DEV: true }), true, 'Development builds should expose Skill discovery.');
-assert.equal(shouldShowSkillDock({ DEV: false }), false, 'Production builds must hide the unstable Skill dock.');
+assert.equal(shouldShowSkillDock({ DEV: false }), true, 'The develop branch should keep Skill discovery enabled for integrated testing.');
 assert.match(operationControlsSource, /skillsForCapability\(capabilityId\)/);
 assert.match(operationControlsSource, /retake:update-operation-skill/);
 assert.match(textOperationsSource, /createDraftSkillOperation/);
@@ -54,5 +54,5 @@ console.log(JSON.stringify({
   typedEntryPoints: listSkillEntryPoints().length,
   typedWorkflowEntryPoints: listWorkflowEntryPoints().length,
   genericTextEntryHidden: true,
-  productionSkillDockHidden: true,
+  developSkillDockEnabled: true,
 }));
