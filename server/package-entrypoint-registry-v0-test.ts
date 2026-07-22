@@ -16,18 +16,19 @@ import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import { createWorkflowRunForGroup, reconcileWorkflowRuntime, workflowRunViewForGroup } from '../src/core/workflowRuntime';
 import { resetWorkspace } from './local-store/snapshot-store';
 
-const [toolbarSource, appSource, controllerSource] = await Promise.all([
+const [toolbarSource, composerSource, appSource, controllerSource] = await Promise.all([
   readFile(new URL('../src/components/FloatingToolbar.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/SkillQuickInputComposer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/usePackageEntryPointController.ts', import.meta.url), 'utf8'),
 ]);
 assert.match(toolbarSource, /onInvokeEntryPoint/);
-assert.match(toolbarSource, /data-entrypoint-id/);
-assert.match(toolbarSource, /data-package-id/);
+assert.match(composerSource, /data-entrypoint-id/);
+assert.match(composerSource, /data-package-id/);
 assert.equal(toolbarSource.includes('onCreateSkill'), false);
 assert.equal(toolbarSource.includes('onCreateWorkflow'), false);
 assert.match(appSource, /packageEntryPointController\.invokeEntryPoint/);
-assert.match(controllerSource, /resolvePackageEntryPoint/);
+assert.match(controllerSource, /resolvePackageComposerInvocation/);
 
 assert.deepEqual(validatePackageManifest(storyProductionStarterPackage), []);
 assert.equal(listPackages().length, 1);
@@ -124,12 +125,22 @@ assert.equal(resolvePackageEntryPoint({
 }, createPackageRegistry([agentPackage])).status, 'unsupported');
 
 const invokedKinds: string[] = [];
+const controllerSnapshot = await emptySnapshot();
 const entryPointController = usePackageEntryPointController({
   createSkillDraft: () => invokedKinds.push('skill'),
   createWorkflowDraft: () => invokedKinds.push('workflow'),
+  snapshotRef: { current: controllerSnapshot },
 });
-entryPointController.invokeEntryPoint('skill:retake.screenplay.from-brief');
-entryPointController.invokeEntryPoint('workflow:retake.workflow.story-to-storyboard');
+entryPointController.invokeEntryPoint({
+  entrypointId: 'skill:retake.screenplay.from-brief',
+  instruction: 'A cat finishes a screenplay before sunrise.',
+  mentions: [],
+});
+entryPointController.invokeEntryPoint({
+  entrypointId: 'workflow:retake.workflow.story-to-storyboard',
+  instruction: 'A cat finishes a storyboard before sunrise.',
+  mentions: [],
+});
 assert.deepEqual(invokedKinds, ['skill', 'workflow']);
 
 const skillSnapshot = await emptySnapshot();

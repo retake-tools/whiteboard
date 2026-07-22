@@ -17,8 +17,10 @@ export type SkillDescriptionKey =
   | 'skill.storyboardPlan.description';
 
 export type SkillInputKey =
+  | 'skill.common.referencesInput'
   | 'skill.screenplayFromBrief.input'
   | 'skill.normalizeScreenplay.input'
+  | 'skill.normalizeScreenplay.instructionInput'
   | 'skill.characterBible.input'
   | 'skill.sceneBible.input'
   | 'skill.storyboardPlan.screenplayInput'
@@ -26,8 +28,10 @@ export type SkillInputKey =
   | 'skill.storyboardPlan.sceneInput';
 
 export type SkillPlaceholderKey =
+  | 'skill.common.referencesPlaceholder'
   | 'skill.screenplayFromBrief.placeholder'
   | 'skill.normalizeScreenplay.placeholder'
+  | 'skill.normalizeScreenplay.instructionPlaceholder'
   | 'skill.characterBible.placeholder'
   | 'skill.sceneBible.placeholder'
   | 'skill.storyboardPlan.screenplayPlaceholder'
@@ -269,6 +273,18 @@ const skillUiDefinitions: Record<string, RetakeSkillUiDefinition> = {
     inputKey: 'skill.screenplayFromBrief.input',
     placeholderKey: 'skill.screenplayFromBrief.placeholder',
     operationTitleKey: 'operation.generateScreenplay.title',
+    inputSlots: [
+      {
+        slotId: 'brief',
+        inputKey: 'skill.screenplayFromBrief.input',
+        placeholderKey: 'skill.screenplayFromBrief.placeholder',
+      },
+      {
+        slotId: 'references',
+        inputKey: 'skill.common.referencesInput',
+        placeholderKey: 'skill.common.referencesPlaceholder',
+      },
+    ],
   },
   [normalizeScreenplaySkill.skillId]: {
     nameKey: 'skill.normalizeScreenplay.name',
@@ -276,6 +292,18 @@ const skillUiDefinitions: Record<string, RetakeSkillUiDefinition> = {
     inputKey: 'skill.normalizeScreenplay.input',
     placeholderKey: 'skill.normalizeScreenplay.placeholder',
     operationTitleKey: 'operation.organizeScreenplay.title',
+    inputSlots: [
+      {
+        slotId: 'source_screenplay',
+        inputKey: 'skill.normalizeScreenplay.input',
+        placeholderKey: 'skill.normalizeScreenplay.placeholder',
+      },
+      {
+        slotId: 'normalization_instruction',
+        inputKey: 'skill.normalizeScreenplay.instructionInput',
+        placeholderKey: 'skill.normalizeScreenplay.instructionPlaceholder',
+      },
+    ],
   },
   [characterBibleFromScreenplaySkill.skillId]: {
     nameKey: 'skill.characterBible.name',
@@ -283,6 +311,18 @@ const skillUiDefinitions: Record<string, RetakeSkillUiDefinition> = {
     inputKey: 'skill.characterBible.input',
     placeholderKey: 'skill.characterBible.placeholder',
     operationTitleKey: 'operation.defineCharacter.title',
+    inputSlots: [
+      {
+        slotId: 'screenplay',
+        inputKey: 'skill.characterBible.input',
+        placeholderKey: 'skill.characterBible.placeholder',
+      },
+      {
+        slotId: 'references',
+        inputKey: 'skill.common.referencesInput',
+        placeholderKey: 'skill.common.referencesPlaceholder',
+      },
+    ],
   },
   [sceneBibleFromScreenplaySkill.skillId]: {
     nameKey: 'skill.sceneBible.name',
@@ -290,6 +330,18 @@ const skillUiDefinitions: Record<string, RetakeSkillUiDefinition> = {
     inputKey: 'skill.sceneBible.input',
     placeholderKey: 'skill.sceneBible.placeholder',
     operationTitleKey: 'operation.defineScene.title',
+    inputSlots: [
+      {
+        slotId: 'screenplay',
+        inputKey: 'skill.sceneBible.input',
+        placeholderKey: 'skill.sceneBible.placeholder',
+      },
+      {
+        slotId: 'references',
+        inputKey: 'skill.common.referencesInput',
+        placeholderKey: 'skill.common.referencesPlaceholder',
+      },
+    ],
   },
   [storyboardPlanFromProductionDesignSkill.skillId]: {
     nameKey: 'skill.storyboardPlan.name',
@@ -312,6 +364,11 @@ const skillUiDefinitions: Record<string, RetakeSkillUiDefinition> = {
         slotId: 'scene_bible',
         inputKey: 'skill.storyboardPlan.sceneInput',
         placeholderKey: 'skill.storyboardPlan.scenePlaceholder',
+      },
+      {
+        slotId: 'references',
+        inputKey: 'skill.common.referencesInput',
+        placeholderKey: 'skill.common.referencesPlaceholder',
       },
     ],
   },

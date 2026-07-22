@@ -9,19 +9,21 @@ import { listPackageEntryPoints, listRecommendedPackageEntryPoints } from '../sr
 import { listWorkflows } from '../src/core/workflowRegistry';
 import { shouldShowSkillDock } from '../src/core/releaseFeatures';
 
-const [toolbarSource, operationControlsSource, textOperationsSource] = await Promise.all([
+const [toolbarSource, composerSource, operationControlsSource, textOperationsSource] = await Promise.all([
   readFile(new URL('../src/components/FloatingToolbar.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/SkillQuickInputComposer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/nodes/OperationInlineControls.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/core/textOperations.ts', import.meta.url), 'utf8'),
 ]);
 
 assert.equal(toolbarSource.includes("label={t('toolbar.generateText')}"), false, 'Generic text generation must not remain user-facing.');
-assert.match(toolbarSource, /className="skill-dock"/);
-assert.match(toolbarSource, /className="skill-library-search"/);
-assert.match(toolbarSource, /useDismissiblePopover/);
+assert.match(toolbarSource, /SkillQuickInputComposer/);
+assert.match(composerSource, /className="skill-composer"/);
+assert.match(composerSource, /skill-composer-picker-search/);
+assert.match(composerSource, /useDismissiblePopover/);
 assert.match(toolbarSource, /onInvokeEntryPoint/);
-assert.match(toolbarSource, /workflowUiDefinitionFor/);
-assert.match(toolbarSource, /aria-expanded=\{skillLibraryOpen\}/);
+assert.match(composerSource, /workflowUiDefinitionFor/);
+assert.match(composerSource, /aria-expanded=\{picker\?\.mode === 'entrypoint'\}/);
 assert.equal(shouldShowSkillDock({ DEV: true }), true, 'Development builds should expose Skill discovery.');
 assert.equal(shouldShowSkillDock({ DEV: false }), true, 'The develop branch should keep Skill discovery enabled for integrated testing.');
 assert.match(operationControlsSource, /skillsForCapability\(capabilityId\)/);

@@ -215,6 +215,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
   const packageEntryPointController = usePackageEntryPointController({
     createSkillDraft: textGenerationController.createSkillDraft,
     createWorkflowDraft: workflowDraftController.createWorkflowDraft,
+    snapshotRef,
   });
   const workflowRuntimeController = useWorkflowRuntimeController({
     setOperationToast,
@@ -438,6 +439,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         onCreateImageToImage={createImageToImageDraftFromMenu}
         onCreateTextToImage={() => createTextToImageDraftOperation()}
         onInvokeEntryPoint={packageEntryPointController.invokeEntryPoint}
+        snapshot={snapshot}
         onSetActiveTool={setActiveCanvasTool}
       />
       <ExecutionInspector

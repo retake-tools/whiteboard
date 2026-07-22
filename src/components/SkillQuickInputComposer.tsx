@@ -1,0 +1,319 @@
+import { ArrowUp, AtSign, ChevronDown, Search, Sparkles, X } from 'lucide-react';
+import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactElement } from 'react';
+import {
+  listPackageComposerMentionOptions,
+  packageComposerMentionId,
+  resolvePackageComposerInvocation,
+  type PackageComposerInvocation,
+  type PackageComposerMention,
+  type PackageComposerMentionOption,
+} from '../core/packageComposer';
+import {
+  listPackageEntryPoints,
+  listRecommendedPackageEntryPoints,
+  type RegisteredPackageEntryPoint,
+} from '../core/packageRegistry';
+import { skillUiDefinitionFor } from '../core/skillRegistry';
+import type { BoardSnapshot } from '../core/types';
+import { workflowUiDefinitionFor } from '../core/workflowRegistry';
+import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
+import { useI18n } from '../i18n';
+
+interface SkillQuickInputComposerProps {
+  onInvokeEntryPoint: (invocation: PackageComposerInvocation) => void;
+  snapshot: BoardSnapshot;
+}
+
+type PickerState = { mode: 'entrypoint' | 'mention'; query: string } | undefined;
+
+export function SkillQuickInputComposer({
+  onInvokeEntryPoint,
+  snapshot,
+}: SkillQuickInputComposerProps): ReactElement {
+  const { t } = useI18n();
+  const rootRef = useRef<HTMLElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [entrypointId, setEntrypointId] = useState<string>();
+  const [instruction, setInstruction] = useState('');
+  const [mentions, setMentions] = useState<PackageComposerMention[]>([]);
+  const [picker, setPicker] = useState<PickerState>();
+  const [submitError, setSubmitError] = useState<string>();
+  const entrypoints = useMemo(() => listPackageEntryPoints().filter(isRunnableRegistration), []);
+  const recommended = useMemo(() => listRecommendedPackageEntryPoints().filter(isRunnableRegistration), []);
+  const selectedEntryPoint = entrypoints.find((registration) => registration.entrypoint.entrypointId === entrypointId);
+  const mentionOptions = useMemo(
+    () => entrypointId ? listPackageComposerMentionOptions(snapshot, entrypointId) : [],
+    [entrypointId, snapshot],
+  );
+  const mentionOptionsById = useMemo(
+    () => new Map(mentionOptions.map((option) => [option.mentionId, option])),
+    [mentionOptions],
+  );
+  const filteredEntryPoints = useMemo(() => filterEntryPoints(entrypoints, picker?.mode === 'entrypoint' ? picker.query : '', t), [entrypoints, picker, t]);
+  const filteredMentions = useMemo(() => filterMentionOptions(
+    mentionOptions,
+    picker?.mode === 'mention' ? picker.query : '',
+  ), [mentionOptions, picker]);
+  const invocation = useMemo((): PackageComposerInvocation | undefined => entrypointId ? ({
+    entrypointId,
+    instruction,
+    mentions,
+  }) : undefined, [entrypointId, instruction, mentions]);
+  const canSubmit = useMemo(() => {
+    if (!invocation) return false;
+    try {
+      resolvePackageComposerInvocation(snapshot, invocation);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [invocation, snapshot]);
+
+  useDismissiblePopover({
+    active: Boolean(picker),
+    onDismiss: () => setPicker(undefined),
+    rootRef,
+  });
+
+  function selectEntryPoint(registration: RegisteredPackageEntryPoint): void {
+    setEntrypointId(registration.entrypoint.entrypointId);
+    setInstruction((current) => stripTrailingTrigger(current, '/'));
+    setMentions([]);
+    setPicker(undefined);
+    setSubmitError(undefined);
+    inputRef.current?.focus();
+  }
+
+  function selectMention(option: PackageComposerMentionOption): void {
+    setMentions((current) => {
+      const withoutDuplicateSource = current.filter((mention) => {
+        if (option.kind === 'block') return mention.kind !== 'block' || mention.blockId !== option.blockId;
+        return mention.kind !== 'asset' || mention.assetId !== option.assetId;
+      });
+      const available = option.slotCardinality === 'many'
+        ? withoutDuplicateSource
+        : withoutDuplicateSource.filter((mention) => mention.slotId !== option.slotId);
+      return [...available, mentionForOption(option)];
+    });
+    setInstruction((current) => stripTrailingTrigger(current, '@'));
+    setPicker(undefined);
+    setSubmitError(undefined);
+    inputRef.current?.focus();
+  }
+
+  function updateInstruction(value: string): void {
+    setInstruction(value);
+    setSubmitError(undefined);
+    const mentionQuery = trailingTriggerQuery(value, '@');
+    if (entrypointId && mentionQuery !== undefined) {
+      setPicker({ mode: 'mention', query: mentionQuery });
+      return;
+    }
+    const entrypointQuery = trailingTriggerQuery(value, '/');
+    if (entrypointQuery !== undefined) {
+      setPicker({ mode: 'entrypoint', query: entrypointQuery });
+      return;
+    }
+    if (picker) setPicker(undefined);
+  }
+
+  function submit(event: FormEvent): void {
+    event.preventDefault();
+    if (!invocation) {
+      setPicker({ mode: 'entrypoint', query: '' });
+      return;
+    }
+    try {
+      resolvePackageComposerInvocation(snapshot, invocation);
+      onInvokeEntryPoint(invocation);
+      setEntrypointId(undefined);
+      setInstruction('');
+      setMentions([]);
+      setPicker(undefined);
+      setSubmitError(undefined);
+    } catch {
+      setSubmitError(t('skillComposer.invalidInput'));
+    }
+  }
+
+  function handleInputKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (event.key === 'Enter' && !event.shiftKey && canSubmit) {
+      event.preventDefault();
+      event.currentTarget.form?.requestSubmit();
+    }
+  }
+
+  return (
+    <section ref={rootRef} className="skill-composer" aria-label={t('skillComposer.title')}>
+      <form className="skill-composer-form" onSubmit={submit}>
+        <button
+          type="button"
+          className={`skill-composer-entrypoint${selectedEntryPoint ? ' is-selected' : ''}`}
+          aria-expanded={picker?.mode === 'entrypoint'}
+          onClick={() => setPicker({ mode: 'entrypoint', query: '' })}
+        >
+          <Sparkles size={15} />
+          <span>{selectedEntryPoint ? entryPointDisplayName(selectedEntryPoint, t) : t('skillComposer.chooseEntryPoint')}</span>
+          <ChevronDown size={13} />
+        </button>
+        <div className="skill-composer-input-shell">
+          {mentions.length > 0 ? (
+            <div className="skill-composer-mentions" aria-label={t('skillComposer.selectedMentions')}>
+              {mentions.map((mention) => {
+                const mentionId = packageComposerMentionId(mention);
+                const option = mentionOptionsById.get(mentionId);
+                return (
+                  <span key={mentionId} className="skill-composer-mention-chip">
+                    <AtSign size={11} />
+                    {option?.label ?? mentionId}
+                    <small>{mention.slotId}</small>
+                    <button
+                      type="button"
+                      aria-label={t('skillComposer.removeMention')}
+                      onClick={() => setMentions((current) => current.filter((candidate) => packageComposerMentionId(candidate) !== mentionId))}
+                    >
+                      <X size={11} />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          ) : null}
+          <textarea
+            ref={inputRef}
+            rows={1}
+            value={instruction}
+            placeholder={entrypointId ? t('skillComposer.inputPlaceholder') : t('skillComposer.slashPlaceholder')}
+            onChange={(event) => updateInstruction(event.target.value)}
+            onKeyDown={handleInputKeyDown}
+          />
+        </div>
+        <button
+          type="button"
+          className="skill-composer-mention-trigger"
+          aria-label={t('skillComposer.addMention')}
+          disabled={!entrypointId}
+          onClick={() => setPicker({ mode: 'mention', query: '' })}
+        >
+          <AtSign size={16} />
+        </button>
+        <button type="submit" className="skill-composer-submit" disabled={!canSubmit} aria-label={t('skillComposer.create')}>
+          <ArrowUp size={17} />
+        </button>
+      </form>
+      {submitError ? <p className="skill-composer-error" role="status">{submitError}</p> : null}
+      <div className="skill-composer-recommended">
+        <span><Sparkles size={12} />{t('skillDock.recommended')}</span>
+        {recommended.map((registration) => (
+          <button
+            key={registration.entrypoint.entrypointId}
+            type="button"
+            data-entrypoint-id={registration.entrypoint.entrypointId}
+            data-package-id={registration.packageLock.packageId}
+            onClick={() => selectEntryPoint(registration)}
+          >
+            {entryPointDisplayName(registration, t)}
+          </button>
+        ))}
+        <button type="button" className="skill-composer-more" onClick={() => setPicker({ mode: 'entrypoint', query: '' })}>
+          {t('skillDock.more')}
+        </button>
+      </div>
+      {picker ? (
+        <div className="skill-composer-picker" role="dialog" aria-label={picker.mode === 'entrypoint' ? t('skillDock.library') : t('skillComposer.mentionLibrary')}>
+          <label className="skill-composer-picker-search">
+            <Search size={15} />
+            <input
+              autoFocus
+              value={picker.query}
+              placeholder={picker.mode === 'entrypoint' ? t('skillDock.search') : t('skillComposer.searchMentions')}
+              onChange={(event) => setPicker({ ...picker, query: event.target.value })}
+            />
+          </label>
+          <div className="skill-composer-picker-list">
+            {picker.mode === 'entrypoint' ? filteredEntryPoints.map((registration) => (
+              <button
+                key={registration.entrypoint.entrypointId}
+                type="button"
+                data-entrypoint-id={registration.entrypoint.entrypointId}
+                data-package-id={registration.packageLock.packageId}
+                onClick={() => selectEntryPoint(registration)}
+              >
+                <strong>{entryPointDisplayName(registration, t)}</strong>
+                <span>{registration.entrypoint.kind === 'workflow' ? `${t('skillDock.workflowBadge')} · ` : ''}{entryPointDisplayDescription(registration, t)}</span>
+              </button>
+            )) : filteredMentions.map((option) => (
+              <button key={option.mentionId} type="button" data-mention-id={option.mentionId} onClick={() => selectMention(option)}>
+                <strong>@{option.label}</strong>
+                <span>{option.kind === 'block' ? t('skillComposer.blockMention') : t('skillComposer.assetMention')} · {option.slotId}</span>
+              </button>
+            ))}
+            {picker.mode === 'entrypoint' && filteredEntryPoints.length === 0 ? <p>{t('skillComposer.noEntryPoints')}</p> : null}
+            {picker.mode === 'mention' && filteredMentions.length === 0 ? <p>{t('skillComposer.noMentions')}</p> : null}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function isRunnableRegistration(registration: RegisteredPackageEntryPoint): boolean {
+  return registration.entrypoint.kind === 'skill' || registration.entrypoint.kind === 'workflow';
+}
+
+function filterEntryPoints(
+  registrations: RegisteredPackageEntryPoint[],
+  query: string,
+  t: ReturnType<typeof useI18n>['t'],
+): RegisteredPackageEntryPoint[] {
+  const normalized = query.trim().toLocaleLowerCase();
+  if (!normalized) return registrations;
+  return registrations.filter((registration) => `${registration.entrypoint.name} ${registration.entrypoint.description} ${entryPointDisplayName(registration, t)} ${entryPointDisplayDescription(registration, t)}`
+    .toLocaleLowerCase()
+    .includes(normalized));
+}
+
+function filterMentionOptions(options: PackageComposerMentionOption[], query: string): PackageComposerMentionOption[] {
+  const normalized = query.trim().toLocaleLowerCase();
+  if (!normalized) return options;
+  return options.filter((option) => `${option.label} ${option.description} ${option.slotId} ${option.artifactType ?? ''}`
+    .toLocaleLowerCase()
+    .includes(normalized));
+}
+
+function mentionForOption(option: PackageComposerMentionOption): PackageComposerMention {
+  return option.kind === 'block'
+    ? { kind: 'block', blockId: option.blockId, slotId: option.slotId }
+    : { kind: 'asset', assetId: option.assetId, slotId: option.slotId };
+}
+
+function trailingTriggerQuery(value: string, trigger: '/' | '@'): string | undefined {
+  const escaped = trigger === '/' ? '\\/' : '@';
+  const match = value.match(new RegExp(`(?:^|\\s)${escaped}([^\\s]*)$`));
+  return match?.[1];
+}
+
+function stripTrailingTrigger(value: string, trigger: '/' | '@'): string {
+  const escaped = trigger === '/' ? '\\/' : '@';
+  return value.replace(new RegExp(`(?:^|\\s)${escaped}[^\\s]*$`), '').trimEnd();
+}
+
+function entryPointDisplayName(
+  registration: RegisteredPackageEntryPoint,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  const { entrypoint } = registration;
+  if (entrypoint.kind === 'skill') return t(skillUiDefinitionFor(entrypoint.ref.skillId).nameKey);
+  if (entrypoint.kind === 'workflow') return t(workflowUiDefinitionFor(entrypoint.ref.workflowDefinitionId).nameKey);
+  return entrypoint.name;
+}
+
+function entryPointDisplayDescription(
+  registration: RegisteredPackageEntryPoint,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  const { entrypoint } = registration;
+  if (entrypoint.kind === 'skill') return t(skillUiDefinitionFor(entrypoint.ref.skillId).descriptionKey);
+  if (entrypoint.kind === 'workflow') return t(workflowUiDefinitionFor(entrypoint.ref.workflowDefinitionId).descriptionKey);
+  return entrypoint.description;
+}

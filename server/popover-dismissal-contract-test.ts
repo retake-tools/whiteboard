@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 const hookSource = await readFile('src/hooks/useDismissiblePopover.ts', 'utf8');
 const componentPaths = [
   'src/components/ContextToolbar.tsx',
-  'src/components/FloatingToolbar.tsx',
+  'src/components/SkillQuickInputComposer.tsx',
   'src/components/GroupToolbar.tsx',
   'src/nodes/BlockNode.tsx',
   'src/nodes/OperationInlineControls.tsx',

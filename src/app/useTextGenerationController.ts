@@ -18,6 +18,7 @@ import { isTextDocumentCapability } from '../core/capabilityRegistry';
 import type { BlockRecord, BoardSnapshot } from '../core/types';
 import type { OperationToast } from '../components/OperationFeedback';
 import type { ResolvedPackageEntryPointTarget } from '../core/packageRegistry';
+import type { ResolvedPackageComposerInvocation } from '../core/packageComposer';
 import type { useI18n } from '../i18n';
 import { textGenerationLabelsForSkill } from './skillTextLabels';
 
@@ -66,7 +67,10 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
     }
   }
 
-  function createSkillDraft(target: Extract<ResolvedPackageEntryPointTarget, { kind: 'skill' }>): void {
+  function createSkillDraft(
+    target: Extract<ResolvedPackageEntryPointTarget, { kind: 'skill' }>,
+    composer?: ResolvedPackageComposerInvocation,
+  ): void {
     const skillId = target.entrypoint.ref.skillId;
     let workflowBlockIds: string[] = [];
     const nextSnapshot = updateSnapshot((current) => {
@@ -78,7 +82,13 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
           entrypointId: target.entrypoint.entrypointId,
           packageLock: target.packageLock,
         },
-        selectedBlockIds: selectedBlockIdsRef.current,
+        explicitInputBindings: composer?.invocation.mentions.map((mention) => mention.kind === 'block'
+          ? { kind: 'block' as const, blockId: mention.blockId, inputSlotId: mention.slotId }
+          : { kind: 'asset' as const, assetId: mention.assetId, inputSlotId: mention.slotId }),
+        initialText: composer?.instructionSlotId && composer.invocation.instruction
+          ? { body: composer.invocation.instruction, inputSlotId: composer.instructionSlotId }
+          : undefined,
+        selectedBlockIds: composer ? [] : selectedBlockIdsRef.current,
         skillId,
       });
       workflowBlockIds = [...draft.inputBlocks.map((block) => block.blockId), draft.operationBlock.blockId];

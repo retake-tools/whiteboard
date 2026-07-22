@@ -27,18 +27,13 @@
     overflow-x: auto;
   }
 
-  .skill-dock {
+  .skill-composer {
     bottom: 70px;
-    max-width: calc(100vw - 20px);
-    overflow-x: auto;
+    width: calc(100vw - 20px);
   }
 
-  .skill-dock-label,
-  .skill-dock-card span {
-    display: none;
-  }
-
-  .skill-dock-card { width: auto; min-width: max-content; }
+  .skill-composer-entrypoint { max-width: 140px; }
+  .skill-composer-recommended > span { display: none; }
 
   .canvas-utility-dock {
     bottom: 72px;
@@ -89,4 +84,11 @@
   .annotation-size-row {
     grid-template-columns: repeat(5, minmax(30px, 1fr));
   }
+}
+
+@media (max-width: 640px) {
+  .skill-composer-entrypoint { width: 38px; padding: 0; }
+  .skill-composer-entrypoint span,
+  .skill-composer-entrypoint svg:last-child { display: none; }
+  .skill-composer-recommended { overflow-x: auto; }
 }

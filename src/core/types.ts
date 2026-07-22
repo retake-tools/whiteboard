@@ -308,6 +308,8 @@ export interface BlockData {
   status?: ExecutionStatus;
   statusVisualDismissed?: boolean;
   capabilityId?: string;
+  composerSourceAssetId?: string;
+  composerSourceBlockId?: string;
   skillId?: string;
   connectionId?: string;
   generationProfileId?: string;

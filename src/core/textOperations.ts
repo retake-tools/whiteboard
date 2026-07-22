@@ -33,6 +33,10 @@ export interface TextGenerationLabels {
   waitingBody: string;
 }
 
+export type SkillDraftInputBinding =
+  | { blockId: string; inputSlotId: string; kind: 'block' }
+  | { assetId: string; inputSlotId: string; kind: 'asset' };
+
 export function createDraftTextGenerationOperation(
   snapshot: BoardSnapshot,
   input: TextGenerationLabels & { connectionId?: string },
@@ -75,6 +79,8 @@ export function createDraftSkillOperation(
   snapshot: BoardSnapshot,
   input: TextGenerationLabels & {
     connectionId?: string;
+    explicitInputBindings?: SkillDraftInputBinding[];
+    initialText?: { body: string; inputSlotId: string };
     packageContext?: PackageInvocationContext;
     selectedBlockIds?: string[];
     skillId: string;
@@ -84,21 +90,69 @@ export function createDraftSkillOperation(
   const capabilityId = capabilityForSkill(skill);
   const capability = capabilityDefinitionFor(capabilityId);
   const selectedIds = new Set(input.selectedBlockIds ?? []);
-  const selectedInputs = snapshot.blocks.filter((block) =>
+  const legacySelectedInputs = snapshot.blocks.filter((block) =>
     selectedIds.has(block.blockId) && (block.type === 'text' || block.type === 'document'),
   );
   const requiredSlots = capability.inputSlots.filter((slot) => slot.required);
-  const assignedSlots = assignTextBlocksToSlots(snapshot, capabilityId, selectedInputs);
-  const createdInputs = requiredSlots.flatMap((slot, index): BlockRecord[] => {
+  const explicitInputs: BlockRecord[] = [];
+  const createdInputs: BlockRecord[] = [];
+  const assignedSlots = new Map<string, string>();
+  for (const binding of input.explicitInputBindings ?? []) {
+    if (!capability.inputSlots.some((slot) => slot.slotId === binding.inputSlotId)) {
+      throw new Error(`Skill draft input slot not found: ${capabilityId}.${binding.inputSlotId}`);
+    }
+    if (binding.kind === 'block') {
+      const block = snapshot.blocks.find((candidate) => candidate.blockId === binding.blockId);
+      if (!block || (block.type !== 'text' && block.type !== 'document')) {
+        throw new Error(`Skill draft input Block not found: ${binding.blockId}`);
+      }
+      explicitInputs.push(block);
+      assignedSlots.set(block.blockId, binding.inputSlotId);
+      continue;
+    }
+    const asset = snapshot.assets.find((candidate) => candidate.assetId === binding.assetId && candidate.kind === 'document');
+    if (!asset) throw new Error(`Skill draft Document Asset not found: ${binding.assetId}`);
+    const labels = input.inputSlots?.find((candidate) => candidate.slotId === binding.inputSlotId);
+    const block = createSkillAssetInputBlock(snapshot, {
+      assetId: asset.assetId,
+      documentKind: capability.inputSlots.find((slot) => slot.slotId === binding.inputSlotId)?.artifactTypes[0],
+      promptTitle: labels?.promptTitle ?? input.promptTitle,
+    }, createdInputs.length);
+    createdInputs.push(block);
+    assignedSlots.set(block.blockId, binding.inputSlotId);
+  }
+  if (input.initialText?.body.trim()) {
+    const slot = capability.inputSlots.find((candidate) => candidate.slotId === input.initialText?.inputSlotId);
+    if (!slot) throw new Error(`Skill draft initial text slot not found: ${input.initialText.inputSlotId}`);
+    const labels = input.inputSlots?.find((candidate) => candidate.slotId === slot.slotId);
+    const block = createSkillInputBlock(snapshot, {
+      body: input.initialText.body.trim(),
+      promptPlaceholder: labels?.promptPlaceholder ?? input.promptPlaceholder,
+      promptTitle: labels?.promptTitle ?? input.promptTitle,
+    }, createdInputs.length);
+    createdInputs.push(block);
+    assignedSlots.set(block.blockId, slot.slotId);
+  }
+  const legacyAssignedSlots = assignTextBlocksToSlots(
+    snapshot,
+    capabilityId,
+    [...explicitInputs, ...createdInputs, ...legacySelectedInputs],
+    assignedSlots,
+  );
+  for (const [blockId, slotId] of legacyAssignedSlots) assignedSlots.set(blockId, slotId);
+  const selectedInputs = [...explicitInputs, ...legacySelectedInputs.filter((block) => !explicitInputs.includes(block))];
+  const missingRequiredInputs = requiredSlots.flatMap((slot, index): BlockRecord[] => {
     if ([...assignedSlots.values()].includes(slot.slotId)) return [];
     const labels = input.inputSlots?.find((candidate) => candidate.slotId === slot.slotId);
     const block = createSkillInputBlock(snapshot, {
+      body: '',
       promptPlaceholder: labels?.promptPlaceholder ?? input.promptPlaceholder,
       promptTitle: labels?.promptTitle ?? input.promptTitle,
-    }, index);
+    }, createdInputs.length + index);
     assignedSlots.set(block.blockId, slot.slotId);
     return [block];
   });
+  createdInputs.push(...missingRequiredInputs);
   const inputBlocks = [...selectedInputs, ...createdInputs].sort((left, right) => {
     const leftIndex = capability.inputSlots.findIndex((slot) => slot.slotId === assignedSlots.get(left.blockId));
     const rightIndex = capability.inputSlots.findIndex((slot) => slot.slotId === assignedSlots.get(right.blockId));
@@ -354,19 +408,36 @@ function operationHistory(
 
 function createSkillInputBlock(
   snapshot: BoardSnapshot,
-  input: Pick<TextGenerationLabels, 'promptPlaceholder' | 'promptTitle'>,
+  input: Pick<TextGenerationLabels, 'promptPlaceholder' | 'promptTitle'> & { body: string },
   index = 0,
 ): BlockRecord {
   const promptBlock = createBlockRecord(snapshot, 'text');
   promptBlock.data = {
     ...promptBlock.data,
     title: input.promptTitle,
-    body: '',
+    body: input.body,
     placeholder: input.promptPlaceholder,
   };
   promptBlock.position = { x: 80, y: 80 + index * (promptBlock.size.height + 36) };
   promptBlock.zIndex = maxZIndex(snapshot.blocks) + index + 1;
   return promptBlock;
+}
+
+function createSkillAssetInputBlock(
+  snapshot: BoardSnapshot,
+  input: { assetId: string; documentKind?: string; promptTitle: string },
+  index = 0,
+): BlockRecord {
+  const block = createBlockRecord(snapshot, 'document');
+  block.data = {
+    ...block.data,
+    title: input.promptTitle,
+    assetId: input.assetId,
+    documentKind: input.documentKind ?? 'markdown_document',
+  };
+  block.position = { x: 80, y: 80 + index * (block.size.height + 36) };
+  block.zIndex = maxZIndex(snapshot.blocks) + index + 1;
+  return block;
 }
 
 export function textDocumentInputBindings(

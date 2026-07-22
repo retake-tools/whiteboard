@@ -2,6 +2,7 @@ import { resolveExecutionConnectionPreference } from '../core/executionProviderP
 import type { BoardSnapshot } from '../core/types';
 import { projectWorkflowDraft } from '../core/workflowDraftProjection';
 import type { ResolvedPackageEntryPointTarget } from '../core/packageRegistry';
+import type { ResolvedPackageComposerInvocation } from '../core/packageComposer';
 import { workflowUiDefinitionFor } from '../core/workflowRegistry';
 import type { useI18n } from '../i18n';
 import { textGenerationLabelsForSkill } from './skillTextLabels';
@@ -26,7 +27,10 @@ export function useWorkflowDraftController(options: WorkflowDraftControllerOptio
     updateSnapshot,
   } = options;
 
-  function createWorkflowDraft(target: Extract<ResolvedPackageEntryPointTarget, { kind: 'workflow' }>): void {
+  function createWorkflowDraft(
+    target: Extract<ResolvedPackageEntryPointTarget, { kind: 'workflow' }>,
+    composer?: ResolvedPackageComposerInvocation,
+  ): void {
     const workflowId = target.entrypoint.ref.workflowDefinitionId;
     let workflowBlockIds: string[] = [];
     let workflowGroupId = '';
@@ -36,6 +40,12 @@ export function useWorkflowDraftController(options: WorkflowDraftControllerOptio
         workflowId,
         workflowTitle: t(ui.nameKey),
         outputPlaceholder: t('workflowDraft.outputPending'),
+        composerInput: composer ? {
+          mentions: composer.invocation.mentions,
+          instruction: composer.instructionSlotId && composer.invocation.instruction
+            ? { body: composer.invocation.instruction, slotId: composer.instructionSlotId }
+            : undefined,
+        } : undefined,
         packageContext: {
           entrypointId: target.entrypoint.entrypointId,
           packageLock: target.packageLock,

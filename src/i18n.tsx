@@ -366,6 +366,23 @@ type TranslationKey =
   | 'skillDock.skillCategory'
   | 'skillDock.workflowBadge'
   | 'skillDock.workflowCategory'
+  | 'skillComposer.title'
+  | 'skillComposer.chooseEntryPoint'
+  | 'skillComposer.slashPlaceholder'
+  | 'skillComposer.inputPlaceholder'
+  | 'skillComposer.create'
+  | 'skillComposer.addMention'
+  | 'skillComposer.selectedMentions'
+  | 'skillComposer.removeMention'
+  | 'skillComposer.mentionLibrary'
+  | 'skillComposer.searchMentions'
+  | 'skillComposer.blockMention'
+  | 'skillComposer.assetMention'
+  | 'skillComposer.noEntryPoints'
+  | 'skillComposer.noMentions'
+  | 'skillComposer.invalidInput'
+  | 'skill.common.referencesInput'
+  | 'skill.common.referencesPlaceholder'
   | 'skill.screenplayFromBrief.name'
   | 'skill.screenplayFromBrief.description'
   | 'skill.screenplayFromBrief.input'
@@ -374,6 +391,8 @@ type TranslationKey =
   | 'skill.normalizeScreenplay.description'
   | 'skill.normalizeScreenplay.input'
   | 'skill.normalizeScreenplay.placeholder'
+  | 'skill.normalizeScreenplay.instructionInput'
+  | 'skill.normalizeScreenplay.instructionPlaceholder'
   | 'skill.characterBible.name'
   | 'skill.characterBible.description'
   | 'skill.characterBible.input'
@@ -997,6 +1016,23 @@ const translations: Record<Locale, Translations> = {
     'skillDock.skillCategory': 'Single-step skills',
     'skillDock.workflowBadge': 'Workflow',
     'skillDock.workflowCategory': 'Workflows',
+    'skillComposer.title': 'Skill quick input',
+    'skillComposer.chooseEntryPoint': '/ Choose',
+    'skillComposer.slashPlaceholder': 'Type / to choose a skill or workflow...',
+    'skillComposer.inputPlaceholder': 'Describe the input, or type @ to reference a block or asset...',
+    'skillComposer.create': 'Create draft',
+    'skillComposer.addMention': 'Reference block or asset',
+    'skillComposer.selectedMentions': 'Referenced inputs',
+    'skillComposer.removeMention': 'Remove reference',
+    'skillComposer.mentionLibrary': 'Compatible blocks and assets',
+    'skillComposer.searchMentions': 'Search compatible blocks and assets',
+    'skillComposer.blockMention': 'Block',
+    'skillComposer.assetMention': 'Asset',
+    'skillComposer.noEntryPoints': 'No matching skills or workflows.',
+    'skillComposer.noMentions': 'No compatible blocks or document assets.',
+    'skillComposer.invalidInput': 'This input combination is not compatible with the selected entry point.',
+    'skill.common.referencesInput': 'Additional direction / references',
+    'skill.common.referencesPlaceholder': 'Add optional direction or reference material...',
     'skill.screenplayFromBrief.name': 'Generate screenplay',
     'skill.screenplayFromBrief.description': 'Create an executable screenplay from a creative brief.',
     'skill.screenplayFromBrief.input': 'Creative brief',
@@ -1005,6 +1041,8 @@ const translations: Record<Locale, Translations> = {
     'skill.normalizeScreenplay.description': 'Organize structure without changing story facts.',
     'skill.normalizeScreenplay.input': 'Source screenplay',
     'skill.normalizeScreenplay.placeholder': 'Paste the screenplay to normalize, or select a Document Block first...',
+    'skill.normalizeScreenplay.instructionInput': 'Organization requirements',
+    'skill.normalizeScreenplay.instructionPlaceholder': 'Describe how to organize the screenplay without changing story facts...',
     'skill.characterBible.name': 'Define characters',
     'skill.characterBible.description': 'Extract stable character design and continuity constraints from a screenplay.',
     'skill.characterBible.input': 'Source screenplay',
@@ -1623,6 +1661,23 @@ const translations: Record<Locale, Translations> = {
     'skillDock.skillCategory': '单节点 Skill',
     'skillDock.workflowBadge': 'Workflow',
     'skillDock.workflowCategory': 'Workflow',
+    'skillComposer.title': 'Skill 快速输入',
+    'skillComposer.chooseEntryPoint': '/ 选择',
+    'skillComposer.slashPlaceholder': '输入 / 选择 Skill 或 Workflow...',
+    'skillComposer.inputPlaceholder': '描述输入，或输入 @ 引用 Block / Asset...',
+    'skillComposer.create': '创建草稿',
+    'skillComposer.addMention': '引用 Block 或 Asset',
+    'skillComposer.selectedMentions': '已引用输入',
+    'skillComposer.removeMention': '移除引用',
+    'skillComposer.mentionLibrary': '兼容的 Block 与 Asset',
+    'skillComposer.searchMentions': '搜索兼容的 Block 与 Asset',
+    'skillComposer.blockMention': 'Block',
+    'skillComposer.assetMention': 'Asset',
+    'skillComposer.noEntryPoints': '没有匹配的 Skill 或 Workflow。',
+    'skillComposer.noMentions': '当前没有兼容的 Block 或 Document Asset。',
+    'skillComposer.invalidInput': '当前输入组合与所选 EntryPoint 不兼容。',
+    'skill.common.referencesInput': '补充要求 / 参考资料',
+    'skill.common.referencesPlaceholder': '补充可选要求或参考资料...',
     'skill.screenplayFromBrief.name': '生成剧本',
     'skill.screenplayFromBrief.description': '从创意 Brief 生成可执行的视频剧本。',
     'skill.screenplayFromBrief.input': '创意 Brief',
@@ -1631,6 +1686,8 @@ const translations: Record<Locale, Translations> = {
     'skill.normalizeScreenplay.description': '在不改变剧情事实的前提下整理已有剧本。',
     'skill.normalizeScreenplay.input': '源剧本',
     'skill.normalizeScreenplay.placeholder': '粘贴需要规范化的剧本，或先选择一个 Document Block...',
+    'skill.normalizeScreenplay.instructionInput': '整理要求',
+    'skill.normalizeScreenplay.instructionPlaceholder': '描述如何整理剧本，但不要改变剧情事实...',
     'skill.characterBible.name': '生成角色设定',
     'skill.characterBible.description': '从剧本提取稳定的角色设计与连续性约束。',
     'skill.characterBible.input': '源剧本',

@@ -3,6 +3,7 @@ import { createBlockRecord, touchBoard } from './blockFactory';
 import { createGroupAroundBlocks } from './grouping';
 import { createId } from './id';
 import type { PackageInvocationContext } from './packageContracts';
+import type { PackageComposerMention } from './packageComposer';
 import { createDraftSkillOperation, type TextGenerationLabels } from './textOperations';
 import type { BlockRecord, BoardSnapshot } from './types';
 import {
@@ -30,6 +31,10 @@ export function projectWorkflowDraft(
   snapshot: BoardSnapshot,
   input: WorkflowDraftProjectionLabels & {
     connectionIdForCapability: (capabilityId: string) => string | undefined;
+    composerInput?: {
+      instruction?: { body: string; slotId: string };
+      mentions: PackageComposerMention[];
+    };
     packageContext?: PackageInvocationContext;
     workflowId: string;
   },
@@ -51,13 +56,20 @@ export function projectWorkflowDraft(
     if (!consumer) throw new Error(`Workflow input is not consumed: ${workflow.workflowId}.${slot.slotId}`);
     const labels = input.labelsForSkill(consumer.skillLock.skillId);
     const slotLabels = labels.inputSlots?.find((candidate) => candidate.slotId === slot.slotId);
-    const block = createBlockRecord(snapshot, 'text');
+    const mention = input.composerInput?.mentions.find((candidate) => candidate.slotId === slot.slotId);
+    const instruction = input.composerInput?.instruction?.slotId === slot.slotId
+      ? input.composerInput.instruction.body.trim()
+      : undefined;
+    const block = createWorkflowInputBlock(snapshot, {
+      artifactType: slot.artifactTypes[0],
+      instruction,
+      mention,
+      promptPlaceholder: slotLabels?.promptPlaceholder ?? labels.promptPlaceholder,
+      promptTitle: slotLabels?.promptTitle ?? labels.promptTitle,
+    });
     block.data = {
       ...block.data,
       ...metadata,
-      title: slotLabels?.promptTitle ?? labels.promptTitle,
-      body: '',
-      placeholder: slotLabels?.promptPlaceholder ?? labels.promptPlaceholder,
       workflowInputSlotId: slot.slotId,
     };
     snapshot.blocks.push(block);
@@ -142,6 +154,63 @@ export function projectWorkflowDraft(
     operationBlockIds: [...operationBlocks.values()].map((block) => block.blockId),
     resultBlockIds: [...stepOutputs.values()].map((block) => block.blockId),
   };
+}
+
+function createWorkflowInputBlock(
+  snapshot: BoardSnapshot,
+  input: {
+    artifactType?: string;
+    instruction?: string;
+    mention?: PackageComposerMention;
+    promptPlaceholder: string;
+    promptTitle: string;
+  },
+): BlockRecord {
+  const mention = input.mention;
+  if (mention?.kind === 'asset') {
+    const asset = snapshot.assets.find((candidate) => candidate.assetId === mention.assetId && candidate.kind === 'document');
+    if (!asset) throw new Error(`Workflow Composer Document Asset not found: ${mention.assetId}`);
+    const block = createBlockRecord(snapshot, 'document');
+    block.data = {
+      ...block.data,
+      title: input.promptTitle,
+      assetId: asset.assetId,
+      composerSourceAssetId: asset.assetId,
+      documentKind: input.artifactType ?? 'markdown_document',
+    };
+    return block;
+  }
+  if (mention?.kind === 'block') {
+    const source = snapshot.blocks.find((candidate) => candidate.blockId === mention.blockId);
+    if (!source || (source.type !== 'text' && source.type !== 'document')) {
+      throw new Error(`Workflow Composer input Block not found: ${mention.blockId}`);
+    }
+    const assetId = typeof source.data.assetId === 'string' ? source.data.assetId : undefined;
+    const block = createBlockRecord(snapshot, assetId ? 'document' : 'text');
+    block.data = {
+      ...block.data,
+      title: input.promptTitle,
+      ...(assetId ? {
+        assetId,
+        documentKind: typeof source.data.documentKind === 'string'
+          ? source.data.documentKind
+          : input.artifactType ?? 'markdown_document',
+      } : {
+        body: typeof source.data.body === 'string' ? source.data.body : '',
+        placeholder: input.promptPlaceholder,
+      }),
+      composerSourceBlockId: source.blockId,
+    };
+    return block;
+  }
+  const block = createBlockRecord(snapshot, 'text');
+  block.data = {
+    ...block.data,
+    title: input.promptTitle,
+    body: input.instruction ?? '',
+    placeholder: input.promptPlaceholder,
+  };
+  return block;
 }
 
 function workflowMetadata(
