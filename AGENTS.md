@@ -152,5 +152,9 @@ npm run plugin:package:test
 `npm run mcp:test` must run sequentially because tests reset the same local
 `.retake/` workspace.
 
-For UI changes, also start the dev server and inspect the canvas manually or
-with browser automation when the behavior is visual or interactive.
+For UI changes or browser verification, first check whether the development
+server responds at `http://127.0.0.1:18770`. Reuse it when it is healthy; when
+it is not running, start `npm run dev` before opening or testing the page. Do
+not start a duplicate server merely because a new agent turn or task began.
+Then inspect the canvas manually or with browser automation when the behavior
+is visual or interactive.
