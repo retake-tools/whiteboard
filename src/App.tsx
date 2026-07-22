@@ -28,6 +28,7 @@ import { useTextGenerationController } from './app/useTextGenerationController';
 import { useWorkflowDraftController } from './app/useWorkflowDraftController';
 import { useWorkflowRuntimeController } from './app/useWorkflowRuntimeController';
 import { usePackageEntryPointController } from './app/usePackageEntryPointController';
+import { useAgentRuntimeController } from './app/useAgentRuntimeController';
 import { WhiteboardCanvas } from './app/WhiteboardCanvas';
 
 const DocumentReviewWorkspace = lazy(() => import('./components/DocumentReviewWorkspace').then((module) => ({
@@ -249,6 +250,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     referenceImageOptions,
     selectedReferenceImage,
     setInputReferencePicker,
+    runOperation,
   } = useOperationInputController({
     copyQueuedOperationPrompt,
     refreshQueuedOperationPrompt,
@@ -263,6 +265,14 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     updateOperationConnection,
     updateOperationGenerationParams,
     updateOperationGenerationProfile,
+    updateSnapshot,
+  });
+  const agentRuntimeController = useAgentRuntimeController({
+    runOperation,
+    setOperationToast,
+    snapshot,
+    snapshotRef,
+    t,
     updateSnapshot,
   });
   const {
@@ -458,6 +468,10 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         onClose={() => setInspectorBlockId(undefined)}
         onCopyPrompt={copyPromptWithHistory}
         onDownloadAll={downloadGroupAssets}
+        onCancelAgentRun={agentRuntimeController.cancelAgentRun}
+        onCreateWorkflowAgentRun={agentRuntimeController.createWorkflowAgentRun}
+        onPauseAgentRun={agentRuntimeController.pauseAgentRun}
+        onResumeAgentRun={agentRuntimeController.resumeAgentRun}
       />
       {isHistoryOpen ? (
         <BoardHistoryPanel

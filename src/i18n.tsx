@@ -446,6 +446,31 @@ type TranslationKey =
   | 'workflowRuntime.stepStatus.succeeded'
   | 'workflowRuntime.stepStatus.waiting_input'
   | 'workflowRuntime.stepStatus.waiting_selection'
+  | 'agentRuntime.actionFailed'
+  | 'agentRuntime.cancel'
+  | 'agentRuntime.canceled'
+  | 'agentRuntime.cancelCurrentExecutionContinues'
+  | 'agentRuntime.created'
+  | 'agentRuntime.executions'
+  | 'agentRuntime.pause'
+  | 'agentRuntime.paused'
+  | 'agentRuntime.permissions'
+  | 'agentRuntime.resume'
+  | 'agentRuntime.resumed'
+  | 'agentRuntime.run'
+  | 'agentRuntime.runId'
+  | 'agentRuntime.startWorkflow'
+  | 'agentRuntime.stopPolicy'
+  | 'agentRuntime.target'
+  | 'agentRuntime.status.canceled'
+  | 'agentRuntime.status.failed'
+  | 'agentRuntime.status.needs_attention'
+  | 'agentRuntime.status.paused'
+  | 'agentRuntime.status.queued'
+  | 'agentRuntime.status.running'
+  | 'agentRuntime.status.succeeded'
+  | 'agentRuntime.status.waiting_input'
+  | 'agentRuntime.status.waiting_selection'
   | 'operationInputQuickAdd.add'
   | 'operationInputQuickAdd.addImage'
   | 'operationInputQuickAdd.addText'
@@ -1096,6 +1121,31 @@ const translations: Record<Locale, Translations> = {
     'workflowRuntime.stepStatus.succeeded': 'Succeeded',
     'workflowRuntime.stepStatus.waiting_input': 'Waiting for input',
     'workflowRuntime.stepStatus.waiting_selection': 'Waiting for selection',
+    'agentRuntime.actionFailed': 'Agent action failed',
+    'agentRuntime.cancel': 'Stop Agent',
+    'agentRuntime.canceled': 'Agent Run stopped',
+    'agentRuntime.cancelCurrentExecutionContinues': 'The Agent will not start another Step. An already running Execution is not canceled.',
+    'agentRuntime.created': 'Agent Run started',
+    'agentRuntime.executions': 'Executions',
+    'agentRuntime.pause': 'Pause',
+    'agentRuntime.paused': 'Agent Run paused',
+    'agentRuntime.permissions': 'Permissions',
+    'agentRuntime.resume': 'Resume',
+    'agentRuntime.resumed': 'Agent Run resumed',
+    'agentRuntime.run': 'Agent Run',
+    'agentRuntime.runId': 'Agent Run ID',
+    'agentRuntime.startWorkflow': 'Run existing Workflow with Agent',
+    'agentRuntime.stopPolicy': 'Stop policy',
+    'agentRuntime.target': 'Typed target',
+    'agentRuntime.status.canceled': 'Canceled',
+    'agentRuntime.status.failed': 'Failed',
+    'agentRuntime.status.needs_attention': 'Needs attention',
+    'agentRuntime.status.paused': 'Paused',
+    'agentRuntime.status.queued': 'Queued',
+    'agentRuntime.status.running': 'Running',
+    'agentRuntime.status.succeeded': 'Succeeded',
+    'agentRuntime.status.waiting_input': 'Waiting for input',
+    'agentRuntime.status.waiting_selection': 'Waiting for selection',
     'operationInputQuickAdd.add': 'Add',
     'operationInputQuickAdd.addImage': 'Add image input',
     'operationInputQuickAdd.addText': 'Add text input',
@@ -1741,6 +1791,31 @@ const translations: Record<Locale, Translations> = {
     'workflowRuntime.stepStatus.succeeded': '已完成',
     'workflowRuntime.stepStatus.waiting_input': '等待输入',
     'workflowRuntime.stepStatus.waiting_selection': '等待选择',
+    'agentRuntime.actionFailed': 'Agent 操作失败',
+    'agentRuntime.cancel': '停止 Agent',
+    'agentRuntime.canceled': 'Agent Run 已停止',
+    'agentRuntime.cancelCurrentExecutionContinues': 'Agent 不会再启动下一个 Step；已经运行中的 Execution 不会被取消。',
+    'agentRuntime.created': 'Agent Run 已启动',
+    'agentRuntime.executions': 'Execution 数量',
+    'agentRuntime.pause': '暂停',
+    'agentRuntime.paused': 'Agent Run 已暂停',
+    'agentRuntime.permissions': '权限',
+    'agentRuntime.resume': '继续',
+    'agentRuntime.resumed': 'Agent Run 已继续',
+    'agentRuntime.run': 'Agent Run',
+    'agentRuntime.runId': 'Agent Run ID',
+    'agentRuntime.startWorkflow': '交给 Agent 推进现有 Workflow',
+    'agentRuntime.stopPolicy': '停止条件',
+    'agentRuntime.target': '类型化目标',
+    'agentRuntime.status.canceled': '已停止',
+    'agentRuntime.status.failed': '失败',
+    'agentRuntime.status.needs_attention': '需要处理',
+    'agentRuntime.status.paused': '已暂停',
+    'agentRuntime.status.queued': '等待启动',
+    'agentRuntime.status.running': '运行中',
+    'agentRuntime.status.succeeded': '已完成',
+    'agentRuntime.status.waiting_input': '等待输入',
+    'agentRuntime.status.waiting_selection': '等待选择',
     'operationInputQuickAdd.add': '添加',
     'operationInputQuickAdd.addImage': '添加图片输入',
     'operationInputQuickAdd.addText': '添加文本输入',

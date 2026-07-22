@@ -249,35 +249,39 @@ export function useOperationInputController(options: OperationInputControllerOpt
     return () => window.removeEventListener('retake:request-image-mention', onRequestImageMention);
   }, []);
 
+  async function runOperation(blockId: string, queuedConfigurationStale = false): Promise<void> {
+    const block = snapshotRef.current.blocks.find((candidate) => candidate.blockId === blockId && candidate.type === 'operation');
+    if (!block || blockLockedByGroup(snapshotRef.current, block.blockId) || block.data.status === 'running') return;
+    const isTextDocument = block.data.capabilityId === 'text.generate'
+      || (typeof block.data.capabilityId === 'string' && block.data.capabilityId.startsWith('story.screenplay.'));
+    if (isTextDocument && block.data.status === 'queued') return;
+    if (block.data.status === 'queued') {
+      const connection = executionConnection(
+        typeof block.data.connectionId === 'string' ? block.data.connectionId : 'codex-managed',
+        snapshotRef.current.project.projectId,
+      );
+      if (connection?.connectorId !== 'codex-managed') return;
+      await (queuedConfigurationStale ? refreshQueuedOperationPrompt(block) : copyQueuedOperationPrompt(block));
+      return;
+    }
+    const readiness = operationReadinessFor(snapshotRef.current, block);
+    if (!readiness.canRun) {
+      const issue = readiness.issues[0];
+      setOperationToast({ id: `operation-input:${block.blockId}`, title: t('feedback.inputRequired'), body: issue ? t(operationReadinessMessageKey(issue)) : undefined, tone: 'error' });
+      return;
+    }
+    if (isTextDocument) {
+      await startTextGenerationOperation(block);
+    } else {
+      await startExistingOperationBlock({ block, operation: operationModeFromBlock(block) });
+    }
+  }
+
   useEffect(() => {
     function onRunOperation(event: Event): void {
       const detail = (event as CustomEvent<{ blockId?: string; queuedConfigurationStale?: boolean }>).detail;
       if (!detail?.blockId) return;
-      const block = snapshotRef.current.blocks.find((candidate) => candidate.blockId === detail.blockId && candidate.type === 'operation');
-      if (!block || blockLockedByGroup(snapshotRef.current, block.blockId) || block.data.status === 'running') return;
-      const isTextDocument = block.data.capabilityId === 'text.generate'
-        || (typeof block.data.capabilityId === 'string' && block.data.capabilityId.startsWith('story.screenplay.'));
-      if (isTextDocument && block.data.status === 'queued') return;
-      if (block.data.status === 'queued') {
-        const connection = executionConnection(
-          typeof block.data.connectionId === 'string' ? block.data.connectionId : 'codex-managed',
-          snapshotRef.current.project.projectId,
-        );
-        if (connection?.connectorId !== 'codex-managed') return;
-        void (detail.queuedConfigurationStale ? refreshQueuedOperationPrompt(block) : copyQueuedOperationPrompt(block));
-        return;
-      }
-      const readiness = operationReadinessFor(snapshotRef.current, block);
-      if (!readiness.canRun) {
-        const issue = readiness.issues[0];
-        setOperationToast({ id: `operation-input:${block.blockId}`, title: t('feedback.inputRequired'), body: issue ? t(operationReadinessMessageKey(issue)) : undefined, tone: 'error' });
-        return;
-      }
-      if (isTextDocument) {
-        void startTextGenerationOperation(block);
-      } else {
-        void startExistingOperationBlock({ block, operation: operationModeFromBlock(block) });
-      }
+      void runOperation(detail.blockId, detail.queuedConfigurationStale);
     }
     window.addEventListener('retake:run-operation', onRunOperation);
     return () => window.removeEventListener('retake:run-operation', onRunOperation);
@@ -373,5 +377,6 @@ export function useOperationInputController(options: OperationInputControllerOpt
     referenceImageOptions,
     selectedReferenceImage,
     setInputReferencePicker,
+    runOperation,
   };
 }

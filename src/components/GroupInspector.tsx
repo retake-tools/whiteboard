@@ -1,8 +1,9 @@
-import { ChevronLeft, ChevronRight, Download, ImageIcon, Layers3, Video, X } from 'lucide-react';
+import { Bot, ChevronLeft, ChevronRight, CirclePause, Download, ImageIcon, Layers3, Play, Square, Video, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { directGroupChildren, descendantBlockIds, groupMediaItems, type GroupMediaItem } from '../core/grouping';
 import type { BlockRecord, BoardSnapshot, GroupKind } from '../core/types';
 import { workflowRunViewForGroup, type WorkflowRunRuntimeView } from '../core/workflowRuntime';
+import { latestAgentRunForWorkflowRun, type AgentRunRuntimeView } from '../core/agentRuntime';
 import { useI18n } from '../i18n';
 import {
   ExecutionDetailContent,
@@ -25,7 +26,11 @@ interface GroupInspectorProps {
   snapshot: BoardSnapshot;
   onClose: () => void;
   onCopyPrompt: (input: CopyPromptInput) => void | Promise<void>;
+  onCancelAgentRun: (agentRunId: string) => void;
+  onCreateWorkflowAgentRun: (workflowRunId: string) => void;
   onDownloadAll: (groupId: string) => void;
+  onPauseAgentRun: (agentRunId: string) => void;
+  onResumeAgentRun: (agentRunId: string) => void;
 }
 
 export function GroupInspector({
@@ -34,7 +39,11 @@ export function GroupInspector({
   snapshot,
   onClose,
   onCopyPrompt,
+  onCancelAgentRun,
+  onCreateWorkflowAgentRun,
   onDownloadAll,
+  onPauseAgentRun,
+  onResumeAgentRun,
 }: GroupInspectorProps): ReactElement | null {
   const { t } = useI18n();
   const [selectedBlockId, setSelectedBlockId] = useState<string | undefined>();
@@ -54,6 +63,7 @@ export function GroupInspector({
     : undefined;
   const executionContext = execution ? getExecutionDetailContextForExecution(snapshot, execution) : undefined;
   const workflowRun = groupId ? workflowRunViewForGroup(snapshot, groupId) : undefined;
+  const agentRun = workflowRun ? latestAgentRunForWorkflowRun(snapshot, workflowRun.record.workflowRunId) : undefined;
 
   useEffect(() => {
     setSelectedBlockId(firstMediaBlockId);
@@ -174,11 +184,16 @@ export function GroupInspector({
             <GroupSummary
               descendantCount={descendantCount}
               directItemCount={directItemCount}
+              agentRun={agentRun}
               group={group}
               mediaCount={mediaItems.length}
               selectedItem={selectedItem}
               snapshot={snapshot}
               workflowRun={workflowRun}
+              onCancelAgentRun={onCancelAgentRun}
+              onCreateWorkflowAgentRun={onCreateWorkflowAgentRun}
+              onPauseAgentRun={onPauseAgentRun}
+              onResumeAgentRun={onResumeAgentRun}
             />
             {executionContext ? (
               <ExecutionDetailContent
@@ -208,6 +223,7 @@ function GroupMedia({ item }: { item: GroupMediaItem }): ReactElement {
 }
 
 function GroupSummary({
+  agentRun,
   descendantCount,
   directItemCount,
   group,
@@ -215,7 +231,12 @@ function GroupSummary({
   selectedItem,
   snapshot,
   workflowRun,
+  onCancelAgentRun,
+  onCreateWorkflowAgentRun,
+  onPauseAgentRun,
+  onResumeAgentRun,
 }: {
+  agentRun?: AgentRunRuntimeView;
   descendantCount: number;
   directItemCount: number;
   group: BlockRecord;
@@ -223,6 +244,10 @@ function GroupSummary({
   selectedItem?: GroupMediaItem;
   snapshot: BoardSnapshot;
   workflowRun?: WorkflowRunRuntimeView;
+  onCancelAgentRun: (agentRunId: string) => void;
+  onCreateWorkflowAgentRun: (workflowRunId: string) => void;
+  onPauseAgentRun: (agentRunId: string) => void;
+  onResumeAgentRun: (agentRunId: string) => void;
 }): ReactElement {
   const { t } = useI18n();
   const kind = (group.data.groupKind ?? 'manual') as GroupKind;
@@ -267,6 +292,46 @@ function GroupSummary({
               );
             })}
           </div>
+          <h3>{t('agentRuntime.run')}</h3>
+          {agentRun ? (
+            <div className="agent-run-summary">
+              <dl className="execution-inspector-meta">
+                <Meta label={t('agentRuntime.runId')} value={agentRun.record.agentRunId} mono />
+                <Meta label={t('inspector.status')} value={t(agentRunStatusKey(agentRun.status))} />
+                <Meta label={t('agentRuntime.target')} value={agentRun.record.target.kind} />
+                <Meta label={t('agentRuntime.stopPolicy')} value={agentRun.record.stopPolicy.kind} />
+                <Meta label={t('agentRuntime.permissions')} value={agentRun.record.permissions.allowedToolPermissions.join(', ')} />
+                <Meta label={t('agentRuntime.executions')} value={String(agentRun.record.executionIds.length)} />
+              </dl>
+              {agentRun.record.error ? <p className="agent-run-error">{agentRun.record.error}</p> : null}
+              <div className="agent-run-actions">
+                {agentRun.canPause ? (
+                  <button type="button" onClick={() => onPauseAgentRun(agentRun.record.agentRunId)}>
+                    <CirclePause size={14} />{t('agentRuntime.pause')}
+                  </button>
+                ) : null}
+                {agentRun.canResume ? (
+                  <button type="button" onClick={() => onResumeAgentRun(agentRun.record.agentRunId)}>
+                    <Play size={14} />{t('agentRuntime.resume')}
+                  </button>
+                ) : null}
+                {agentRun.canCancel ? (
+                  <button type="button" className="is-danger" onClick={() => onCancelAgentRun(agentRun.record.agentRunId)}>
+                    <Square size={13} />{t('agentRuntime.cancel')}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="agent-run-start"
+              onClick={() => onCreateWorkflowAgentRun(workflowRun.record.workflowRunId)}
+            >
+              <Bot size={15} />
+              <span>{t('agentRuntime.startWorkflow')}</span>
+            </button>
+          )}
         </>
       ) : null}
       {selectedItem ? (
@@ -291,6 +356,10 @@ function workflowRunStatusKey(status: WorkflowRunRuntimeView['status']) {
 
 function workflowStepStatusKey(status: WorkflowRunRuntimeView['steps'][number]['status']) {
   return `workflowRuntime.stepStatus.${status}` as const;
+}
+
+function agentRunStatusKey(status: AgentRunRuntimeView['status']) {
+  return `agentRuntime.status.${status}` as const;
 }
 
 function Meta({ label, mono, value }: { label: string; mono?: boolean; value?: string }): ReactElement | null {

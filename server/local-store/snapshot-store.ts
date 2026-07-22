@@ -3,6 +3,7 @@ import path from 'node:path';
 import { defaultSnapshot } from '../../src/core/sampleBoard';
 import { migrateBoardSnapshot } from '../../src/core/snapshotMigration';
 import type { BoardRecord, BoardSnapshot, ProjectRecord } from '../../src/core/types';
+import { reconcileAgentRuntime } from '../../src/core/agentRuntime';
 import { reconcileWorkflowRuntime } from '../../src/core/workflowRuntime';
 import {
   compareOrderedRecords,
@@ -54,6 +55,7 @@ export async function saveSnapshot(snapshot: BoardSnapshot): Promise<void> {
   const previousSnapshot = await readStoredSnapshot(snapshotPath);
   if (previousSnapshot) protectDurableSnapshotState(normalizedSnapshot, previousSnapshot);
   reconcileWorkflowRuntime(normalizedSnapshot);
+  reconcileAgentRuntime(normalizedSnapshot);
 
   await mkdir(boardDir, { recursive: true });
   await mkdir(path.join(projectDir, 'assets'), { recursive: true });
@@ -147,6 +149,7 @@ export function createBlankSnapshot(input: {
     edges: [],
     assets: [],
     executions: [],
+    agentRuns: [],
     workflowRuns: [],
     workflowStepRuns: [],
     historyEvents: [],
@@ -199,6 +202,7 @@ function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSna
     previous.blocks.some((block) => !fallbackBlockIds.has(block.blockId)) ||
     previous.executions.length > 0 ||
     previous.assets.length > 0 ||
+    (previous.agentRuns?.length ?? 0) > 0 ||
     (previous.workflowRuns?.length ?? 0) > 0 ||
     (previous.workflowStepRuns?.length ?? 0) > 0 ||
     (previous.historyEvents?.length ?? 0) > 0;
@@ -221,6 +225,11 @@ function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSna
     previous.historyEvents ?? [],
     (event) => event.eventId,
   ).slice(0, 200);
+  incoming.agentRuns = mergeVersionedRecords(
+    incoming.agentRuns ?? [],
+    previous.agentRuns ?? [],
+    (run) => run.agentRunId,
+  );
   incoming.workflowRuns = mergeVersionedRecords(
     incoming.workflowRuns ?? [],
     previous.workflowRuns ?? [],

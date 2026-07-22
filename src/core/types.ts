@@ -9,6 +9,7 @@ import type {
 } from './capabilityContracts';
 import type { RetakeSkillSnapshot } from './skillRegistry';
 import type { WorkflowRunRecord, WorkflowStepRunRecord, WorkflowStepRunFreshness, WorkflowStepRunStatus } from './workflowRuntimeContracts';
+import type { AgentRunRecord } from './agentRuntimeContracts';
 
 export type BlockType = 'text' | 'document' | 'image' | 'video' | 'operation' | 'group';
 
@@ -151,6 +152,7 @@ export interface ExecutionRecord {
   inputAssetIds?: string[];
   outputBlockIds: string[];
   outputAssetIds: string[];
+  agentRunId?: string;
   agentHost?: AgentHost;
   triggerMode?: TriggerMode;
   provider?: string;
@@ -395,6 +397,7 @@ export interface BoardSnapshot {
   edges: BoardEdgeRecord[];
   assets: AssetRecord[];
   executions: ExecutionRecord[];
+  agentRuns?: AgentRunRecord[];
   workflowRuns?: WorkflowRunRecord[];
   workflowStepRuns?: WorkflowStepRunRecord[];
   historyEvents?: BoardHistoryEvent[];

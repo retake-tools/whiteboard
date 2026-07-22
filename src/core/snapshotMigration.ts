@@ -80,6 +80,16 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
     blocks: repairedBlocks,
     edges: migratedEdges,
     executions: migratedExecutions,
+    agentRuns: (legacy.agentRuns ?? []).map((run) => ({
+      ...run,
+      permissions: run.permissions ?? {
+        allowedToolPermissions: ['retake.read', 'retake.execute_capability'],
+        canCreateBlocks: false,
+        canDeleteAssets: false,
+        canInstallPackages: false,
+        canModifyWorkflow: false,
+      },
+    })),
     workflowRuns: legacy.workflowRuns ?? [],
     workflowStepRuns: legacy.workflowStepRuns ?? [],
   };

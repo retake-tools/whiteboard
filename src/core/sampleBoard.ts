@@ -75,5 +75,6 @@ export const defaultSnapshot: BoardSnapshot = {
   ],
   assets: [],
   executions: [],
+  agentRuns: [],
   historyEvents: [],
 };

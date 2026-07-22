@@ -227,6 +227,14 @@ export function workflowRunViewForGroup(
   return run ? workflowRunView(snapshot, run) : undefined;
 }
 
+export function workflowRunViewForId(
+  snapshot: BoardSnapshot,
+  workflowRunId: string,
+): WorkflowRunRuntimeView | undefined {
+  const run = (snapshot.workflowRuns ?? []).find((candidate) => candidate.workflowRunId === workflowRunId);
+  return run ? workflowRunView(snapshot, run) : undefined;
+}
+
 export function workflowStepRuntimeForOperation(
   snapshot: BoardSnapshot,
   operationBlockId: string,
