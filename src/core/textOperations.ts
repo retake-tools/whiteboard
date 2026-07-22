@@ -19,6 +19,11 @@ import {
 import type { BlockRecord, BoardHistoryEvent, BoardSnapshot, ExecutionRecord } from './types';
 
 export interface TextGenerationLabels {
+  inputSlots?: Array<{
+    promptPlaceholder: string;
+    promptTitle: string;
+    slotId: string;
+  }>;
   operationTitle: string;
   promptPlaceholder: string;
   promptTitle: string;
@@ -74,11 +79,29 @@ export function createDraftSkillOperation(
 ): { operationBlock: BlockRecord; inputBlocks: BlockRecord[] } {
   const skill = skillDefinitionFor(input.skillId);
   const capabilityId = capabilityForSkill(skill);
+  const capability = capabilityDefinitionFor(capabilityId);
   const selectedIds = new Set(input.selectedBlockIds ?? []);
   const selectedInputs = snapshot.blocks.filter((block) =>
     selectedIds.has(block.blockId) && (block.type === 'text' || block.type === 'document'),
   );
-  const inputBlocks = selectedInputs.length > 0 ? selectedInputs : [createSkillInputBlock(snapshot, input)];
+  const requiredSlots = capability.inputSlots.filter((slot) => slot.required);
+  const assignedSlots = assignTextBlocksToSlots(snapshot, capabilityId, selectedInputs);
+  const createdInputs = requiredSlots.flatMap((slot, index): BlockRecord[] => {
+    if ([...assignedSlots.values()].includes(slot.slotId)) return [];
+    const labels = input.inputSlots?.find((candidate) => candidate.slotId === slot.slotId);
+    const block = createSkillInputBlock(snapshot, {
+      promptPlaceholder: labels?.promptPlaceholder ?? input.promptPlaceholder,
+      promptTitle: labels?.promptTitle ?? input.promptTitle,
+    }, index);
+    assignedSlots.set(block.blockId, slot.slotId);
+    return [block];
+  });
+  const inputBlocks = [...selectedInputs, ...createdInputs].sort((left, right) => {
+    const leftIndex = capability.inputSlots.findIndex((slot) => slot.slotId === assignedSlots.get(left.blockId));
+    const rightIndex = capability.inputSlots.findIndex((slot) => slot.slotId === assignedSlots.get(right.blockId));
+    return (leftIndex < 0 ? capability.inputSlots.length : leftIndex)
+      - (rightIndex < 0 ? capability.inputSlots.length : rightIndex);
+  });
   const operationBlock = createBlockRecord(snapshot, 'operation');
   const usesCodexAppServer = input.connectionId === 'codex-app-server';
   operationBlock.data = {
@@ -93,17 +116,18 @@ export function createDraftSkillOperation(
   };
   const anchor = inputBlocks[0];
   operationBlock.position = {
-    x: anchor.position.x + anchor.size.width + 90,
+    x: Math.max(...inputBlocks.map((block) => block.position.x + block.size.width)) + 90,
     y: anchor.position.y,
   };
   operationBlock.zIndex = Math.max(maxZIndex(snapshot.blocks), ...inputBlocks.map((block) => block.zIndex)) + 1;
-  if (selectedInputs.length === 0) snapshot.blocks.push(...inputBlocks);
+  snapshot.blocks.push(...createdInputs);
   snapshot.blocks.push(operationBlock);
   inputBlocks.forEach((block) => snapshot.edges.push({
     edgeId: createId('edge'),
     sourceBlockId: block.blockId,
     targetBlockId: operationBlock.blockId,
     kind: 'execution_input',
+    inputSlotId: assignedSlots.get(block.blockId),
   }));
   touchBoard(snapshot);
   return { operationBlock, inputBlocks };
@@ -212,7 +236,7 @@ export function executeExistingTextGenerationOperation(
   recordExecutionConfiguration(snapshot, execution, operationBlock);
   if (execution.skillId) {
     const skill = skillDefinitionFor(execution.skillId);
-    const bindings = textDocumentInputBindings(capabilityId, inputBlocks, skill);
+    const bindings = textDocumentInputBindings(snapshot, operationBlock.blockId, capabilityId, inputBlocks, skill);
     execution.inputBindingsSnapshot = bindings;
     execution.skillSnapshot = snapshotSkill(skill, bindings);
   }
@@ -304,7 +328,11 @@ function operationHistory(
   };
 }
 
-function createSkillInputBlock(snapshot: BoardSnapshot, input: TextGenerationLabels): BlockRecord {
+function createSkillInputBlock(
+  snapshot: BoardSnapshot,
+  input: Pick<TextGenerationLabels, 'promptPlaceholder' | 'promptTitle'>,
+  index = 0,
+): BlockRecord {
   const promptBlock = createBlockRecord(snapshot, 'text');
   promptBlock.data = {
     ...promptBlock.data,
@@ -312,12 +340,14 @@ function createSkillInputBlock(snapshot: BoardSnapshot, input: TextGenerationLab
     body: '',
     placeholder: input.promptPlaceholder,
   };
-  promptBlock.position = { x: 80, y: 80 };
-  promptBlock.zIndex = maxZIndex(snapshot.blocks) + 1;
+  promptBlock.position = { x: 80, y: 80 + index * (promptBlock.size.height + 36) };
+  promptBlock.zIndex = maxZIndex(snapshot.blocks) + index + 1;
   return promptBlock;
 }
 
 export function textDocumentInputBindings(
+  snapshot: BoardSnapshot,
+  operationBlockId: string,
   capabilityId: string,
   blocks: BlockRecord[],
   skill?: RetakeSkillDefinition,
@@ -336,23 +366,119 @@ export function textDocumentInputBindings(
     if (!slot) throw new Error(`Capability input slot not found: ${capabilityId}.${slotId}`);
     return slot;
   });
-  const values: CapabilityBindingValue[] = blocks.map((block) => typeof block.data.assetId === 'string'
-    ? { kind: 'asset' as const, assetId: block.data.assetId, blockId: block.blockId }
-    : { kind: 'block' as const, blockId: block.blockId });
-  let cursor = 0;
-  return declaredSlots.flatMap((slot, index): CapabilityInputBinding[] => {
-    const remainingRequired = declaredSlots.slice(index + 1).filter((candidate) => candidate.required).length;
-    const available = Math.max(0, values.length - cursor - remainingRequired);
-    const take = slot.cardinality === 'many'
-      ? available
-      : slot.required || available > 0
-        ? Math.min(1, values.length - cursor)
-        : 0;
-    if (take <= 0) return [];
-    const binding = { slotId: slot.slotId, values: values.slice(cursor, cursor + take) };
-    cursor += take;
-    return [binding];
+  const explicitSlots = new Map(snapshot.edges
+    .filter((edge) => edge.kind === 'execution_input' && edge.targetBlockId === operationBlockId && edge.inputSlotId)
+    .map((edge) => [edge.sourceBlockId, edge.inputSlotId!]));
+  const assignedSlots = assignTextBlocksToSlots(snapshot, capabilityId, blocks, explicitSlots);
+  const bindings = declaredSlots.flatMap((slot): CapabilityInputBinding[] => {
+    const slotBlocks = blocks.filter((block) => assignedSlots.get(block.blockId) === slot.slotId);
+    if (slotBlocks.length === 0) return [];
+    const values: CapabilityBindingValue[] = slotBlocks.map((block) => typeof block.data.assetId === 'string'
+      ? { kind: 'asset' as const, assetId: block.data.assetId, blockId: block.blockId }
+      : { kind: 'block' as const, blockId: block.blockId });
+    return [{ slotId: slot.slotId, values }];
   });
+  for (const slot of declaredSlots.filter((candidate) => candidate.required)) {
+    if (!bindings.some((binding) => binding.slotId === slot.slotId)) {
+      throw new Error(`Required Skill input slot is not bound: ${capabilityId}.${slot.slotId}`);
+    }
+  }
+  return bindings;
+}
+
+export function suggestedTextInputSlotId(
+  snapshot: BoardSnapshot,
+  operationBlock: BlockRecord,
+  sourceBlock: BlockRecord,
+): string | undefined {
+  const capabilityId = typeof operationBlock.data.capabilityId === 'string' ? operationBlock.data.capabilityId : '';
+  if (!isTextDocumentCapability(capabilityId) || (sourceBlock.type !== 'text' && sourceBlock.type !== 'document')) {
+    return undefined;
+  }
+  const inputEdges = snapshot.edges.filter(
+    (edge) => edge.kind === 'execution_input' && edge.targetBlockId === operationBlock.blockId,
+  );
+  const existingBlocks = inputEdges.flatMap((edge): BlockRecord[] => {
+    const block = snapshot.blocks.find((candidate) => candidate.blockId === edge.sourceBlockId);
+    return block && (block.type === 'text' || block.type === 'document') ? [block] : [];
+  });
+  const explicitSlots = new Map(inputEdges.flatMap((edge) =>
+    edge.inputSlotId ? [[edge.sourceBlockId, edge.inputSlotId] as const] : [],
+  ));
+  return assignTextBlocksToSlots(
+    snapshot,
+    capabilityId,
+    [...existingBlocks, sourceBlock],
+    explicitSlots,
+  ).get(sourceBlock.blockId);
+}
+
+function assignTextBlocksToSlots(
+  snapshot: BoardSnapshot,
+  capabilityId: string,
+  blocks: BlockRecord[],
+  explicitSlots = new Map<string, string>(),
+): Map<string, string> {
+  const definition = capabilityDefinitionFor(capabilityId);
+  const assigned = new Map<string, string>();
+  const slotCounts = new Map<string, number>();
+  const assign = (block: BlockRecord, slotId: string): boolean => {
+    const slot = definition.inputSlots.find((candidate) => candidate.slotId === slotId);
+    if (!slot) return false;
+    const count = slotCounts.get(slotId) ?? 0;
+    if (slot.cardinality !== 'many' && count > 0) return false;
+    assigned.set(block.blockId, slotId);
+    slotCounts.set(slotId, count + 1);
+    return true;
+  };
+
+  for (const block of blocks) {
+    const slotId = explicitSlots.get(block.blockId);
+    if (slotId) assign(block, slotId);
+  }
+
+  const requiredSlots = definition.inputSlots.filter((slot) => slot.required);
+  for (const block of blocks) {
+    if (assigned.has(block.blockId)) continue;
+    const artifactType = artifactTypeForTextBlock(snapshot, block);
+    const matchingSlot = artifactType
+      ? requiredSlots.find((slot) => slot.artifactTypes.includes(artifactType) && !slotCounts.has(slot.slotId))
+      : undefined;
+    if (matchingSlot) assign(block, matchingSlot.slotId);
+  }
+
+  for (const block of blocks) {
+    if (assigned.has(block.blockId)) continue;
+    const artifactType = artifactTypeForTextBlock(snapshot, block);
+    const availableRequired = requiredSlots.find((slot) => !slotCounts.has(slot.slotId));
+    if (availableRequired && (!artifactType || requiredSlots.length === 1)) {
+      assign(block, availableRequired.slotId);
+      continue;
+    }
+    const optionalSlot = definition.inputSlots.find((slot) => {
+      if (slot.required) return false;
+      if (slot.cardinality !== 'many' && slotCounts.has(slot.slotId)) return false;
+      return slot.cardinality === 'many'
+        || !artifactType
+        || slot.artifactTypes.length === 0
+        || slot.artifactTypes.includes(artifactType);
+    });
+    if (optionalSlot) assign(block, optionalSlot.slotId);
+  }
+  return assigned;
+}
+
+function artifactTypeForTextBlock(snapshot: BoardSnapshot, block: BlockRecord): string | undefined {
+  const documentKind = typeof block.data.documentKind === 'string' ? block.data.documentKind : undefined;
+  if (documentKind && documentKind !== 'general' && documentKind !== 'markdown_document') return documentKind;
+  const sourceExecutionId = typeof block.data.sourceExecutionId === 'string' ? block.data.sourceExecutionId : undefined;
+  const execution = sourceExecutionId
+    ? snapshot.executions.find((candidate) => candidate.executionId === sourceExecutionId)
+    : undefined;
+  if (!execution) return undefined;
+  const definition = capabilityDefinitionFor(execution.capabilityId);
+  const outputIndex = execution.outputBlockIds.indexOf(block.blockId);
+  return definition.outputSlots[Math.max(0, outputIndex)]?.artifactType ?? definition.outputSlots[0]?.artifactType;
 }
 
 function isTextConnector(connectorId: string): boolean {

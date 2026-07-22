@@ -6,6 +6,7 @@ import { createBlockRecord, touchBoard } from '../core/blockFactory';
 import {
   disabledExecutionInputRolesFor,
   executionInputRoleOptionsFor,
+  nextRequiredInputSlotId,
   operationReadinessFor,
   operationReadinessMessageKey,
 } from '../core/capabilities';
@@ -100,7 +101,10 @@ export function useOperationInputController(options: OperationInputControllerOpt
   function operationPlaceholderForBlock(operationBlock: BlockRecord): string {
     if (operationBlock.data.capabilityId === 'text.generate') return t('operationToolbar.promptPlaceholder');
     if (typeof operationBlock.data.skillId === 'string') {
-      return t(skillUiDefinitionFor(operationBlock.data.skillId).placeholderKey);
+      const ui = skillUiDefinitionFor(operationBlock.data.skillId);
+      const slotId = nextRequiredInputSlotId(snapshotRef.current, operationBlock);
+      const slot = ui.inputSlots?.find((candidate) => candidate.slotId === slotId);
+      return t(slot?.placeholderKey ?? ui.placeholderKey);
     }
     const mode = operationBlock.data.operationMode;
     if (operationBlock.data.operationVariant === 'create_similar') {
@@ -128,7 +132,12 @@ export function useOperationInputController(options: OperationInputControllerOpt
       block.parentGroupId = operationBlock.parentGroupId;
       block.data = { ...block.data, ...localizedBlockData(type, t) };
       if (type === 'text') {
-        block.data.title = t('operationToolbar.prompt');
+        const slotId = nextRequiredInputSlotId(current, operationBlock);
+        const skillUi = typeof operationBlock.data.skillId === 'string'
+          ? skillUiDefinitionFor(operationBlock.data.skillId)
+          : undefined;
+        const slotUi = skillUi?.inputSlots?.find((candidate) => candidate.slotId === slotId);
+        block.data.title = slotUi ? t(slotUi.inputKey) : t('operationToolbar.prompt');
         block.data.promptRole = 'operation_prompt';
         block.data.placeholder = operationPlaceholderForBlock(operationBlock);
       }
@@ -139,6 +148,7 @@ export function useOperationInputController(options: OperationInputControllerOpt
         sourceBlockId: block.blockId,
         targetBlockId: operationBlock.blockId,
         kind: 'execution_input',
+        inputSlotId: type === 'text' ? nextRequiredInputSlotId(current, operationBlock) : undefined,
       });
       newBlockId = block.blockId;
       return touchBoard(current);

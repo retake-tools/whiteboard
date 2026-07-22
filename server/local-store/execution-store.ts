@@ -225,6 +225,7 @@ export async function updateDocumentResultBlock(input: {
   executionId: string;
   assetId: string;
   markdown: string;
+  documentKind?: string;
   resultBlockId?: string;
   title?: string;
 }): Promise<{ snapshot: BoardSnapshot; block: BlockRecord; execution: ExecutionRecord }> {
@@ -237,7 +238,7 @@ export async function updateDocumentResultBlock(input: {
       contentFormat: 'markdown',
       documentCharacterCount: summary.characterCount,
       documentExcerpt: summary.excerpt,
-      documentKind: 'general',
+      documentKind: input.documentKind ?? 'general',
       documentOutline: summary.outline,
     },
   });

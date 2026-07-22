@@ -229,6 +229,11 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
     const ui = skillUiDefinitionFor(skillId);
     const operationTitle = t(ui.operationTitleKey);
     return {
+      inputSlots: ui.inputSlots?.map((slot) => ({
+        slotId: slot.slotId,
+        promptTitle: t(slot.inputKey),
+        promptPlaceholder: t(slot.placeholderKey),
+      })),
       operationTitle,
       promptPlaceholder: t(ui.placeholderKey),
       promptTitle: t(ui.inputKey),

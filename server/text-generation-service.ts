@@ -146,6 +146,7 @@ async function executeTextGeneration(
     assetId: asset.assetId,
     resultBlockId: execution.outputBlockIds[0],
     title: capabilityDefinitionFor(execution.capabilityId).displayName,
+    documentKind: capabilityDefinitionFor(execution.capabilityId).outputSlots[0]?.artifactType,
     markdown,
   });
   publishExecutionEvent(execution.executionId, { type: 'execution.snapshot', snapshot: completed.snapshot });

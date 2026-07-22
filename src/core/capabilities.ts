@@ -40,6 +40,7 @@ export interface CapabilitySchema {
   outputContracts: CapabilityOutputContract[];
   paramsSchema: CapabilityParamSchema;
   promptSource: PromptSource;
+  requiredInputSlotIds?: string[];
   supportedAdapters: AdapterKind[];
 }
 
@@ -92,6 +93,17 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
     outputContracts: [{ type: 'document' }],
     paramsSchema: {},
     promptSource: 'block',
+    supportedAdapters: ['direct_api', 'mcp_agent', 'cli_agent', 'manual_import'],
+  },
+  'previs.storyboard.plan': {
+    capabilityId: 'previs.storyboard.plan',
+    defaultAdapter: 'direct_api',
+    displayNameKey: 'operation.generateStoryboardPlan.title',
+    inputContracts: [{ type: 'text', required: true, source: 'block', min: 3, max: 'many' }],
+    outputContracts: [{ type: 'document' }],
+    paramsSchema: {},
+    promptSource: 'block',
+    requiredInputSlotIds: ['screenplay', 'character_bible', 'scene_bible'],
     supportedAdapters: ['direct_api', 'mcp_agent', 'cli_agent', 'manual_import'],
   },
   'image.text_to_image': {
@@ -267,6 +279,16 @@ export function operationReadinessFor(
     .filter((block): block is BlockRecord => Boolean(block));
   const issues = new Set<OperationReadinessIssue>();
 
+  for (const slotId of schema.requiredInputSlotIds ?? []) {
+    const edge = inputEdges.find((candidate) => candidate.inputSlotId === slotId);
+    const block = edge ? blockById.get(edge.sourceBlockId) : undefined;
+    if (!block || !inputBlockMatchesContract(block, 'text', capabilityId)) {
+      issues.add('text_input_missing');
+      continue;
+    }
+    if (!textualInputReady([block], capabilityId)) issues.add('prompt_empty');
+  }
+
   for (const contract of schema.inputContracts) {
     if (!contract.required || contract.source !== 'block') continue;
     const matchingBlocks = inputBlocks.filter((block) => inputBlockMatchesContract(block, contract.type, capabilityId));
@@ -334,6 +356,21 @@ export function operationInputStateForCapability(
     hasTextInput: textualInputReady(inputBlocks, capabilityId),
     missingRequiredTypes,
   };
+}
+
+export function nextRequiredInputSlotId(
+  snapshot: BoardSnapshot,
+  operationBlock: BlockRecord,
+): string | undefined {
+  const capabilityId = typeof operationBlock.data.capabilityId === 'string'
+    ? operationBlock.data.capabilityId
+    : 'image.text_to_image';
+  const requiredSlotIds = schemaForCapability(capabilityId).requiredInputSlotIds ?? [];
+  const assignedSlotIds = new Set(snapshot.edges
+    .filter((edge) => edge.kind === 'execution_input' && edge.targetBlockId === operationBlock.blockId)
+    .map((edge) => edge.inputSlotId)
+    .filter((slotId): slotId is string => Boolean(slotId)));
+  return requiredSlotIds.find((slotId) => !assignedSlotIds.has(slotId));
 }
 
 function inputBlockMatchesContract(

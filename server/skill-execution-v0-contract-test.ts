@@ -27,7 +27,7 @@ assert.match(textOperationsSource, /textDocumentInputBindings/);
 assert.equal(textOperationsSource.includes('screenplayInputBindings'), false);
 
 const skills = listSkills();
-assert.equal(skills.length, 4);
+assert.equal(skills.length, 5);
 assert.deepEqual(listRecommendedSkills().map((skill) => skill.skillId), [
   'retake.screenplay.from-brief',
   'retake.screenplay.normalize',

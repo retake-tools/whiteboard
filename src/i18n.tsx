@@ -319,6 +319,7 @@ type TranslationKey =
   | 'operation.organizeScreenplay.title'
   | 'operation.defineCharacter.title'
   | 'operation.defineScene.title'
+  | 'operation.generateStoryboardPlan.title'
   | 'operation.annotationEdit.prompt'
   | 'operation.annotationEdit.title'
   | 'operation.quickEdit.prompt'
@@ -378,6 +379,14 @@ type TranslationKey =
   | 'skill.sceneBible.description'
   | 'skill.sceneBible.input'
   | 'skill.sceneBible.placeholder'
+  | 'skill.storyboardPlan.name'
+  | 'skill.storyboardPlan.description'
+  | 'skill.storyboardPlan.screenplayInput'
+  | 'skill.storyboardPlan.screenplayPlaceholder'
+  | 'skill.storyboardPlan.characterInput'
+  | 'skill.storyboardPlan.characterPlaceholder'
+  | 'skill.storyboardPlan.sceneInput'
+  | 'skill.storyboardPlan.scenePlaceholder'
   | 'operationInputQuickAdd.add'
   | 'operationInputQuickAdd.addImage'
   | 'operationInputQuickAdd.addText'
@@ -901,6 +910,7 @@ const translations: Record<Locale, Translations> = {
     'operation.organizeScreenplay.title': 'Organize screenplay',
     'operation.defineCharacter.title': 'Define characters',
     'operation.defineScene.title': 'Define scenes',
+    'operation.generateStoryboardPlan.title': 'Generate storyboard plan',
     'operation.annotationEdit.prompt': 'Edit image from annotation note',
     'operation.annotationEdit.title': 'Annotation Edit',
     'operation.quickEdit.prompt': 'Describe how to transform the source image...',
@@ -960,6 +970,14 @@ const translations: Record<Locale, Translations> = {
     'skill.sceneBible.description': 'Extract scene, spatial, lighting, and continuity constraints from a screenplay.',
     'skill.sceneBible.input': 'Source screenplay',
     'skill.sceneBible.placeholder': 'Connect or paste the screenplay that should define the production scenes...',
+    'skill.storyboardPlan.name': 'Generate storyboard plan',
+    'skill.storyboardPlan.description': 'Turn a screenplay and production design bibles into a shot-level storyboard plan.',
+    'skill.storyboardPlan.screenplayInput': 'Screenplay',
+    'skill.storyboardPlan.screenplayPlaceholder': 'Connect or paste the authoritative screenplay...',
+    'skill.storyboardPlan.characterInput': 'Character Bible',
+    'skill.storyboardPlan.characterPlaceholder': 'Connect or paste the approved character design and continuity constraints...',
+    'skill.storyboardPlan.sceneInput': 'Scene Bible',
+    'skill.storyboardPlan.scenePlaceholder': 'Connect or paste the approved scene, spatial, lighting, and continuity constraints...',
     'operationInputQuickAdd.add': 'Add',
     'operationInputQuickAdd.addImage': 'Add image input',
     'operationInputQuickAdd.addText': 'Add text input',
@@ -1478,6 +1496,7 @@ const translations: Record<Locale, Translations> = {
     'operation.organizeScreenplay.title': '整理剧本',
     'operation.defineCharacter.title': '生成角色设定',
     'operation.defineScene.title': '生成场景设定',
+    'operation.generateStoryboardPlan.title': '生成故事板计划',
     'operation.annotationEdit.prompt': '根据标注备注编辑图片',
     'operation.annotationEdit.title': '标注编辑',
     'operation.quickEdit.prompt': '描述要如何基于源图生成新图片...',
@@ -1537,6 +1556,14 @@ const translations: Record<Locale, Translations> = {
     'skill.sceneBible.description': '从剧本提取场景、空间、灯光与连续性约束。',
     'skill.sceneBible.input': '源剧本',
     'skill.sceneBible.placeholder': '连接或粘贴用于生成场景设定的剧本...',
+    'skill.storyboardPlan.name': '生成故事板计划',
+    'skill.storyboardPlan.description': '将剧本、角色设定与场景设定整理为镜头级故事板计划。',
+    'skill.storyboardPlan.screenplayInput': '剧本',
+    'skill.storyboardPlan.screenplayPlaceholder': '连接或粘贴作为剧情依据的剧本...',
+    'skill.storyboardPlan.characterInput': '角色设定',
+    'skill.storyboardPlan.characterPlaceholder': '连接或粘贴已确认的角色设计与连续性约束...',
+    'skill.storyboardPlan.sceneInput': '场景设定',
+    'skill.storyboardPlan.scenePlaceholder': '连接或粘贴已确认的场景、空间、灯光与连续性约束...',
     'operationInputQuickAdd.add': '添加',
     'operationInputQuickAdd.addImage': '添加图片输入',
     'operationInputQuickAdd.addText': '添加文本输入',

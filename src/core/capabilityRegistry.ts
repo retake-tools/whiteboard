@@ -163,12 +163,71 @@ export const sceneBibleCapabilityDefinition: CapabilityDefinition = {
   supportedAdapterClasses: ['text.document', 'agent_runtime.text'],
 };
 
+export const storyboardPlanCapabilityDefinition: CapabilityDefinition = {
+  schemaVersion: 1,
+  capabilityId: 'previs.storyboard.plan',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-previs-storyboard-plan-v1',
+  category: 'previsualization',
+  displayName: 'Generate storyboard plan',
+  inputSlots: [
+    {
+      slotId: 'screenplay',
+      semanticRole: 'screenplay',
+      dataTypes: ['text', 'document'],
+      artifactTypes: ['screenplay_master'],
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['block', 'asset', 'artifact_revision'],
+    },
+    {
+      slotId: 'character_bible',
+      semanticRole: 'character_bible',
+      dataTypes: ['text', 'document'],
+      artifactTypes: ['character_bible'],
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['block', 'asset', 'artifact_revision'],
+    },
+    {
+      slotId: 'scene_bible',
+      semanticRole: 'scene_bible',
+      dataTypes: ['text', 'document'],
+      artifactTypes: ['scene_bible'],
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['block', 'asset', 'artifact_revision'],
+    },
+    {
+      slotId: 'references',
+      semanticRole: 'reference',
+      dataTypes: ['text', 'document'],
+      artifactTypes: ['storyboard_reference', 'reference'],
+      cardinality: 'many',
+      required: false,
+      bindingKinds: ['block', 'asset', 'artifact_revision'],
+    },
+  ],
+  outputSlots: [{
+    slotId: 'storyboard_plan',
+    semanticRole: 'storyboard_plan',
+    dataType: 'document',
+    artifactType: 'storyboard_plan',
+    schemaRef: 'retake.storyboard-plan-markdown/v1',
+    cardinality: 'one',
+    projectionBlockTypes: ['document'],
+  }],
+  runtimeRequirements: ['text_generation', 'durable_asset_output'],
+  supportedAdapterClasses: ['text.document', 'agent_runtime.text'],
+};
+
 const canonicalCapabilityDefinitions = [
   textGenerateCapabilityDefinition,
   screenplayGenerateCapabilityDefinition,
   screenplayNormalizeCapabilityDefinition,
   characterBibleCapabilityDefinition,
   sceneBibleCapabilityDefinition,
+  storyboardPlanCapabilityDefinition,
 ] as const;
 
 export const textDocumentCapabilityIds = canonicalCapabilityDefinitions
@@ -181,8 +240,8 @@ export const textDocumentCapabilityIds = canonicalCapabilityDefinitions
 export const aiSdkTextAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.text.ai-sdk',
-  version: '0.2.0',
-  definitionHash: 'sha256:retake-text-ai-sdk-v1',
+  version: '0.3.0',
+  definitionHash: 'sha256:retake-text-ai-sdk-v2',
   adapterClass: 'text.document',
   routeKind: 'direct_api',
   supportedCapabilityIds: textDocumentCapabilityIds,
@@ -192,6 +251,7 @@ export const aiSdkTextAdapterDefinition: AdapterDefinition = {
     { profileId: 'screenplay_normalize', requiredSlots: ['source_screenplay'], optionalSlots: ['normalization_instruction'] },
     { profileId: 'character_bible_from_screenplay', requiredSlots: ['screenplay'], optionalSlots: ['references'] },
     { profileId: 'scene_bible_from_screenplay', requiredSlots: ['screenplay'], optionalSlots: ['references'] },
+    { profileId: 'storyboard_plan', requiredSlots: ['screenplay', 'character_bible', 'scene_bible'], optionalSlots: ['references'] },
   ],
   constraints: {
     outputCount: { min: 1, max: 1 },
@@ -205,8 +265,8 @@ export const aiSdkTextAdapterDefinition: AdapterDefinition = {
 export const codexAppServerTextAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.text.codex-app-server',
-  version: '0.2.0',
-  definitionHash: 'sha256:retake-text-codex-app-server-v1',
+  version: '0.3.0',
+  definitionHash: 'sha256:retake-text-codex-app-server-v2',
   adapterClass: 'agent_runtime.text',
   routeKind: 'codex_app_server',
   provider: 'codex',
@@ -217,6 +277,7 @@ export const codexAppServerTextAdapterDefinition: AdapterDefinition = {
     { profileId: 'screenplay_normalize', requiredSlots: ['source_screenplay'], optionalSlots: ['normalization_instruction'] },
     { profileId: 'character_bible_from_screenplay', requiredSlots: ['screenplay'], optionalSlots: ['references'] },
     { profileId: 'scene_bible_from_screenplay', requiredSlots: ['screenplay'], optionalSlots: ['references'] },
+    { profileId: 'storyboard_plan', requiredSlots: ['screenplay', 'character_bible', 'scene_bible'], optionalSlots: ['references'] },
   ],
   constraints: {
     outputCount: { min: 1, max: 1 },

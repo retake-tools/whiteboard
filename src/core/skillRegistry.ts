@@ -1,36 +1,51 @@
 import type { CapabilityInputBinding, SkillDefinitionLock } from './capabilityContracts';
 
-export type SkillCategory = 'production_design' | 'screenplay';
+export type SkillCategory = 'previsualization' | 'production_design' | 'screenplay';
 
 export type SkillNameKey =
   | 'skill.screenplayFromBrief.name'
   | 'skill.normalizeScreenplay.name'
   | 'skill.characterBible.name'
-  | 'skill.sceneBible.name';
+  | 'skill.sceneBible.name'
+  | 'skill.storyboardPlan.name';
 
 export type SkillDescriptionKey =
   | 'skill.screenplayFromBrief.description'
   | 'skill.normalizeScreenplay.description'
   | 'skill.characterBible.description'
-  | 'skill.sceneBible.description';
+  | 'skill.sceneBible.description'
+  | 'skill.storyboardPlan.description';
 
 export type SkillInputKey =
   | 'skill.screenplayFromBrief.input'
   | 'skill.normalizeScreenplay.input'
   | 'skill.characterBible.input'
-  | 'skill.sceneBible.input';
+  | 'skill.sceneBible.input'
+  | 'skill.storyboardPlan.screenplayInput'
+  | 'skill.storyboardPlan.characterInput'
+  | 'skill.storyboardPlan.sceneInput';
 
 export type SkillPlaceholderKey =
   | 'skill.screenplayFromBrief.placeholder'
   | 'skill.normalizeScreenplay.placeholder'
   | 'skill.characterBible.placeholder'
-  | 'skill.sceneBible.placeholder';
+  | 'skill.sceneBible.placeholder'
+  | 'skill.storyboardPlan.screenplayPlaceholder'
+  | 'skill.storyboardPlan.characterPlaceholder'
+  | 'skill.storyboardPlan.scenePlaceholder';
 
 export type SkillOperationTitleKey =
   | 'operation.generateScreenplay.title'
   | 'operation.organizeScreenplay.title'
   | 'operation.defineCharacter.title'
-  | 'operation.defineScene.title';
+  | 'operation.defineScene.title'
+  | 'operation.generateStoryboardPlan.title';
+
+export interface RetakeSkillUiInputSlot {
+  inputKey: SkillInputKey;
+  placeholderKey: SkillPlaceholderKey;
+  slotId: string;
+}
 
 export interface RetakeSkillUiDefinition {
   descriptionKey: SkillDescriptionKey;
@@ -38,6 +53,7 @@ export interface RetakeSkillUiDefinition {
   nameKey: SkillNameKey;
   operationTitleKey: SkillOperationTitleKey;
   placeholderKey: SkillPlaceholderKey;
+  inputSlots?: RetakeSkillUiInputSlot[];
 }
 
 export interface SkillCapabilityBinding {
@@ -211,11 +227,54 @@ Describe future reference needs such as layout diagrams, key views, lighting sta
   source: productionDesignSource,
 };
 
+const storyboardSource = {
+  kind: 'catmeme_migration' as const,
+  paths: [
+    'skills-v1-node-workflow/previs-storyboard-director/SKILL.md',
+    'skills/role-storyboard-director/SKILL.md',
+    'skills/role-storyboard-director/references/storyboard-structure.md',
+    'skills-v1-node-workflow/video-production-methods/references/storyboard-and-segmentation.md',
+  ],
+};
+
+export const storyboardPlanFromProductionDesignSkill: RetakeSkillDefinition = {
+  schemaVersion: 1,
+  skillId: 'retake.storyboard-plan.from-production-design',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-storyboard-plan-from-production-design-catmeme-v1',
+  name: 'Generate storyboard plan',
+  description: 'Turn an approved screenplay and production design bibles into a shot-level storyboard plan.',
+  category: 'previsualization',
+  capabilityBindings: [{
+    capabilityId: 'previs.storyboard.plan',
+    inputSlots: ['screenplay', 'character_bible', 'scene_bible', 'references'],
+    outputSlots: ['storyboard_plan'],
+  }],
+  instructionTemplate: `You are the Storyboard Director for a video production workflow. Convert the supplied screenplay, Character Bible, Scene Bible, and optional references into one production-ready Markdown Storyboard Plan.
+
+The screenplay is the story authority. The Character Bible and Scene Bible are the design authorities. Preserve their facts, identifiers, relationships, state, spatial logic, lighting, props, continuity constraints, and required ending. Do not invent missing design facts. If an unresolved gap prevents a reliable shot decision, expose it and identify the upstream production-design input that must be resolved.
+
+Design the sequence from story beats and natural visual boundaries, not by mechanically slicing time into fixed seconds. Organize the plan as sequence, generation unit, shot, and performance beat. Every shot must have a story function and inherit the source beat it realizes. Use relationship composition, blocking, environment pressure, object state, reactions, and transitions to make causality visible; do not reduce the plan to repeated protagonist-only coverage.
+
+For each generation unit, define its purpose, boundary reason, emotional movement, environmental and object-state change, pressure source, relationship composition, required assets, start state, end state, and bridge to adjacent units. For each shot, define a stable identifier, source traceability, shot purpose, framing and camera intent, subject relationships and blocking, visible action and performance beats, environment and object changes, sound or dialogue, transition, continuity requirements, and production risks.
+
+Describe future storyboard sheets, keyframes, image references, or generation assets only as needed or proposed. Do not claim they were generated, approved, submitted to a provider, or added to a library. This Skill produces one document only and must not execute units, generate media, mutate shared files, or advance workflow approvals.`,
+  outputRequirements: [
+    'Return only the requested Markdown Storyboard Plan.',
+    'Include source traceability and an ordered sequence of generation units, shots, and performance beats.',
+    'For every unit and shot, preserve story and design authority while stating camera intent, relational composition, blocking, continuity, state changes, sound, transitions, required assets, and risks.',
+    'List storyboard sheets and media assets only as needed or proposed; never present them as generated, approved, submitted, or added to a library.',
+    'End with screenplay coverage, continuity coverage, design gaps, unresolved questions, and upstream return points.',
+  ],
+  source: storyboardSource,
+};
+
 const builtInSkills = [
   screenplayFromBriefSkill,
   normalizeScreenplaySkill,
   characterBibleFromScreenplaySkill,
   sceneBibleFromScreenplaySkill,
+  storyboardPlanFromProductionDesignSkill,
 ] as const;
 
 const recommendedSkillIds = new Set([
@@ -251,6 +310,30 @@ const skillUiDefinitions: Record<string, RetakeSkillUiDefinition> = {
     inputKey: 'skill.sceneBible.input',
     placeholderKey: 'skill.sceneBible.placeholder',
     operationTitleKey: 'operation.defineScene.title',
+  },
+  [storyboardPlanFromProductionDesignSkill.skillId]: {
+    nameKey: 'skill.storyboardPlan.name',
+    descriptionKey: 'skill.storyboardPlan.description',
+    inputKey: 'skill.storyboardPlan.screenplayInput',
+    placeholderKey: 'skill.storyboardPlan.screenplayPlaceholder',
+    operationTitleKey: 'operation.generateStoryboardPlan.title',
+    inputSlots: [
+      {
+        slotId: 'screenplay',
+        inputKey: 'skill.storyboardPlan.screenplayInput',
+        placeholderKey: 'skill.storyboardPlan.screenplayPlaceholder',
+      },
+      {
+        slotId: 'character_bible',
+        inputKey: 'skill.storyboardPlan.characterInput',
+        placeholderKey: 'skill.storyboardPlan.characterPlaceholder',
+      },
+      {
+        slotId: 'scene_bible',
+        inputKey: 'skill.storyboardPlan.sceneInput',
+        placeholderKey: 'skill.storyboardPlan.scenePlaceholder',
+      },
+    ],
   },
 };
 

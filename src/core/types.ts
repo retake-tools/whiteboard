@@ -364,6 +364,7 @@ export interface BoardEdgeRecord {
   targetBlockId: string;
   kind: ConnectionKind;
   inputRole?: ExecutionInputRole;
+  inputSlotId?: string;
 }
 
 export interface BoardSnapshot {
@@ -406,6 +407,7 @@ export interface WorkspaceSummary {
 export type RetakeNode = Node<BlockRecord['data'], BlockType>;
 export type RetakeEdge = Edge<{
   inputRole?: ExecutionInputRole;
+  inputSlotId?: string;
   kind: ConnectionKind;
   proxyEdgeIds?: string[];
   resultCount?: number;

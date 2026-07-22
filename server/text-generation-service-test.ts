@@ -5,6 +5,7 @@ import {
   createDraftTextGenerationOperation,
   createDraftSkillOperation,
   executeExistingTextGenerationOperation,
+  suggestedTextInputSlotId,
 } from '../src/core/textOperations';
 import { operationReadinessFor } from '../src/core/capabilities';
 import {
@@ -207,6 +208,7 @@ const productionDesignCases = [
     instructionPattern: /Character Designer/,
     output: '# Character Bible\n\n## cat_director\n\nStable silhouette and continuity rules.',
     outputPattern: /future reference assets/i,
+    outputArtifactType: 'character_bible',
   },
   {
     capabilityId: 'design.scene.define',
@@ -216,8 +218,11 @@ const productionDesignCases = [
     instructionPattern: /Scene Designer/,
     output: '# Scene Bible\n\n## studio_floor\n\nStable zones, lighting, and blocking rules.',
     outputPattern: /spatial logic/i,
+    outputArtifactType: 'scene_bible',
   },
 ] as const;
+
+const productionResultBlockIds = new Map<string, string>();
 
 for (const productionDesignCase of productionDesignCases) {
   const productionLabels = {
@@ -271,7 +276,113 @@ for (const productionDesignCase of productionDesignCases) {
   assert.equal(completedProductionExecution?.capabilityId, productionDesignCase.capabilityId);
   assert.equal(completedProductionExecution?.skillId, productionDesignCase.skillId);
   assert.ok(productionResultBlock?.data.assetId);
+  assert.equal(productionResultBlock?.data.documentKind, productionDesignCase.outputArtifactType);
+  productionResultBlockIds.set(productionDesignCase.capabilityId, productionRun.resultBlock.blockId);
 }
+
+const screenplayResultBlock = completed.blocks.find((block) => block.blockId === skillRun.resultBlock.blockId);
+const characterResultBlockId = productionResultBlockIds.get('design.character.define');
+const sceneResultBlockId = productionResultBlockIds.get('design.scene.define');
+assert.equal(screenplayResultBlock?.data.documentKind, 'screenplay_master');
+assert.ok(characterResultBlockId);
+assert.ok(sceneResultBlockId);
+
+const storyboardLabels = {
+  operationTitle: 'Generate storyboard plan',
+  promptPlaceholder: 'Connect the required production documents.',
+  promptTitle: 'Screenplay',
+  resultTitle: 'Storyboard Plan',
+  waitingBody: 'Waiting for storyboard planning.',
+  inputSlots: [
+    { slotId: 'screenplay', promptTitle: 'Screenplay', promptPlaceholder: 'Connect the screenplay.' },
+    { slotId: 'character_bible', promptTitle: 'Character Bible', promptPlaceholder: 'Connect the Character Bible.' },
+    { slotId: 'scene_bible', promptTitle: 'Scene Bible', promptPlaceholder: 'Connect the Scene Bible.' },
+  ],
+};
+const incompleteStoryboardDraft = createDraftSkillOperation(completed, {
+  ...storyboardLabels,
+  connectionId: readyOpenAIConnection!.connectionId,
+  selectedBlockIds: [skillRun.resultBlock.blockId],
+  skillId: 'retake.storyboard-plan.from-production-design',
+});
+assert.deepEqual(
+  incompleteStoryboardDraft.inputBlocks.map((block) => block.data.title),
+  ['Cat Director', 'Character Bible', 'Scene Bible'],
+);
+assert.equal(operationReadinessFor(completed, incompleteStoryboardDraft.operationBlock).canRun, false);
+assert.deepEqual(
+  completed.edges
+    .filter((edge) => edge.targetBlockId === incompleteStoryboardDraft.operationBlock.blockId)
+    .map((edge) => edge.inputSlotId),
+  ['screenplay', 'character_bible', 'scene_bible'],
+);
+
+const storyboardDraft = createDraftSkillOperation(completed, {
+  ...storyboardLabels,
+  connectionId: readyOpenAIConnection!.connectionId,
+  selectedBlockIds: [sceneResultBlockId!, skillRun.resultBlock.blockId, characterResultBlockId!],
+  skillId: 'retake.storyboard-plan.from-production-design',
+});
+assert.equal(storyboardDraft.inputBlocks.length, 3);
+assert.equal(storyboardDraft.operationBlock.data.capabilityId, 'previs.storyboard.plan');
+assert.equal(operationReadinessFor(completed, storyboardDraft.operationBlock).canRun, true);
+assert.deepEqual(
+  completed.edges
+    .filter((edge) => edge.targetBlockId === storyboardDraft.operationBlock.blockId)
+    .map((edge) => edge.inputSlotId),
+  ['screenplay', 'character_bible', 'scene_bible'],
+  'Typed document lineage must win over scrambled canvas selection order.',
+);
+const reconnectSnapshot = structuredClone(completed);
+reconnectSnapshot.edges = reconnectSnapshot.edges.filter((edge) => !(
+  edge.sourceBlockId === sceneResultBlockId && edge.targetBlockId === storyboardDraft.operationBlock.blockId
+));
+const sceneResultBlock = reconnectSnapshot.blocks.find((block) => block.blockId === sceneResultBlockId);
+assert.ok(sceneResultBlock);
+assert.equal(
+  suggestedTextInputSlotId(reconnectSnapshot, storyboardDraft.operationBlock, sceneResultBlock),
+  'scene_bible',
+  'Manual reconnection must recover the typed slot from artifact lineage.',
+);
+const storyboardRun = executeExistingTextGenerationOperation(completed, {
+  connection: readyOpenAIConnection!,
+  labels: storyboardLabels,
+  operationBlockId: storyboardDraft.operationBlock.blockId,
+});
+assert.deepEqual(
+  storyboardRun.execution.inputBindingsSnapshot?.map((binding) => binding.slotId),
+  ['screenplay', 'character_bible', 'scene_bible'],
+);
+await saveSnapshot(completed);
+const storyboardStarted = await startTextGeneration({
+  projectId: completed.project.projectId,
+  boardId: completed.board.boardId,
+  executionId: storyboardRun.execution.executionId,
+  connectionId: readyOpenAIConnection!.connectionId,
+}, {
+  generateOpenAICompatible: async (_config, input) => {
+    assert.match(input.prompt, /Storyboard Director/);
+    assert.match(input.prompt, /## screenplay\n# Cat Director/);
+    assert.match(input.prompt, /## character_bible\n# Character Bible/);
+    assert.match(input.prompt, /## scene_bible\n# Scene Bible/);
+    assert.match(input.prompt, /must not execute units, generate media/i);
+    return {
+      text: '# Storyboard Plan\n\n## Unit U01\n\n### Shot S01\n\nA traceable opening beat.',
+      finishReason: 'stop',
+      usage: { inputTokens: 500, outputTokens: 40 },
+    };
+  },
+});
+await storyboardStarted.completion;
+completed = await loadSnapshot(completed.project.projectId, completed.board.boardId);
+const completedStoryboardExecution = completed.executions.find(
+  (execution) => execution.executionId === storyboardRun.execution.executionId,
+);
+const storyboardResultBlock = completed.blocks.find((block) => block.blockId === storyboardRun.resultBlock.blockId);
+assert.equal(completedStoryboardExecution?.status, 'succeeded');
+assert.equal(completedStoryboardExecution?.capabilityId, 'previs.storyboard.plan');
+assert.equal(completedStoryboardExecution?.skillId, 'retake.storyboard-plan.from-production-design');
+assert.equal(storyboardResultBlock?.data.documentKind, 'storyboard_plan');
 
 console.log(JSON.stringify({
   ok: true,
@@ -279,5 +390,6 @@ console.log(JSON.stringify({
   frozenSkillSnapshot: true,
   preservedMarkdownAssets: 2,
   productionDesignSkills: productionDesignCases.length,
+  storyboardPlanSkill: true,
   providerRoutes: ['openai-compatible', 'google-native'],
 }));

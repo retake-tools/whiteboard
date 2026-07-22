@@ -255,7 +255,7 @@ export function createFlowEdges(
     if (source === target) continue;
     const isProxy = source !== edge.sourceBlockId || target !== edge.targetBlockId;
     const key = isProxy
-      ? `${source}:${target}:${edge.kind}:${edge.inputRole ?? ''}`
+      ? `${source}:${target}:${edge.kind}:${edge.inputRole ?? ''}:${edge.inputSlotId ?? ''}`
       : edge.edgeId;
     const existing = projectedEdges.get(key);
     if (existing) {
@@ -280,6 +280,7 @@ export function createFlowEdges(
         .join(' ') || undefined,
       data: {
         inputRole: edge.inputRole,
+        inputSlotId: edge.inputSlotId,
         kind: edge.kind,
         proxyEdgeIds: isProxy ? [edge.edgeId] : undefined,
         resultCount,
