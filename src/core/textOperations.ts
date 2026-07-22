@@ -10,6 +10,7 @@ import { createBlockRecord, maxZIndex, touchBoard } from './blockFactory';
 import { recordExecutionConfiguration } from './executionConfiguration';
 import type { ExecutionConnectionSummary } from './executionProviders';
 import { createId, nowIso } from './id';
+import type { PackageInvocationContext } from './packageContracts';
 import {
   capabilityForSkill,
   skillDefinitionFor,
@@ -74,6 +75,7 @@ export function createDraftSkillOperation(
   snapshot: BoardSnapshot,
   input: TextGenerationLabels & {
     connectionId?: string;
+    packageContext?: PackageInvocationContext;
     selectedBlockIds?: string[];
     skillId: string;
   },
@@ -110,6 +112,7 @@ export function createDraftSkillOperation(
     body: input.promptPlaceholder,
     capabilityId,
     skillId: skill.skillId,
+    ...(input.packageContext ? packageInvocationMetadata(input.packageContext) : {}),
     adapter: usesCodexAppServer ? 'codex_app_server' : 'direct_api',
     ...(usesCodexAppServer ? { agentHost: 'codex' as const } : {}),
     triggerMode: usesCodexAppServer ? 'agent_bridge' : 'server_worker',
@@ -132,6 +135,15 @@ export function createDraftSkillOperation(
   }));
   touchBoard(snapshot);
   return { operationBlock, inputBlocks };
+}
+
+function packageInvocationMetadata(context: PackageInvocationContext): Partial<BlockRecord['data']> {
+  return {
+    packageId: context.packageLock.packageId,
+    packageVersion: context.packageLock.version,
+    packageDigest: context.packageLock.digest,
+    packageEntryPointId: context.entrypointId,
+  };
 }
 
 export function executeExistingTextGenerationOperation(

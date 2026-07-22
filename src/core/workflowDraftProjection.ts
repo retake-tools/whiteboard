@@ -2,6 +2,7 @@ import { capabilityDefinitionFor } from './capabilityRegistry';
 import { createBlockRecord, touchBoard } from './blockFactory';
 import { createGroupAroundBlocks } from './grouping';
 import { createId } from './id';
+import type { PackageInvocationContext } from './packageContracts';
 import { createDraftSkillOperation, type TextGenerationLabels } from './textOperations';
 import type { BlockRecord, BoardSnapshot } from './types';
 import {
@@ -29,6 +30,7 @@ export function projectWorkflowDraft(
   snapshot: BoardSnapshot,
   input: WorkflowDraftProjectionLabels & {
     connectionIdForCapability: (capabilityId: string) => string | undefined;
+    packageContext?: PackageInvocationContext;
     workflowId: string;
   },
 ): WorkflowDraftProjection {
@@ -36,7 +38,7 @@ export function projectWorkflowDraft(
   const validationIssues = validateWorkflowDefinition(workflow);
   if (validationIssues.length > 0) throw new Error(validationIssues.join('\n'));
   const projectionId = createId('workflow_projection');
-  const metadata = workflowMetadata(workflow, projectionId);
+  const metadata = workflowMetadata(workflow, projectionId, input.packageContext);
   const workflowInputs = new Map<string, BlockRecord>();
   const stepOutputs = new Map<string, BlockRecord>();
   const operationBlocks = new Map<string, BlockRecord>();
@@ -142,12 +144,22 @@ export function projectWorkflowDraft(
   };
 }
 
-function workflowMetadata(workflow: WorkflowDefinition, projectionId: string): Partial<BlockRecord['data']> {
+function workflowMetadata(
+  workflow: WorkflowDefinition,
+  projectionId: string,
+  packageContext?: PackageInvocationContext,
+): Partial<BlockRecord['data']> {
   return {
     workflowDefinitionId: workflow.workflowId,
     workflowDefinitionVersion: workflow.version,
     workflowDefinitionHash: workflow.definitionHash,
     workflowProjectionId: projectionId,
+    ...(packageContext ? {
+      packageId: packageContext.packageLock.packageId,
+      packageVersion: packageContext.packageLock.version,
+      packageDigest: packageContext.packageLock.digest,
+      packageEntryPointId: packageContext.entrypointId,
+    } : {}),
   };
 }
 

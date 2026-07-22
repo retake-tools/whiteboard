@@ -17,7 +17,7 @@ import {
 import { isTextDocumentCapability } from '../core/capabilityRegistry';
 import type { BlockRecord, BoardSnapshot } from '../core/types';
 import type { OperationToast } from '../components/OperationFeedback';
-import { skillEntryPointFor } from '../core/skillRegistry';
+import type { ResolvedPackageEntryPointTarget } from '../core/packageRegistry';
 import type { useI18n } from '../i18n';
 import { textGenerationLabelsForSkill } from './skillTextLabels';
 
@@ -66,16 +66,20 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
     }
   }
 
-  function createSkillDraft(skillId: string): void {
-    const entrypoint = skillEntryPointFor(skillId);
+  function createSkillDraft(target: Extract<ResolvedPackageEntryPointTarget, { kind: 'skill' }>): void {
+    const skillId = target.entrypoint.ref.skillId;
     let workflowBlockIds: string[] = [];
     const nextSnapshot = updateSnapshot((current) => {
       const skillLabels = textGenerationLabelsForSkill(skillId, t);
       const draft = createDraftSkillOperation(current, {
         ...skillLabels,
-        connectionId: preferredTextConnection(current, entrypoint.capabilityId),
+        connectionId: preferredTextConnection(current, target.capabilityLock.capabilityId),
+        packageContext: {
+          entrypointId: target.entrypoint.entrypointId,
+          packageLock: target.packageLock,
+        },
         selectedBlockIds: selectedBlockIdsRef.current,
-        skillId: entrypoint.skillId,
+        skillId,
       });
       workflowBlockIds = [...draft.inputBlocks.map((block) => block.blockId), draft.operationBlock.blockId];
       centerWorkflowBlocks(current, workflowBlockIds);

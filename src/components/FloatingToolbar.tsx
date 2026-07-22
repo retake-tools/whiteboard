@@ -14,17 +14,17 @@ import {
 } from 'lucide-react';
 import { useMemo, useRef, useState, type ReactElement } from 'react';
 import {
-  listRecommendedSkills,
-  listSkills,
+  listPackageEntryPoints,
+  listRecommendedPackageEntryPoints,
+  type RegisteredPackageEntryPoint,
+} from '../core/packageRegistry';
+import {
   skillUiDefinitionFor,
-  type RetakeSkillDefinition,
 } from '../core/skillRegistry';
 import { shouldShowSkillDock } from '../core/releaseFeatures';
 import type { BlockType } from '../core/types';
 import {
-  listWorkflows,
   workflowUiDefinitionFor,
-  type WorkflowDefinition,
 } from '../core/workflowRegistry';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
@@ -38,9 +38,8 @@ interface FloatingToolbarProps {
   activeTool: CanvasTool;
   onAddBlock: (type: Extract<BlockType, 'group' | 'image' | 'operation' | 'text' | 'video'>) => void;
   onCreateImageToImage: () => void;
-  onCreateSkill?: (skillId: string) => void;
-  onCreateWorkflow?: (workflowId: string) => void;
   onCreateTextToImage: () => void;
+  onInvokeEntryPoint?: (entrypointId: string) => void;
   onSetActiveTool: (tool: CanvasTool) => void;
 }
 
@@ -48,40 +47,31 @@ export function FloatingToolbar({
   activeTool,
   onAddBlock,
   onCreateImageToImage,
-  onCreateSkill,
-  onCreateWorkflow,
   onCreateTextToImage,
+  onInvokeEntryPoint,
   onSetActiveTool,
 }: FloatingToolbarProps): ReactElement {
   const { t } = useI18n();
   const skillDockRef = useRef<HTMLElement>(null);
   const [skillLibraryOpen, setSkillLibraryOpen] = useState(false);
   const [skillQuery, setSkillQuery] = useState('');
-  const skills = useMemo(() => listSkills(), []);
-  const workflows = useMemo(() => listWorkflows(), []);
-  const recommendedSkills = useMemo(() => listRecommendedSkills(), []);
-  const filteredSkills = useMemo(() => {
+  const entrypoints = useMemo(() => listPackageEntryPoints().filter(
+    ({ entrypoint }) => entrypoint.kind === 'skill' || entrypoint.kind === 'workflow',
+  ), []);
+  const recommendedEntryPoints = useMemo(() => listRecommendedPackageEntryPoints().filter(
+    ({ entrypoint }) => entrypoint.kind === 'skill' || entrypoint.kind === 'workflow',
+  ), []);
+  const filteredEntryPoints = useMemo(() => {
     const query = skillQuery.trim().toLocaleLowerCase();
     return query
-      ? skills.filter((skill) => {
-          const ui = skillUiDefinitionFor(skill.skillId);
-          return `${skill.name} ${skill.description} ${t(ui.nameKey)} ${t(ui.descriptionKey)}`
+      ? entrypoints.filter((registration) =>
+          `${registration.entrypoint.name} ${registration.entrypoint.description} ${entryPointDisplayName(registration, t)} ${entryPointDisplayDescription(registration, t)}`
             .toLocaleLowerCase()
-            .includes(query);
-        })
-      : skills;
-  }, [skillQuery, skills, t]);
-  const filteredWorkflows = useMemo(() => {
-    const query = skillQuery.trim().toLocaleLowerCase();
-    return query
-      ? workflows.filter((workflow) => {
-          const ui = workflowUiDefinitionFor(workflow.workflowId);
-          return `${workflow.name} ${workflow.description} ${t(ui.nameKey)} ${t(ui.descriptionKey)}`
-            .toLocaleLowerCase()
-            .includes(query);
-        })
-      : workflows;
-  }, [skillQuery, t, workflows]);
+            .includes(query))
+      : entrypoints;
+  }, [entrypoints, skillQuery, t]);
+  const filteredSkills = filteredEntryPoints.filter(({ entrypoint }) => entrypoint.kind === 'skill');
+  const filteredWorkflows = filteredEntryPoints.filter(({ entrypoint }) => entrypoint.kind === 'workflow');
 
   useDismissiblePopover({
     active: skillDockVisible && skillLibraryOpen,
@@ -94,18 +84,20 @@ export function FloatingToolbar({
       {skillDockVisible ? (
         <section ref={skillDockRef} className="skill-dock" aria-label={t('skillDock.title')}>
           <span className="skill-dock-label"><Sparkles size={14} />{t('skillDock.recommended')}</span>
-          {recommendedSkills.map((skill) => (
+          {recommendedEntryPoints.map((registration) => (
             <button
-              key={skill.skillId}
+              key={registration.entrypoint.entrypointId}
               type="button"
               className="skill-dock-card"
+              data-entrypoint-id={registration.entrypoint.entrypointId}
+              data-package-id={registration.packageLock.packageId}
               onClick={() => {
-                onCreateSkill?.(skill.skillId);
+                onInvokeEntryPoint?.(registration.entrypoint.entrypointId);
                 setSkillLibraryOpen(false);
               }}
             >
-              <strong>{skillDisplayName(skill, t)}</strong>
-              <span>{skillDisplayDescription(skill, t)}</span>
+              <strong>{entryPointDisplayName(registration, t)}</strong>
+              <span>{entryPointDisplayDescription(registration, t)}</span>
             </button>
           ))}
           <button
@@ -128,23 +120,31 @@ export function FloatingToolbar({
                 {filteredWorkflows.length > 0 ? (
                   <div className="skill-library-section-label">{t('skillDock.workflowCategory')}</div>
                 ) : null}
-                {filteredWorkflows.map((workflow) => (
+                {filteredWorkflows.map((registration) => (
                   <button
-                    key={workflow.workflowId}
+                    key={registration.entrypoint.entrypointId}
                     type="button"
-                    onClick={() => { onCreateWorkflow?.(workflow.workflowId); setSkillLibraryOpen(false); }}
+                    data-entrypoint-id={registration.entrypoint.entrypointId}
+                    data-package-id={registration.packageLock.packageId}
+                    onClick={() => { onInvokeEntryPoint?.(registration.entrypoint.entrypointId); setSkillLibraryOpen(false); }}
                   >
-                    <strong>{workflowDisplayName(workflow, t)}</strong>
-                    <span>{t('skillDock.workflowBadge')} · {workflowDisplayDescription(workflow, t)}</span>
+                    <strong>{entryPointDisplayName(registration, t)}</strong>
+                    <span>{t('skillDock.workflowBadge')} · {entryPointDisplayDescription(registration, t)}</span>
                   </button>
                 ))}
                 {filteredSkills.length > 0 ? (
                   <div className="skill-library-section-label">{t('skillDock.skillCategory')}</div>
                 ) : null}
-                {filteredSkills.map((skill) => (
-                  <button key={skill.skillId} type="button" onClick={() => { onCreateSkill?.(skill.skillId); setSkillLibraryOpen(false); }}>
-                    <strong>{skillDisplayName(skill, t)}</strong>
-                    <span>{skillDisplayDescription(skill, t)}</span>
+                {filteredSkills.map((registration) => (
+                  <button
+                    key={registration.entrypoint.entrypointId}
+                    type="button"
+                    data-entrypoint-id={registration.entrypoint.entrypointId}
+                    data-package-id={registration.packageLock.packageId}
+                    onClick={() => { onInvokeEntryPoint?.(registration.entrypoint.entrypointId); setSkillLibraryOpen(false); }}
+                  >
+                    <strong>{entryPointDisplayName(registration, t)}</strong>
+                    <span>{entryPointDisplayDescription(registration, t)}</span>
                   </button>
                 ))}
               </div>
@@ -192,20 +192,24 @@ export function FloatingToolbar({
   );
 }
 
-function skillDisplayName(skill: RetakeSkillDefinition, t: ReturnType<typeof useI18n>['t']): string {
-  return t(skillUiDefinitionFor(skill.skillId).nameKey);
+function entryPointDisplayName(
+  registration: RegisteredPackageEntryPoint,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  const { entrypoint } = registration;
+  if (entrypoint.kind === 'skill') return t(skillUiDefinitionFor(entrypoint.ref.skillId).nameKey);
+  if (entrypoint.kind === 'workflow') return t(workflowUiDefinitionFor(entrypoint.ref.workflowDefinitionId).nameKey);
+  return entrypoint.name;
 }
 
-function skillDisplayDescription(skill: RetakeSkillDefinition, t: ReturnType<typeof useI18n>['t']): string {
-  return t(skillUiDefinitionFor(skill.skillId).descriptionKey);
-}
-
-function workflowDisplayName(workflow: WorkflowDefinition, t: ReturnType<typeof useI18n>['t']): string {
-  return t(workflowUiDefinitionFor(workflow.workflowId).nameKey);
-}
-
-function workflowDisplayDescription(workflow: WorkflowDefinition, t: ReturnType<typeof useI18n>['t']): string {
-  return t(workflowUiDefinitionFor(workflow.workflowId).descriptionKey);
+function entryPointDisplayDescription(
+  registration: RegisteredPackageEntryPoint,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  const { entrypoint } = registration;
+  if (entrypoint.kind === 'skill') return t(skillUiDefinitionFor(entrypoint.ref.skillId).descriptionKey);
+  if (entrypoint.kind === 'workflow') return t(workflowUiDefinitionFor(entrypoint.ref.workflowDefinitionId).descriptionKey);
+  return entrypoint.description;
 }
 
 function ToolbarMenu({

@@ -340,6 +340,10 @@ export interface BlockData {
   operationQueuedConfigurationStale?: boolean;
   operationReadinessIssues?: OperationReadinessIssue[];
   operationSourceAspectRatio?: number;
+  packageDigest?: string;
+  packageEntryPointId?: string;
+  packageId?: string;
+  packageVersion?: string;
   sourceExecutionId?: string;
   executionChangeCount?: number;
   executionChangeKinds?: ExecutionConfigurationChangeKind[];

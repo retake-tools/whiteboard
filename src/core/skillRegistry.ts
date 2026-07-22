@@ -80,21 +80,6 @@ export interface RetakeSkillSnapshot extends RetakeSkillDefinition {
   inputBindings: CapabilityInputBinding[];
 }
 
-export type RetakeEntryPoint =
-  | {
-      schemaVersion: 1;
-      entrypointId: string;
-      kind: 'skill';
-      skillId: string;
-      capabilityId: string;
-    }
-  | {
-      schemaVersion: 1;
-      entrypointId: string;
-      kind: 'workflow';
-      workflowDefinitionId: string;
-    };
-
 const screenplaySource = {
   kind: 'catmeme_migration' as const,
   paths: [
@@ -277,11 +262,6 @@ const builtInSkills = [
   storyboardPlanFromProductionDesignSkill,
 ] as const;
 
-const recommendedSkillIds = new Set([
-  screenplayFromBriefSkill.skillId,
-  normalizeScreenplaySkill.skillId,
-]);
-
 const skillUiDefinitions: Record<string, RetakeSkillUiDefinition> = {
   [screenplayFromBriefSkill.skillId]: {
     nameKey: 'skill.screenplayFromBrief.name',
@@ -341,30 +321,10 @@ export function listSkills(): RetakeSkillDefinition[] {
   return [...builtInSkills];
 }
 
-export function listRecommendedSkills(): RetakeSkillDefinition[] {
-  return builtInSkills.filter((skill) => recommendedSkillIds.has(skill.skillId));
-}
-
 export function skillUiDefinitionFor(skillId: string): RetakeSkillUiDefinition {
   const definition = skillUiDefinitions[skillId];
   if (!definition) throw new Error(`Skill UI definition not found: ${skillId}`);
   return definition;
-}
-
-export function listSkillEntryPoints(): RetakeEntryPoint[] {
-  return builtInSkills.map((skill) => ({
-    schemaVersion: 1,
-    entrypointId: `skill:${skill.skillId}`,
-    kind: 'skill',
-    skillId: skill.skillId,
-    capabilityId: capabilityForSkill(skill),
-  }));
-}
-
-export function skillEntryPointFor(skillId: string): Extract<RetakeEntryPoint, { kind: 'skill' }> {
-  const entrypoint = listSkillEntryPoints().find((candidate) => candidate.kind === 'skill' && candidate.skillId === skillId);
-  if (!entrypoint || entrypoint.kind !== 'skill') throw new Error(`Skill EntryPoint not found: ${skillId}`);
-  return entrypoint;
 }
 
 export function skillDefinitionFor(skillId: string): RetakeSkillDefinition {

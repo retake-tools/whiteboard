@@ -1,5 +1,5 @@
 import { capabilityDefinitionFor } from './capabilityRegistry';
-import { skillDefinitionFor, type RetakeEntryPoint } from './skillRegistry';
+import { skillDefinitionFor } from './skillRegistry';
 
 export type WorkflowStepType = 'capability';
 export type WorkflowRunPolicy = 'manual';
@@ -209,27 +209,10 @@ export function listWorkflows(): WorkflowDefinition[] {
   return [...builtInWorkflows];
 }
 
-export function listWorkflowEntryPoints(): Extract<RetakeEntryPoint, { kind: 'workflow' }>[] {
-  return builtInWorkflows.map((workflow) => ({
-    schemaVersion: 1,
-    entrypointId: `workflow:${workflow.workflowId}`,
-    kind: 'workflow',
-    workflowDefinitionId: workflow.workflowId,
-  }));
-}
-
 export function workflowDefinitionFor(workflowId: string): WorkflowDefinition {
   const definition = builtInWorkflows.find((candidate) => candidate.workflowId === workflowId);
   if (!definition) throw new Error(`Workflow definition not found: ${workflowId}`);
   return definition;
-}
-
-export function workflowEntryPointFor(
-  workflowId: string,
-): Extract<RetakeEntryPoint, { kind: 'workflow' }> {
-  const entrypoint = listWorkflowEntryPoints().find((candidate) => candidate.workflowDefinitionId === workflowId);
-  if (!entrypoint) throw new Error(`Workflow EntryPoint not found: ${workflowId}`);
-  return entrypoint;
 }
 
 export function workflowUiDefinitionFor(workflowId: string): WorkflowUiDefinition {

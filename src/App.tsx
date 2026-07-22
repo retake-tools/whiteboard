@@ -27,6 +27,7 @@ import { useVideoGenerationController } from './app/useVideoGenerationController
 import { useTextGenerationController } from './app/useTextGenerationController';
 import { useWorkflowDraftController } from './app/useWorkflowDraftController';
 import { useWorkflowRuntimeController } from './app/useWorkflowRuntimeController';
+import { usePackageEntryPointController } from './app/usePackageEntryPointController';
 import { WhiteboardCanvas } from './app/WhiteboardCanvas';
 
 const DocumentReviewWorkspace = lazy(() => import('./components/DocumentReviewWorkspace').then((module) => ({
@@ -210,6 +211,10 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     setSelectedBlocks,
     t,
     updateSnapshot,
+  });
+  const packageEntryPointController = usePackageEntryPointController({
+    createSkillDraft: textGenerationController.createSkillDraft,
+    createWorkflowDraft: workflowDraftController.createWorkflowDraft,
   });
   const workflowRuntimeController = useWorkflowRuntimeController({
     setOperationToast,
@@ -431,9 +436,8 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         activeTool={activeCanvasTool}
         onAddBlock={addBlock}
         onCreateImageToImage={createImageToImageDraftFromMenu}
-        onCreateSkill={textGenerationController.createSkillDraft}
-        onCreateWorkflow={workflowDraftController.createWorkflowDraft}
         onCreateTextToImage={() => createTextToImageDraftOperation()}
+        onInvokeEntryPoint={packageEntryPointController.invokeEntryPoint}
         onSetActiveTool={setActiveCanvasTool}
       />
       <ExecutionInspector

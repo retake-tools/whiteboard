@@ -1,4 +1,5 @@
 import type { CapabilityDefinitionLock, SkillDefinitionLock } from './capabilityContracts';
+import type { PackageLock } from './packageContracts';
 import type { WorkflowBindingSource } from './workflowRegistry';
 
 export type WorkflowRunStatus =
@@ -50,10 +51,12 @@ export interface WorkflowRunRecord {
   createdAt: string;
   createdBy: 'user';
   currentStepIds: string[];
+  entrypointId?: string;
   inputBindings: WorkflowRunInputBinding[];
   projectId: string;
   recordVersion: number;
   status: WorkflowRunStatus;
+  sourcePackageLock?: PackageLock;
   stepRunIds: string[];
   updatedAt: string;
   workflowDefinitionLock: WorkflowDefinitionLock;

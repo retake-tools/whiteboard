@@ -1,7 +1,8 @@
 import { resolveExecutionConnectionPreference } from '../core/executionProviderPreferences';
 import type { BoardSnapshot } from '../core/types';
 import { projectWorkflowDraft } from '../core/workflowDraftProjection';
-import { workflowEntryPointFor, workflowUiDefinitionFor } from '../core/workflowRegistry';
+import type { ResolvedPackageEntryPointTarget } from '../core/packageRegistry';
+import { workflowUiDefinitionFor } from '../core/workflowRegistry';
 import type { useI18n } from '../i18n';
 import { textGenerationLabelsForSkill } from './skillTextLabels';
 
@@ -25,16 +26,20 @@ export function useWorkflowDraftController(options: WorkflowDraftControllerOptio
     updateSnapshot,
   } = options;
 
-  function createWorkflowDraft(workflowId: string): void {
-    const entrypoint = workflowEntryPointFor(workflowId);
+  function createWorkflowDraft(target: Extract<ResolvedPackageEntryPointTarget, { kind: 'workflow' }>): void {
+    const workflowId = target.entrypoint.ref.workflowDefinitionId;
     let workflowBlockIds: string[] = [];
     let workflowGroupId = '';
     const nextSnapshot = updateSnapshot((current) => {
-      const ui = workflowUiDefinitionFor(entrypoint.workflowDefinitionId);
+      const ui = workflowUiDefinitionFor(workflowId);
       const projection = projectWorkflowDraft(current, {
-        workflowId: entrypoint.workflowDefinitionId,
+        workflowId,
         workflowTitle: t(ui.nameKey),
         outputPlaceholder: t('workflowDraft.outputPending'),
+        packageContext: {
+          entrypointId: target.entrypoint.entrypointId,
+          packageLock: target.packageLock,
+        },
         labelsForSkill: (skillId) => textGenerationLabelsForSkill(skillId, t),
         connectionIdForCapability: (capabilityId) => resolveExecutionConnectionPreference({
           capabilityId,

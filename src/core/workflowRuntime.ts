@@ -44,6 +44,7 @@ export function createWorkflowRunForGroup(
   const workflowVersion = stringMetadata(group, 'workflowDefinitionVersion');
   const workflowHash = stringMetadata(group, 'workflowDefinitionHash');
   const projectionId = stringMetadata(group, 'workflowProjectionId');
+  const packageContext = packageContextFromGroup(group);
   const definition = workflowDefinitionFor(workflowId);
   if (definition.version !== workflowVersion || definition.definitionHash !== workflowHash) {
     throw new Error(`Workflow Definition lock mismatch: ${workflowId}@${workflowVersion}`);
@@ -126,6 +127,10 @@ export function createWorkflowRunForGroup(
     },
     workflowProjectionId: projectionId,
     status: 'draft',
+    ...(packageContext ? {
+      entrypointId: packageContext.entrypointId,
+      sourcePackageLock: packageContext.packageLock,
+    } : {}),
     inputBindings,
     stepRunIds: stepRuns.map((step) => step.stepRunId),
     currentStepIds: [],
@@ -379,6 +384,30 @@ function stringMetadata(block: BlockRecord, key: string): string {
   const value = block.data[key];
   if (typeof value !== 'string' || !value) throw new Error(`Workflow Group metadata is missing: ${key}`);
   return value;
+}
+
+function packageContextFromGroup(group: BlockRecord): {
+  entrypointId: string;
+  packageLock: { digest: string; packageId: string; version: string };
+} | undefined {
+  const values = [
+    group.data.packageId,
+    group.data.packageVersion,
+    group.data.packageDigest,
+    group.data.packageEntryPointId,
+  ];
+  if (values.every((value) => value === undefined)) return undefined;
+  if (!values.every((value) => typeof value === 'string' && value.length > 0)) {
+    throw new Error('Workflow Group Package lock is incomplete.');
+  }
+  return {
+    entrypointId: String(group.data.packageEntryPointId),
+    packageLock: {
+      packageId: String(group.data.packageId),
+      version: String(group.data.packageVersion),
+      digest: String(group.data.packageDigest),
+    },
+  };
 }
 
 function workflowStepInputFingerprint(snapshot: BoardSnapshot, step: WorkflowStepRunRecord): string {

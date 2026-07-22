@@ -3,9 +3,9 @@ import { operationReadinessFor } from '../src/core/capabilities';
 import { textDocumentCapabilityIds } from '../src/core/capabilityRegistry';
 import type { ExecutionConnectionSummary } from '../src/core/executionProviders';
 import { executeExistingTextGenerationOperation, type TextGenerationLabels } from '../src/core/textOperations';
+import { listPackageEntryPoints } from '../src/core/packageRegistry';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import {
-  listWorkflowEntryPoints,
   listWorkflows,
   storyToStoryboardWorkflow,
   validateWorkflowDefinition,
@@ -40,7 +40,10 @@ const readyTextConnection: ExecutionConnectionSummary = {
 assert.deepEqual(listWorkflows().map((workflow) => workflow.workflowId), [
   'retake.workflow.story-to-storyboard',
 ]);
-assert.deepEqual(listWorkflowEntryPoints().map((entrypoint) => [entrypoint.kind, entrypoint.entrypointId]), [
+assert.deepEqual(listPackageEntryPoints()
+  .map(({ entrypoint }) => entrypoint)
+  .filter((entrypoint) => entrypoint.kind === 'workflow')
+  .map((entrypoint) => [entrypoint.kind, entrypoint.entrypointId]), [
   ['workflow', 'workflow:retake.workflow.story-to-storyboard'],
 ]);
 assert.deepEqual(storyToStoryboardWorkflow.steps.map((step) => [step.stepId, step.dependsOn]), [
@@ -161,7 +164,7 @@ for (const edge of snapshot.edges) {
 console.log(JSON.stringify({
   ok: true,
   workflowDefinitions: listWorkflows().length,
-  typedWorkflowEntryPoints: listWorkflowEntryPoints().length,
+  typedWorkflowEntryPoints: listPackageEntryPoints().filter(({ entrypoint }) => entrypoint.kind === 'workflow').length,
   projectedOperations: firstProjection.operationBlockIds.length,
   projectedDocuments: firstProjection.resultBlockIds.length,
   reusableResultSlot: true,

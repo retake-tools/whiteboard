@@ -27,7 +27,7 @@
     "mcp:import-smoke": "RETAKE_WORKSPACE_DIR=.retake-test tsx server/mcp-import-smoke-test.ts",
     "mcp:multi-result": "RETAKE_WORKSPACE_DIR=.retake-test tsx server/mcp-multi-result-smoke-test.ts",
     "mcp:smoke": "RETAKE_WORKSPACE_DIR=.retake-test tsx server/mcp-smoke-test.ts",
-    "mcp:test": "npm run sizing:test && npm run grouping:test && npm run group-ui:test && npm run popover:test && npm run hydration:test && npm run view-state:test && npm run snapshot-safety:test && npm run result-branch:test && npm run profiles:test && npm run roles:test && npm run capability-v0:test && npm run skill-v0:test && npm run workflow-v0:test && npm run workflow-runtime-v0:test && npm run execution-events:test && npm run document:test && npm run text-generation:test && npm run codex-app-server:test && npm run ark-image:test && npm run video-v0:test && npm run seedance:test && npm run dreamina:test && npm run providers:test && npm run local-image:test && npm run annotation:test && npm run cancellation:test && npm run mcp:binding-guard && npm run mcp:execution-status && npm run mcp:smoke && npm run mcp:import-smoke && npm run mcp:multi-result && npm run mcp:existing-execution",
+    "mcp:test": "npm run sizing:test && npm run grouping:test && npm run group-ui:test && npm run popover:test && npm run hydration:test && npm run view-state:test && npm run snapshot-safety:test && npm run result-branch:test && npm run profiles:test && npm run roles:test && npm run capability-v0:test && npm run skill-v0:test && npm run workflow-v0:test && npm run workflow-runtime-v0:test && npm run package-v0:test && npm run execution-events:test && npm run document:test && npm run text-generation:test && npm run codex-app-server:test && npm run ark-image:test && npm run video-v0:test && npm run seedance:test && npm run dreamina:test && npm run providers:test && npm run local-image:test && npm run annotation:test && npm run cancellation:test && npm run mcp:binding-guard && npm run mcp:execution-status && npm run mcp:smoke && npm run mcp:import-smoke && npm run mcp:multi-result && npm run mcp:existing-execution",
     "plugin:package:test": "node scripts/codex-plugin-package-test.mjs",
     "hydration:test": "tsx server/board-hydration-contract-test.ts",
     "view-state:test": "tsx server/board-view-state-contract-test.ts",
@@ -63,6 +63,7 @@
     "skill-v0:test": "tsx server/skill-execution-v0-contract-test.ts",
     "workflow-v0:test": "RETAKE_WORKSPACE_DIR=.retake-test-workflow-draft tsx server/workflow-draft-projection-v0-test.ts",
     "workflow-runtime-v0:test": "RETAKE_WORKSPACE_DIR=.retake-test-workflow-runtime tsx server/workflow-manual-runtime-v0-test.ts",
+    "package-v0:test": "RETAKE_WORKSPACE_DIR=.retake-test-package-v0 tsx server/package-entrypoint-registry-v0-test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

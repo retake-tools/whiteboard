@@ -22,7 +22,8 @@ import {
   videoGenerateCapabilityDefinition,
   volcengineArkSeedreamImageAdapterDefinition,
 } from '../src/core/capabilityRegistry';
-import { listSkillEntryPoints, listSkills, skillsForCapability } from '../src/core/skillRegistry';
+import { listPackageEntryPoints } from '../src/core/packageRegistry';
+import { listSkills, skillsForCapability } from '../src/core/skillRegistry';
 import { definitionForLegacyCapability } from '../src/core/legacyCapabilityAdapter';
 
 const legacyCapabilityIds = [
@@ -66,7 +67,10 @@ assert.deepEqual(skillsForCapability('story.screenplay.generate').map((skill) =>
 assert.deepEqual(skillsForCapability('design.character.define').map((skill) => skill.skillId), ['retake.character-bible.from-screenplay']);
 assert.deepEqual(skillsForCapability('design.scene.define').map((skill) => skill.skillId), ['retake.scene-bible.from-screenplay']);
 assert.deepEqual(skillsForCapability('previs.storyboard.plan').map((skill) => skill.skillId), ['retake.storyboard-plan.from-production-design']);
-assert.deepEqual(listSkillEntryPoints().map((entrypoint) => [entrypoint.kind, entrypoint.entrypointId]), [
+assert.deepEqual(listPackageEntryPoints()
+  .map(({ entrypoint }) => entrypoint)
+  .filter((entrypoint) => entrypoint.kind === 'skill')
+  .map((entrypoint) => [entrypoint.kind, entrypoint.entrypointId]), [
   ['skill', 'skill:retake.screenplay.from-brief'],
   ['skill', 'skill:retake.screenplay.normalize'],
   ['skill', 'skill:retake.character-bible.from-screenplay'],
