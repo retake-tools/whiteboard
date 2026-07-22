@@ -85,6 +85,7 @@
 .skill-library-search { display: flex; gap: 7px; align-items: center; margin: 10px 0; padding: 7px 9px; border: 1px solid #e2e8f0; border-radius: 8px; }
 .skill-library-search input { width: 100%; border: 0; outline: 0; font: inherit; }
 .skill-library-list { display: grid; gap: 6px; }
+.skill-library-section-label { padding: 5px 2px 1px; color: #64748b; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 .skill-library-list button { display: grid; gap: 3px; padding: 9px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; text-align: left; }
 .skill-library-list button span { color: #64748b; font-size: 11px; }
 

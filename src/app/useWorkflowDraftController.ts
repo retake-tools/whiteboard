@@ -1,0 +1,57 @@
+import { resolveExecutionConnectionPreference } from '../core/executionProviderPreferences';
+import type { BoardSnapshot } from '../core/types';
+import { projectWorkflowDraft } from '../core/workflowDraftProjection';
+import { workflowEntryPointFor, workflowUiDefinitionFor } from '../core/workflowRegistry';
+import type { useI18n } from '../i18n';
+import { textGenerationLabelsForSkill } from './skillTextLabels';
+
+interface WorkflowDraftControllerOptions {
+  centerBlockGroup: (snapshot: BoardSnapshot, blockIds: string[]) => void;
+  focusWorkflowBlocks: (blockIds: string[]) => void;
+  setSelectedBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
+  t: ReturnType<typeof useI18n>['t'];
+  updateSnapshot: (
+    updater: (current: BoardSnapshot) => BoardSnapshot,
+    options?: { history?: boolean; persist?: boolean; syncFlow?: boolean },
+  ) => BoardSnapshot;
+}
+
+export function useWorkflowDraftController(options: WorkflowDraftControllerOptions) {
+  const {
+    centerBlockGroup,
+    focusWorkflowBlocks,
+    setSelectedBlocks,
+    t,
+    updateSnapshot,
+  } = options;
+
+  function createWorkflowDraft(workflowId: string): void {
+    const entrypoint = workflowEntryPointFor(workflowId);
+    let workflowBlockIds: string[] = [];
+    let workflowGroupId = '';
+    const nextSnapshot = updateSnapshot((current) => {
+      const ui = workflowUiDefinitionFor(entrypoint.workflowDefinitionId);
+      const projection = projectWorkflowDraft(current, {
+        workflowId: entrypoint.workflowDefinitionId,
+        workflowTitle: t(ui.nameKey),
+        outputPlaceholder: t('workflowDraft.outputPending'),
+        labelsForSkill: (skillId) => textGenerationLabelsForSkill(skillId, t),
+        connectionIdForCapability: (capabilityId) => resolveExecutionConnectionPreference({
+          capabilityId,
+          initialConnectionId: 'codex-app-server',
+          projectId: current.project.projectId,
+          useCase: 'text',
+        }).connectionId,
+      });
+      workflowBlockIds = projection.blockIds;
+      workflowGroupId = projection.groupBlock.blockId;
+      centerBlockGroup(current, workflowBlockIds);
+      return current;
+    }, { history: true, persist: true });
+    if (workflowBlockIds.length === 0) return;
+    setSelectedBlocks(nextSnapshot, workflowGroupId ? [workflowGroupId] : workflowBlockIds);
+    focusWorkflowBlocks(workflowBlockIds);
+  }
+
+  return { createWorkflowDraft };
+}

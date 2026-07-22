@@ -25,6 +25,7 @@ import { useBlockActions } from './app/useBlockActions';
 import { useAppEventBindings } from './app/useAppEventBindings';
 import { useVideoGenerationController } from './app/useVideoGenerationController';
 import { useTextGenerationController } from './app/useTextGenerationController';
+import { useWorkflowDraftController } from './app/useWorkflowDraftController';
 import { WhiteboardCanvas } from './app/WhiteboardCanvas';
 
 const DocumentReviewWorkspace = lazy(() => import('./components/DocumentReviewWorkspace').then((module) => ({
@@ -121,6 +122,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     activeCanvasTool,
     canvasAreaRef,
     centeredBlockPosition,
+    centerBlockGroup,
     centerWorkflowBlocks,
     focusWorkflowBlocks,
     collapsedGroupIdsRef,
@@ -198,6 +200,13 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     setSelectedBlocks,
     selectedBlockIdsRef,
     snapshotRef,
+    t,
+    updateSnapshot,
+  });
+  const workflowDraftController = useWorkflowDraftController({
+    centerBlockGroup,
+    focusWorkflowBlocks,
+    setSelectedBlocks,
     t,
     updateSnapshot,
   });
@@ -417,6 +426,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         onAddBlock={addBlock}
         onCreateImageToImage={createImageToImageDraftFromMenu}
         onCreateSkill={textGenerationController.createSkillDraft}
+        onCreateWorkflow={workflowDraftController.createWorkflowDraft}
         onCreateTextToImage={() => createTextToImageDraftOperation()}
         onSetActiveTool={setActiveCanvasTool}
       />

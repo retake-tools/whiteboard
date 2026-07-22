@@ -363,6 +363,9 @@ type TranslationKey =
   | 'skillDock.library'
   | 'skillDock.search'
   | 'skillDock.screenplayCategory'
+  | 'skillDock.skillCategory'
+  | 'skillDock.workflowBadge'
+  | 'skillDock.workflowCategory'
   | 'skill.screenplayFromBrief.name'
   | 'skill.screenplayFromBrief.description'
   | 'skill.screenplayFromBrief.input'
@@ -387,6 +390,9 @@ type TranslationKey =
   | 'skill.storyboardPlan.characterPlaceholder'
   | 'skill.storyboardPlan.sceneInput'
   | 'skill.storyboardPlan.scenePlaceholder'
+  | 'workflow.storyToStoryboard.name'
+  | 'workflow.storyToStoryboard.description'
+  | 'workflowDraft.outputPending'
   | 'operationInputQuickAdd.add'
   | 'operationInputQuickAdd.addImage'
   | 'operationInputQuickAdd.addText'
@@ -951,9 +957,12 @@ const translations: Record<Locale, Translations> = {
     'skillDock.title': 'Skills',
     'skillDock.recommended': 'Recommended',
     'skillDock.more': 'More',
-    'skillDock.library': 'Skill library',
-    'skillDock.search': 'Search skills',
+    'skillDock.library': 'Skill & Workflow library',
+    'skillDock.search': 'Search skills and workflows',
     'skillDock.screenplayCategory': 'Screenplay',
+    'skillDock.skillCategory': 'Single-step skills',
+    'skillDock.workflowBadge': 'Workflow',
+    'skillDock.workflowCategory': 'Workflows',
     'skill.screenplayFromBrief.name': 'Generate screenplay',
     'skill.screenplayFromBrief.description': 'Create an executable screenplay from a creative brief.',
     'skill.screenplayFromBrief.input': 'Creative brief',
@@ -978,6 +987,9 @@ const translations: Record<Locale, Translations> = {
     'skill.storyboardPlan.characterPlaceholder': 'Connect or paste the approved character design and continuity constraints...',
     'skill.storyboardPlan.sceneInput': 'Scene Bible',
     'skill.storyboardPlan.scenePlaceholder': 'Connect or paste the approved scene, spatial, lighting, and continuity constraints...',
+    'workflow.storyToStoryboard.name': 'Story to storyboard plan',
+    'workflow.storyToStoryboard.description': 'Create an editable draft graph from brief through screenplay and production design to storyboard planning.',
+    'workflowDraft.outputPending': 'Run the upstream operation to create this document.',
     'operationInputQuickAdd.add': 'Add',
     'operationInputQuickAdd.addImage': 'Add image input',
     'operationInputQuickAdd.addText': 'Add text input',
@@ -1537,9 +1549,12 @@ const translations: Record<Locale, Translations> = {
     'skillDock.title': 'Skill',
     'skillDock.recommended': '推荐 Skill',
     'skillDock.more': '更多',
-    'skillDock.library': 'Skill 库',
-    'skillDock.search': '搜索 Skill',
+    'skillDock.library': 'Skill 与 Workflow 库',
+    'skillDock.search': '搜索 Skill 与 Workflow',
     'skillDock.screenplayCategory': '剧本',
+    'skillDock.skillCategory': '单节点 Skill',
+    'skillDock.workflowBadge': 'Workflow',
+    'skillDock.workflowCategory': 'Workflow',
     'skill.screenplayFromBrief.name': '生成剧本',
     'skill.screenplayFromBrief.description': '从创意 Brief 生成可执行的视频剧本。',
     'skill.screenplayFromBrief.input': '创意 Brief',
@@ -1564,6 +1579,9 @@ const translations: Record<Locale, Translations> = {
     'skill.storyboardPlan.characterPlaceholder': '连接或粘贴已确认的角色设计与连续性约束...',
     'skill.storyboardPlan.sceneInput': '场景设定',
     'skill.storyboardPlan.scenePlaceholder': '连接或粘贴已确认的场景、空间、灯光与连续性约束...',
+    'workflow.storyToStoryboard.name': '从 Brief 到故事板计划',
+    'workflow.storyToStoryboard.description': '创建从 Brief、剧本、角色与场景设定到故事板计划的可编辑草稿图。',
+    'workflowDraft.outputPending': '执行上游 Operation 后将在这里生成文档。',
     'operationInputQuickAdd.add': '添加',
     'operationInputQuickAdd.addImage': '添加图片输入',
     'operationInputQuickAdd.addText': '添加文本输入',

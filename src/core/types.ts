@@ -342,6 +342,13 @@ export interface BlockData {
   executionVersion?: number;
   executionStatus?: ExecutionStatus;
   executionDraft?: BlockExecutionDraft;
+  workflowDefinitionHash?: string;
+  workflowDefinitionId?: string;
+  workflowDefinitionVersion?: string;
+  workflowInputSlotId?: string;
+  workflowOutputSlotId?: string;
+  workflowProjectionId?: string;
+  workflowStepId?: string;
 }
 
 export interface BlockRecord {

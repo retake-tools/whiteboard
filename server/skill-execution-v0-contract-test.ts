@@ -7,6 +7,7 @@ import {
   listSkills,
   skillsForCapability,
 } from '../src/core/skillRegistry';
+import { listWorkflowEntryPoints, listWorkflows } from '../src/core/workflowRegistry';
 
 const [toolbarSource, operationControlsSource, textOperationsSource] = await Promise.all([
   readFile(new URL('../src/components/FloatingToolbar.tsx', import.meta.url), 'utf8'),
@@ -18,6 +19,8 @@ assert.equal(toolbarSource.includes("label={t('toolbar.generateText')}"), false,
 assert.match(toolbarSource, /className="skill-dock"/);
 assert.match(toolbarSource, /className="skill-library-search"/);
 assert.match(toolbarSource, /useDismissiblePopover/);
+assert.match(toolbarSource, /onCreateWorkflow/);
+assert.match(toolbarSource, /workflowUiDefinitionFor/);
 assert.match(toolbarSource, /aria-expanded=\{skillLibraryOpen\}/);
 assert.match(operationControlsSource, /skillsForCapability\(capabilityId\)/);
 assert.match(operationControlsSource, /retake:update-operation-skill/);
@@ -38,11 +41,14 @@ for (const entrypoint of listSkillEntryPoints()) {
   const definition = capabilityDefinitionFor(entrypoint.capabilityId);
   assert.equal(skillsForCapability(definition.capabilityId).some((skill) => skill.skillId === entrypoint.skillId), true);
 }
+assert.equal(listWorkflows().length, 1);
+assert.deepEqual(listWorkflowEntryPoints().map((entrypoint) => entrypoint.kind), ['workflow']);
 
 console.log(JSON.stringify({
   ok: true,
   skillCards: skills.length,
   recommendedSkillCards: listRecommendedSkills().length,
   typedEntryPoints: listSkillEntryPoints().length,
+  typedWorkflowEntryPoints: listWorkflowEntryPoints().length,
   genericTextEntryHidden: true,
 }));

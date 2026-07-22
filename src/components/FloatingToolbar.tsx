@@ -20,6 +20,11 @@ import {
   type RetakeSkillDefinition,
 } from '../core/skillRegistry';
 import type { BlockType } from '../core/types';
+import {
+  listWorkflows,
+  workflowUiDefinitionFor,
+  type WorkflowDefinition,
+} from '../core/workflowRegistry';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
 import { TooltipIconButton } from './Tooltip';
@@ -31,6 +36,7 @@ interface FloatingToolbarProps {
   onAddBlock: (type: Extract<BlockType, 'group' | 'image' | 'operation' | 'text' | 'video'>) => void;
   onCreateImageToImage: () => void;
   onCreateSkill?: (skillId: string) => void;
+  onCreateWorkflow?: (workflowId: string) => void;
   onCreateTextToImage: () => void;
   onSetActiveTool: (tool: CanvasTool) => void;
 }
@@ -40,6 +46,7 @@ export function FloatingToolbar({
   onAddBlock,
   onCreateImageToImage,
   onCreateSkill,
+  onCreateWorkflow,
   onCreateTextToImage,
   onSetActiveTool,
 }: FloatingToolbarProps): ReactElement {
@@ -48,6 +55,7 @@ export function FloatingToolbar({
   const [skillLibraryOpen, setSkillLibraryOpen] = useState(false);
   const [skillQuery, setSkillQuery] = useState('');
   const skills = useMemo(() => listSkills(), []);
+  const workflows = useMemo(() => listWorkflows(), []);
   const recommendedSkills = useMemo(() => listRecommendedSkills(), []);
   const filteredSkills = useMemo(() => {
     const query = skillQuery.trim().toLocaleLowerCase();
@@ -60,6 +68,17 @@ export function FloatingToolbar({
         })
       : skills;
   }, [skillQuery, skills, t]);
+  const filteredWorkflows = useMemo(() => {
+    const query = skillQuery.trim().toLocaleLowerCase();
+    return query
+      ? workflows.filter((workflow) => {
+          const ui = workflowUiDefinitionFor(workflow.workflowId);
+          return `${workflow.name} ${workflow.description} ${t(ui.nameKey)} ${t(ui.descriptionKey)}`
+            .toLocaleLowerCase()
+            .includes(query);
+        })
+      : workflows;
+  }, [skillQuery, t, workflows]);
 
   useDismissiblePopover({
     active: skillLibraryOpen,
@@ -102,6 +121,22 @@ export function FloatingToolbar({
               <input value={skillQuery} placeholder={t('skillDock.search')} onChange={(event) => setSkillQuery(event.target.value)} />
             </label>
             <div className="skill-library-list">
+              {filteredWorkflows.length > 0 ? (
+                <div className="skill-library-section-label">{t('skillDock.workflowCategory')}</div>
+              ) : null}
+              {filteredWorkflows.map((workflow) => (
+                <button
+                  key={workflow.workflowId}
+                  type="button"
+                  onClick={() => { onCreateWorkflow?.(workflow.workflowId); setSkillLibraryOpen(false); }}
+                >
+                  <strong>{workflowDisplayName(workflow, t)}</strong>
+                  <span>{t('skillDock.workflowBadge')} · {workflowDisplayDescription(workflow, t)}</span>
+                </button>
+              ))}
+              {filteredSkills.length > 0 ? (
+                <div className="skill-library-section-label">{t('skillDock.skillCategory')}</div>
+              ) : null}
               {filteredSkills.map((skill) => (
                 <button key={skill.skillId} type="button" onClick={() => { onCreateSkill?.(skill.skillId); setSkillLibraryOpen(false); }}>
                   <strong>{skillDisplayName(skill, t)}</strong>
@@ -158,6 +193,14 @@ function skillDisplayName(skill: RetakeSkillDefinition, t: ReturnType<typeof use
 
 function skillDisplayDescription(skill: RetakeSkillDefinition, t: ReturnType<typeof useI18n>['t']): string {
   return t(skillUiDefinitionFor(skill.skillId).descriptionKey);
+}
+
+function workflowDisplayName(workflow: WorkflowDefinition, t: ReturnType<typeof useI18n>['t']): string {
+  return t(workflowUiDefinitionFor(workflow.workflowId).nameKey);
+}
+
+function workflowDisplayDescription(workflow: WorkflowDefinition, t: ReturnType<typeof useI18n>['t']): string {
+  return t(workflowUiDefinitionFor(workflow.workflowId).descriptionKey);
 }
 
 function ToolbarMenu({

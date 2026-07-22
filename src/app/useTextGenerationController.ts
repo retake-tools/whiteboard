@@ -17,8 +17,9 @@ import {
 import { isTextDocumentCapability } from '../core/capabilityRegistry';
 import type { BlockRecord, BoardSnapshot } from '../core/types';
 import type { OperationToast } from '../components/OperationFeedback';
-import { skillEntryPointFor, skillUiDefinitionFor } from '../core/skillRegistry';
+import { skillEntryPointFor } from '../core/skillRegistry';
 import type { useI18n } from '../i18n';
+import { textGenerationLabelsForSkill } from './skillTextLabels';
 
 interface TextGenerationControllerOptions {
   centerWorkflowBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
@@ -69,7 +70,7 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
     const entrypoint = skillEntryPointFor(skillId);
     let workflowBlockIds: string[] = [];
     const nextSnapshot = updateSnapshot((current) => {
-      const skillLabels = labelsForSkill(skillId);
+      const skillLabels = textGenerationLabelsForSkill(skillId, t);
       const draft = createDraftSkillOperation(current, {
         ...skillLabels,
         connectionId: preferredTextConnection(current, entrypoint.capabilityId),
@@ -225,25 +226,10 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
     };
   }
 
-  function labelsForSkill(skillId: string): TextGenerationLabels {
-    const ui = skillUiDefinitionFor(skillId);
-    const operationTitle = t(ui.operationTitleKey);
-    return {
-      inputSlots: ui.inputSlots?.map((slot) => ({
-        slotId: slot.slotId,
-        promptTitle: t(slot.inputKey),
-        promptPlaceholder: t(slot.placeholderKey),
-      })),
-      operationTitle,
-      promptPlaceholder: t(ui.placeholderKey),
-      promptTitle: t(ui.inputKey),
-      resultTitle: operationTitle,
-      waitingBody: t('resultStatus.queued'),
-    };
-  }
-
   function labelsForOperation(block: BlockRecord): TextGenerationLabels {
-    return typeof block.data.skillId === 'string' ? labelsForSkill(block.data.skillId) : labels();
+    return typeof block.data.skillId === 'string'
+      ? textGenerationLabelsForSkill(block.data.skillId, t)
+      : labels();
   }
 
   return { createSkillDraft, createTextGenerationDraft, startTextGenerationOperation };
