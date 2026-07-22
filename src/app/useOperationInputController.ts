@@ -17,7 +17,7 @@ import type {
 } from '../core/imageOperations';
 import { createId, nowIso } from '../core/id';
 import { executionConnection } from '../core/executionProviderPreferences';
-import { skillsForCapability } from '../core/skillRegistry';
+import { skillUiDefinitionFor, skillsForCapability } from '../core/skillRegistry';
 import type {
   BlockRecord,
   BlockType,
@@ -99,8 +99,9 @@ export function useOperationInputController(options: OperationInputControllerOpt
 
   function operationPlaceholderForBlock(operationBlock: BlockRecord): string {
     if (operationBlock.data.capabilityId === 'text.generate') return t('operationToolbar.promptPlaceholder');
-    if (operationBlock.data.capabilityId === 'story.screenplay.normalize') return t('skill.normalizeScreenplay.placeholder');
-    if (operationBlock.data.capabilityId === 'story.screenplay.generate') return t('skill.screenplayFromBrief.placeholder');
+    if (typeof operationBlock.data.skillId === 'string') {
+      return t(skillUiDefinitionFor(operationBlock.data.skillId).placeholderKey);
+    }
     const mode = operationBlock.data.operationMode;
     if (operationBlock.data.operationVariant === 'create_similar') {
       return imageOperationDefaultPrompt('create_similar', t);

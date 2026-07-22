@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { textDocumentCapabilityIds } from '../src/core/capabilityRegistry';
 import {
   createDraftTextGenerationOperation,
   createDraftSkillOperation,
@@ -29,11 +30,7 @@ settings = await checkExecutionConnection(openAIConnection.connectionId, undefin
 });
 const readyOpenAIConnection = settings.connections.find((connection) => connection.connectionId === openAIConnection.connectionId);
 assert.equal(readyOpenAIConnection?.status, 'ready');
-assert.deepEqual(readyOpenAIConnection?.supportedCapabilityIds, [
-  'text.generate',
-  'story.screenplay.generate',
-  'story.screenplay.normalize',
-]);
+assert.deepEqual(readyOpenAIConnection?.supportedCapabilityIds, textDocumentCapabilityIds);
 
 const labels = {
   operationTitle: 'Generate text',
@@ -201,10 +198,86 @@ assert.equal(completedSkillExecution?.capabilityId, 'story.screenplay.normalize'
 assert.equal(completedSkillExecution?.skillId, 'retake.screenplay.normalize');
 assert.match(completedSkillExecution?.requestPrompts?.[0]?.prompt ?? '', /The source screenplay is authoritative/);
 
+const productionDesignCases = [
+  {
+    capabilityId: 'design.character.define',
+    skillId: 'retake.character-bible.from-screenplay',
+    operationTitle: 'Define characters',
+    resultTitle: 'Character Bible',
+    instructionPattern: /Character Designer/,
+    output: '# Character Bible\n\n## cat_director\n\nStable silhouette and continuity rules.',
+    outputPattern: /future reference assets/i,
+  },
+  {
+    capabilityId: 'design.scene.define',
+    skillId: 'retake.scene-bible.from-screenplay',
+    operationTitle: 'Define scenes',
+    resultTitle: 'Scene Bible',
+    instructionPattern: /Scene Designer/,
+    output: '# Scene Bible\n\n## studio_floor\n\nStable zones, lighting, and blocking rules.',
+    outputPattern: /spatial logic/i,
+  },
+] as const;
+
+for (const productionDesignCase of productionDesignCases) {
+  const productionLabels = {
+    operationTitle: productionDesignCase.operationTitle,
+    promptPlaceholder: 'Select a screenplay.',
+    promptTitle: 'Source screenplay',
+    resultTitle: productionDesignCase.resultTitle,
+    waitingBody: 'Waiting for production design.',
+  };
+  const productionDraft = createDraftSkillOperation(completed, {
+    ...productionLabels,
+    connectionId: readyOpenAIConnection!.connectionId,
+    selectedBlockIds: [firstResultBlock.blockId],
+    skillId: productionDesignCase.skillId,
+  });
+  assert.equal(productionDraft.operationBlock.data.capabilityId, productionDesignCase.capabilityId);
+  assert.equal(operationReadinessFor(completed, productionDraft.operationBlock).canRun, true);
+  const productionRun = executeExistingTextGenerationOperation(completed, {
+    connection: readyOpenAIConnection!,
+    labels: productionLabels,
+    operationBlockId: productionDraft.operationBlock.blockId,
+  });
+  assert.equal(productionRun.execution.inputBindingsSnapshot?.[0]?.slotId, 'screenplay');
+  assert.equal(productionRun.execution.inputBindingsSnapshot?.[0]?.values[0]?.kind, 'asset');
+  await saveSnapshot(completed);
+  const productionStarted = await startTextGeneration({
+    projectId: completed.project.projectId,
+    boardId: completed.board.boardId,
+    executionId: productionRun.execution.executionId,
+    connectionId: readyOpenAIConnection!.connectionId,
+  }, {
+    generateOpenAICompatible: async (_config, input) => {
+      assert.match(input.prompt, productionDesignCase.instructionPattern);
+      assert.match(input.prompt, /# Cat Director/);
+      assert.match(input.prompt, productionDesignCase.outputPattern);
+      assert.match(input.prompt, /must not mutate shared design files/i);
+      return {
+        text: productionDesignCase.output,
+        finishReason: 'stop',
+        usage: { inputTokens: 240, outputTokens: 24 },
+      };
+    },
+  });
+  await productionStarted.completion;
+  completed = await loadSnapshot(completed.project.projectId, completed.board.boardId);
+  const completedProductionExecution = completed.executions.find(
+    (execution) => execution.executionId === productionRun.execution.executionId,
+  );
+  const productionResultBlock = completed.blocks.find((block) => block.blockId === productionRun.resultBlock.blockId);
+  assert.equal(completedProductionExecution?.status, 'succeeded');
+  assert.equal(completedProductionExecution?.capabilityId, productionDesignCase.capabilityId);
+  assert.equal(completedProductionExecution?.skillId, productionDesignCase.skillId);
+  assert.ok(productionResultBlock?.data.assetId);
+}
+
 console.log(JSON.stringify({
   ok: true,
   capabilityId: completedSkillExecution?.capabilityId,
   frozenSkillSnapshot: true,
   preservedMarkdownAssets: 2,
+  productionDesignSkills: productionDesignCases.length,
   providerRoutes: ['openai-compatible', 'google-native'],
 }));

@@ -13,7 +13,12 @@ import {
   Video,
 } from 'lucide-react';
 import { useMemo, useRef, useState, type ReactElement } from 'react';
-import { listSkills, type RetakeSkillDefinition } from '../core/skillRegistry';
+import {
+  listRecommendedSkills,
+  listSkills,
+  skillUiDefinitionFor,
+  type RetakeSkillDefinition,
+} from '../core/skillRegistry';
 import type { BlockType } from '../core/types';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
@@ -43,12 +48,18 @@ export function FloatingToolbar({
   const [skillLibraryOpen, setSkillLibraryOpen] = useState(false);
   const [skillQuery, setSkillQuery] = useState('');
   const skills = useMemo(() => listSkills(), []);
+  const recommendedSkills = useMemo(() => listRecommendedSkills(), []);
   const filteredSkills = useMemo(() => {
     const query = skillQuery.trim().toLocaleLowerCase();
     return query
-      ? skills.filter((skill) => `${skill.name} ${skill.description}`.toLocaleLowerCase().includes(query))
+      ? skills.filter((skill) => {
+          const ui = skillUiDefinitionFor(skill.skillId);
+          return `${skill.name} ${skill.description} ${t(ui.nameKey)} ${t(ui.descriptionKey)}`
+            .toLocaleLowerCase()
+            .includes(query);
+        })
       : skills;
-  }, [skillQuery, skills]);
+  }, [skillQuery, skills, t]);
 
   useDismissiblePopover({
     active: skillLibraryOpen,
@@ -60,7 +71,7 @@ export function FloatingToolbar({
     <>
       <section ref={skillDockRef} className="skill-dock" aria-label={t('skillDock.title')}>
         <span className="skill-dock-label"><Sparkles size={14} />{t('skillDock.recommended')}</span>
-        {skills.map((skill) => (
+        {recommendedSkills.map((skill) => (
           <button
             key={skill.skillId}
             type="button"
@@ -85,7 +96,7 @@ export function FloatingToolbar({
         </button>
         {skillLibraryOpen ? (
           <div id="skill-library-popover" className="skill-library-popover" role="dialog" aria-label={t('skillDock.library')}>
-            <header><strong>{t('skillDock.library')}</strong><span>{t('skillDock.screenplayCategory')}</span></header>
+            <header><strong>{t('skillDock.library')}</strong></header>
             <label className="skill-library-search">
               <Search size={15} />
               <input value={skillQuery} placeholder={t('skillDock.search')} onChange={(event) => setSkillQuery(event.target.value)} />
@@ -142,15 +153,11 @@ export function FloatingToolbar({
 }
 
 function skillDisplayName(skill: RetakeSkillDefinition, t: ReturnType<typeof useI18n>['t']): string {
-  return t(skill.skillId === 'retake.screenplay.normalize'
-    ? 'skill.normalizeScreenplay.name'
-    : 'skill.screenplayFromBrief.name');
+  return t(skillUiDefinitionFor(skill.skillId).nameKey);
 }
 
 function skillDisplayDescription(skill: RetakeSkillDefinition, t: ReturnType<typeof useI18n>['t']): string {
-  return t(skill.skillId === 'retake.screenplay.normalize'
-    ? 'skill.normalizeScreenplay.description'
-    : 'skill.screenplayFromBrief.description');
+  return t(skillUiDefinitionFor(skill.skillId).descriptionKey);
 }
 
 function ToolbarMenu({

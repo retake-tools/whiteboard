@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createBlockRecord } from '../src/core/blockFactory';
+import { textDocumentCapabilityIds } from '../src/core/capabilityRegistry';
 import {
   cacheExecutionProviderSettings,
   resolveExecutionConnectionPreference,
@@ -314,9 +315,8 @@ const claudeConnection = settings.connections.find((connection) => connection.di
 const geminiConnection = settings.connections.find((connection) => connection.displayName === 'Gemini Writing');
 const seedreamConnection = settings.connections.find((connection) => connection.displayName === 'Seedream Production');
 assert.ok(claudeConnection && geminiConnection && seedreamConnection);
-const textDocumentCapabilities = ['text.generate', 'story.screenplay.generate', 'story.screenplay.normalize'];
-assert.deepEqual(claudeConnection.supportedCapabilityIds, textDocumentCapabilities);
-assert.deepEqual(geminiConnection.supportedCapabilityIds, textDocumentCapabilities);
+assert.deepEqual(claudeConnection.supportedCapabilityIds, textDocumentCapabilityIds);
+assert.deepEqual(geminiConnection.supportedCapabilityIds, textDocumentCapabilityIds);
 assert.equal(seedreamConnection.status, 'untested');
 assert.deepEqual(seedreamConnection.supportedCapabilityIds, ['image.image_to_image', 'image.text_to_image']);
 settings = await checkExecutionConnection(claudeConnection.connectionId, undefined, {

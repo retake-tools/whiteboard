@@ -317,6 +317,8 @@ type TranslationKey =
   | 'operation.generateText.title'
   | 'operation.generateScreenplay.title'
   | 'operation.organizeScreenplay.title'
+  | 'operation.defineCharacter.title'
+  | 'operation.defineScene.title'
   | 'operation.annotationEdit.prompt'
   | 'operation.annotationEdit.title'
   | 'operation.quickEdit.prompt'
@@ -331,6 +333,8 @@ type TranslationKey =
   | 'operationToolbar.generateText'
   | 'operationToolbar.generateScreenplay'
   | 'operationToolbar.organizeScreenplay'
+  | 'operationToolbar.defineCharacter'
+  | 'operationToolbar.defineScene'
   | 'operationToolbar.generateAgain'
   | 'operationToolbar.generator'
   | 'operationToolbar.localProcessing'
@@ -366,6 +370,14 @@ type TranslationKey =
   | 'skill.normalizeScreenplay.description'
   | 'skill.normalizeScreenplay.input'
   | 'skill.normalizeScreenplay.placeholder'
+  | 'skill.characterBible.name'
+  | 'skill.characterBible.description'
+  | 'skill.characterBible.input'
+  | 'skill.characterBible.placeholder'
+  | 'skill.sceneBible.name'
+  | 'skill.sceneBible.description'
+  | 'skill.sceneBible.input'
+  | 'skill.sceneBible.placeholder'
   | 'operationInputQuickAdd.add'
   | 'operationInputQuickAdd.addImage'
   | 'operationInputQuickAdd.addText'
@@ -887,6 +899,8 @@ const translations: Record<Locale, Translations> = {
     'operation.generateText.title': 'Generate text',
     'operation.generateScreenplay.title': 'Generate screenplay',
     'operation.organizeScreenplay.title': 'Organize screenplay',
+    'operation.defineCharacter.title': 'Define characters',
+    'operation.defineScene.title': 'Define scenes',
     'operation.annotationEdit.prompt': 'Edit image from annotation note',
     'operation.annotationEdit.title': 'Annotation Edit',
     'operation.quickEdit.prompt': 'Describe how to transform the source image...',
@@ -901,6 +915,8 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.generateText': 'Generate text',
     'operationToolbar.generateScreenplay': 'Generate screenplay',
     'operationToolbar.organizeScreenplay': 'Organize screenplay',
+    'operationToolbar.defineCharacter': 'Define characters',
+    'operationToolbar.defineScene': 'Define scenes',
     'operationToolbar.generateAgain': 'Generate again',
     'operationToolbar.generator': 'Generator',
     'operationToolbar.localProcessing': 'Local processing',
@@ -936,6 +952,14 @@ const translations: Record<Locale, Translations> = {
     'skill.normalizeScreenplay.description': 'Organize structure without changing story facts.',
     'skill.normalizeScreenplay.input': 'Source screenplay',
     'skill.normalizeScreenplay.placeholder': 'Paste the screenplay to normalize, or select a Document Block first...',
+    'skill.characterBible.name': 'Define characters',
+    'skill.characterBible.description': 'Extract stable character design and continuity constraints from a screenplay.',
+    'skill.characterBible.input': 'Source screenplay',
+    'skill.characterBible.placeholder': 'Connect or paste the screenplay that should define the characters...',
+    'skill.sceneBible.name': 'Define scenes',
+    'skill.sceneBible.description': 'Extract scene, spatial, lighting, and continuity constraints from a screenplay.',
+    'skill.sceneBible.input': 'Source screenplay',
+    'skill.sceneBible.placeholder': 'Connect or paste the screenplay that should define the production scenes...',
     'operationInputQuickAdd.add': 'Add',
     'operationInputQuickAdd.addImage': 'Add image input',
     'operationInputQuickAdd.addText': 'Add text input',
@@ -1452,6 +1476,8 @@ const translations: Record<Locale, Translations> = {
     'operation.generateText.title': '生成文本',
     'operation.generateScreenplay.title': '生成剧本',
     'operation.organizeScreenplay.title': '整理剧本',
+    'operation.defineCharacter.title': '生成角色设定',
+    'operation.defineScene.title': '生成场景设定',
     'operation.annotationEdit.prompt': '根据标注备注编辑图片',
     'operation.annotationEdit.title': '标注编辑',
     'operation.quickEdit.prompt': '描述要如何基于源图生成新图片...',
@@ -1466,6 +1492,8 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.generateText': '生成文本',
     'operationToolbar.generateScreenplay': '生成剧本',
     'operationToolbar.organizeScreenplay': '整理剧本',
+    'operationToolbar.defineCharacter': '生成角色设定',
+    'operationToolbar.defineScene': '生成场景设定',
     'operationToolbar.generateAgain': '再次生成',
     'operationToolbar.generator': '生成方式',
     'operationToolbar.localProcessing': '本地处理',
@@ -1501,6 +1529,14 @@ const translations: Record<Locale, Translations> = {
     'skill.normalizeScreenplay.description': '在不改变剧情事实的前提下整理已有剧本。',
     'skill.normalizeScreenplay.input': '源剧本',
     'skill.normalizeScreenplay.placeholder': '粘贴需要规范化的剧本，或先选择一个 Document Block...',
+    'skill.characterBible.name': '生成角色设定',
+    'skill.characterBible.description': '从剧本提取稳定的角色设计与连续性约束。',
+    'skill.characterBible.input': '源剧本',
+    'skill.characterBible.placeholder': '连接或粘贴用于生成角色设定的剧本...',
+    'skill.sceneBible.name': '生成场景设定',
+    'skill.sceneBible.description': '从剧本提取场景、空间、灯光与连续性约束。',
+    'skill.sceneBible.input': '源剧本',
+    'skill.sceneBible.placeholder': '连接或粘贴用于生成场景设定的剧本...',
     'operationInputQuickAdd.add': '添加',
     'operationInputQuickAdd.addImage': '添加图片输入',
     'operationInputQuickAdd.addText': '添加文本输入',

@@ -1,11 +1,21 @@
-import { aiSdkTextAdapterDefinition, codexAppServerTextAdapterDefinition } from './capabilityRegistry';
-import type { CapabilityInputBinding } from './capabilityContracts';
+import {
+  aiSdkTextAdapterDefinition,
+  capabilityDefinitionFor,
+  codexAppServerTextAdapterDefinition,
+  isTextDocumentCapability,
+} from './capabilityRegistry';
+import type { CapabilityBindingValue, CapabilityInputBinding } from './capabilityContracts';
 import { connectedInputBlocks, promptTextFromInputs } from './capabilities';
 import { createBlockRecord, maxZIndex, touchBoard } from './blockFactory';
 import { recordExecutionConfiguration } from './executionConfiguration';
 import type { ExecutionConnectionSummary } from './executionProviders';
 import { createId, nowIso } from './id';
-import { capabilityForSkill, skillDefinitionFor, snapshotSkill } from './skillRegistry';
+import {
+  capabilityForSkill,
+  skillDefinitionFor,
+  snapshotSkill,
+  type RetakeSkillDefinition,
+} from './skillRegistry';
 import type { BlockRecord, BoardHistoryEvent, BoardSnapshot, ExecutionRecord } from './types';
 
 export interface TextGenerationLabels {
@@ -129,7 +139,7 @@ export function executeExistingTextGenerationOperation(
   const prompt = promptTextFromInputs(inputBlocks.filter((block) => block.type === 'text'))
     || (promptBlock?.type === 'document' ? promptBlock.data.title : '');
   if (!promptBlock || !prompt || (promptBlock.type === 'document' && typeof promptBlock.data.assetId !== 'string')) {
-    throw new Error('Connect a non-empty Text or Document Block before generating a screenplay.');
+    throw new Error('Connect a non-empty Text or Document Block before generating a document.');
   }
 
   const executionId = createId('exec');
@@ -202,7 +212,7 @@ export function executeExistingTextGenerationOperation(
   recordExecutionConfiguration(snapshot, execution, operationBlock);
   if (execution.skillId) {
     const skill = skillDefinitionFor(execution.skillId);
-    const bindings = screenplayInputBindings(capabilityId, inputBlocks);
+    const bindings = textDocumentInputBindings(capabilityId, inputBlocks, skill);
     execution.inputBindingsSnapshot = bindings;
     execution.skillSnapshot = snapshotSkill(skill, bindings);
   }
@@ -307,29 +317,42 @@ function createSkillInputBlock(snapshot: BoardSnapshot, input: TextGenerationLab
   return promptBlock;
 }
 
-function screenplayInputBindings(capabilityId: string, blocks: BlockRecord[]): CapabilityInputBinding[] {
-  const values = blocks.map((block) => typeof block.data.assetId === 'string'
+export function textDocumentInputBindings(
+  capabilityId: string,
+  blocks: BlockRecord[],
+  skill?: RetakeSkillDefinition,
+): CapabilityInputBinding[] {
+  const definition = capabilityDefinitionFor(capabilityId);
+  if (!isTextDocumentCapability(capabilityId)) {
+    throw new Error(`Capability does not produce a text document: ${capabilityId}`);
+  }
+  const skillBinding = skill?.capabilityBindings.find((binding) => binding.capabilityId === capabilityId);
+  if (skill && !skillBinding) {
+    throw new Error(`Skill ${skill.skillId} does not bind capability ${capabilityId}.`);
+  }
+  const declaredSlotIds = skillBinding?.inputSlots ?? definition.inputSlots.map((slot) => slot.slotId);
+  const declaredSlots = declaredSlotIds.map((slotId) => {
+    const slot = definition.inputSlots.find((candidate) => candidate.slotId === slotId);
+    if (!slot) throw new Error(`Capability input slot not found: ${capabilityId}.${slotId}`);
+    return slot;
+  });
+  const values: CapabilityBindingValue[] = blocks.map((block) => typeof block.data.assetId === 'string'
     ? { kind: 'asset' as const, assetId: block.data.assetId, blockId: block.blockId }
     : { kind: 'block' as const, blockId: block.blockId });
-  if (capabilityId === 'story.screenplay.generate') {
-    return [
-      { slotId: 'brief', values: values.slice(0, 1) },
-      ...(values.length > 1 ? [{ slotId: 'references', values: values.slice(1) }] : []),
-    ];
-  }
-  if (capabilityId === 'story.screenplay.normalize') {
-    return [
-      { slotId: 'source_screenplay', values: values.slice(0, 1) },
-      ...(values.length > 1 ? [{ slotId: 'normalization_instruction', values: values.slice(1, 2) }] : []),
-    ];
-  }
-  return [{ slotId: 'prompt', values }];
-}
-
-export function isTextDocumentCapability(capabilityId: string): boolean {
-  return capabilityId === 'text.generate'
-    || capabilityId === 'story.screenplay.generate'
-    || capabilityId === 'story.screenplay.normalize';
+  let cursor = 0;
+  return declaredSlots.flatMap((slot, index): CapabilityInputBinding[] => {
+    const remainingRequired = declaredSlots.slice(index + 1).filter((candidate) => candidate.required).length;
+    const available = Math.max(0, values.length - cursor - remainingRequired);
+    const take = slot.cardinality === 'many'
+      ? available
+      : slot.required || available > 0
+        ? Math.min(1, values.length - cursor)
+        : 0;
+    if (take <= 0) return [];
+    const binding = { slotId: slot.slotId, values: values.slice(cursor, cursor + take) };
+    cursor += take;
+    return [binding];
+  });
 }
 
 function isTextConnector(connectorId: string): boolean {

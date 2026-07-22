@@ -1,6 +1,7 @@
 import { AlertCircle, Check, ChevronRight, Clipboard, FileText, Loader2, Play, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { isLocalCanvasCapability, operationReadinessMessageKey, schemaForCapability } from '../core/capabilities';
+import { isTextDocumentCapability } from '../core/capabilityRegistry';
 import {
   currentExecutionProviderSettings,
   subscribeExecutionProviderSettings,
@@ -15,7 +16,7 @@ import {
 } from '../core/generationProfiles';
 import type { ImageGenerationParams, SwitchableOperationMode } from '../core/imageOperations';
 import { operationDisplayState } from '../core/operationDisplay';
-import { skillsForCapability } from '../core/skillRegistry';
+import { skillUiDefinitionFor, skillsForCapability } from '../core/skillRegistry';
 import type { BlockData } from '../core/types';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
@@ -63,7 +64,7 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
   const [isSkillOpen, setIsSkillOpen] = useState(false);
   const operation = operationModeFromCapability(data);
   const capabilityId = capabilityIdForOperationMode(operation, data);
-  const isTextGeneration = capabilityId === 'text.generate' || capabilityId.startsWith('story.screenplay.');
+  const isTextGeneration = isTextDocumentCapability(capabilityId);
   const compatibleSkills = skillsForCapability(capabilityId);
   const selectedSkill = typeof data.skillId === 'string'
     ? compatibleSkills.find((skill) => skill.skillId === data.skillId)
@@ -408,13 +409,7 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
           {isRunning || automatedPending
             ? t('operationToolbar.running')
             : isTextGeneration
-              ? t(isRepeat
-                  ? 'operationToolbar.generateAgain'
-                  : capabilityId.startsWith('story.screenplay.')
-                    ? capabilityId === 'story.screenplay.normalize'
-                      ? 'operationToolbar.organizeScreenplay'
-                      : 'operationToolbar.generateScreenplay'
-                    : 'operationToolbar.generateText')
+              ? t(isRepeat ? 'operationToolbar.generateAgain' : textOperationActionKey(capabilityId))
             : usesPromptHandoff && isQueued
               ? t(queuedConfigurationStale ? 'operationToolbar.updatePrompt' : 'feedback.copyPrompt')
               : isRepeat
@@ -509,16 +504,27 @@ function dispatchUpdateOperationSkill(blockId: string, skillId: string): void {
 }
 
 function localizedSkillName(skillId: string, t: ReturnType<typeof useI18n>['t']): string {
-  return t(skillId === 'retake.screenplay.normalize'
-    ? 'skill.normalizeScreenplay.name'
-    : 'skill.screenplayFromBrief.name');
+  return t(skillUiDefinitionFor(skillId).nameKey);
+}
+
+function textOperationActionKey(capabilityId: string):
+  | 'operationToolbar.defineCharacter'
+  | 'operationToolbar.defineScene'
+  | 'operationToolbar.generateScreenplay'
+  | 'operationToolbar.generateText'
+  | 'operationToolbar.organizeScreenplay' {
+  if (capabilityId === 'story.screenplay.generate') return 'operationToolbar.generateScreenplay';
+  if (capabilityId === 'story.screenplay.normalize') return 'operationToolbar.organizeScreenplay';
+  if (capabilityId === 'design.character.define') return 'operationToolbar.defineCharacter';
+  if (capabilityId === 'design.scene.define') return 'operationToolbar.defineScene';
+  return 'operationToolbar.generateText';
 }
 
 function operationExecutionConnections(
   connections: ExecutionConnectionSummary[],
   capabilityId: string,
 ): ExecutionConnectionSummary[] {
-  const useCase = capabilityId.startsWith('text.') || capabilityId.startsWith('story.screenplay.') ? 'text' : 'image';
+  const useCase = isTextDocumentCapability(capabilityId) ? 'text' : 'image';
   return connections.filter((connection) =>
     connection.enabledUseCases.includes(useCase) &&
     connection.supportedCapabilityIds.includes(capabilityId));

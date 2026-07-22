@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile, rm } from 'node:fs/promises';
 import { addImageCodexOperation, createDraftTextToImageOperation, executeExistingImageOperationBlock } from '../src/core/imageOperations';
+import { textDocumentCapabilityIds } from '../src/core/capabilityRegistry';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import { createDraftTextGenerationOperation, executeExistingTextGenerationOperation } from '../src/core/textOperations';
 import type { BoardSnapshot } from '../src/core/types';
@@ -57,9 +58,7 @@ const connection = settings.connections.find((candidate) => candidate.connection
 assert.equal(connection?.status, 'ready');
 assert.equal(connection?.modelId, 'gpt-5.6-terra');
 assert.deepEqual(connection?.supportedCapabilityIds, [
-  'text.generate',
-  'story.screenplay.generate',
-  'story.screenplay.normalize',
+  ...textDocumentCapabilityIds,
   'image.annotation_edit',
   'image.image_to_image',
   'image.text_to_image',

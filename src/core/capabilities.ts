@@ -74,6 +74,26 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
     promptSource: 'block',
     supportedAdapters: ['direct_api', 'mcp_agent', 'cli_agent', 'manual_import'],
   },
+  'design.character.define': {
+    capabilityId: 'design.character.define',
+    defaultAdapter: 'direct_api',
+    displayNameKey: 'operation.defineCharacter.title',
+    inputContracts: [{ type: 'text', required: true, source: 'block', min: 1, max: 'many' }],
+    outputContracts: [{ type: 'document' }],
+    paramsSchema: {},
+    promptSource: 'block',
+    supportedAdapters: ['direct_api', 'mcp_agent', 'cli_agent', 'manual_import'],
+  },
+  'design.scene.define': {
+    capabilityId: 'design.scene.define',
+    defaultAdapter: 'direct_api',
+    displayNameKey: 'operation.defineScene.title',
+    inputContracts: [{ type: 'text', required: true, source: 'block', min: 1, max: 'many' }],
+    outputContracts: [{ type: 'document' }],
+    paramsSchema: {},
+    promptSource: 'block',
+    supportedAdapters: ['direct_api', 'mcp_agent', 'cli_agent', 'manual_import'],
+  },
   'image.text_to_image': {
     capabilityId: 'image.text_to_image',
     defaultAdapter: 'mcp_agent',
@@ -321,7 +341,7 @@ function inputBlockMatchesContract(
   contractType: CapabilityInputType,
   capabilityId: string,
 ): boolean {
-  if (contractType === 'text' && capabilityId.startsWith('story.screenplay.')) {
+  if (contractType === 'text' && acceptsDocumentAsTextInput(capabilityId)) {
     return block.type === 'text' || block.type === 'document';
   }
   return block.type === contractType;
@@ -329,8 +349,16 @@ function inputBlockMatchesContract(
 
 function textualInputReady(blocks: BlockRecord[], capabilityId: string): boolean {
   if (promptTextFromInputs(blocks)) return true;
-  return capabilityId.startsWith('story.screenplay.') && blocks.some(
+  return acceptsDocumentAsTextInput(capabilityId) && blocks.some(
     (block) => block.type === 'document' && typeof block.data.assetId === 'string',
+  );
+}
+
+function acceptsDocumentAsTextInput(capabilityId: string): boolean {
+  const schema = capabilitySchemas[capabilityId];
+  return Boolean(
+    schema?.inputContracts.some((contract) => contract.type === 'text')
+    && schema.outputContracts.some((contract) => contract.type === 'document'),
   );
 }
 

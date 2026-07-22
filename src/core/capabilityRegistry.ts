@@ -83,17 +83,106 @@ export const screenplayNormalizeCapabilityDefinition: CapabilityDefinition = {
   supportedAdapterClasses: ['text.document', 'agent_runtime.text'],
 };
 
-const textDocumentCapabilityIds = [
-  'text.generate',
-  screenplayGenerateCapabilityDefinition.capabilityId,
-  screenplayNormalizeCapabilityDefinition.capabilityId,
-];
+export const characterBibleCapabilityDefinition: CapabilityDefinition = {
+  schemaVersion: 1,
+  capabilityId: 'design.character.define',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-design-character-define-v1',
+  category: 'production_design',
+  displayName: 'Define characters',
+  inputSlots: [
+    {
+      slotId: 'screenplay',
+      semanticRole: 'screenplay',
+      dataTypes: ['text', 'document'],
+      artifactTypes: ['screenplay_master'],
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['block', 'asset', 'artifact_revision'],
+    },
+    {
+      slotId: 'references',
+      semanticRole: 'reference',
+      dataTypes: ['text', 'document'],
+      artifactTypes: ['character_reference', 'reference'],
+      cardinality: 'many',
+      required: false,
+      bindingKinds: ['block', 'asset', 'artifact_revision'],
+    },
+  ],
+  outputSlots: [{
+    slotId: 'character_bible',
+    semanticRole: 'character_bible',
+    dataType: 'document',
+    artifactType: 'character_bible',
+    schemaRef: 'retake.character-bible-markdown/v1',
+    cardinality: 'one',
+    projectionBlockTypes: ['document'],
+  }],
+  runtimeRequirements: ['text_generation', 'durable_asset_output'],
+  supportedAdapterClasses: ['text.document', 'agent_runtime.text'],
+};
+
+export const sceneBibleCapabilityDefinition: CapabilityDefinition = {
+  schemaVersion: 1,
+  capabilityId: 'design.scene.define',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-design-scene-define-v1',
+  category: 'production_design',
+  displayName: 'Define scenes',
+  inputSlots: [
+    {
+      slotId: 'screenplay',
+      semanticRole: 'screenplay',
+      dataTypes: ['text', 'document'],
+      artifactTypes: ['screenplay_master'],
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['block', 'asset', 'artifact_revision'],
+    },
+    {
+      slotId: 'references',
+      semanticRole: 'reference',
+      dataTypes: ['text', 'document'],
+      artifactTypes: ['scene_reference', 'reference'],
+      cardinality: 'many',
+      required: false,
+      bindingKinds: ['block', 'asset', 'artifact_revision'],
+    },
+  ],
+  outputSlots: [{
+    slotId: 'scene_bible',
+    semanticRole: 'scene_bible',
+    dataType: 'document',
+    artifactType: 'scene_bible',
+    schemaRef: 'retake.scene-bible-markdown/v1',
+    cardinality: 'one',
+    projectionBlockTypes: ['document'],
+  }],
+  runtimeRequirements: ['text_generation', 'durable_asset_output'],
+  supportedAdapterClasses: ['text.document', 'agent_runtime.text'],
+};
+
+const canonicalCapabilityDefinitions = [
+  textGenerateCapabilityDefinition,
+  screenplayGenerateCapabilityDefinition,
+  screenplayNormalizeCapabilityDefinition,
+  characterBibleCapabilityDefinition,
+  sceneBibleCapabilityDefinition,
+] as const;
+
+export const textDocumentCapabilityIds = canonicalCapabilityDefinitions
+  .filter((definition) => definition.outputSlots.some((slot) => slot.dataType === 'document'))
+  .filter((definition) => definition.supportedAdapterClasses.some(
+    (adapterClass) => adapterClass === 'text.generate' || adapterClass === 'text.document' || adapterClass === 'agent_runtime.text',
+  ))
+  .map((definition) => definition.capabilityId);
 
 export const aiSdkTextAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.text.ai-sdk',
-  version: '0.1.0',
-  definitionHash: 'sha256:retake-text-ai-sdk-v0',
+  version: '0.2.0',
+  definitionHash: 'sha256:retake-text-ai-sdk-v1',
   adapterClass: 'text.document',
   routeKind: 'direct_api',
   supportedCapabilityIds: textDocumentCapabilityIds,
@@ -101,6 +190,8 @@ export const aiSdkTextAdapterDefinition: AdapterDefinition = {
     { profileId: 'text_prompt', requiredSlots: ['prompt'], optionalSlots: [] },
     { profileId: 'screenplay_from_brief', requiredSlots: ['brief'], optionalSlots: ['references'] },
     { profileId: 'screenplay_normalize', requiredSlots: ['source_screenplay'], optionalSlots: ['normalization_instruction'] },
+    { profileId: 'character_bible_from_screenplay', requiredSlots: ['screenplay'], optionalSlots: ['references'] },
+    { profileId: 'scene_bible_from_screenplay', requiredSlots: ['screenplay'], optionalSlots: ['references'] },
   ],
   constraints: {
     outputCount: { min: 1, max: 1 },
@@ -114,8 +205,8 @@ export const aiSdkTextAdapterDefinition: AdapterDefinition = {
 export const codexAppServerTextAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.text.codex-app-server',
-  version: '0.1.0',
-  definitionHash: 'sha256:retake-text-codex-app-server-v0',
+  version: '0.2.0',
+  definitionHash: 'sha256:retake-text-codex-app-server-v1',
   adapterClass: 'agent_runtime.text',
   routeKind: 'codex_app_server',
   provider: 'codex',
@@ -124,6 +215,8 @@ export const codexAppServerTextAdapterDefinition: AdapterDefinition = {
     { profileId: 'text_prompt', requiredSlots: ['prompt'], optionalSlots: [] },
     { profileId: 'screenplay_from_brief', requiredSlots: ['brief'], optionalSlots: ['references'] },
     { profileId: 'screenplay_normalize', requiredSlots: ['source_screenplay'], optionalSlots: ['normalization_instruction'] },
+    { profileId: 'character_bible_from_screenplay', requiredSlots: ['screenplay'], optionalSlots: ['references'] },
+    { profileId: 'scene_bible_from_screenplay', requiredSlots: ['screenplay'], optionalSlots: ['references'] },
   ],
   constraints: {
     outputCount: { min: 1, max: 1 },
@@ -389,9 +482,22 @@ export const volcengineArkSeedreamImageAdapterDefinition: AdapterDefinition = {
 };
 
 export function capabilityDefinitionFor(capabilityId: string): CapabilityDefinition {
-  if (capabilityId === textGenerateCapabilityDefinition.capabilityId) return textGenerateCapabilityDefinition;
-  if (capabilityId === screenplayGenerateCapabilityDefinition.capabilityId) return screenplayGenerateCapabilityDefinition;
-  if (capabilityId === screenplayNormalizeCapabilityDefinition.capabilityId) return screenplayNormalizeCapabilityDefinition;
+  const canonicalDefinition = canonicalCapabilityDefinitions.find(
+    (definition) => definition.capabilityId === capabilityId,
+  );
+  if (canonicalDefinition) return canonicalDefinition;
   if (capabilityId === videoGenerateCapabilityDefinition.capabilityId) return videoGenerateCapabilityDefinition;
   return definitionForLegacyCapability(capabilityId);
+}
+
+export function isTextDocumentCapability(capabilityId: string): boolean {
+  try {
+    const definition = capabilityDefinitionFor(capabilityId);
+    return definition.outputSlots.some((slot) => slot.dataType === 'document')
+      && definition.supportedAdapterClasses.some(
+        (adapterClass) => adapterClass === 'text.generate' || adapterClass === 'text.document' || adapterClass === 'agent_runtime.text',
+      );
+  } catch {
+    return false;
+  }
 }

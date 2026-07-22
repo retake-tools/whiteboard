@@ -1,3 +1,5 @@
+import { textDocumentCapabilityIds } from './capabilityRegistry';
+
 export type ExecutionConnectionKind = 'model_provider' | 'agent_host' | 'provider_cli' | 'local';
 
 export type AdapterImplementationKind =
@@ -80,12 +82,6 @@ export interface ExecutionProviderSettingsSnapshot {
   workspaceDefaults: ExecutionDefaultSelection[];
   projectDefaults: ExecutionDefaultSelection[];
 }
-
-const textDocumentCapabilityIds = [
-  'text.generate',
-  'story.screenplay.generate',
-  'story.screenplay.normalize',
-];
 
 const connectors: ExecutionConnectorDefinition[] = [
   {

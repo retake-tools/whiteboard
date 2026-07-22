@@ -1,4 +1,5 @@
 import type { BoardSnapshot, ExecutionRecord } from '../src/core/types';
+import { capabilityDefinitionFor, isTextDocumentCapability } from '../src/core/capabilityRegistry';
 import { generateNativeText, type NativeTextResult } from './ai-sdk-native-text-client';
 import { runCodexAppServerTurn } from './codex-app-server-client';
 import { publishExecutionEvent } from './execution-events';
@@ -144,7 +145,7 @@ async function executeTextGeneration(
     executionId: execution.executionId,
     assetId: asset.assetId,
     resultBlockId: execution.outputBlockIds[0],
-    title: execution.capabilityId === 'story.screenplay.normalize' ? 'Organized screenplay' : execution.capabilityId === 'story.screenplay.generate' ? 'Generated screenplay' : 'Generated document',
+    title: capabilityDefinitionFor(execution.capabilityId).displayName,
     markdown,
   });
   publishExecutionEvent(execution.executionId, { type: 'execution.snapshot', snapshot: completed.snapshot });
@@ -181,10 +182,4 @@ function isDirectTextConnector(
   connectorId: string,
 ): connectorId is 'anthropic-native' | 'google-native' | 'openai-compatible' {
   return connectorId === 'anthropic-native' || connectorId === 'google-native' || connectorId === 'openai-compatible';
-}
-
-function isTextDocumentCapability(capabilityId: string): boolean {
-  return capabilityId === 'text.generate'
-    || capabilityId === 'story.screenplay.generate'
-    || capabilityId === 'story.screenplay.normalize';
 }

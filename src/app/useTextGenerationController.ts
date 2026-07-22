@@ -12,12 +12,12 @@ import {
   createDraftTextGenerationOperation,
   createDraftSkillOperation,
   executeExistingTextGenerationOperation,
-  isTextDocumentCapability,
   type TextGenerationLabels,
 } from '../core/textOperations';
+import { isTextDocumentCapability } from '../core/capabilityRegistry';
 import type { BlockRecord, BoardSnapshot } from '../core/types';
 import type { OperationToast } from '../components/OperationFeedback';
-import { skillEntryPointFor } from '../core/skillRegistry';
+import { skillEntryPointFor, skillUiDefinitionFor } from '../core/skillRegistry';
 import type { useI18n } from '../i18n';
 
 interface TextGenerationControllerOptions {
@@ -226,20 +226,13 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
   }
 
   function labelsForSkill(skillId: string): TextGenerationLabels {
-    if (skillId === 'retake.screenplay.normalize') {
-      return {
-        operationTitle: t('operation.organizeScreenplay.title'),
-        promptPlaceholder: t('skill.normalizeScreenplay.placeholder'),
-        promptTitle: t('skill.normalizeScreenplay.input'),
-        resultTitle: t('operation.organizeScreenplay.title'),
-        waitingBody: t('resultStatus.queued'),
-      };
-    }
+    const ui = skillUiDefinitionFor(skillId);
+    const operationTitle = t(ui.operationTitleKey);
     return {
-      operationTitle: t('operation.generateScreenplay.title'),
-      promptPlaceholder: t('skill.screenplayFromBrief.placeholder'),
-      promptTitle: t('skill.screenplayFromBrief.input'),
-      resultTitle: t('operation.generateScreenplay.title'),
+      operationTitle,
+      promptPlaceholder: t(ui.placeholderKey),
+      promptTitle: t(ui.inputKey),
+      resultTitle: operationTitle,
       waitingBody: t('resultStatus.queued'),
     };
   }
