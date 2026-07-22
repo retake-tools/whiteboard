@@ -1,5 +1,6 @@
 import {
   Check,
+  Bot,
   ChevronDown,
   ChevronRight,
   Cloud,
@@ -45,6 +46,7 @@ interface TopBarProps {
   canRedo: boolean;
   hasSelection: boolean;
   isHistoryOpen: boolean;
+  isAgentWorkspaceOpen: boolean;
   isProjectBoardDialogOpen?: boolean;
   showGrid: boolean;
   workspace?: WorkspaceSummary;
@@ -62,6 +64,7 @@ interface TopBarProps {
   onSelectBoard: (projectId: string, boardId: string) => void;
   onToggleGrid: () => void;
   onToggleHistory: () => void;
+  onToggleAgentWorkspace: () => void;
   onDeleteSelection: () => void;
   onDuplicateSelection: () => void;
   onUndo: () => void;
@@ -93,9 +96,11 @@ export function TopBar({
   onDeleteSelection,
   onDuplicateSelection,
   onToggleHistory,
+  onToggleAgentWorkspace,
   onUndo,
   onRedo,
   isHistoryOpen,
+  isAgentWorkspaceOpen,
 }: TopBarProps): ReactElement {
   const { locale, setLocale, t } = useI18n();
   const initialUiPreferences = useRef(loadUiPreferences());
@@ -376,6 +381,14 @@ export function TopBar({
         </div>
 
         <div className="top-bar-actions">
+          <TooltipIconButton
+            className="icon-button"
+            isPressed={isAgentWorkspaceOpen}
+            label={t('agentWorkspace.open')}
+            onClick={onToggleAgentWorkspace}
+          >
+            <Bot size={16} />
+          </TooltipIconButton>
           <TooltipIconButton
             className="icon-button"
             isPressed={isHistoryOpen}

@@ -50,6 +50,7 @@ import { startTextGeneration } from './text-generation-service';
 import { installExecutionEventStream } from './execution-events';
 import { startCodexAppServerImageGeneration } from './codex-app-server-image-service';
 import { listCodexAppServerModels } from './codex-app-server-client';
+import { runAgentRuntimeTurn } from './agent-runtime-port';
 
 type MiddlewareContainer = {
   use(
@@ -78,6 +79,26 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
 
           if (method === 'GET' && url.pathname === '/health') {
             sendJson(res, { ok: true, service: 'retake-whiteboard' });
+            return;
+          }
+
+          if (method === 'POST' && url.pathname === '/agent/runtime/turn') {
+            const body = (await readJson(req)) as {
+              agentSessionId?: string;
+              boardId?: string;
+              projectId?: string;
+              sourceMessageId?: string;
+            };
+            if (!body.agentSessionId || !body.boardId || !body.projectId || !body.sourceMessageId) {
+              sendJson(res, { error: 'agentSessionId, projectId, boardId, and sourceMessageId are required' }, 400);
+              return;
+            }
+            sendJson(res, await runAgentRuntimeTurn({
+              agentSessionId: body.agentSessionId,
+              boardId: body.boardId,
+              projectId: body.projectId,
+              sourceMessageId: body.sourceMessageId,
+            }));
             return;
           }
 

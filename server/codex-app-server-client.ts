@@ -49,9 +49,13 @@ export interface CodexAppServerTurnResult {
 }
 
 export interface RunCodexAppServerTurnInput {
+  baseInstructions?: string;
   cwd: string;
+  ephemeral?: boolean;
   model: string;
+  outputSchema?: Record<string, unknown>;
   prompt: string;
+  threadId?: string;
   localImagePaths?: string[];
   sandbox?: 'read-only' | 'workspace-write';
   signal?: AbortSignal;
@@ -208,13 +212,25 @@ export async function runCodexAppServerTurn(
         session.complete();
       }
     });
-    const threadResult = await session.request('thread/start', {
-      model: input.model,
-      cwd: input.cwd,
-      approvalPolicy: 'never',
-      sandbox: input.sandbox ?? 'read-only',
-      ephemeral: true,
-    });
+    const threadResult = input.threadId
+      ? await session.request('thread/resume', {
+          threadId: input.threadId,
+          model: input.model,
+          cwd: input.cwd,
+          approvalPolicy: 'never',
+          sandbox: input.sandbox ?? 'read-only',
+          ...(input.baseInstructions ? { baseInstructions: input.baseInstructions } : {}),
+          excludeTurns: true,
+        })
+      : await session.request('thread/start', {
+          model: input.model,
+          cwd: input.cwd,
+          approvalPolicy: 'never',
+          sandbox: input.sandbox ?? 'read-only',
+          ephemeral: input.ephemeral ?? true,
+          dynamicTools: [],
+          ...(input.baseInstructions ? { baseInstructions: input.baseInstructions } : {}),
+        });
     const thread = isRecord(threadResult.thread) ? threadResult.thread : undefined;
     if (!thread || typeof thread.id !== 'string') throw new Error('Codex App Server did not return a thread id.');
     threadId = thread.id;
@@ -225,6 +241,7 @@ export async function runCodexAppServerTurn(
         { type: 'text', text: input.prompt },
         ...(input.localImagePaths ?? []).map((localPath) => ({ type: 'localImage', path: localPath })),
       ],
+      ...(input.outputSchema ? { outputSchema: input.outputSchema } : {}),
     });
     const turn = isRecord(turnResult.turn) ? turnResult.turn : undefined;
     if (!turn || typeof turn.id !== 'string') throw new Error('Codex App Server did not return a turn id.');

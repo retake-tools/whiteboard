@@ -471,6 +471,36 @@ type TranslationKey =
   | 'agentRuntime.status.succeeded'
   | 'agentRuntime.status.waiting_input'
   | 'agentRuntime.status.waiting_selection'
+  | 'agentWorkspace.addEntrypoint'
+  | 'agentWorkspace.addMention'
+  | 'agentWorkspace.agent'
+  | 'agentWorkspace.archiveSession'
+  | 'agentWorkspace.changes'
+  | 'agentWorkspace.changesEmpty'
+  | 'agentWorkspace.chat'
+  | 'agentWorkspace.chatEmpty'
+  | 'agentWorkspace.createSession'
+  | 'agentWorkspace.emptyBody'
+  | 'agentWorkspace.emptyTitle'
+  | 'agentWorkspace.eyebrow'
+  | 'agentWorkspace.inputPlaceholder'
+  | 'agentWorkspace.newSession'
+  | 'agentWorkspace.noRun'
+  | 'agentWorkspace.noSession'
+  | 'agentWorkspace.open'
+  | 'agentWorkspace.rejectProposal'
+  | 'agentWorkspace.run'
+  | 'agentWorkspace.runEmpty'
+  | 'agentWorkspace.runId'
+  | 'agentWorkspace.runtime'
+  | 'agentWorkspace.scope'
+  | 'agentWorkspace.send'
+  | 'agentWorkspace.session'
+  | 'agentWorkspace.status'
+  | 'agentWorkspace.targetRun'
+  | 'agentWorkspace.thinking'
+  | 'agentWorkspace.title'
+  | 'agentWorkspace.you'
   | 'operationInputQuickAdd.add'
   | 'operationInputQuickAdd.addImage'
   | 'operationInputQuickAdd.addText'
@@ -1146,6 +1176,36 @@ const translations: Record<Locale, Translations> = {
     'agentRuntime.status.succeeded': 'Succeeded',
     'agentRuntime.status.waiting_input': 'Waiting for input',
     'agentRuntime.status.waiting_selection': 'Waiting for selection',
+    'agentWorkspace.addEntrypoint': 'Add / Skill or Workflow',
+    'agentWorkspace.addMention': 'Add reference',
+    'agentWorkspace.agent': 'Agent',
+    'agentWorkspace.archiveSession': 'Archive session',
+    'agentWorkspace.changes': 'Changes',
+    'agentWorkspace.changesEmpty': 'Out-of-scope requests will appear here as reviewable Change Proposals.',
+    'agentWorkspace.chat': 'Chat',
+    'agentWorkspace.chatEmpty': 'Ask about this Board or control the currently attached Agent Run.',
+    'agentWorkspace.createSession': 'Create session',
+    'agentWorkspace.emptyBody': 'Sessions keep Board-scoped conversation history and can attach to one existing Agent Run.',
+    'agentWorkspace.emptyTitle': 'Start a Board Agent session',
+    'agentWorkspace.eyebrow': 'Board Agent',
+    'agentWorkspace.inputPlaceholder': 'Ask about this Board or request an allowed Run action…',
+    'agentWorkspace.newSession': 'New session',
+    'agentWorkspace.noRun': 'No Agent Run attached',
+    'agentWorkspace.noSession': 'No active session',
+    'agentWorkspace.open': 'Open Agent Workspace',
+    'agentWorkspace.rejectProposal': 'Reject proposal',
+    'agentWorkspace.run': 'Run',
+    'agentWorkspace.runEmpty': 'Attach an existing Agent Run. Chat does not create execution authority.',
+    'agentWorkspace.runId': 'Agent Run ID',
+    'agentWorkspace.runtime': 'Runtime binding',
+    'agentWorkspace.scope': 'Authorized scope',
+    'agentWorkspace.send': 'Send message',
+    'agentWorkspace.session': 'Session',
+    'agentWorkspace.status': 'Status',
+    'agentWorkspace.targetRun': 'Attached Agent Run',
+    'agentWorkspace.thinking': 'Working within the attached scope…',
+    'agentWorkspace.title': 'Agent Workspace',
+    'agentWorkspace.you': 'You',
     'operationInputQuickAdd.add': 'Add',
     'operationInputQuickAdd.addImage': 'Add image input',
     'operationInputQuickAdd.addText': 'Add text input',
@@ -1816,6 +1876,36 @@ const translations: Record<Locale, Translations> = {
     'agentRuntime.status.succeeded': '已完成',
     'agentRuntime.status.waiting_input': '等待输入',
     'agentRuntime.status.waiting_selection': '等待选择',
+    'agentWorkspace.addEntrypoint': '添加 / Skill 或 Workflow',
+    'agentWorkspace.addMention': '添加引用',
+    'agentWorkspace.agent': 'Agent',
+    'agentWorkspace.archiveSession': '归档会话',
+    'agentWorkspace.changes': '变更',
+    'agentWorkspace.changesEmpty': '超出范围的请求会在这里形成可审阅的 Change Proposal。',
+    'agentWorkspace.chat': '对话',
+    'agentWorkspace.chatEmpty': '可以询问当前画板，或控制已绑定 Agent Run 的允许动作。',
+    'agentWorkspace.createSession': '创建会话',
+    'agentWorkspace.emptyBody': '会话保存当前画板范围内的对话，并且可以绑定一个已有 Agent Run。',
+    'agentWorkspace.emptyTitle': '开始画板 Agent 会话',
+    'agentWorkspace.eyebrow': '画板 Agent',
+    'agentWorkspace.inputPlaceholder': '询问当前画板，或请求 Agent Run 范围内的动作…',
+    'agentWorkspace.newSession': '新建会话',
+    'agentWorkspace.noRun': '未绑定 Agent Run',
+    'agentWorkspace.noSession': '没有活动会话',
+    'agentWorkspace.open': '打开 Agent Workspace',
+    'agentWorkspace.rejectProposal': '拒绝提案',
+    'agentWorkspace.run': '运行',
+    'agentWorkspace.runEmpty': '绑定已有 Agent Run；聊天本身不会创建执行授权。',
+    'agentWorkspace.runId': 'Agent Run ID',
+    'agentWorkspace.runtime': 'Runtime 绑定',
+    'agentWorkspace.scope': '授权范围',
+    'agentWorkspace.send': '发送消息',
+    'agentWorkspace.session': '会话',
+    'agentWorkspace.status': '状态',
+    'agentWorkspace.targetRun': '已绑定 Agent Run',
+    'agentWorkspace.thinking': '正在已授权范围内处理…',
+    'agentWorkspace.title': 'Agent Workspace',
+    'agentWorkspace.you': '你',
     'operationInputQuickAdd.add': '添加',
     'operationInputQuickAdd.addImage': '添加图片输入',
     'operationInputQuickAdd.addText': '添加文本输入',

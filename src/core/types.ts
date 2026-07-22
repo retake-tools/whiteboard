@@ -10,6 +10,12 @@ import type {
 import type { RetakeSkillSnapshot } from './skillRegistry';
 import type { WorkflowRunRecord, WorkflowStepRunRecord, WorkflowStepRunFreshness, WorkflowStepRunStatus } from './workflowRuntimeContracts';
 import type { AgentRunRecord } from './agentRuntimeContracts';
+import type {
+  AgentMessageRecord,
+  AgentRuntimeBindingRecord,
+  AgentSessionRecord,
+  ChangeProposalRecord,
+} from './agentSessionContracts';
 
 export type BlockType = 'text' | 'document' | 'image' | 'video' | 'operation' | 'group';
 
@@ -398,6 +404,10 @@ export interface BoardSnapshot {
   assets: AssetRecord[];
   executions: ExecutionRecord[];
   agentRuns?: AgentRunRecord[];
+  agentSessions?: AgentSessionRecord[];
+  agentMessages?: AgentMessageRecord[];
+  agentRuntimeBindings?: AgentRuntimeBindingRecord[];
+  changeProposals?: ChangeProposalRecord[];
   workflowRuns?: WorkflowRunRecord[];
   workflowStepRuns?: WorkflowStepRunRecord[];
   historyEvents?: BoardHistoryEvent[];

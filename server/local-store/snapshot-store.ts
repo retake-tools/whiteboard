@@ -150,6 +150,10 @@ export function createBlankSnapshot(input: {
     assets: [],
     executions: [],
     agentRuns: [],
+    agentSessions: [],
+    agentMessages: [],
+    agentRuntimeBindings: [],
+    changeProposals: [],
     workflowRuns: [],
     workflowStepRuns: [],
     historyEvents: [],
@@ -203,6 +207,10 @@ function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSna
     previous.executions.length > 0 ||
     previous.assets.length > 0 ||
     (previous.agentRuns?.length ?? 0) > 0 ||
+    (previous.agentSessions?.length ?? 0) > 0 ||
+    (previous.agentMessages?.length ?? 0) > 0 ||
+    (previous.agentRuntimeBindings?.length ?? 0) > 0 ||
+    (previous.changeProposals?.length ?? 0) > 0 ||
     (previous.workflowRuns?.length ?? 0) > 0 ||
     (previous.workflowStepRuns?.length ?? 0) > 0 ||
     (previous.historyEvents?.length ?? 0) > 0;
@@ -229,6 +237,26 @@ function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSna
     incoming.agentRuns ?? [],
     previous.agentRuns ?? [],
     (run) => run.agentRunId,
+  );
+  incoming.agentSessions = mergeVersionedRecords(
+    incoming.agentSessions ?? [],
+    previous.agentSessions ?? [],
+    (session) => session.agentSessionId,
+  );
+  incoming.agentMessages = mergeVersionedRecords(
+    incoming.agentMessages ?? [],
+    previous.agentMessages ?? [],
+    (message) => message.agentMessageId,
+  );
+  incoming.agentRuntimeBindings = mergeVersionedRecords(
+    incoming.agentRuntimeBindings ?? [],
+    previous.agentRuntimeBindings ?? [],
+    (binding) => binding.agentRuntimeBindingId,
+  );
+  incoming.changeProposals = mergeVersionedRecords(
+    incoming.changeProposals ?? [],
+    previous.changeProposals ?? [],
+    (proposal) => proposal.proposalId,
   );
   incoming.workflowRuns = mergeVersionedRecords(
     incoming.workflowRuns ?? [],

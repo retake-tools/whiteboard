@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactElement } from 'react';
 import { Loader2, RefreshCw, TriangleAlert } from 'lucide-react';
 import { BoardHistoryPanel } from './components/BoardHistoryPanel';
+import { AgentWorkspace } from './components/AgentWorkspace';
 import { ExecutionInspector } from './components/ExecutionInspector';
 import { FloatingToolbar } from './components/FloatingToolbar';
 import { GroupInspector } from './components/GroupInspector';
@@ -29,6 +30,7 @@ import { useWorkflowDraftController } from './app/useWorkflowDraftController';
 import { useWorkflowRuntimeController } from './app/useWorkflowRuntimeController';
 import { usePackageEntryPointController } from './app/usePackageEntryPointController';
 import { useAgentRuntimeController } from './app/useAgentRuntimeController';
+import { useAgentWorkspaceController } from './app/useAgentWorkspaceController';
 import { WhiteboardCanvas } from './app/WhiteboardCanvas';
 
 const DocumentReviewWorkspace = lazy(() => import('./components/DocumentReviewWorkspace').then((module) => ({
@@ -80,6 +82,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
   const [isMiniMapVisible, setIsMiniMapVisible] = useState(() => initialUiPreferences.current.isMiniMapVisible);
   const [showGrid, setShowGrid] = useState(() => initialUiPreferences.current.showGrid);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isAgentWorkspaceOpen, setIsAgentWorkspaceOpen] = useState(false);
   const [reviewDocumentBlockId, setReviewDocumentBlockId] = useState<string | undefined>();
   useEffect(() => {
     void loadExecutionProviderSettings(snapshot.project.projectId).catch(() => undefined);
@@ -93,6 +96,11 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     return () => window.removeEventListener('retake:open-document-review', openDocumentReview);
   }, []);
   useEffect(() => setReviewDocumentBlockId(undefined), [snapshot.board.boardId, snapshot.project.projectId]);
+  useEffect(() => {
+    setInspectorBlockId(undefined);
+    setIsHistoryOpen(false);
+    setIsAgentWorkspaceOpen(false);
+  }, [snapshot.board.boardId, snapshot.project.projectId]);
   const canvasController = useCanvasController({
     connectSessionPorts: connectPorts,
     redo,
@@ -275,6 +283,12 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     t,
     updateSnapshot,
   });
+  const agentWorkspaceController = useAgentWorkspaceController({
+    persistSnapshot,
+    snapshot,
+    snapshotRef,
+    updateSnapshot,
+  });
   const {
     openHistoricalAnnotationVersion,
     restoreConfigurationVersion,
@@ -316,10 +330,28 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
   function toggleHistoryPanel(): void {
     setIsHistoryOpen((current) => {
       const next = !current;
-      if (next) setInspectorBlockId(undefined);
+      if (next) {
+        setInspectorBlockId(undefined);
+        setIsAgentWorkspaceOpen(false);
+      }
       return next;
     });
   }
+
+  function toggleAgentWorkspace(): void {
+    setIsAgentWorkspaceOpen((current) => {
+      const next = !current;
+      if (next) {
+        setInspectorBlockId(undefined);
+        setIsHistoryOpen(false);
+      }
+      return next;
+    });
+  }
+
+  useEffect(() => {
+    if (inspectorBlockId || isHistoryOpen) setIsAgentWorkspaceOpen(false);
+  }, [inspectorBlockId, isHistoryOpen]);
 
   const selectedImageUrl =
     selectedBlock?.type === 'image' ? getAssetPreviewUrl(snapshot.assets, selectedBlock.data.assetId) : undefined;
@@ -372,6 +404,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         canRedo={canRedo}
         hasSelection={selectedBlockIds.length > 0}
         isHistoryOpen={isHistoryOpen}
+        isAgentWorkspaceOpen={isAgentWorkspaceOpen}
         isProjectBoardDialogOpen={Boolean(projectBoardDialog)}
         showGrid={showGrid}
         workspace={workspace}
@@ -391,6 +424,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         onDeleteSelection={deleteSelection}
         onDuplicateSelection={duplicateSelection}
         onToggleHistory={toggleHistoryPanel}
+        onToggleAgentWorkspace={toggleAgentWorkspace}
         onUndo={undo}
         onRedo={redo}
       />
@@ -481,6 +515,26 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
           onCopyPrompt={copyPromptWithHistory}
           onLocateBlock={locateBlock}
           onOpenAnnotationEditor={openHistoricalAnnotationVersion}
+        />
+      ) : null}
+      {isAgentWorkspaceOpen ? (
+        <AgentWorkspace
+          binding={agentWorkspaceController.selectedBinding}
+          error={agentWorkspaceController.error}
+          isSending={agentWorkspaceController.isSending}
+          selectedSession={agentWorkspaceController.selectedSession}
+          sessions={agentWorkspaceController.sessions}
+          snapshot={snapshot}
+          onArchiveSession={agentWorkspaceController.archiveSession}
+          onCancelAgentRun={agentRuntimeController.cancelAgentRun}
+          onClose={() => setIsAgentWorkspaceOpen(false)}
+          onCreateSession={() => agentWorkspaceController.newSession()}
+          onPauseAgentRun={agentRuntimeController.pauseAgentRun}
+          onRejectProposal={agentWorkspaceController.rejectProposal}
+          onResumeAgentRun={agentRuntimeController.resumeAgentRun}
+          onSelectAgentRun={agentWorkspaceController.selectAgentRun}
+          onSelectSession={agentWorkspaceController.selectSession}
+          onSubmitMessage={(input) => void agentWorkspaceController.submitMessage(input)}
         />
       ) : null}
       {reviewDocumentBlock ? (

@@ -144,6 +144,10 @@ export async function duplicateBoard(input: { projectId: string; boardId: string
     return next;
   });
   snapshot.agentRuns = [];
+  snapshot.agentSessions = [];
+  snapshot.agentMessages = [];
+  snapshot.agentRuntimeBindings = [];
+  snapshot.changeProposals = [];
   snapshot.workflowRuns = [];
   snapshot.workflowStepRuns = [];
   snapshot.project.defaultBoardId = boardId;

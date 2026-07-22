@@ -90,6 +90,10 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
         canModifyWorkflow: false,
       },
     })),
+    agentSessions: legacy.agentSessions ?? [],
+    agentMessages: legacy.agentMessages ?? [],
+    agentRuntimeBindings: legacy.agentRuntimeBindings ?? [],
+    changeProposals: legacy.changeProposals ?? [],
     workflowRuns: legacy.workflowRuns ?? [],
     workflowStepRuns: legacy.workflowStepRuns ?? [],
   };
