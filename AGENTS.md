@@ -79,20 +79,26 @@ Use the existing project shape before introducing new patterns.
 
 ## Branch And Delivery Workflow
 
-Treat `main` as public, stable, and releasable.
+Treat `main` as the public release branch and `develop` as the stable development
+integration branch.
 
-- Start large, multi-turn, or cross-layer features on a dedicated branch from an
-  up-to-date `main`. Agent-created branches should use `codex/<feature>` by
-  default.
+- Do not commit feature work directly on `main` or push ordinary development
+  commits to it. Only merge a verified release from `develop` after the user has
+  explicitly confirmed that the complete release scope should ship.
+- Start feature work from an up-to-date `develop` on a dedicated branch.
+  Agent-created branches should use `codex/<feature>` by default.
 - It is acceptable to commit and push incomplete work to its feature branch,
-  but do not merge partially implemented or partially verified features into
-  `main`.
-- Merge a feature into `main` only after its coherent scope is complete, the
-  relevant verification has passed, product status documentation is current,
-  and the user has confirmed that it should ship.
-- Small, self-contained fixes may land directly on `main` when they are complete
-  and verified in the same task. When scope or release readiness is uncertain,
-  use a feature branch.
+  but do not merge partially implemented or partially verified work into
+  `develop`.
+- Merge a feature into `develop` only after its coherent scope is complete, the
+  relevant verification has passed, and product status documentation is
+  current. Keep `develop` usable as the base for the next feature.
+- Prepare a public release by verifying the complete integrated state on
+  `develop`, obtaining explicit user approval, then merging `develop` into
+  `main` and pushing `main`.
+- For an urgent public hotfix, branch from `main`, verify the narrow fix, merge
+  it into `main` only with explicit user approval, and merge the same fix back
+  into `develop` before starting dependent work.
 
 ## Documentation
 

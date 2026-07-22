@@ -19,6 +19,7 @@ import {
   skillUiDefinitionFor,
   type RetakeSkillDefinition,
 } from '../core/skillRegistry';
+import { shouldShowSkillDock } from '../core/releaseFeatures';
 import type { BlockType } from '../core/types';
 import {
   listWorkflows,
@@ -28,6 +29,8 @@ import {
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
 import { TooltipIconButton } from './Tooltip';
+
+const skillDockVisible = shouldShowSkillDock({ DEV: import.meta.env?.DEV === true });
 
 export type CanvasTool = 'group' | 'select' | 'pan';
 
@@ -81,72 +84,74 @@ export function FloatingToolbar({
   }, [skillQuery, t, workflows]);
 
   useDismissiblePopover({
-    active: skillLibraryOpen,
+    active: skillDockVisible && skillLibraryOpen,
     onDismiss: () => setSkillLibraryOpen(false),
     rootRef: skillDockRef,
   });
 
   return (
     <>
-      <section ref={skillDockRef} className="skill-dock" aria-label={t('skillDock.title')}>
-        <span className="skill-dock-label"><Sparkles size={14} />{t('skillDock.recommended')}</span>
-        {recommendedSkills.map((skill) => (
+      {skillDockVisible ? (
+        <section ref={skillDockRef} className="skill-dock" aria-label={t('skillDock.title')}>
+          <span className="skill-dock-label"><Sparkles size={14} />{t('skillDock.recommended')}</span>
+          {recommendedSkills.map((skill) => (
+            <button
+              key={skill.skillId}
+              type="button"
+              className="skill-dock-card"
+              onClick={() => {
+                onCreateSkill?.(skill.skillId);
+                setSkillLibraryOpen(false);
+              }}
+            >
+              <strong>{skillDisplayName(skill, t)}</strong>
+              <span>{skillDisplayDescription(skill, t)}</span>
+            </button>
+          ))}
           <button
-            key={skill.skillId}
             type="button"
-            className="skill-dock-card"
-            onClick={() => {
-              onCreateSkill?.(skill.skillId);
-              setSkillLibraryOpen(false);
-            }}
+            className="skill-dock-more"
+            aria-controls="skill-library-popover"
+            aria-expanded={skillLibraryOpen}
+            onClick={() => setSkillLibraryOpen((open) => !open)}
           >
-            <strong>{skillDisplayName(skill, t)}</strong>
-            <span>{skillDisplayDescription(skill, t)}</span>
+            <BookOpen size={15} />{t('skillDock.more')}
           </button>
-        ))}
-        <button
-          type="button"
-          className="skill-dock-more"
-          aria-controls="skill-library-popover"
-          aria-expanded={skillLibraryOpen}
-          onClick={() => setSkillLibraryOpen((open) => !open)}
-        >
-          <BookOpen size={15} />{t('skillDock.more')}
-        </button>
-        {skillLibraryOpen ? (
-          <div id="skill-library-popover" className="skill-library-popover" role="dialog" aria-label={t('skillDock.library')}>
-            <header><strong>{t('skillDock.library')}</strong></header>
-            <label className="skill-library-search">
-              <Search size={15} />
-              <input value={skillQuery} placeholder={t('skillDock.search')} onChange={(event) => setSkillQuery(event.target.value)} />
-            </label>
-            <div className="skill-library-list">
-              {filteredWorkflows.length > 0 ? (
-                <div className="skill-library-section-label">{t('skillDock.workflowCategory')}</div>
-              ) : null}
-              {filteredWorkflows.map((workflow) => (
-                <button
-                  key={workflow.workflowId}
-                  type="button"
-                  onClick={() => { onCreateWorkflow?.(workflow.workflowId); setSkillLibraryOpen(false); }}
-                >
-                  <strong>{workflowDisplayName(workflow, t)}</strong>
-                  <span>{t('skillDock.workflowBadge')} · {workflowDisplayDescription(workflow, t)}</span>
-                </button>
-              ))}
-              {filteredSkills.length > 0 ? (
-                <div className="skill-library-section-label">{t('skillDock.skillCategory')}</div>
-              ) : null}
-              {filteredSkills.map((skill) => (
-                <button key={skill.skillId} type="button" onClick={() => { onCreateSkill?.(skill.skillId); setSkillLibraryOpen(false); }}>
-                  <strong>{skillDisplayName(skill, t)}</strong>
-                  <span>{skillDisplayDescription(skill, t)}</span>
-                </button>
-              ))}
+          {skillLibraryOpen ? (
+            <div id="skill-library-popover" className="skill-library-popover" role="dialog" aria-label={t('skillDock.library')}>
+              <header><strong>{t('skillDock.library')}</strong></header>
+              <label className="skill-library-search">
+                <Search size={15} />
+                <input value={skillQuery} placeholder={t('skillDock.search')} onChange={(event) => setSkillQuery(event.target.value)} />
+              </label>
+              <div className="skill-library-list">
+                {filteredWorkflows.length > 0 ? (
+                  <div className="skill-library-section-label">{t('skillDock.workflowCategory')}</div>
+                ) : null}
+                {filteredWorkflows.map((workflow) => (
+                  <button
+                    key={workflow.workflowId}
+                    type="button"
+                    onClick={() => { onCreateWorkflow?.(workflow.workflowId); setSkillLibraryOpen(false); }}
+                  >
+                    <strong>{workflowDisplayName(workflow, t)}</strong>
+                    <span>{t('skillDock.workflowBadge')} · {workflowDisplayDescription(workflow, t)}</span>
+                  </button>
+                ))}
+                {filteredSkills.length > 0 ? (
+                  <div className="skill-library-section-label">{t('skillDock.skillCategory')}</div>
+                ) : null}
+                {filteredSkills.map((skill) => (
+                  <button key={skill.skillId} type="button" onClick={() => { onCreateSkill?.(skill.skillId); setSkillLibraryOpen(false); }}>
+                    <strong>{skillDisplayName(skill, t)}</strong>
+                    <span>{skillDisplayDescription(skill, t)}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        ) : null}
-      </section>
+          ) : null}
+        </section>
+      ) : null}
       <nav className="floating-toolbar" aria-label={t('canvas.tools')}>
       <ToolButton
         isPressed={activeTool === 'select'}

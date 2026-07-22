@@ -8,6 +8,7 @@ import {
   skillsForCapability,
 } from '../src/core/skillRegistry';
 import { listWorkflowEntryPoints, listWorkflows } from '../src/core/workflowRegistry';
+import { shouldShowSkillDock } from '../src/core/releaseFeatures';
 
 const [toolbarSource, operationControlsSource, textOperationsSource] = await Promise.all([
   readFile(new URL('../src/components/FloatingToolbar.tsx', import.meta.url), 'utf8'),
@@ -22,6 +23,8 @@ assert.match(toolbarSource, /useDismissiblePopover/);
 assert.match(toolbarSource, /onCreateWorkflow/);
 assert.match(toolbarSource, /workflowUiDefinitionFor/);
 assert.match(toolbarSource, /aria-expanded=\{skillLibraryOpen\}/);
+assert.equal(shouldShowSkillDock({ DEV: true }), true, 'Development builds should expose Skill discovery.');
+assert.equal(shouldShowSkillDock({ DEV: false }), false, 'Production builds must hide the unstable Skill dock.');
 assert.match(operationControlsSource, /skillsForCapability\(capabilityId\)/);
 assert.match(operationControlsSource, /retake:update-operation-skill/);
 assert.match(textOperationsSource, /createDraftSkillOperation/);
@@ -51,4 +54,5 @@ console.log(JSON.stringify({
   typedEntryPoints: listSkillEntryPoints().length,
   typedWorkflowEntryPoints: listWorkflowEntryPoints().length,
   genericTextEntryHidden: true,
+  productionSkillDockHidden: true,
 }));
