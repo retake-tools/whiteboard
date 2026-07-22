@@ -1,9 +1,22 @@
 import type {
   ExecutionConnectionSummary,
-  ExecutionDefaultSelection,
   ExecutionProviderSettingsSnapshot,
   ExecutionUseCase,
 } from './executionProviders';
+
+export type ExecutionConnectionPreferenceSource =
+  | 'explicit'
+  | 'project_default'
+  | 'workspace_default'
+  | 'initial'
+  | 'none';
+
+export interface ExecutionConnectionPreference {
+  connection?: ExecutionConnectionSummary;
+  connectionId?: string;
+  isUsable: boolean;
+  source: ExecutionConnectionPreferenceSource;
+}
 
 const snapshotsByProject = new Map<string, ExecutionProviderSettingsSnapshot>();
 const listeners = new Set<() => void>();
@@ -27,21 +40,42 @@ export function currentExecutionProviderSettings(): ExecutionProviderSettingsSna
   return latestSnapshot;
 }
 
-export function executionDefaultConnection(
-  useCase: ExecutionUseCase,
-  projectId: string,
-): string | undefined {
-  return executionDefaultSelection(useCase, projectId)?.connectionId;
-}
-
-export function executionDefaultSelection(
-  useCase: ExecutionUseCase,
-  projectId: string,
-): ExecutionDefaultSelection | undefined {
-  const snapshot = snapshotsByProject.get(projectId) ?? snapshotsByProject.get('');
-  const selection = snapshot?.projectDefaults.find((candidate) => candidate.useCase === useCase)
-    ?? snapshot?.workspaceDefaults.find((candidate) => candidate.useCase === useCase);
-  return selection ? { ...selection } : undefined;
+export function resolveExecutionConnectionPreference(input: {
+  capabilityId: string;
+  explicitConnectionId?: string;
+  initialConnectionId?: string;
+  projectId: string;
+  settings?: ExecutionProviderSettingsSnapshot;
+  useCase: ExecutionUseCase;
+}): ExecutionConnectionPreference {
+  const snapshot = input.settings ?? snapshotsByProject.get(input.projectId) ?? snapshotsByProject.get('');
+  const projectDefault = snapshot?.projectDefaults.find((candidate) => candidate.useCase === input.useCase);
+  const workspaceDefault = snapshot?.workspaceDefaults.find((candidate) => candidate.useCase === input.useCase);
+  const candidate = input.explicitConnectionId
+    ? { connectionId: input.explicitConnectionId, source: 'explicit' as const }
+    : projectDefault
+      ? { connectionId: projectDefault.connectionId, source: 'project_default' as const }
+      : workspaceDefault
+        ? { connectionId: workspaceDefault.connectionId, source: 'workspace_default' as const }
+        : input.initialConnectionId
+          ? { connectionId: input.initialConnectionId, source: 'initial' as const }
+          : undefined;
+  if (!candidate) return { isUsable: false, source: 'none' };
+  const connection = snapshot?.connections.find(
+    (current) => current.connectionId === candidate.connectionId,
+  );
+  const isUsable = Boolean(
+    connection?.enabled &&
+    connection.status === 'ready' &&
+    connection.enabledUseCases.includes(input.useCase) &&
+    connection.supportedCapabilityIds.includes(input.capabilityId),
+  );
+  return {
+    connection: connection ? { ...connection } : undefined,
+    connectionId: candidate.connectionId,
+    isUsable,
+    source: candidate.source,
+  };
 }
 
 export function executionConnection(

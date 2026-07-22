@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createBlockRecord } from '../src/core/blockFactory';
-import { cacheExecutionProviderSettings } from '../src/core/executionProviderPreferences';
+import {
+  cacheExecutionProviderSettings,
+  resolveExecutionConnectionPreference,
+} from '../src/core/executionProviderPreferences';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import type { BoardSnapshot } from '../src/core/types';
 import { generateNativeText } from './ai-sdk-native-text-client';
@@ -394,6 +397,82 @@ const inheritedVideoBlock = createBlockRecord(board, 'video');
 assert.equal(inheritedVideoBlock.data.executionDraft?.executionProfileId, 'video-seedance-modelark');
 assert.equal(inheritedVideoBlock.data.executionDraft?.connectionId, previewConnection.connectionId);
 assert.equal('model' in (inheritedVideoBlock.data.executionDraft ?? {}), false);
+
+const readyWorkspaceText = settings.connections.find((connection) => connection.connectionId === internal.connectionId);
+const readyExplicitText = settings.connections.find((connection) => connection.connectionId === geminiConnection.connectionId);
+assert.ok(readyWorkspaceText && readyExplicitText);
+const unavailableProjectText = {
+  ...readyExplicitText,
+  connectionId: 'connection_unavailable_project_text',
+  displayName: 'Unavailable project text default',
+  status: 'unavailable' as const,
+};
+cacheExecutionProviderSettings('project_resolution_test', {
+  ...settings,
+  connections: [readyWorkspaceText, readyExplicitText, unavailableProjectText],
+  workspaceDefaults: [{ useCase: 'text', connectionId: readyWorkspaceText.connectionId }],
+  projectDefaults: [{ useCase: 'text', connectionId: unavailableProjectText.connectionId }],
+});
+const unavailableProjectResolution = resolveExecutionConnectionPreference({
+  capabilityId: 'text.generate',
+  projectId: 'project_resolution_test',
+  useCase: 'text',
+});
+assert.equal(unavailableProjectResolution.source, 'project_default');
+assert.equal(unavailableProjectResolution.connectionId, unavailableProjectText.connectionId);
+assert.equal(unavailableProjectResolution.isUsable, false, 'An unavailable project default must not silently fall back to the workspace default.');
+const explicitResolution = resolveExecutionConnectionPreference({
+  capabilityId: 'text.generate',
+  explicitConnectionId: readyExplicitText.connectionId,
+  initialConnectionId: readyWorkspaceText.connectionId,
+  projectId: 'project_resolution_test',
+  useCase: 'text',
+});
+assert.equal(explicitResolution.source, 'explicit');
+assert.equal(explicitResolution.connectionId, readyExplicitText.connectionId);
+assert.equal(explicitResolution.isUsable, true);
+cacheExecutionProviderSettings('project_resolution_inherited', {
+  ...settings,
+  connections: [readyWorkspaceText],
+  workspaceDefaults: [{ useCase: 'text', connectionId: readyWorkspaceText.connectionId }],
+  projectDefaults: [],
+});
+assert.equal(resolveExecutionConnectionPreference({
+  capabilityId: 'text.generate',
+  projectId: 'project_resolution_inherited',
+  useCase: 'text',
+}).source, 'workspace_default');
+cacheExecutionProviderSettings('project_resolution_initial', {
+  ...settings,
+  connections: [readyWorkspaceText],
+  workspaceDefaults: [],
+  projectDefaults: [],
+});
+assert.equal(resolveExecutionConnectionPreference({
+  capabilityId: 'text.generate',
+  initialConnectionId: readyWorkspaceText.connectionId,
+  projectId: 'project_resolution_initial',
+  useCase: 'text',
+}).source, 'initial');
+const unavailableProjectVideo = {
+  ...previewConnection,
+  connectionId: 'connection_unavailable_project_video',
+  status: 'unavailable' as const,
+};
+cacheExecutionProviderSettings('project_resolution_video', {
+  ...settings,
+  connections: [
+    ...settings.connections.filter((connection) => connection.connectionId !== previewConnection.connectionId),
+    unavailableProjectVideo,
+  ],
+  workspaceDefaults: [{ useCase: 'video', connectionId: 'retake-mock' }],
+  projectDefaults: [{ useCase: 'video', connectionId: unavailableProjectVideo.connectionId }],
+});
+const unavailableVideoBoard = structuredClone(board) as BoardSnapshot;
+unavailableVideoBoard.project.projectId = 'project_resolution_video';
+const unavailableVideoBlock = createBlockRecord(unavailableVideoBoard, 'video');
+assert.equal(unavailableVideoBlock.data.executionDraft?.connectionId, unavailableProjectVideo.connectionId);
+assert.equal(unavailableVideoBlock.data.executionDraft?.executionProfileId, 'video-seedance-modelark');
 
 const personal = openAiCompatibleConnections.find((connection) => connection.displayName === 'Personal OpenRouter');
 assert.ok(personal);

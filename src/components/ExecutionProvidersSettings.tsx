@@ -481,6 +481,12 @@ function DefaultsPanel({ busyId, connections, projectDefaults, workspaceDefaults
           {executionUseCases.map((useCase) => {
             const compatible = connections.filter((connection) => connection.status === 'ready' && connection.enabledUseCases.includes(useCase));
             const selected = (scope === 'workspace' ? workspaceDefaults : projectDefaults).find((value) => value.useCase === useCase);
+            const selectedConnection = selected
+              ? connections.find((connection) => connection.connectionId === selected.connectionId)
+              : undefined;
+            const selectedUnavailable = selectedConnection
+              ? !compatible.some((connection) => connection.connectionId === selectedConnection.connectionId)
+              : false;
             return (
               <label key={useCase}>
                 <span>{useCaseLabel(useCase, t)}</span>
@@ -488,6 +494,11 @@ function DefaultsPanel({ busyId, connections, projectDefaults, workspaceDefaults
                   void onSave(useCase, event.currentTarget.value, scope);
                 }}>
                   <option value="">{scope === 'project' ? t('settings.inheritWorkspace') : t('settings.noCompatibleConnection')}</option>
+                  {selectedConnection && selectedUnavailable ? (
+                    <option value={selectedConnection.connectionId} disabled>
+                      {selectedConnection.displayName} · {statusLabel(selectedConnection.status, t)}
+                    </option>
+                  ) : null}
                   {compatible.map((connection) => <option key={connection.connectionId} value={connection.connectionId}>{connection.displayName}{connection.modelId ? ` · ${connection.modelId}` : ''}</option>)}
                 </select>
               </label>

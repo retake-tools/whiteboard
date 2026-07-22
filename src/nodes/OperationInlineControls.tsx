@@ -71,8 +71,11 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
   );
   const compatibleConnections = operationExecutionConnections(providerSettings?.connections ?? [], capabilityId);
   const selectedConnection = typeof data.connectionId === 'string'
-    ? compatibleConnections.find((connection) => connection.connectionId === data.connectionId)
+    ? providerSettings?.connections.find((connection) => connection.connectionId === data.connectionId)
     : compatibleConnections.find((connection) => connection.connectionId === 'codex-managed') ?? compatibleConnections[0];
+  const selectedConnectionCompatible = Boolean(selectedConnection && compatibleConnections.some(
+    (connection) => connection.connectionId === selectedConnection.connectionId,
+  ));
   const usesPromptHandoff = selectedConnection
     ? selectedConnection.connectorId === 'codex-managed'
     : (data.connectionId ?? 'codex-managed') === 'codex-managed';
@@ -94,7 +97,9 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
   const displayState = operationDisplayState(data);
   const { isQueued, isRunning, readinessIssue, showReadinessIssue } = displayState;
   const automatedPending = !usesPromptHandoff && isQueued;
-  const runDisabled = displayState.runDisabled || automatedPending || Boolean(providerSettings && selectedConnection?.status !== 'ready');
+  const runDisabled = displayState.runDisabled || automatedPending || Boolean(
+    providerSettings && (!selectedConnectionCompatible || selectedConnection?.status !== 'ready'),
+  );
   const isLocked = data.groupContentLocked === true;
   const isRepeat = Boolean(data.sourceExecutionId);
   const queuedConfigurationStale = data.operationQueuedConfigurationStale === true;
@@ -448,7 +453,10 @@ function operationExecutionConnections(
   connections: ExecutionConnectionSummary[],
   capabilityId: string,
 ): ExecutionConnectionSummary[] {
-  return connections.filter((connection) => connection.supportedCapabilityIds.includes(capabilityId));
+  const useCase = capabilityId.startsWith('text.') ? 'text' : 'image';
+  return connections.filter((connection) =>
+    connection.enabledUseCases.includes(useCase) &&
+    connection.supportedCapabilityIds.includes(capabilityId));
 }
 
 function generationProfileForConnection(

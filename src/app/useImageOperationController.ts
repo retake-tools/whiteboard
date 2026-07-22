@@ -33,7 +33,7 @@ import { cancelExecution } from '../core/executionLifecycle';
 import {
   currentExecutionProviderSettings,
   executionConnection,
-  executionDefaultConnection,
+  resolveExecutionConnectionPreference,
   subscribeExecutionProviderSettings,
 } from '../core/executionProviderPreferences';
 import type { ExecutionConnectionSummary, ExecutionProviderSettingsSnapshot } from '../core/executionProviders';
@@ -170,7 +170,12 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         const connection = executionConnection(execution.connectionId, current.project.projectId);
         const usesCodexAppServer = execution.adapter === 'codex_app_server' && connection?.connectorId === 'codex-app-server';
         const usesVolcengineArk = execution.adapter === 'direct_api' && connection?.connectorId === 'volcengine-ark';
-        if (!connection || connection.status !== 'ready' || (!usesCodexAppServer && !usesVolcengineArk)) {
+        if (
+          !connection ||
+          connection.status !== 'ready' ||
+          !connection.enabledUseCases.includes('image') ||
+          (!usesCodexAppServer && !usesVolcengineArk)
+        ) {
           throw new Error(t('feedback.connectionUnavailable'));
         }
         const started = usesCodexAppServer
@@ -369,7 +374,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         textBlockPlaceholder: imageOperationDefaultPrompt(operation, t),
         operationTitle: imageOperationTitle(operation, t),
       });
-      result.operationBlock.data.connectionId = preferredImageConnection(current);
+      result.operationBlock.data.connectionId = preferredImageConnection(current, 'image.image_to_image');
       selectedWorkflowIds = imageBranchDraftSelectionBlockIds(block, result.textBlock, result.operationBlock);
       if (draftOptions.centerWorkflow) centerWorkflowBlocks(current, selectedWorkflowIds);
       return current;
@@ -411,7 +416,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         textBlockBody: input.instruction?.trim() || '',
         textBlockPlaceholder: imageOperationDefaultPrompt('generate_image', t),
       });
-      result.operationBlock.data.connectionId = preferredImageConnection(current);
+      result.operationBlock.data.connectionId = preferredImageConnection(current, 'image.text_to_image');
       selectedWorkflowIds = input.slotBlock
         ? [input.slotBlock.blockId, result.textBlock.blockId, result.operationBlock.blockId]
         : [result.textBlock.blockId, result.operationBlock.blockId];
@@ -484,9 +489,12 @@ export function useImageOperationController(options: ImageOperationControllerOpt
           ? currentOperationBlock.data.connectionId
           : 'codex-managed';
         const connection = executionConnection(selectedConnectionId, current.project.projectId);
-        if (!connection || connection.status !== 'ready' || !connection.supportedCapabilityIds.includes(
-          capabilityIdForOperationMode(input.operation),
-        )) {
+        if (
+          !connection ||
+          connection.status !== 'ready' ||
+          !connection.enabledUseCases.includes('image') ||
+          !connection.supportedCapabilityIds.includes(capabilityIdForOperationMode(input.operation))
+        ) {
           throw new Error(t('feedback.connectionUnavailable'));
         }
         if (
@@ -706,10 +714,13 @@ export function useImageOperationController(options: ImageOperationControllerOpt
   };
 }
 
-function preferredImageConnection(snapshot: BoardSnapshot): string {
-  const defaultConnectionId = executionDefaultConnection('image', snapshot.project.projectId);
-  const defaultConnection = executionConnection(defaultConnectionId, snapshot.project.projectId);
-  return defaultConnection?.status === 'ready' ? defaultConnection.connectionId : 'codex-managed';
+function preferredImageConnection(snapshot: BoardSnapshot, capabilityId: string): string {
+  return resolveExecutionConnectionPreference({
+    capabilityId,
+    initialConnectionId: 'codex-managed',
+    projectId: snapshot.project.projectId,
+    useCase: 'image',
+  }).connectionId ?? 'codex-managed';
 }
 
 function preferredReadyImageConnection(
@@ -720,25 +731,20 @@ function preferredReadyImageConnection(
 ): ExecutionConnectionSummary | undefined {
   if (requestedConnectionId) {
     const requested = settings?.connections.find((connection) => connection.connectionId === requestedConnectionId);
-    return requested?.status === 'ready' && requested.supportedCapabilityIds.includes(capabilityId)
+    return requested?.status === 'ready' &&
+      requested.enabledUseCases.includes('image') &&
+      requested.supportedCapabilityIds.includes(capabilityId)
       ? requested
       : undefined;
   }
-  const preferredConnection = executionConnection(
-    executionDefaultConnection('image', snapshot.project.projectId),
-    snapshot.project.projectId,
-  );
-  if (
-    preferredConnection?.status === 'ready' &&
-    preferredConnection.supportedCapabilityIds.includes(capabilityId)
-  ) {
-    return preferredConnection;
-  }
-  return settings?.connections.find(
-    (connection) =>
-      connection.status === 'ready' &&
-      connection.supportedCapabilityIds.includes(capabilityId),
-  );
+  const preference = resolveExecutionConnectionPreference({
+    capabilityId,
+    initialConnectionId: 'codex-managed',
+    projectId: snapshot.project.projectId,
+    settings,
+    useCase: 'image',
+  });
+  return preference.isUsable ? preference.connection : undefined;
 }
 
 function readyConnectionsForCapability(
@@ -746,7 +752,10 @@ function readyConnectionsForCapability(
   capabilityId: string,
 ): ExecutionConnectionSummary[] {
   return settings?.connections.filter(
-    (connection) => connection.status === 'ready' && connection.supportedCapabilityIds.includes(capabilityId),
+    (connection) =>
+      connection.status === 'ready' &&
+      connection.enabledUseCases.includes('image') &&
+      connection.supportedCapabilityIds.includes(capabilityId),
   ) ?? [];
 }
 

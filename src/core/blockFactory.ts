@@ -1,7 +1,7 @@
 import { createId, nowIso } from './id';
 import { defaultGenerationProfileId } from './generationProfiles';
 import { defaultBlockSize } from './blockSizing';
-import { executionConnection, executionDefaultSelection } from './executionProviderPreferences';
+import { resolveExecutionConnectionPreference } from './executionProviderPreferences';
 import type { BlockRecord, BlockType, BoardSnapshot } from './types';
 
 export function createBlockRecord(
@@ -38,13 +38,17 @@ export function maxZIndex(blocks: BlockRecord[]): number {
 
 function dataForType(type: BlockType, projectId: string): BlockRecord['data'] {
   if (type === 'operation') {
-    const imageSelection = executionDefaultSelection('image', projectId);
-    const imageConnection = executionConnection(imageSelection?.connectionId, projectId);
+    const imageSelection = resolveExecutionConnectionPreference({
+      capabilityId: 'image.text_to_image',
+      initialConnectionId: 'codex-managed',
+      projectId,
+      useCase: 'image',
+    });
     return {
       title: 'New operation',
       body: 'Choose capability, inputs, and execution adapter.',
       capabilityId: 'image.text_to_image',
-      connectionId: imageConnection?.status === 'ready' ? imageConnection.connectionId : 'codex-managed',
+      connectionId: imageSelection.connectionId,
       generationProfileId: defaultGenerationProfileId,
     };
   }
@@ -66,10 +70,13 @@ function dataForType(type: BlockType, projectId: string): BlockRecord['data'] {
   }
 
   if (type === 'video') {
-    const selection = executionDefaultSelection('video', projectId);
-    const connection = executionConnection(selection?.connectionId, projectId);
-    const readyConnection = connection?.status === 'ready' ? connection : undefined;
-    const executionProfileId = videoProfileForConnector(readyConnection?.connectorId);
+    const selection = resolveExecutionConnectionPreference({
+      capabilityId: 'video.generate',
+      initialConnectionId: 'retake-mock',
+      projectId,
+      useCase: 'video',
+    });
+    const executionProfileId = videoProfileForConnector(selection.connection?.connectorId);
     return {
       title: 'Video block',
       body: 'Connect optional image references, then generate through the selected video profile.',
@@ -77,7 +84,7 @@ function dataForType(type: BlockType, projectId: string): BlockRecord['data'] {
         schemaVersion: 1,
         capabilityId: 'video.generate',
         executionProfileId,
-        ...(readyConnection ? { connectionId: readyConnection.connectionId } : {}),
+        ...(selection.connectionId ? { connectionId: selection.connectionId } : {}),
         prompt: '',
         parameters: {
           aspectRatio: '9:16',

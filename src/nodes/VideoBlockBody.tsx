@@ -135,7 +135,7 @@ export function VideoBlockBody({ blockId, data }: { blockId: string; data: Block
       <button
         type="button"
         className="video-generate-button"
-        disabled={isLocked || isRunning || !prompt.trim()}
+        disabled={isLocked || isRunning || !prompt.trim() || selectedExecutionChoice?.disabled === true}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.stopPropagation();
@@ -202,12 +202,12 @@ interface VideoExecutionChoice {
 }
 
 function videoExecutionChoices(connections: ExecutionConnectionSummary[]): VideoExecutionChoice[] {
-  const choices = connections.filter((connection) => connection.enabledUseCases.includes('video')).flatMap((connection) => {
+  const choices = connections.flatMap((connection) => {
     const executionProfileId = videoProfileForConnector(connection.connectorId);
     if (!executionProfileId) return [];
     return [{
       connectionId: connection.connectionId,
-      disabled: connection.status !== 'ready',
+      disabled: connection.status !== 'ready' || !connection.enabledUseCases.includes('video'),
       executionProfileId,
       label: `${connection.displayName}${connection.modelId ? ` · ${connection.modelId}` : ''}`,
     }];

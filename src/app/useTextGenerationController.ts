@@ -2,9 +2,8 @@ import type { RefObject } from 'react';
 import { loadBoardSnapshot } from '../core/boardStore';
 import { blockLockedByGroup } from '../core/grouping';
 import {
-  currentExecutionProviderSettings,
   executionConnection,
-  executionDefaultConnection,
+  resolveExecutionConnectionPreference,
 } from '../core/executionProviderPreferences';
 import { startTextGeneration } from '../core/textGenerationClient';
 import { subscribeExecutionEvents } from '../core/executionEventClient';
@@ -74,11 +73,18 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
       const queuedSnapshot = updateSnapshot((current) => {
         const currentBlock = current.blocks.find((candidate) => candidate.blockId === block.blockId);
         if (!currentBlock || currentBlock.type !== 'operation') return current;
-        connectionId = typeof currentBlock.data.connectionId === 'string'
-          ? currentBlock.data.connectionId
-          : preferredTextConnection(current) ?? '';
+        const preference = resolveExecutionConnectionPreference({
+          capabilityId: 'text.generate',
+          explicitConnectionId: typeof currentBlock.data.connectionId === 'string'
+            ? currentBlock.data.connectionId
+            : undefined,
+          initialConnectionId: 'codex-app-server',
+          projectId: current.project.projectId,
+          useCase: 'text',
+        });
+        connectionId = preference.connectionId ?? '';
         const connection = executionConnection(connectionId, current.project.projectId);
-        if (!connection) throw new Error(t('feedback.connectionUnavailable'));
+        if (!connection || !preference.isUsable) throw new Error(t('feedback.connectionUnavailable'));
         const run = executeExistingTextGenerationOperation(current, {
           connection,
           labels: labels(),
@@ -199,13 +205,12 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
 }
 
 function preferredTextConnection(snapshot: BoardSnapshot): string | undefined {
-  const defaultConnectionId = executionDefaultConnection('text', snapshot.project.projectId);
-  const defaultConnection = executionConnection(defaultConnectionId, snapshot.project.projectId);
-  if (defaultConnection?.status === 'ready' && defaultConnection.supportedCapabilityIds.includes('text.generate')) {
-    return defaultConnection.connectionId;
-  }
-  return currentExecutionProviderSettings()?.connections.find((connection) =>
-    connection.status === 'ready' && connection.supportedCapabilityIds.includes('text.generate'))?.connectionId;
+  return resolveExecutionConnectionPreference({
+    capabilityId: 'text.generate',
+    initialConnectionId: 'codex-app-server',
+    projectId: snapshot.project.projectId,
+    useCase: 'text',
+  }).connectionId;
 }
 
 function delay(milliseconds: number): Promise<void> {
