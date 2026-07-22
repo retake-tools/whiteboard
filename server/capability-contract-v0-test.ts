@@ -52,6 +52,8 @@ const textGenerate = requiredDefinition('text.generate');
 assert.deepEqual(textGenerate.inputSlots.map((slot) => slot.slotId), ['prompt']);
 assert.deepEqual(textGenerate.outputSlots.map((slot) => slot.slotId), ['documents']);
 assert.equal(requiredOutputSlot(textGenerate, 'documents').artifactType, 'markdown_document');
+assert.equal(requiredOutputSlot(textGenerate, 'documents').dataType, 'document');
+assert.deepEqual(requiredOutputSlot(textGenerate, 'documents').projectionBlockTypes, ['document']);
 assert.deepEqual(textGenerate.supportedAdapterClasses, ['text.generate', 'agent_runtime.text', 'manual.import']);
 
 const imageToImage = requiredDefinition('image.image_to_image');

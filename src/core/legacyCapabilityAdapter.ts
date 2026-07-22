@@ -185,12 +185,12 @@ function legacyAdapterClasses(schema: CapabilitySchema): string[] {
         : 'image.generate');
     } else if (output.type === 'video') {
       classes.add('video.generate');
-    } else if (output.type === 'text') {
+    } else if (output.type === 'text' || output.type === 'document') {
       classes.add('text.generate');
     }
   }
   if (schema.supportedAdapters.some((adapter) => adapter === 'mcp_agent' || adapter === 'cli_agent')) {
-    classes.add(schema.outputContracts.some((output) => output.type === 'text')
+    classes.add(schema.outputContracts.some((output) => output.type === 'text' || output.type === 'document')
       ? 'agent_runtime.text'
       : 'agent_runtime.media');
   }

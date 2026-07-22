@@ -11,11 +11,13 @@ import { TooltipIconButton } from '../components/Tooltip';
 import { InputRoleOptionList, inputRoleTitle } from '../components/InputRoleOptionList';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { AnnotationOperationPreviewButton } from './AnnotationOperationPreviewButton';
+import { DocumentBlockBody } from './DocumentBlockBody';
 import { OperationInlineControls } from './OperationInlineControls';
 import { VideoBlockBody } from './VideoBlockBody';
 
 const iconByType = {
   text: FileText,
+  document: FileText,
   image: ImageIcon,
   video: Video,
   operation: Play,
@@ -506,6 +508,10 @@ function BlockBody({
 
   if (type === 'video') {
     return <VideoBlockBody blockId={blockId} data={data} />;
+  }
+
+  if (type === 'document') {
+    return <DocumentBlockBody blockId={blockId} data={data} />;
   }
 
   if (type === 'operation') {

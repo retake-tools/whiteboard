@@ -119,7 +119,10 @@ let completed = await loadSnapshot(snapshot.project.projectId, snapshot.board.bo
 const textExecution = completed.executions.find((candidate) => candidate.executionId === textRun.execution.executionId);
 const textResult = completed.blocks.find((candidate) => candidate.blockId === textRun.resultBlock.blockId);
 assert.equal(textExecution?.status, 'succeeded');
-assert.equal(textResult?.data.body, '# Cat Scene\n\nA concise draft.');
+assert.equal(textResult?.type, 'document');
+assert.equal(textResult?.data.body, undefined, 'Full Markdown must remain in the Asset, not BoardSnapshot.');
+assert.equal(textResult?.data.title, 'Cat Scene');
+assert.equal(textResult?.data.documentExcerpt, 'Cat Scene\n\nA concise draft.');
 const textAsset = completed.assets.find((candidate) => candidate.assetId === textResult?.data.assetId);
 assert.equal(textAsset?.mimeType, 'text/markdown');
 assert.equal(

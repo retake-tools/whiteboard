@@ -8,7 +8,7 @@ import type {
   SkillDefinitionLock,
 } from './capabilityContracts';
 
-export type BlockType = 'text' | 'image' | 'video' | 'operation' | 'group';
+export type BlockType = 'text' | 'document' | 'image' | 'video' | 'operation' | 'group';
 
 export type AssetKind = 'image' | 'video' | 'audio' | 'document' | 'other';
 
@@ -288,6 +288,12 @@ export interface BlockData {
   title: string;
   body?: string;
   assetId?: string;
+  contentFormat?: 'markdown';
+  documentCharacterCount?: number;
+  documentExcerpt?: string;
+  documentKind?: string;
+  documentOutline?: string[];
+  managedDocumentResult?: boolean;
   annotationDraft?: AnnotationDraft;
   annotatedCompositeAssetId?: string;
   annotatedCompositePreviewUrl?: string;

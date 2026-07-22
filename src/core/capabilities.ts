@@ -4,7 +4,7 @@ import { inputRoleDefinition } from './inputRoles';
 export type CapabilityInputRole = ExecutionInputRole;
 export type CapabilityInputSource = 'block' | 'generated_asset' | 'inline';
 export type CapabilityInputType = 'image' | 'text' | 'video';
-export type CapabilityOutputType = 'image' | 'text' | 'video';
+export type CapabilityOutputType = 'document' | 'image' | 'text' | 'video';
 export type PromptSource = 'block' | 'inline';
 
 export interface CapabilityInputContract {
@@ -49,7 +49,7 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
     defaultAdapter: 'direct_api',
     displayNameKey: 'operation.generateText.title',
     inputContracts: [{ type: 'text', required: true, source: 'block', min: 1, max: 1 }],
-    outputContracts: [{ type: 'text' }],
+    outputContracts: [{ type: 'document' }],
     paramsSchema: {},
     promptSource: 'block',
     supportedAdapters: ['direct_api', 'mcp_agent', 'cli_agent', 'manual_import'],

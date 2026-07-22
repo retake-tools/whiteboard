@@ -18,7 +18,7 @@ import type { useCanvasController } from './useCanvasController';
 import type { useGroupController } from './useGroupController';
 import type { useImageOperationController } from './useImageOperationController';
 
-const nodeTypes = { text: BlockNode, image: BlockNode, video: BlockNode, operation: BlockNode, group: BlockNode } satisfies NodeTypes;
+const nodeTypes = { text: BlockNode, document: BlockNode, image: BlockNode, video: BlockNode, operation: BlockNode, group: BlockNode } satisfies NodeTypes;
 const edgeTypes = { executionOutput: ExecutionOutputEdge } satisfies EdgeTypes;
 
 interface WhiteboardCanvasProps {

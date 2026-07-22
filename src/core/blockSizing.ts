@@ -6,6 +6,7 @@ export interface BlockSize {
 }
 
 const defaultBlockSizes: Record<BlockType, BlockSize> = {
+  document: { width: 320, height: 240 },
   group: { width: 520, height: 320 },
   image: { width: 300, height: 230 },
   operation: { width: 320, height: 190 },

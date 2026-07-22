@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ReactElement } from 'react';
 import { Loader2, RefreshCw, TriangleAlert } from 'lucide-react';
 import { BoardHistoryPanel } from './components/BoardHistoryPanel';
 import { ExecutionInspector } from './components/ExecutionInspector';
@@ -26,6 +26,10 @@ import { useAppEventBindings } from './app/useAppEventBindings';
 import { useVideoGenerationController } from './app/useVideoGenerationController';
 import { useTextGenerationController } from './app/useTextGenerationController';
 import { WhiteboardCanvas } from './app/WhiteboardCanvas';
+
+const DocumentReviewWorkspace = lazy(() => import('./components/DocumentReviewWorkspace').then((module) => ({
+  default: module.DocumentReviewWorkspace,
+})));
 
 export function App(): ReactElement {
   const { t } = useI18n();
@@ -72,9 +76,19 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
   const [isMiniMapVisible, setIsMiniMapVisible] = useState(() => initialUiPreferences.current.isMiniMapVisible);
   const [showGrid, setShowGrid] = useState(() => initialUiPreferences.current.showGrid);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [reviewDocumentBlockId, setReviewDocumentBlockId] = useState<string | undefined>();
   useEffect(() => {
     void loadExecutionProviderSettings(snapshot.project.projectId).catch(() => undefined);
   }, [snapshot.project.projectId]);
+  useEffect(() => {
+    const openDocumentReview = (event: Event) => {
+      const detail = (event as CustomEvent<{ blockId?: string }>).detail;
+      if (detail?.blockId) setReviewDocumentBlockId(detail.blockId);
+    };
+    window.addEventListener('retake:open-document-review', openDocumentReview);
+    return () => window.removeEventListener('retake:open-document-review', openDocumentReview);
+  }, []);
+  useEffect(() => setReviewDocumentBlockId(undefined), [snapshot.board.boardId, snapshot.project.projectId]);
   const canvasController = useCanvasController({
     connectSessionPorts: connectPorts,
     redo,
@@ -290,6 +304,12 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
   const inspectorBlock = inspectorBlockId
     ? snapshot.blocks.find((block) => block.blockId === inspectorBlockId)
     : undefined;
+  const reviewDocumentBlock = reviewDocumentBlockId
+    ? snapshot.blocks.find((block) => block.blockId === reviewDocumentBlockId && block.type === 'document')
+    : undefined;
+  const reviewDocumentAsset = reviewDocumentBlock?.data.assetId
+    ? snapshot.assets.find((asset) => asset.assetId === reviewDocumentBlock.data.assetId)
+    : undefined;
   const selectedGroupMediaCount = selectedBlock?.type === 'group'
     ? groupMediaItems(snapshot, selectedBlock.blockId).length
     : 0;
@@ -425,6 +445,15 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
           onLocateBlock={locateBlock}
           onOpenAnnotationEditor={openHistoricalAnnotationVersion}
         />
+      ) : null}
+      {reviewDocumentBlock ? (
+        <Suspense fallback={null}>
+          <DocumentReviewWorkspace
+            asset={reviewDocumentAsset}
+            block={reviewDocumentBlock}
+            onClose={() => setReviewDocumentBlockId(undefined)}
+          />
+        </Suspense>
       ) : null}
 
       <WhiteboardCanvas

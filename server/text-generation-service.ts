@@ -4,7 +4,7 @@ import { runCodexAppServerTurn } from './codex-app-server-client';
 import { publishExecutionEvent } from './execution-events';
 import { createAssetFromDataUrl } from './local-store/asset-store';
 import { listExecutionProviderSettings, resolveExecutionConnection } from './local-store/execution-provider-store';
-import { failExecution, markExecutionRunning, updateTextResultBlock } from './local-store/execution-store';
+import { failExecution, markExecutionRunning, updateDocumentResultBlock } from './local-store/execution-store';
 import { loadSnapshot, saveSnapshot } from './local-store/snapshot-store';
 import { generateOpenAICompatibleText, type OpenAICompatibleTextResult } from './openai-compatible-client';
 
@@ -120,13 +120,13 @@ async function executeTextGeneration(
     fileName: 'generated.md',
     kind: 'document',
   });
-  const completed = await updateTextResultBlock({
+  const completed = await updateDocumentResultBlock({
     projectId: execution.projectId,
     boardId: execution.boardId,
     executionId: execution.executionId,
     assetId: asset.assetId,
     resultBlockId: execution.outputBlockIds[0],
-    title: 'Generated text',
+    title: 'Generated document',
     markdown,
   });
   publishExecutionEvent(execution.executionId, { type: 'execution.snapshot', snapshot: completed.snapshot });

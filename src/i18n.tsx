@@ -13,6 +13,8 @@ type TranslationKey =
   | 'workspace.loadErrorTitle'
   | 'workspace.loadErrorBody'
   | 'workspace.retry'
+  | 'block.document.body'
+  | 'block.document.title'
   | 'block.image.body'
   | 'block.image.title'
   | 'block.operation.body'
@@ -27,6 +29,20 @@ type TranslationKey =
   | 'block.video.body'
   | 'block.videoPlaceholder'
   | 'block.video.title'
+  | 'document.characters'
+  | 'document.empty'
+  | 'document.externalImageBlocked'
+  | 'document.loadFailed'
+  | 'document.noOutline'
+  | 'document.openReview'
+  | 'document.outline'
+  | 'document.preview'
+  | 'document.reviewWorkspace'
+  | 'document.savedAsset'
+  | 'document.source'
+  | 'document.streaming'
+  | 'document.viewMode'
+  | 'document.waiting'
   | 'videoGeneration.count'
   | 'videoGeneration.aspectRatio'
   | 'videoGeneration.dreaminaCompleted'
@@ -542,6 +558,8 @@ const translations: Record<Locale, Translations> = {
     'workspace.loadErrorTitle': 'Workspace unavailable',
     'workspace.loadErrorBody': 'The canvas is locked because Retake could not load an authoritative board snapshot.',
     'workspace.retry': 'Retry',
+    'block.document.body': 'A long-form Markdown document stored as an asset.',
+    'block.document.title': 'Markdown document',
     'block.image.body': 'Import or generate an asset to attach assetId.',
     'block.image.title': 'Image block',
     'block.operation.body': 'Choose capability, inputs, and execution adapter.',
@@ -556,6 +574,20 @@ const translations: Record<Locale, Translations> = {
     'block.video.body': 'Video preview should load lazily in later spikes.',
     'block.videoPlaceholder': 'Video asset placeholder',
     'block.video.title': 'Video block',
+    'document.characters': 'characters',
+    'document.empty': 'This document has no content yet.',
+    'document.externalImageBlocked': 'External image blocked',
+    'document.loadFailed': 'Could not load the Markdown asset',
+    'document.noOutline': 'No headings yet.',
+    'document.openReview': 'Open review',
+    'document.outline': 'Outline',
+    'document.preview': 'Preview',
+    'document.reviewWorkspace': 'Document review',
+    'document.savedAsset': 'Saved as Markdown asset',
+    'document.source': 'Source',
+    'document.streaming': 'Streaming Markdown',
+    'document.viewMode': 'Document view',
+    'document.waiting': 'Waiting for generated Markdown…',
     'videoGeneration.count': 'Count',
     'videoGeneration.aspectRatio': 'Ratio',
     'videoGeneration.dreaminaCompleted': 'Dreamina CLI video generation completed',
@@ -1066,6 +1098,8 @@ const translations: Record<Locale, Translations> = {
     'workspace.loadErrorTitle': '工作区不可用',
     'workspace.loadErrorBody': 'Retake 未能加载可信的画板快照，画布已停止进入可编辑状态。',
     'workspace.retry': '重试',
+    'block.document.body': '以素材形式保存的长篇 Markdown 文档。',
+    'block.document.title': 'Markdown 文档',
     'block.image.body': '导入或生成素材后会绑定 assetId。',
     'block.image.title': '图片块',
     'block.operation.body': '选择能力、输入和执行适配器。',
@@ -1080,6 +1114,20 @@ const translations: Record<Locale, Translations> = {
     'block.video.body': '视频预览会在后续版本中按需加载。',
     'block.videoPlaceholder': '视频素材占位',
     'block.video.title': '视频块',
+    'document.characters': '字',
+    'document.empty': '这份文档还没有内容。',
+    'document.externalImageBlocked': '已阻止外部图片自动加载',
+    'document.loadFailed': '无法加载 Markdown 素材',
+    'document.noOutline': '尚未生成标题目录。',
+    'document.openReview': '打开审阅',
+    'document.outline': '目录',
+    'document.preview': '预览',
+    'document.reviewWorkspace': '文档审阅',
+    'document.savedAsset': '已保存为 Markdown 素材',
+    'document.source': '源码',
+    'document.streaming': '正在流式生成 Markdown',
+    'document.viewMode': '文档视图',
+    'document.waiting': '正在等待 Markdown 内容…',
     'videoGeneration.count': '数量',
     'videoGeneration.aspectRatio': '画幅',
     'videoGeneration.dreaminaCompleted': '即梦 CLI 视频生成完成',

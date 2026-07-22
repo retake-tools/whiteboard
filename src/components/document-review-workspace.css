@@ -1,0 +1,79 @@
+.document-review-backdrop {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(15 23 42 / 52%);
+  backdrop-filter: blur(4px);
+}
+
+.document-review-workspace {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(1180px, calc(100vw - 48px));
+  height: min(820px, calc(100vh - 48px));
+  overflow: hidden;
+  border: 1px solid #dbe2ea;
+  border-radius: 14px;
+  background: #f8fafc;
+  box-shadow: 0 28px 80px rgb(15 23 42 / 30%);
+}
+
+.document-review-workspace > header,
+.document-review-workspace > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.document-review-workspace > header span,
+.document-review-workspace > footer {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.document-review-workspace h2 { margin: 3px 0 0; color: #172033; font-size: 19px; }
+.document-review-workspace > footer { border-top: 1px solid #e2e8f0; border-bottom: 0; }
+.document-review-actions, .document-review-view-toggle { display: flex; align-items: center; gap: 6px; }
+.document-review-actions button { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 7px; background: transparent; color: #526071; padding: 7px 9px; cursor: pointer; }
+.document-review-actions button:hover, .document-review-actions button.is-active { background: #eaf3ff; color: #1478e8; }
+.document-review-close { padding: 7px !important; }
+
+.document-review-layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); min-height: 0; }
+.document-review-layout > aside { overflow: auto; padding: 22px 18px; border-right: 1px solid #e2e8f0; color: #475569; background: #f8fafc; }
+.document-review-layout > aside strong { color: #1f2937; font-size: 13px; }
+.document-review-layout > aside ol { margin: 14px 0 0; padding: 0; list-style: none; }
+.document-review-layout > aside li { margin: 0 0 9px; white-space: pre-wrap; font-size: 12px; line-height: 1.45; }
+.document-review-layout > aside p { color: #94a3b8; font-size: 12px; }
+.document-review-content { overflow: auto; padding: 38px max(38px, calc((100% - 760px) / 2)); background: #fff; }
+.document-markdown-preview { color: #273449; font-size: 15px; line-height: 1.75; overflow-wrap: anywhere; }
+.document-markdown-preview h1, .document-markdown-preview h2, .document-markdown-preview h3 { color: #111827; line-height: 1.3; }
+.document-markdown-preview h1 { margin: 0 0 28px; font-size: 30px; }
+.document-markdown-preview h2 { margin: 34px 0 14px; font-size: 22px; }
+.document-markdown-preview h3 { margin: 26px 0 10px; font-size: 18px; }
+.document-markdown-preview pre, .document-markdown-preview code { border-radius: 6px; background: #f1f5f9; }
+.document-markdown-preview code { padding: 2px 5px; }
+.document-markdown-preview pre { overflow: auto; padding: 14px; }
+.document-markdown-preview table { width: 100%; border-collapse: collapse; }
+.document-markdown-preview th, .document-markdown-preview td { border: 1px solid #dbe2ea; padding: 8px 10px; text-align: left; }
+.document-markdown-preview a { color: #1478e8; }
+.document-blocked-image { display: inline-block; border-radius: 5px; background: #fff3cd; color: #7c5b08; padding: 2px 6px; font-size: 12px; }
+.document-markdown-source { min-height: 100%; margin: 0; color: #334155; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.document-review-loading, .document-review-error { display: flex; align-items: center; gap: 8px; border-radius: 8px; padding: 12px; }
+.document-review-loading { color: #64748b; }
+.document-review-loading svg { animation: workspace-load-spin 900ms linear infinite; }
+.document-review-error { margin-bottom: 20px; background: #fff1f2; color: #be123c; }
+
+@media (max-width: 760px) {
+  .document-review-backdrop { padding: 8px; }
+  .document-review-workspace { width: calc(100vw - 16px); height: calc(100vh - 16px); }
+  .document-review-layout { grid-template-columns: 1fr; }
+  .document-review-layout > aside { display: none; }
+  .document-review-content { padding: 24px 18px; }
+}

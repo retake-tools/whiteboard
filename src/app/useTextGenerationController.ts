@@ -6,6 +6,7 @@ import {
   resolveExecutionConnectionPreference,
 } from '../core/executionProviderPreferences';
 import { startTextGeneration } from '../core/textGenerationClient';
+import { appendDocumentStream, beginDocumentStream } from '../core/documentStreamStore';
 import { subscribeExecutionEvents } from '../core/executionEventClient';
 import {
   createDraftTextGenerationOperation,
@@ -94,6 +95,7 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
         resultBlockId = run.resultBlock.blockId;
         return current;
       }, { history: true });
+      beginDocumentStream(resultBlockId);
       await persistSnapshot(queuedSnapshot, { requireLocalApi: true });
       let finishStream: ((snapshot: BoardSnapshot) => void) | undefined;
       let failStream: ((error: Error) => void) | undefined;
@@ -108,16 +110,7 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
         onError: () => failStream?.(new Error('Execution event stream disconnected.')),
         onEvent: (event) => {
           if (event.type === 'text.delta') {
-            updateSnapshot((current) => {
-              const resultBlock = current.blocks.find((candidate) => candidate.blockId === event.resultBlockId);
-              if (!resultBlock || resultBlock.type !== 'text') return current;
-              resultBlock.data = {
-                ...resultBlock.data,
-                body: `${resultBlock.data.body || ''}${event.delta}`,
-                status: 'running',
-              };
-              return current;
-            }, { history: false, persist: false });
+            appendDocumentStream(event.resultBlockId, event.delta);
           } else if (event.type === 'execution.snapshot') {
             finishStream?.(event.snapshot);
           } else if (event.type === 'execution.failed') {

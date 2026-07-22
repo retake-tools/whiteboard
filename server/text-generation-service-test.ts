@@ -40,6 +40,7 @@ const draft = createDraftTextGenerationOperation(initial, {
   ...labels,
   connectionId: readyOpenAIConnection!.connectionId,
 });
+assert.equal(draft.resultBlock.type, 'document');
 draft.promptBlock.data.body = 'Write a short Markdown scene about a cat director.';
 const firstRun = executeExistingTextGenerationOperation(initial, {
   connection: readyOpenAIConnection!,
@@ -72,8 +73,12 @@ let completed = await loadSnapshot(initial.project.projectId, initial.board.boar
 const completedFirstExecution = completed.executions.find((execution) => execution.executionId === firstRun.execution.executionId);
 const firstResultBlock = completed.blocks.find((block) => block.blockId === firstRun.resultBlock.blockId);
 assert.equal(completedFirstExecution?.status, 'succeeded');
-assert.equal(firstResultBlock?.type, 'text');
-assert.equal(firstResultBlock?.data.body, '# Cat Director\n\nA concise first draft.');
+assert.equal(firstResultBlock?.type, 'document');
+assert.equal(firstResultBlock?.data.body, undefined, 'Full Markdown must not be copied into BoardSnapshot.');
+assert.equal(firstResultBlock?.data.title, 'Cat Director');
+assert.equal(firstResultBlock?.data.documentExcerpt, 'Cat Director\n\nA concise first draft.');
+assert.deepEqual(firstResultBlock?.data.documentOutline, ['Cat Director']);
+assert.equal(firstResultBlock?.data.contentFormat, 'markdown');
 assert.equal(firstResultBlock?.data.status, 'succeeded');
 assert.ok(firstResultBlock?.data.assetId);
 const firstAsset = completed.assets.find((asset) => asset.assetId === firstResultBlock.data.assetId);

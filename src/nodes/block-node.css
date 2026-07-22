@@ -16,6 +16,10 @@
   cursor: text;
 }
 
+.block-node-document {
+  cursor: pointer;
+}
+
 .block-node-text .block-heading,
 .block-node-operation .block-heading {
   cursor: grab;
@@ -557,6 +561,31 @@
 .text-body-input:focus {
   box-shadow: inset 0 0 0 1px rgb(22 135 255 / 22%);
 }
+
+.document-block-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 9px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0 0 8px 8px;
+  background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+  color: #475569;
+  padding: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.document-block-body:hover { background: #f4f8fd; }
+.document-block-meta { display: flex; min-height: 20px; align-items: center; justify-content: space-between; gap: 8px; color: #7c899b; font-size: 11px; }
+.document-block-meta .status-pill { position: static; display: inline-flex; gap: 5px; }
+.document-block-outline { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; color: #334155; font-size: 12px; font-weight: 600; }
+.document-block-outline li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.document-block-body > p { display: -webkit-box; flex: 1; min-height: 0; overflow: hidden; margin: 0; color: #64748b; font-size: 12px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 5; }
+.document-block-open { display: inline-flex; align-items: center; align-self: flex-end; gap: 5px; color: #1478e8; font-size: 11px; font-weight: 600; }
 
 .image-preview {
   position: relative;

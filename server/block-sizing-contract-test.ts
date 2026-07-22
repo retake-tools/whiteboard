@@ -6,6 +6,7 @@ import { defaultSnapshot } from '../src/core/sampleBoard';
 import { blockGroupBounds, moveBlockGroupToNearestFreeArea } from '../src/core/workflowPlacement';
 
 assert.deepEqual(defaultBlockSize('image'), { width: 300, height: 230 });
+assert.deepEqual(defaultBlockSize('document'), { width: 320, height: 240 });
 assert.deepEqual(defaultBlockSize('text'), { width: 260, height: 170 });
 assert.deepEqual(defaultBlockSize('video'), { width: 300, height: 180 });
 assert.deepEqual(defaultBlockSize('operation'), { width: 320, height: 190 });
@@ -57,6 +58,7 @@ assert.equal(
 
 console.log({
   defaults: {
+    document: defaultBlockSize('document'),
     image: defaultBlockSize('image'),
     operation: defaultBlockSize('operation'),
     text: defaultBlockSize('text'),

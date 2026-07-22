@@ -10,6 +10,7 @@ import type {
 } from '../../src/core/types';
 import { touchSnapshot } from './context';
 import { readAssetMetadata } from './asset-files';
+import { summarizeMarkdown } from '../../src/core/markdownDocument';
 import { listProjectBoards, loadSnapshot, saveSnapshot } from './snapshot-store';
 
 export async function createExecution(input: {
@@ -218,7 +219,7 @@ export async function updateVideoResultBlock(input: {
   return updateMediaResultBlock({ ...input, blockType: 'video' });
 }
 
-export async function updateTextResultBlock(input: {
+export async function updateDocumentResultBlock(input: {
   projectId: string;
   boardId: string;
   executionId: string;
@@ -227,10 +228,18 @@ export async function updateTextResultBlock(input: {
   resultBlockId?: string;
   title?: string;
 }): Promise<{ snapshot: BoardSnapshot; block: BlockRecord; execution: ExecutionRecord }> {
+  const summary = summarizeMarkdown(input.markdown, input.title?.trim() || 'Generated document');
   return updateMediaResultBlock({
     ...input,
-    blockType: 'text',
-    body: input.markdown,
+    title: summary.title,
+    blockType: 'document',
+    data: {
+      contentFormat: 'markdown',
+      documentCharacterCount: summary.characterCount,
+      documentExcerpt: summary.excerpt,
+      documentKind: 'general',
+      documentOutline: summary.outline,
+    },
   });
 }
 
@@ -242,7 +251,8 @@ async function updateMediaResultBlock(input: {
   resultBlockId?: string;
   title?: string;
   body?: string;
-  blockType: 'image' | 'text' | 'video';
+  blockType: 'document' | 'image' | 'video';
+  data?: Partial<BlockRecord['data']>;
 }): Promise<{ snapshot: BoardSnapshot; block: BlockRecord; execution: ExecutionRecord }> {
   const snapshot = await loadSnapshot(input.projectId, input.boardId);
   const execution = findExecutionOrThrow(snapshot, input.executionId);
@@ -255,7 +265,7 @@ async function updateMediaResultBlock(input: {
   }
   const block = snapshot.blocks.find((candidate) => candidate.blockId === resultBlockId);
   if (!block || block.type !== input.blockType) {
-    const label = input.blockType === 'image' ? 'Image' : input.blockType === 'video' ? 'Video' : 'Text';
+    const label = input.blockType === 'image' ? 'Image' : input.blockType === 'video' ? 'Video' : 'Document';
     throw new Error(`${label} result block not found: ${resultBlockId ?? 'missing'}`);
   }
 
@@ -268,6 +278,7 @@ async function updateMediaResultBlock(input: {
     previewUrl: asset.previewUrl,
     status: 'succeeded',
     sourceExecutionId: input.executionId,
+    ...input.data,
   };
   block.updatedAt = now;
   const wasSucceeded = execution.status === 'succeeded';
@@ -359,7 +370,7 @@ function syncExecutionBlocks(snapshot: BoardSnapshot, execution: ExecutionRecord
   const outputBlockIds = new Set(execution.outputBlockIds);
   for (const block of snapshot.blocks) {
     if (block.data.sourceExecutionId !== execution.executionId) continue;
-    if (outputBlockIds.has(block.blockId) && (block.type === 'image' || block.type === 'video' || block.type === 'text') && block.data.assetId) {
+    if (outputBlockIds.has(block.blockId) && (block.type === 'image' || block.type === 'video' || block.type === 'document') && block.data.assetId) {
       block.data.status = 'succeeded';
     }
     else {
@@ -373,7 +384,7 @@ function syncExecutionBlocks(snapshot: BoardSnapshot, execution: ExecutionRecord
 function incompleteExecutionResultBlockIds(snapshot: BoardSnapshot, execution: ExecutionRecord): string[] {
   return execution.outputBlockIds.filter((blockId) => {
     const block = snapshot.blocks.find((candidate) => candidate.blockId === blockId);
-    return (block?.type === 'image' || block?.type === 'video' || block?.type === 'text') && typeof block.data.assetId !== 'string';
+    return (block?.type === 'image' || block?.type === 'video' || block?.type === 'document') && typeof block.data.assetId !== 'string';
   });
 }
 

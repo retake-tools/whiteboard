@@ -69,6 +69,17 @@ function dataForType(type: BlockType, projectId: string): BlockRecord['data'] {
     };
   }
 
+  if (type === 'document') {
+    return {
+      title: 'Markdown document',
+      contentFormat: 'markdown',
+      documentKind: 'general',
+      documentCharacterCount: 0,
+      documentExcerpt: '',
+      documentOutline: [],
+    };
+  }
+
   if (type === 'video') {
     const selection = resolveExecutionConnectionPreference({
       capabilityId: 'video.generate',

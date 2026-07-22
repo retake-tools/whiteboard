@@ -37,13 +37,12 @@ export function createDraftTextGenerationOperation(
     triggerMode: usesCodexAppServer ? 'agent_bridge' : 'server_worker',
     ...(input.connectionId ? { connectionId: input.connectionId } : {}),
   };
-  const resultBlock = createBlockRecord(snapshot, 'text');
+  const resultBlock = createBlockRecord(snapshot, 'document');
   resultBlock.data = {
     ...resultBlock.data,
     title: input.resultTitle,
-    body: '',
     placeholder: input.waitingBody,
-    managedTextResult: true,
+    managedDocumentResult: true,
   };
 
   promptBlock.position = { x: 80, y: 80 };
@@ -111,15 +110,17 @@ export function executeExistingTextGenerationOperation(
   resultBlock.data = {
     ...resultBlock.data,
     title: input.labels.resultTitle,
-    body: '',
     placeholder: input.labels.waitingBody,
-    managedTextResult: true,
+    managedDocumentResult: true,
     status: 'queued',
     operationBlockId: operationBlock.blockId,
     sourceExecutionId: executionId,
   };
   delete resultBlock.data.assetId;
   delete resultBlock.data.previewUrl;
+  delete resultBlock.data.documentExcerpt;
+  delete resultBlock.data.documentOutline;
+  resultBlock.data.documentCharacterCount = 0;
   resultBlock.updatedAt = createdAt;
 
   operationBlock.data = {
@@ -185,8 +186,8 @@ function reusableDraftResult(snapshot: BoardSnapshot, operationBlock: BlockRecor
     .map((edge) => edge.targetBlockId);
   return snapshot.blocks.find((block) =>
     outputBlockIds.includes(block.blockId) &&
-    block.type === 'text' &&
-    block.data.managedTextResult === true &&
+    block.type === 'document' &&
+    block.data.managedDocumentResult === true &&
     typeof block.data.sourceExecutionId !== 'string' &&
     typeof block.data.assetId !== 'string');
 }
@@ -201,7 +202,7 @@ function createResultBlock(
   const previousResults = snapshot.edges.filter(
     (edge) => edge.sourceBlockId === operationBlock.blockId && edge.kind === 'execution_output',
   ).length;
-  const resultBlock = createBlockRecord(snapshot, 'text');
+  const resultBlock = createBlockRecord(snapshot, 'document');
   resultBlock.position = {
     x: operationBlock.position.x + operationBlock.size.width + 90,
     y: operationBlock.position.y + previousResults * (resultBlock.size.height + 36),
@@ -210,9 +211,8 @@ function createResultBlock(
   resultBlock.data = {
     ...resultBlock.data,
     title: labels.resultTitle,
-    body: '',
     placeholder: labels.waitingBody,
-    managedTextResult: true,
+    managedDocumentResult: true,
     status: 'queued',
     operationBlockId: operationBlock.blockId,
     sourceExecutionId: executionId,
