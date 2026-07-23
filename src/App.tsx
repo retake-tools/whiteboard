@@ -244,6 +244,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     snapshotRef,
   });
   const workflowRuntimeController = useWorkflowRuntimeController({
+    persistSnapshot,
     setOperationToast,
     t,
     updateSnapshot,

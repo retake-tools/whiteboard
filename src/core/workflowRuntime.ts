@@ -1,4 +1,5 @@
 import { operationReadinessFor } from './capabilities';
+import { capabilityDefinitionFor } from './capabilityRegistry';
 import { touchBoard } from './blockFactory';
 import {
   configurationFingerprint,
@@ -117,6 +118,7 @@ export function createWorkflowRunForGroup(
       executionIds: [],
       acceptedOutputAssetIds: [],
       outputAcceptancePolicy: step.outputAcceptancePolicy ?? 'automatic',
+      outputArtifactBindings: [],
       outputAssetIds: [],
       status: 'pending',
       freshness: 'current',
@@ -148,6 +150,22 @@ export function createWorkflowRunForGroup(
     inputBindings,
     gateDefinitionLocks: structuredClone(definition.gates),
     gateEvaluationIds: [],
+    outputSlotLocks: definition.outputSlots.map((output) => {
+      const step = definition.steps.find((candidate) => candidate.stepId === output.source.stepId);
+      const capability = step ? capabilityDefinitionFor(step.capabilityLock.capabilityId) : undefined;
+      const slot = capability?.outputSlots.find(
+        (candidate) => candidate.slotId === output.source.outputSlotId,
+      );
+      if (!step || !slot?.artifactType) {
+        throw new Error(`Workflow output Artifact lock is incomplete: ${output.slotId}`);
+      }
+      return {
+        artifactType: slot.artifactType,
+        outputSlotId: output.source.outputSlotId,
+        stepId: output.source.stepId,
+        workflowOutputSlotId: output.slotId,
+      };
+    }),
     stepRunIds: stepRuns.map((step) => step.stepRunId),
     currentStepIds: [],
     createdBy: 'user',
@@ -187,6 +205,7 @@ export function attachWorkflowExecution(
   execution.workflowRunId = run.workflowRunId;
   execution.stepRunId = view.record.stepRunId;
   view.record.executionIds = [...view.record.executionIds, execution.executionId];
+  view.record.outputArtifactBindings = [];
   if (view.record.outputAcceptancePolicy === 'manual_selection') {
     view.record.acceptedOutputAssetIds = [];
     view.record.acceptedAt = undefined;

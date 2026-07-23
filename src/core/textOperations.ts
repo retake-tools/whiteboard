@@ -56,6 +56,7 @@ export function createDraftTextGenerationOperation(
   };
   const operationBlock = createBlockRecord(snapshot, 'operation');
   operationBlock.data = {
+    ...operationBlock.data,
     title: input.operationTitle,
     body: input.promptPlaceholder,
     capabilityId: 'text.generate',
@@ -166,6 +167,7 @@ export function createDraftSkillOperation(
   const operationBlock = createBlockRecord(snapshot, 'operation');
   const usesCodexAppServer = input.connectionId === 'codex-app-server';
   operationBlock.data = {
+    ...operationBlock.data,
     title: input.operationTitle,
     body: input.promptPlaceholder,
     capabilityId,

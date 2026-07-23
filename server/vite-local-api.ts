@@ -56,6 +56,7 @@ import { installExecutionEventStream } from './execution-events';
 import { startCodexAppServerImageGeneration } from './codex-app-server-image-service';
 import { listCodexAppServerModels } from './codex-app-server-client';
 import { runAgentRuntimeTurn } from './agent-runtime-port';
+import { materializeWorkflowOutputArtifacts } from './workflow-output-artifact-service';
 
 type MiddlewareContainer = {
   use(
@@ -139,6 +140,24 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               semanticKey: body.semanticKey,
               sourceArtifactRevisionId: body.sourceArtifactRevisionId,
             }), 201);
+            return;
+          }
+
+          if (method === 'POST' && url.pathname === '/workflow/output-artifacts/materialize') {
+            const body = (await readJson(req)) as {
+              boardId?: string;
+              projectId?: string;
+              stepRunId?: string;
+            };
+            if (!body.boardId || !body.projectId || !body.stepRunId) {
+              sendJson(res, { error: 'boardId, projectId, and stepRunId are required' }, 400);
+              return;
+            }
+            sendJson(res, await materializeWorkflowOutputArtifacts({
+              boardId: body.boardId,
+              projectId: body.projectId,
+              trigger: { kind: 'output_accepted', stepRunId: body.stepRunId },
+            }));
             return;
           }
 

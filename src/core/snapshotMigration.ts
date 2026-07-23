@@ -106,10 +106,12 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
       ...run,
       gateDefinitionLocks: run.gateDefinitionLocks ?? [],
       gateEvaluationIds: run.gateEvaluationIds ?? [],
+      outputSlotLocks: run.outputSlotLocks ?? [],
     })),
     workflowStepRuns: (legacy.workflowStepRuns ?? []).map((step) => ({
       ...step,
       acceptedOutputAssetIds: step.acceptedOutputAssetIds ?? [],
+      outputArtifactBindings: step.outputArtifactBindings ?? [],
       outputSlotIds: step.outputSlotIds ?? [],
       outputAcceptancePolicy: step.outputAcceptancePolicy ?? 'automatic',
     })),

@@ -3,12 +3,17 @@ import { reconcileAgentRuntime } from '../core/agentRuntime';
 import type { BoardSnapshot } from '../core/types';
 import type { WorkflowApprovalDecisionValue } from '../core/workflowGateContracts';
 import { decideWorkflowApproval } from '../core/workflowGateRuntime';
+import { materializeAcceptedWorkflowOutput } from '../core/workflowOutputArtifactClient';
 import { acceptWorkflowStepOutputs, createWorkflowRunForGroup } from '../core/workflowRuntime';
 import type { useI18n } from '../i18n';
 
 interface WorkflowRuntimeControllerOptions {
   setOperationToast: (toast: OperationToast | undefined) => void;
   t: ReturnType<typeof useI18n>['t'];
+  persistSnapshot: (
+    snapshot: BoardSnapshot,
+    options?: { requireLocalApi?: boolean },
+  ) => Promise<void>;
   updateSnapshot: (
     updater: (current: BoardSnapshot) => BoardSnapshot,
     options?: { history?: boolean; persist?: boolean; syncFlow?: boolean },
@@ -16,7 +21,7 @@ interface WorkflowRuntimeControllerOptions {
 }
 
 export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerOptions) {
-  const { setOperationToast, t, updateSnapshot } = options;
+  const { persistSnapshot, setOperationToast, t, updateSnapshot } = options;
 
   function createWorkflowRun(groupId: string): void {
     try {
@@ -42,13 +47,13 @@ export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerO
     }
   }
 
-  function acceptWorkflowOutput(
+  async function acceptWorkflowOutput(
     stepRunId: string,
     assetId: string,
     expectedStepRunVersion: number,
-  ): void {
+  ): Promise<void> {
     try {
-      updateSnapshot((current) => {
+      const acceptedSnapshot = updateSnapshot((current) => {
         acceptWorkflowStepOutputs(current, {
           acceptedOutputAssetIds: [assetId],
           expectedStepRunVersion,
@@ -56,7 +61,14 @@ export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerO
         });
         reconcileAgentRuntime(current);
         return current;
-      }, { history: true, persist: true });
+      }, { history: true });
+      await persistSnapshot(acceptedSnapshot, { requireLocalApi: true });
+      const materializedSnapshot = await materializeAcceptedWorkflowOutput({
+        boardId: acceptedSnapshot.board.boardId,
+        projectId: acceptedSnapshot.project.projectId,
+        stepRunId,
+      });
+      updateSnapshot(() => materializedSnapshot, { history: false, persist: false });
       setOperationToast({
         id: `workflow-output:${stepRunId}:${assetId}`,
         title: t('workflowRuntime.outputSelected'),

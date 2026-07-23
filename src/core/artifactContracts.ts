@@ -19,6 +19,7 @@ export interface ArtifactSourceContext {
   operationBlockId?: string;
   outputSlotId?: string;
   stepRunId?: string;
+  workflowOutputSlotId?: string;
   workflowRunId?: string;
 }
 

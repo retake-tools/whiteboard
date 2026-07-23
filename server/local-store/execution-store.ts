@@ -12,6 +12,7 @@ import { touchSnapshot } from './context';
 import { readAssetMetadata } from './asset-files';
 import { summarizeMarkdown } from '../../src/core/markdownDocument';
 import { listProjectBoards, loadSnapshot, saveSnapshot } from './snapshot-store';
+import { materializeWorkflowOutputArtifacts } from '../workflow-output-artifact-service';
 
 export async function createExecution(input: {
   projectId: string;
@@ -145,7 +146,11 @@ export async function completeExecution(input: {
   appendHistoryEvent(snapshot, { type: 'execution_succeeded', actor: 'codex', execution, summary: `Execution succeeded: ${execution.capabilityId}` });
   touchSnapshot(snapshot);
   await saveSnapshot(snapshot);
-  return { snapshot, execution };
+  const persisted = await materializeCompletedWorkflowExecution(snapshot, execution);
+  return {
+    snapshot: persisted,
+    execution: findExecutionOrThrow(persisted, input.executionId),
+  };
 }
 
 export async function failExecution(input: { projectId: string; boardId: string; executionId: string; errorMessage: string }): Promise<{ snapshot: BoardSnapshot; execution: ExecutionRecord }> {
@@ -309,7 +314,14 @@ async function updateMediaResultBlock(input: {
   }
   touchSnapshot(snapshot);
   await saveSnapshot(snapshot);
-  return { snapshot, block, execution };
+  const persisted = allOutputsComplete && !wasSucceeded
+    ? await materializeCompletedWorkflowExecution(snapshot, execution)
+    : snapshot;
+  return {
+    snapshot: persisted,
+    block: persisted.blocks.find((candidate) => candidate.blockId === block.blockId) ?? block,
+    execution: findExecutionOrThrow(persisted, input.executionId),
+  };
 }
 
 export async function assertSourceExecutionAcceptsAssets(projectId: string, executionId: string | undefined): Promise<void> {
@@ -354,6 +366,29 @@ function assertExecutionRunning(execution: ExecutionRecord, action: string): voi
 
 function mergeUnique(existing: string[], incoming: string[]): string[] {
   return Array.from(new Set([...existing, ...incoming]));
+}
+
+async function materializeCompletedWorkflowExecution(
+  snapshot: BoardSnapshot,
+  execution: ExecutionRecord,
+): Promise<BoardSnapshot> {
+  if (!execution.workflowRunId || !execution.stepRunId || execution.status !== 'succeeded') {
+    return snapshot;
+  }
+  try {
+    const result = await materializeWorkflowOutputArtifacts({
+      boardId: snapshot.board.boardId,
+      projectId: snapshot.project.projectId,
+      trigger: { kind: 'execution_succeeded', executionId: execution.executionId },
+    });
+    return result.snapshot;
+  } catch (error) {
+    console.error(
+      `Workflow output Artifact materialization failed for ${execution.executionId}:`,
+      error,
+    );
+    return snapshot;
+  }
 }
 
 function markExecutionBlocks(snapshot: BoardSnapshot, executionId: string, status: ExecutionRecord['status']): void {

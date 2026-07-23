@@ -51,6 +51,25 @@ export interface WorkflowStepResolvedInputBinding {
   source: WorkflowBindingSource;
 }
 
+export interface WorkflowStepOutputArtifactBinding {
+  artifactId: string;
+  artifactRevisionId: string;
+  artifactType: string;
+  assetIds: string[];
+  boundAt: string;
+  executionIds: string[];
+  outputSlotId: string;
+  primaryAssetId: string;
+  workflowOutputSlotId: string;
+}
+
+export interface WorkflowOutputSlotLock {
+  artifactType: string;
+  outputSlotId: string;
+  stepId: string;
+  workflowOutputSlotId: string;
+}
+
 export interface WorkflowRunRecord {
   boardId: string;
   createdAt: string;
@@ -60,6 +79,7 @@ export interface WorkflowRunRecord {
   inputBindings: WorkflowRunInputBinding[];
   gateDefinitionLocks: WorkflowGateDefinition[];
   gateEvaluationIds: string[];
+  outputSlotLocks: WorkflowOutputSlotLock[];
   projectId: string;
   recordVersion: number;
   status: WorkflowRunStatus;
@@ -85,6 +105,7 @@ export interface WorkflowStepRunRecord {
   operationBlockId: string;
   outputSlotIds: string[];
   outputAcceptancePolicy: WorkflowOutputAcceptancePolicy;
+  outputArtifactBindings: WorkflowStepOutputArtifactBinding[];
   outputAssetIds: string[];
   outputBlockIds: string[];
   recordVersion: number;
