@@ -398,9 +398,17 @@ function GroupSummary({
                       <strong>{t(workflowGateStatusKey(gate))}</strong>
                     </div>
                     <small>
-                      {t('workflowRuntime.gateSubject')}: {gate.gateDefinitionLock.subject.stepId}
-                      {' / '}{gate.gateDefinitionLock.subject.outputSlotId}
+                      {t('workflowRuntime.gateSubject')}:{' '}
+                      {gate.gateDefinitionLock.subject.kind === 'artifact_revision'
+                        ? `${t('workflowRuntime.gateArtifactRevision')} · ${gate.gateDefinitionLock.subject.workflowOutputSlotId}`
+                        : `${gate.gateDefinitionLock.subject.stepId} / ${gate.gateDefinitionLock.subject.outputSlotId}`}
                     </small>
+                    {gate.evaluation?.subjectArtifactRevisionId ? (
+                      <small>
+                        {t('workflowRuntime.gateArtifactRevision')}:{' '}
+                        {gate.evaluation.subjectArtifactRevisionId}
+                      </small>
+                    ) : null}
                     {gate.evaluation ? (
                       <small>
                         {t('workflowRuntime.gateAssets')}: {gate.evaluation.subjectAssetIds.length}

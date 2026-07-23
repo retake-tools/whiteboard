@@ -7,13 +7,29 @@ import type {
   WorkflowApprovalRequestRecord,
   WorkflowGateEvaluationRecord,
 } from './workflowGateContracts';
-import type { WorkflowGateDefinition } from './workflowRegistry';
-import type { WorkflowRunRecord, WorkflowStepRunRecord } from './workflowRuntimeContracts';
+import type {
+  WorkflowGateDefinitionLock,
+  WorkflowRunRecord,
+  WorkflowStepOutputArtifactBinding,
+  WorkflowStepRunRecord,
+} from './workflowRuntimeContracts';
+
+export interface WorkflowArtifactGateFact {
+  artifactId: string;
+  artifactRevisionId: string;
+  assetIds: string[];
+  executionIds: string[];
+  gateId: string;
+}
+
+export interface ReconcileWorkflowGatesOptions {
+  artifactFacts?: WorkflowArtifactGateFact[];
+}
 
 export interface WorkflowGateRuntimeView {
   canDecide: boolean;
   evaluation?: WorkflowGateEvaluationRecord;
-  gateDefinitionLock: WorkflowGateDefinition;
+  gateDefinitionLock: WorkflowGateDefinitionLock;
   request?: WorkflowApprovalRequestRecord;
 }
 
@@ -28,11 +44,25 @@ export function reconcileWorkflowGates(
   snapshot: BoardSnapshot,
   run: WorkflowRunRecord,
   stepRuns: WorkflowStepRunRecord[],
+  options: ReconcileWorkflowGatesOptions = {},
 ): boolean {
   let changed = false;
   for (const gate of run.gateDefinitionLocks) {
-    const subject = currentGateSubject(snapshot, gate, stepRuns);
     const current = currentEvaluationForGate(snapshot, run, gate.gateId);
+    const subject = gate.subject.kind === 'step_output'
+      ? currentStepOutputGateSubject(snapshot, gate, stepRuns)
+      : currentArtifactGateSubject(gate, stepRuns, options.artifactFacts);
+    if (gate.subject.kind === 'artifact_revision') {
+      const binding = artifactBindingForGate(gate, stepRuns);
+      if (
+        current
+        && (
+          !binding
+          || current.subjectArtifactRevisionId !== binding.artifactRevisionId
+        )
+      ) changed = markEvaluationOutdated(snapshot, current) || changed;
+      if (!options.artifactFacts) continue;
+    }
     if (!subject) {
       if (current) changed = markEvaluationOutdated(snapshot, current) || changed;
       continue;
@@ -51,6 +81,12 @@ export function reconcileWorkflowGates(
       gateDefinitionLock: structuredClone(gate),
       status: 'waiting_approval',
       freshness: 'current',
+      ...(subject.subjectArtifactId
+        ? { subjectArtifactId: subject.subjectArtifactId }
+        : {}),
+      ...(subject.subjectArtifactRevisionId
+        ? { subjectArtifactRevisionId: subject.subjectArtifactRevisionId }
+        : {}),
       subjectAssetIds: subject.subjectAssetIds,
       subjectExecutionIds: subject.subjectExecutionIds,
       subjectFingerprint: subject.subjectFingerprint,
@@ -66,6 +102,12 @@ export function reconcileWorkflowGates(
       projectId: snapshot.project.projectId,
       boardId: snapshot.board.boardId,
       status: 'pending',
+      ...(subject.subjectArtifactId
+        ? { subjectArtifactId: subject.subjectArtifactId }
+        : {}),
+      ...(subject.subjectArtifactRevisionId
+        ? { subjectArtifactRevisionId: subject.subjectArtifactRevisionId }
+        : {}),
       subjectAssetIds: [...subject.subjectAssetIds],
       subjectExecutionIds: [...subject.subjectExecutionIds],
       subjectFingerprint: subject.subjectFingerprint,
@@ -173,6 +215,8 @@ export function decideWorkflowApproval(
     || evaluation.freshness !== 'current'
     || evaluation.status !== 'waiting_approval'
     || evaluation.subjectFingerprint !== request.subjectFingerprint
+    || evaluation.subjectArtifactId !== request.subjectArtifactId
+    || evaluation.subjectArtifactRevisionId !== request.subjectArtifactRevisionId
     || !arraysEqual(evaluation.subjectAssetIds, request.subjectAssetIds)
     || !arraysEqual(evaluation.subjectExecutionIds, request.subjectExecutionIds)
   ) throw new Error('Workflow ApprovalRequest no longer matches the current Gate evaluation.');
@@ -191,6 +235,12 @@ export function decideWorkflowApproval(
     boardId: snapshot.board.boardId,
     decision: input.decision,
     expectedApprovalRequestVersion: input.expectedApprovalRequestVersion,
+    ...(request.subjectArtifactId
+      ? { subjectArtifactId: request.subjectArtifactId }
+      : {}),
+    ...(request.subjectArtifactRevisionId
+      ? { subjectArtifactRevisionId: request.subjectArtifactRevisionId }
+      : {}),
     subjectAssetIds: [...request.subjectAssetIds],
     subjectExecutionIds: [...request.subjectExecutionIds],
     subjectFingerprint: request.subjectFingerprint,
@@ -210,15 +260,22 @@ export function decideWorkflowApproval(
   return decision;
 }
 
-function currentGateSubject(
-  snapshot: BoardSnapshot,
-  gate: WorkflowGateDefinition,
-  stepRuns: WorkflowStepRunRecord[],
-): {
+interface CurrentGateSubject {
+  subjectArtifactId?: string;
+  subjectArtifactRevisionId?: string;
   subjectAssetIds: string[];
   subjectExecutionIds: string[];
   subjectFingerprint: string;
-} | undefined {
+}
+
+function currentStepOutputGateSubject(
+  snapshot: BoardSnapshot,
+  gate: WorkflowGateDefinitionLock,
+  stepRuns: WorkflowStepRunRecord[],
+): CurrentGateSubject | undefined {
+  if (gate.subject.kind !== 'step_output') {
+    throw new Error('Workflow step-output Gate subject required.');
+  }
   const step = stepRuns.find((candidate) => candidate.stepId === gate.subject.stepId);
   if (!step || step.status !== 'succeeded' || step.freshness !== 'current') return undefined;
   const subjectAssetIds = gateSubjectAssetIds(snapshot, gate, step);
@@ -231,15 +288,22 @@ function currentGateSubject(
   return {
     subjectAssetIds,
     subjectExecutionIds,
-    subjectFingerprint: subjectFingerprint(gate.gateId, subjectAssetIds, subjectExecutionIds),
+    subjectFingerprint: subjectFingerprint({
+      gateId: gate.gateId,
+      assetIds: subjectAssetIds,
+      executionIds: subjectExecutionIds,
+    }),
   };
 }
 
 function gateSubjectAssetIds(
   snapshot: BoardSnapshot,
-  gate: WorkflowGateDefinition,
+  gate: WorkflowGateDefinitionLock,
   step: WorkflowStepRunRecord,
 ): string[] {
+  if (gate.subject.kind !== 'step_output') {
+    throw new Error('Workflow step-output Gate subject required.');
+  }
   const executionById = new Map(
     step.executionIds.flatMap((executionId) => {
       const execution = snapshot.executions.find((candidate) => candidate.executionId === executionId);
@@ -259,6 +323,58 @@ function gateSubjectAssetIds(
       && outputAssetIdsForSlot(execution, step, gate.subject.outputSlotId).includes(assetId),
     );
   }));
+}
+
+function currentArtifactGateSubject(
+  gate: WorkflowGateDefinitionLock,
+  stepRuns: WorkflowStepRunRecord[],
+  facts: WorkflowArtifactGateFact[] | undefined,
+): CurrentGateSubject | undefined {
+  if (gate.subject.kind !== 'artifact_revision' || !facts) return undefined;
+  const fact = facts.find((candidate) => candidate.gateId === gate.gateId);
+  if (!fact) return undefined;
+  const binding = artifactBindingForGate(gate, stepRuns);
+  if (
+    !binding
+    || binding.artifactId !== fact.artifactId
+    || binding.artifactRevisionId !== fact.artifactRevisionId
+    || !arraysEqual(binding.assetIds, fact.assetIds)
+    || !arraysEqual(binding.executionIds, fact.executionIds)
+  ) throw new Error('Workflow Artifact Gate fact does not match the current StepRun binding.');
+  return {
+    subjectArtifactId: fact.artifactId,
+    subjectArtifactRevisionId: fact.artifactRevisionId,
+    subjectAssetIds: [...fact.assetIds],
+    subjectExecutionIds: [...fact.executionIds],
+    subjectFingerprint: subjectFingerprint({
+      artifactId: fact.artifactId,
+      artifactRevisionId: fact.artifactRevisionId,
+      assetIds: fact.assetIds,
+      executionIds: fact.executionIds,
+      gateId: gate.gateId,
+    }),
+  };
+}
+
+function artifactBindingForGate(
+  gate: WorkflowGateDefinitionLock,
+  stepRuns: WorkflowStepRunRecord[],
+): WorkflowStepOutputArtifactBinding | undefined {
+  if (gate.subject.kind !== 'artifact_revision') return undefined;
+  const subject = gate.subject;
+  const step = stepRuns.find(
+    (candidate) => candidate.stepId === subject.stepId,
+  );
+  if (!step || step.status !== 'succeeded' || step.freshness !== 'current') return undefined;
+  const binding = step.outputArtifactBindings.find(
+    (candidate) => candidate.workflowOutputSlotId === subject.workflowOutputSlotId,
+  );
+  if (!binding) return undefined;
+  if (
+    binding.artifactType !== subject.artifactType
+    || binding.outputSlotId !== subject.outputSlotId
+  ) throw new Error('Workflow Artifact Gate binding does not match its frozen subject.');
+  return binding;
 }
 
 function outputAssetIdsForSlot(
@@ -320,8 +436,22 @@ function markEvaluationOutdated(
   return true;
 }
 
-function subjectFingerprint(gateId: string, assetIds: string[], executionIds: string[]): string {
-  const value = JSON.stringify([gateId, assetIds, executionIds]);
+function subjectFingerprint(input: {
+  artifactId?: string;
+  artifactRevisionId?: string;
+  assetIds: string[];
+  executionIds: string[];
+  gateId: string;
+}): string {
+  const value = JSON.stringify(input.artifactRevisionId
+    ? [
+        input.gateId,
+        input.artifactId,
+        input.artifactRevisionId,
+        input.assetIds,
+        input.executionIds,
+      ]
+    : [input.gateId, input.assetIds, input.executionIds]);
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
     hash ^= value.charCodeAt(index);

@@ -17,6 +17,7 @@ import {
 import { touchSnapshot } from './local-store/context';
 import { loadSnapshot, saveSnapshot } from './local-store/snapshot-store';
 import { reconcileAgentArtifactTargets } from './agent-artifact-target-service';
+import { reconcileWorkflowArtifactGates } from './workflow-gate-artifact-service';
 
 export type WorkflowOutputMaterializationTrigger =
   | { kind: 'execution_succeeded'; executionId: string }
@@ -196,7 +197,19 @@ export async function materializeWorkflowOutputArtifacts(
       replacements.push(binding);
       nextBindings.push(structuredClone(binding));
     }
-    if (replacements.length === 0) return { bindings: nextBindings, snapshot: latest };
+    if (replacements.length === 0) {
+      await reconcileWorkflowArtifactGates({
+        boardId: input.boardId,
+        projectId: input.projectId,
+        workflowRunId: latestScope.workflowRun.workflowRunId,
+      });
+      const reconciled = await reconcileAgentArtifactTargets({
+        boardId: input.boardId,
+        projectId: input.projectId,
+        workflowRunId: latestScope.workflowRun.workflowRunId,
+      });
+      return { bindings: nextBindings, snapshot: reconciled.snapshot };
+    }
     const replacedSlotIds = new Set(
       replacements.map((binding) => binding.workflowOutputSlotId),
     );
@@ -210,6 +223,11 @@ export async function materializeWorkflowOutputArtifacts(
     latestScope.step.updatedAt = replacements[replacements.length - 1].boundAt;
     touchSnapshot(latest);
     await saveSnapshot(latest);
+    await reconcileWorkflowArtifactGates({
+      boardId: input.boardId,
+      projectId: input.projectId,
+      workflowRunId: latestScope.workflowRun.workflowRunId,
+    });
     const reconciled = await reconcileAgentArtifactTargets({
       boardId: input.boardId,
       projectId: input.projectId,

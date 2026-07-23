@@ -18,6 +18,14 @@ type AgentRunProjection = Pick<
   'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId' | 'status' | 'stopReason'
 >;
 
+export interface WorkflowOutputArtifactTarget {
+  artifactType: string;
+  outputSlotId: string;
+  stepRunId: string;
+  workflowOutputSlotId: string;
+  workflowRunId: string;
+}
+
 export function workflowAgentScope(
   workflow: WorkflowRunRuntimeView,
   target: WorkflowAgentTarget,
@@ -251,20 +259,33 @@ export function workflowArtifactTargetBinding(
     || record.target.until.kind !== 'artifact'
   ) throw new Error('Workflow Artifact Slice target required.');
   const until = record.target.until;
-  const workflow = workflowRunViewForId(snapshot, record.target.workflowRunId);
+  return workflowOutputArtifactBinding(snapshot, {
+    artifactType: until.artifactType,
+    outputSlotId: until.outputSlotId,
+    stepRunId: until.stepRunId,
+    workflowOutputSlotId: until.workflowOutputSlotId,
+    workflowRunId: record.target.workflowRunId,
+  });
+}
+
+export function workflowOutputArtifactBinding(
+  snapshot: BoardSnapshot,
+  target: WorkflowOutputArtifactTarget,
+): WorkflowStepOutputArtifactBinding | undefined {
+  const workflow = workflowRunViewForId(snapshot, target.workflowRunId);
   const step = workflow?.steps.find(
-    (candidate) => candidate.record.stepRunId === until.stepRunId,
+    (candidate) => candidate.record.stepRunId === target.stepRunId,
   );
   if (!step || step.status !== 'succeeded' || step.freshness !== 'current') return undefined;
   const binding = step.record.outputArtifactBindings.find(
-    (candidate) => candidate.workflowOutputSlotId === until.workflowOutputSlotId,
+    (candidate) => candidate.workflowOutputSlotId === target.workflowOutputSlotId,
   );
   if (!binding) return undefined;
   if (
-    binding.artifactType !== until.artifactType
-    || binding.outputSlotId !== until.outputSlotId
-  ) throw new Error('Workflow Artifact output binding does not match the frozen Agent target.');
-  const expected = outputAssetsForTarget(snapshot, step, until.outputSlotId);
+    binding.artifactType !== target.artifactType
+    || binding.outputSlotId !== target.outputSlotId
+  ) throw new Error('Workflow Artifact output binding does not match the frozen target.');
+  const expected = outputAssetsForTarget(snapshot, step, target.outputSlotId);
   if (
     !arraysEqual(binding.assetIds, expected.assetIds)
     || !arraysEqual(binding.executionIds, expected.executionIds)

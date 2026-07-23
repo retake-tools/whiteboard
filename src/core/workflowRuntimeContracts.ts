@@ -70,6 +70,20 @@ export interface WorkflowOutputSlotLock {
   workflowOutputSlotId: string;
 }
 
+export type WorkflowGateDefinitionLock = Omit<WorkflowGateDefinition, 'subject'> & {
+  subject:
+    | Extract<WorkflowGateDefinition['subject'], { kind: 'step_output' }>
+    | {
+      artifactScope: 'workflow_run';
+      artifactType: string;
+      kind: 'artifact_revision';
+      outputSlotId: string;
+      semanticKey: string;
+      stepId: string;
+      workflowOutputSlotId: string;
+    };
+};
+
 export interface WorkflowRunRecord {
   boardId: string;
   createdAt: string;
@@ -77,7 +91,7 @@ export interface WorkflowRunRecord {
   currentStepIds: string[];
   entrypointId?: string;
   inputBindings: WorkflowRunInputBinding[];
-  gateDefinitionLocks: WorkflowGateDefinition[];
+  gateDefinitionLocks: WorkflowGateDefinitionLock[];
   gateEvaluationIds: string[];
   outputSlotLocks: WorkflowOutputSlotLock[];
   projectId: string;

@@ -458,6 +458,7 @@ type TranslationKey =
   | 'workflowRuntime.definition'
   | 'workflowRuntime.gateApprove'
   | 'workflowRuntime.gateApproved'
+  | 'workflowRuntime.gateArtifactRevision'
   | 'workflowRuntime.gateAssets'
   | 'workflowRuntime.gateDecisionBody'
   | 'workflowRuntime.gateDecisionFailed'
@@ -1230,6 +1231,7 @@ const translations: Record<Locale, Translations> = {
     'workflowRuntime.definition': 'Definition',
     'workflowRuntime.gateApprove': 'Approve',
     'workflowRuntime.gateApproved': 'Gate approved',
+    'workflowRuntime.gateArtifactRevision': 'Artifact Revision',
     'workflowRuntime.gateAssets': 'Subject assets',
     'workflowRuntime.gateDecisionBody': 'The Workflow state was updated from this explicit decision.',
     'workflowRuntime.gateDecisionFailed': 'Gate decision could not be recorded',
@@ -1997,6 +1999,7 @@ const translations: Record<Locale, Translations> = {
     'workflowRuntime.definition': 'Definition',
     'workflowRuntime.gateApprove': '批准',
     'workflowRuntime.gateApproved': 'Gate 已批准',
+    'workflowRuntime.gateArtifactRevision': 'Artifact Revision',
     'workflowRuntime.gateAssets': '审阅资产',
     'workflowRuntime.gateDecisionBody': 'Workflow 已根据这次显式决定更新状态。',
     'workflowRuntime.gateDecisionFailed': '无法记录 Gate 决定',

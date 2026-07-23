@@ -176,7 +176,7 @@ await assert.rejects(
     boardId: wrongScope.board.boardId,
     projectId: wrongScope.project.projectId,
   }),
-  /does not match the frozen Agent target identity/,
+  /does not match the frozen target identity/,
 );
 const rejectedWrongScope = agentFor(
   await loadSnapshot(wrongScope.project.projectId, wrongScope.board.boardId),

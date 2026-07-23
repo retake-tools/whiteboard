@@ -14,6 +14,7 @@ import {
 } from './workflowGateRuntime';
 import { workflowDefinitionFor } from './workflowRegistry';
 import type {
+  WorkflowGateDefinitionLock,
   WorkflowRunRecord,
   WorkflowRunStatus,
   WorkflowStepRunFreshness,
@@ -132,6 +133,49 @@ export function createWorkflowRunForGroup(
     if (!block) throw new Error(`Workflow input Block projection is missing: ${slot.slotId}`);
     return { workflowInputSlotId: slot.slotId, blockId: block.blockId };
   });
+  const outputSlotLocks = definition.outputSlots.map((output) => {
+    const step = definition.steps.find((candidate) => candidate.stepId === output.source.stepId);
+    const capability = step ? capabilityDefinitionFor(step.capabilityLock.capabilityId) : undefined;
+    const slot = capability?.outputSlots.find(
+      (candidate) => candidate.slotId === output.source.outputSlotId,
+    );
+    if (!step || !slot?.artifactType) {
+      throw new Error(`Workflow output Artifact lock is incomplete: ${output.slotId}`);
+    }
+    return {
+      artifactType: slot.artifactType,
+      outputSlotId: output.source.outputSlotId,
+      stepId: output.source.stepId,
+      workflowOutputSlotId: output.slotId,
+    };
+  });
+  const gateDefinitionLocks = definition.gates.map((gate): WorkflowGateDefinitionLock => {
+    const subject = gate.subject;
+    if (subject.kind === 'step_output') {
+      return {
+        ...structuredClone(gate),
+        subject: structuredClone(subject),
+      };
+    }
+    const output = outputSlotLocks.find(
+      (candidate) => candidate.workflowOutputSlotId === subject.workflowOutputSlotId,
+    );
+    if (!output) {
+      throw new Error(`Workflow Gate Artifact subject lock is incomplete: ${gate.gateId}`);
+    }
+    return {
+      ...structuredClone(gate),
+      subject: {
+        artifactScope: 'workflow_run',
+        artifactType: output.artifactType,
+        kind: 'artifact_revision',
+        outputSlotId: output.outputSlotId,
+        semanticKey: `workflow_output:${output.workflowOutputSlotId}`,
+        stepId: output.stepId,
+        workflowOutputSlotId: output.workflowOutputSlotId,
+      },
+    };
+  });
   const run: WorkflowRunRecord = {
     workflowRunId,
     projectId: snapshot.project.projectId,
@@ -148,24 +192,9 @@ export function createWorkflowRunForGroup(
       sourcePackageLock: packageContext.packageLock,
     } : {}),
     inputBindings,
-    gateDefinitionLocks: structuredClone(definition.gates),
+    gateDefinitionLocks,
     gateEvaluationIds: [],
-    outputSlotLocks: definition.outputSlots.map((output) => {
-      const step = definition.steps.find((candidate) => candidate.stepId === output.source.stepId);
-      const capability = step ? capabilityDefinitionFor(step.capabilityLock.capabilityId) : undefined;
-      const slot = capability?.outputSlots.find(
-        (candidate) => candidate.slotId === output.source.outputSlotId,
-      );
-      if (!step || !slot?.artifactType) {
-        throw new Error(`Workflow output Artifact lock is incomplete: ${output.slotId}`);
-      }
-      return {
-        artifactType: slot.artifactType,
-        outputSlotId: output.source.outputSlotId,
-        stepId: output.source.stepId,
-        workflowOutputSlotId: output.slotId,
-      };
-    }),
+    outputSlotLocks,
     stepRunIds: stepRuns.map((step) => step.stepRunId),
     currentStepIds: [],
     createdBy: 'user',

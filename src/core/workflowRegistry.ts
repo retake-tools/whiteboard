@@ -56,11 +56,16 @@ export interface WorkflowHumanApprovalGateDefinition {
   kind: 'human_approval';
   required: true;
   reviewChecklist?: string[];
-  subject: {
-    kind: 'step_output';
-    outputSlotId: string;
-    stepId: string;
-  };
+  subject:
+    | {
+      kind: 'step_output';
+      outputSlotId: string;
+      stepId: string;
+    }
+    | {
+      kind: 'artifact_revision';
+      workflowOutputSlotId: string;
+    };
 }
 
 export type WorkflowGateDefinition = WorkflowHumanApprovalGateDefinition;
@@ -250,6 +255,9 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
     if (stepById.has(step.stepId)) issues.push(`Duplicate Workflow stepId: ${step.stepId}`);
     stepById.set(step.stepId, step);
   }
+  const workflowOutputById = new Map(
+    workflow.outputSlots.map((slot) => [slot.slotId, slot]),
+  );
 
   const gateIds = new Set<string>();
   for (const gate of workflow.gates) {
@@ -258,11 +266,17 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
     if (!gate.definitionHash.startsWith('sha256:')) {
       issues.push(`Workflow Gate definitionHash is invalid: ${gate.gateId}`);
     }
-    const subjectStep = stepById.get(gate.subject.stepId);
-    if (!subjectStep) {
-      issues.push(`Workflow Gate subject Step is missing: ${gate.gateId}.${gate.subject.stepId}`);
-    } else if (!subjectStep.outputSlots.includes(gate.subject.outputSlotId)) {
-      issues.push(`Workflow Gate subject output is missing: ${gate.gateId}.${gate.subject.outputSlotId}`);
+    if (gate.subject.kind === 'step_output') {
+      const subjectStep = stepById.get(gate.subject.stepId);
+      if (!subjectStep) {
+        issues.push(`Workflow Gate subject Step is missing: ${gate.gateId}.${gate.subject.stepId}`);
+      } else if (!subjectStep.outputSlots.includes(gate.subject.outputSlotId)) {
+        issues.push(`Workflow Gate subject output is missing: ${gate.gateId}.${gate.subject.outputSlotId}`);
+      }
+    } else if (!workflowOutputById.has(gate.subject.workflowOutputSlotId)) {
+      issues.push(
+        `Workflow Gate Artifact subject output is missing: ${gate.gateId}.${gate.subject.workflowOutputSlotId}`,
+      );
     }
   }
 

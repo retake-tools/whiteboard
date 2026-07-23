@@ -1,4 +1,4 @@
-import type { WorkflowGateDefinition } from './workflowRegistry';
+import type { WorkflowGateDefinitionLock } from './workflowRuntimeContracts';
 
 export type WorkflowGateEvaluationStatus = 'waiting_approval' | 'passed' | 'failed';
 export type WorkflowGateFreshness = 'current' | 'outdated';
@@ -10,7 +10,9 @@ export interface WorkflowGateEvaluationRecord {
   boardId: string;
   createdAt: string;
   freshness: WorkflowGateFreshness;
-  gateDefinitionLock: WorkflowGateDefinition;
+  gateDefinitionLock: WorkflowGateDefinitionLock;
+  subjectArtifactId?: string;
+  subjectArtifactRevisionId?: string;
   gateEvaluationId: string;
   gateId: string;
   projectId: string;
@@ -32,6 +34,8 @@ export interface WorkflowApprovalRequestRecord {
   recordVersion: number;
   requestedAt: string;
   status: WorkflowApprovalRequestStatus;
+  subjectArtifactId?: string;
+  subjectArtifactRevisionId?: string;
   subjectAssetIds: string[];
   subjectExecutionIds: string[];
   subjectFingerprint: string;
@@ -54,6 +58,8 @@ export interface WorkflowApprovalDecisionRecord {
   projectId: string;
   reason?: string;
   recordVersion: 1;
+  subjectArtifactId?: string;
+  subjectArtifactRevisionId?: string;
   subjectAssetIds: string[];
   subjectExecutionIds: string[];
   subjectFingerprint: string;
