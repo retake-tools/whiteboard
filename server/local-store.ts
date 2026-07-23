@@ -8,6 +8,12 @@ export {
   importAssetFromUrl,
 } from './local-store/asset-store';
 export {
+  createOrAdvanceArtifact,
+  getArtifactRevision,
+  localArtifactStore,
+  readProjectArtifacts,
+} from './local-store/artifact-store';
+export {
   completeExecution,
   createExecution,
   failExecution,
