@@ -4,6 +4,7 @@ import type {
   AgentMessageRecord,
   AgentRunControlAction,
   AgentRuntimeBindingRecord,
+  AgentRuntimeEventRecord,
   AgentRuntimeTurnContext,
   AgentRuntimeTurnDecision,
   AgentSessionRecord,
@@ -153,18 +154,6 @@ export function markAgentRuntimeFailure(
   touchSession(session);
 }
 
-export function rejectChangeProposal(snapshot: BoardSnapshot, proposalId: string): ChangeProposalRecord {
-  const proposal = (snapshot.changeProposals ?? []).find((candidate) => candidate.proposalId === proposalId);
-  if (!proposal || proposal.boardId !== snapshot.board.boardId || proposal.projectId !== snapshot.project.projectId) {
-    throw new Error(`Change Proposal not found: ${proposalId}`);
-  }
-  if (proposal.status !== 'awaiting_decision') throw new Error('Change Proposal is not awaiting a decision.');
-  proposal.status = 'rejected';
-  proposal.updatedAt = nowIso();
-  proposal.recordVersion += 1;
-  return proposal;
-}
-
 export function archiveAgentSession(snapshot: BoardSnapshot, agentSessionId: string): AgentSessionRecord {
   const session = requireSession(snapshot, agentSessionId);
   session.status = 'archived';
@@ -206,6 +195,14 @@ export function agentRuntimeTurnContext(
         targetKind: run.target.kind,
       },
     } : {}),
+    availableAgentRuns: (snapshot.agentRuns ?? [])
+      .filter((candidate) => candidate.projectId === snapshot.project.projectId
+        && candidate.boardId === snapshot.board.boardId)
+      .map((candidate) => ({
+        agentRunId: candidate.agentRunId,
+        status: candidate.status,
+        targetKind: candidate.target.kind,
+      })),
     boardId: snapshot.board.boardId,
     ...(entrypoint?.kind === 'entrypoint' ? { entrypointId: entrypoint.entrypointId } : {}),
     history: messagesForSession(snapshot, agentSessionId)
@@ -228,6 +225,12 @@ export function proposalsForSession(snapshot: BoardSnapshot, agentSessionId: str
   return [...(snapshot.changeProposals ?? [])]
     .filter((proposal) => proposal.agentSessionId === agentSessionId)
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+export function runtimeEventsForSession(snapshot: BoardSnapshot, agentSessionId: string): AgentRuntimeEventRecord[] {
+  return [...(snapshot.agentRuntimeEvents ?? [])]
+    .filter((event) => event.agentSessionId === agentSessionId)
+    .sort((left, right) => left.sequence - right.sequence);
 }
 
 export function activeBoardAgentSessions(snapshot: BoardSnapshot): AgentSessionRecord[] {
@@ -268,6 +271,7 @@ function createChangeProposal(
     createdAt: now,
     instruction: source.content,
     kind: decision.proposalKind,
+    proposedCommand: structuredClone(decision.proposedCommand),
     projectId: snapshot.project.projectId,
     proposalId: createId('proposal'),
     recordVersion: 1,

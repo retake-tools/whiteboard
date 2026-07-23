@@ -6,10 +6,10 @@ import {
   archiveAgentSession,
   createAgentSession,
   markAgentRuntimeFailure,
-  rejectChangeProposal,
   runtimeBindingForSession,
   setAgentSessionRun,
 } from '../core/agentSession';
+import { appendAgentRuntimeEvent, decideChangeProposal } from '../core/agentChangeApplication';
 import type { AgentMessageContextRef } from '../core/agentSessionContracts';
 import { requestAgentRuntimeTurn } from '../core/agentRuntimeClient';
 import { currentExecutionProviderSettings } from '../core/executionProviderPreferences';
@@ -89,11 +89,20 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     setSelectedSessionId(undefined);
   }
 
-  function rejectProposal(proposalId: string): void {
-    updateSnapshot((current) => {
-      rejectChangeProposal(current, proposalId);
-      return current;
-    }, { persist: true, syncFlow: false });
+  function decideProposal(
+    proposalId: string,
+    expectedProposalVersion: number,
+    decision: 'approve' | 'reject',
+  ): void {
+    try {
+      updateSnapshot((current) => {
+        decideChangeProposal(current, { decision, expectedProposalVersion, proposalId });
+        return current;
+      }, { persist: true, syncFlow: false });
+      setError(undefined);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught));
+    }
   }
 
   async function submitMessage(input: {
@@ -126,6 +135,12 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
         boardId: withUserMessage.board.boardId,
         projectId: withUserMessage.project.projectId,
         sourceMessageId,
+      }, async (event) => {
+        const withEvent = updateSnapshot((current) => {
+          appendAgentRuntimeEvent(current, { event, sourceMessageId });
+          return current;
+        }, { syncFlow: false });
+        await persistSnapshot(withEvent, { requireLocalApi: true });
       });
       const withRuntimeResult = updateSnapshot((current) => {
         applyAgentRuntimeTurn(current, {
@@ -162,10 +177,10 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
 
   return {
     archiveSession,
+    decideProposal,
     error,
     isSending,
     newSession,
-    rejectProposal,
     selectAgentRun,
     selectedBinding,
     selectedSession,

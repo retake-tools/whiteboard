@@ -93,12 +93,25 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               sendJson(res, { error: 'agentSessionId, projectId, boardId, and sourceMessageId are required' }, 400);
               return;
             }
-            sendJson(res, await runAgentRuntimeTurn({
-              agentSessionId: body.agentSessionId,
-              boardId: body.boardId,
-              projectId: body.projectId,
-              sourceMessageId: body.sourceMessageId,
-            }));
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+            res.setHeader('Cache-Control', 'no-cache, no-transform');
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            try {
+              const result = await runAgentRuntimeTurn({
+                agentSessionId: body.agentSessionId,
+                boardId: body.boardId,
+                projectId: body.projectId,
+                sourceMessageId: body.sourceMessageId,
+              }, (event) => writeNdjson(res, { event, type: 'event' }));
+              writeNdjson(res, { result, type: 'result' });
+            } catch (error) {
+              writeNdjson(res, {
+                error: error instanceof Error ? error.message : String(error),
+                type: 'error',
+              });
+            }
+            res.end();
             return;
           }
 
@@ -827,4 +840,8 @@ function sendJson(res: ServerResponse, value: unknown, statusCode = 200): void {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json');
   res.end(JSON.stringify(value));
+}
+
+function writeNdjson(res: ServerResponse, value: unknown): void {
+  res.write(`${JSON.stringify(value)}\n`);
 }

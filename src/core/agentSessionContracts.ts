@@ -57,7 +57,11 @@ export interface AgentRuntimeBindingRecord {
 
 export type ChangeProposalStatus =
   | 'awaiting_decision'
+  | 'approved'
   | 'rejected'
+  | 'applying'
+  | 'applied'
+  | 'failed'
   | 'superseded';
 
 export type ChangeProposalKind =
@@ -66,6 +70,16 @@ export type ChangeProposalKind =
   | 'modify_workflow'
   | 'out_of_scope';
 
+export type ChangeProposalCommand =
+  | {
+      kind: 'agent_session.attach_run';
+      targetAgentRunId: string;
+    }
+  | {
+      kind: 'unsupported';
+      reason: string;
+    };
+
 export interface ChangeProposalRecord {
   agentRunId?: string;
   agentSessionId: string;
@@ -73,13 +87,30 @@ export interface ChangeProposalRecord {
   createdAt: string;
   instruction: string;
   kind: ChangeProposalKind;
+  proposedCommand: ChangeProposalCommand;
   projectId: string;
   proposalId: string;
   recordVersion: number;
   sourceMessageId: string;
   status: ChangeProposalStatus;
   summary: string;
+  appliedAt?: string;
+  applyError?: string;
+  changeDecisionId?: string;
   updatedAt: string;
+}
+
+export interface ChangeDecisionRecord {
+  agentSessionId: string;
+  boardId: string;
+  changeDecisionId: string;
+  createdAt: string;
+  decidedBy: 'user_local';
+  decision: 'approve' | 'reject';
+  expectedProposalVersion: number;
+  projectId: string;
+  proposalId: string;
+  recordVersion: number;
 }
 
 export type AgentRunControlAction = 'cancel' | 'pause' | 'resume';
@@ -96,6 +127,7 @@ export type AgentRuntimeTurnDecision =
       kind: 'change_proposal';
       message: string;
       proposalKind: ChangeProposalKind;
+      proposedCommand: ChangeProposalCommand;
       summary: string;
     };
 
@@ -106,6 +138,11 @@ export interface AgentRuntimeTurnContext {
     status: string;
     targetKind: string;
   };
+  availableAgentRuns: Array<{
+    agentRunId: string;
+    status: string;
+    targetKind: string;
+  }>;
   boardId: string;
   entrypointId?: string;
   history: Array<{ content: string; role: AgentMessageRole }>;
@@ -122,9 +159,28 @@ export interface AgentRuntimeTurnResult {
 }
 
 export type AgentRuntimeEvent =
-  | { agentSessionId: string; kind: 'turn_started' }
-  | { agentSessionId: string; kind: 'turn_completed'; runtimeTurnId: string }
-  | { agentSessionId: string; error: string; kind: 'turn_failed' };
+  | { agentSessionId: string; kind: 'turn_started'; occurredAt: string; runtimeEventId: string }
+  | { agentSessionId: string; delta: string; kind: 'decision_delta'; occurredAt: string; runtimeEventId: string }
+  | { agentSessionId: string; kind: 'turn_completed'; occurredAt: string; runtimeEventId: string; runtimeTurnId: string }
+  | { agentSessionId: string; error: string; kind: 'turn_failed'; occurredAt: string; runtimeEventId: string };
+
+export type AgentRuntimeEventRecord = AgentRuntimeEventBase & (
+  | { kind: 'turn_started' }
+  | { delta: string; kind: 'decision_delta' }
+  | { kind: 'turn_completed'; runtimeTurnId: string }
+  | { error: string; kind: 'turn_failed' }
+);
+
+interface AgentRuntimeEventBase {
+  agentSessionId: string;
+  boardId: string;
+  occurredAt: string;
+  projectId: string;
+  recordVersion: number;
+  runtimeEventId: string;
+  sequence: number;
+  sourceMessageId: string;
+}
 
 export interface AgentRuntimePort {
   cancel(agentSessionId: string): Promise<void>;
@@ -137,11 +193,13 @@ export interface AgentRuntimePort {
     agentSessionId: string;
     binding: AgentRuntimeBindingRecord;
     context: AgentRuntimeTurnContext;
+    onEvent?: (event: AgentRuntimeEvent) => void;
   }): Promise<AgentRuntimeTurnResult>;
   startSession(input: {
     agentSessionId: string;
     binding: AgentRuntimeBindingRecord;
     context: AgentRuntimeTurnContext;
+    onEvent?: (event: AgentRuntimeEvent) => void;
   }): Promise<AgentRuntimeTurnResult>;
   streamEvents(agentSessionId: string): AsyncIterable<AgentRuntimeEvent>;
   respondToApproval(requestId: string, decision: 'approve' | 'reject'): Promise<void>;

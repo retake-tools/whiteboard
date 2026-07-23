@@ -93,7 +93,15 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
     agentSessions: legacy.agentSessions ?? [],
     agentMessages: legacy.agentMessages ?? [],
     agentRuntimeBindings: legacy.agentRuntimeBindings ?? [],
-    changeProposals: legacy.changeProposals ?? [],
+    agentRuntimeEvents: legacy.agentRuntimeEvents ?? [],
+    changeProposals: (legacy.changeProposals ?? []).map((proposal) => ({
+      ...proposal,
+      proposedCommand: proposal.proposedCommand ?? {
+        kind: 'unsupported' as const,
+        reason: 'Legacy Proposal has no registered Application Service command.',
+      },
+    })),
+    changeDecisions: legacy.changeDecisions ?? [],
     workflowRuns: legacy.workflowRuns ?? [],
     workflowStepRuns: legacy.workflowStepRuns ?? [],
   };

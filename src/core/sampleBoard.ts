@@ -79,6 +79,8 @@ export const defaultSnapshot: BoardSnapshot = {
   agentSessions: [],
   agentMessages: [],
   agentRuntimeBindings: [],
+  agentRuntimeEvents: [],
   changeProposals: [],
+  changeDecisions: [],
   historyEvents: [],
 };

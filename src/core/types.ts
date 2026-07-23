@@ -12,8 +12,10 @@ import type { WorkflowRunRecord, WorkflowStepRunRecord, WorkflowStepRunFreshness
 import type { AgentRunRecord } from './agentRuntimeContracts';
 import type {
   AgentMessageRecord,
+  AgentRuntimeEventRecord,
   AgentRuntimeBindingRecord,
   AgentSessionRecord,
+  ChangeDecisionRecord,
   ChangeProposalRecord,
 } from './agentSessionContracts';
 
@@ -407,7 +409,9 @@ export interface BoardSnapshot {
   agentSessions?: AgentSessionRecord[];
   agentMessages?: AgentMessageRecord[];
   agentRuntimeBindings?: AgentRuntimeBindingRecord[];
+  agentRuntimeEvents?: AgentRuntimeEventRecord[];
   changeProposals?: ChangeProposalRecord[];
+  changeDecisions?: ChangeDecisionRecord[];
   workflowRuns?: WorkflowRunRecord[];
   workflowStepRuns?: WorkflowStepRunRecord[];
   historyEvents?: BoardHistoryEvent[];

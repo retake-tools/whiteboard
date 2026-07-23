@@ -82,7 +82,10 @@
 .agent-workspace-empty strong { font-size: 14px; }
 .agent-workspace-empty p { max-width: 260px; margin: 0; color: var(--retake-text-muted); font-size: 12px; line-height: 1.5; }
 .agent-workspace-empty button,
-.agent-workspace-changes article > button { padding: 7px 10px; border-radius: 7px; background: var(--retake-accent); color: var(--retake-on-accent); font-size: 12px; cursor: pointer; }
+.agent-workspace-proposal-actions { display: flex; gap: 7px; }
+.agent-workspace-proposal-actions button { padding: 7px 10px; border: 0; border-radius: 7px; background: var(--retake-accent); color: var(--retake-on-accent); font-size: 12px; cursor: pointer; }
+.agent-workspace-proposal-actions button:last-child { background: var(--retake-text-secondary); }
+.agent-workspace-proposal-actions button:disabled { opacity: .45; cursor: default; }
 
 .agent-workspace-composer { position: relative; padding: 10px 12px 12px; border-top: 1px solid var(--retake-border-subtle); background: var(--retake-surface); }
 .agent-workspace-composer form { display: grid; gap: 7px; }
@@ -121,7 +124,6 @@
 .agent-workspace-changes article p,
 .agent-workspace-changes article small { margin: 0; color: var(--retake-text-secondary); font-size: 11px; line-height: 1.45; }
 .agent-workspace-changes article small { color: var(--retake-text-muted); }
-.agent-workspace-changes article > button { justify-self: start; background: var(--retake-text-secondary); }
 
 @media (max-width: 640px) {
   .agent-workspace { top: 58px; right: 8px; bottom: 10px; width: calc(100vw - 16px); }

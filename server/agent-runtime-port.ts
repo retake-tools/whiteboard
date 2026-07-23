@@ -6,6 +6,7 @@ import type {
   AgentRuntimeTurnResult,
 } from '../src/core/agentSessionContracts';
 import { agentRuntimeTurnContext, runtimeBindingForSession } from '../src/core/agentSession';
+import { createId, nowIso } from '../src/core/id';
 import { getBoardSnapshot } from './local-store';
 import { listExecutionProviderSettings } from './local-store/execution-provider-store';
 import { runCodexAppServerTurn } from './codex-app-server-client';
@@ -32,11 +33,33 @@ const decisionSchema = {
     {
       type: 'object',
       additionalProperties: false,
-      required: ['kind', 'message', 'proposalKind', 'summary'],
+      required: ['kind', 'message', 'proposalKind', 'proposedCommand', 'summary'],
       properties: {
         kind: { const: 'change_proposal' },
         message: { type: 'string' },
         proposalKind: { enum: ['modify_workflow', 'install_package', 'expand_permissions', 'out_of_scope'] },
+        proposedCommand: {
+          anyOf: [
+            {
+              type: 'object',
+              additionalProperties: false,
+              required: ['kind', 'targetAgentRunId'],
+              properties: {
+                kind: { const: 'agent_session.attach_run' },
+                targetAgentRunId: { type: 'string' },
+              },
+            },
+            {
+              type: 'object',
+              additionalProperties: false,
+              required: ['kind', 'reason'],
+              properties: {
+                kind: { const: 'unsupported' },
+                reason: { type: 'string' },
+              },
+            },
+          ],
+        },
         summary: { type: 'string' },
       },
     },
@@ -49,6 +72,7 @@ Return one JSON object matching the supplied schema.
 - reply: answer questions that do not change product state.
 - agent_run_control: only when the user explicitly asks for an allowed action on the exact supplied AgentRun id.
 - change_proposal: any request to change Workflow structure, install packages, expand permissions, target another run, create/delete/connect Blocks, or otherwise exceed the supplied scope.
+  The only registered proposal command is agent_session.attach_run, and only for another AgentRun id listed in availableAgentRuns. All other proposals must use unsupported.
 Chat text is intent, never execution authorization.`;
 
 class CodexAppServerAgentRuntimePort implements AgentRuntimePort {
@@ -84,7 +108,8 @@ class CodexAppServerAgentRuntimePort implements AgentRuntimePort {
     input: Parameters<AgentRuntimePort['startSession']>[0],
     resume: boolean,
   ): Promise<AgentRuntimeTurnResult> {
-    this.appendEvent(input.agentSessionId, { agentSessionId: input.agentSessionId, kind: 'turn_started' });
+    let publishedDecisionDelta = false;
+    this.publishEvent(input, runtimeEvent(input.agentSessionId, { kind: 'turn_started' }));
     try {
       const result = await runCodexAppServerTurn({
         baseInstructions,
@@ -94,6 +119,14 @@ class CodexAppServerAgentRuntimePort implements AgentRuntimePort {
         outputSchema: decisionSchema,
         prompt: runtimePrompt(input.context),
         sandbox: 'read-only',
+        onTextDelta: (delta) => {
+          if (publishedDecisionDelta) return;
+          publishedDecisionDelta = true;
+          this.publishEvent(
+            input,
+            runtimeEvent(input.agentSessionId, { delta: delta.slice(0, 256), kind: 'decision_delta' }),
+          );
+        },
         ...(resume && input.binding.externalThreadId ? { threadId: input.binding.externalThreadId } : {}),
       });
       const decision = parseAgentRuntimeDecision(result.text, input.context);
@@ -103,20 +136,26 @@ class CodexAppServerAgentRuntimePort implements AgentRuntimePort {
         model: input.binding.model,
         runtimeTurnId: result.turnId,
       };
-      this.appendEvent(input.agentSessionId, {
-        agentSessionId: input.agentSessionId,
+      this.publishEvent(input, runtimeEvent(input.agentSessionId, {
         kind: 'turn_completed',
         runtimeTurnId: result.turnId,
-      });
+      }));
       return turnResult;
     } catch (error) {
-      this.appendEvent(input.agentSessionId, {
-        agentSessionId: input.agentSessionId,
+      this.publishEvent(input, runtimeEvent(input.agentSessionId, {
         error: error instanceof Error ? error.message : String(error),
         kind: 'turn_failed',
-      });
+      }));
       throw error;
     }
+  }
+
+  private publishEvent(
+    input: Parameters<AgentRuntimePort['startSession']>[0],
+    event: AgentRuntimeEvent,
+  ): void {
+    this.appendEvent(input.agentSessionId, event);
+    input.onEvent?.(event);
   }
 
   private appendEvent(agentSessionId: string, event: AgentRuntimeEvent): void {
@@ -133,7 +172,7 @@ export async function runAgentRuntimeTurn(input: {
   boardId: string;
   projectId: string;
   sourceMessageId: string;
-}): Promise<AgentRuntimeTurnResult> {
+}, onEvent?: (event: AgentRuntimeEvent) => void): Promise<AgentRuntimeTurnResult> {
   const snapshot = await getBoardSnapshot({ projectId: input.projectId, boardId: input.boardId });
   const binding = runtimeBindingForSession(snapshot, input.agentSessionId);
   if (!binding) throw new Error('Agent Session runtime binding was not found.');
@@ -147,7 +186,7 @@ export async function runAgentRuntimeTurn(input: {
   }
   const context = agentRuntimeTurnContext(snapshot, input.agentSessionId, input.sourceMessageId);
   const runtimeBinding = { ...binding, model: connection.modelId };
-  const request = { agentSessionId: input.agentSessionId, binding: runtimeBinding, context };
+  const request = { agentSessionId: input.agentSessionId, binding: runtimeBinding, context, ...(onEvent ? { onEvent } : {}) };
   return binding.externalThreadId
     ? codexRuntimePort.resumeSession(request)
     : codexRuntimePort.startSession(request);
@@ -159,6 +198,7 @@ function runtimePrompt(context: AgentRuntimeTurnContext): string {
       projectId: context.projectId,
       boardId: context.boardId,
       agentRun: context.agentRun ?? null,
+      availableAgentRuns: context.availableAgentRuns,
       entrypointId: context.entrypointId ?? null,
       mentions: context.mentions,
     },
@@ -195,7 +235,52 @@ export function parseAgentRuntimeDecision(text: string, context: AgentRuntimeTur
       proposalKind !== 'out_of_scope'
     ) throw new Error('Agent Runtime returned an invalid Change Proposal kind.');
     if (!summary) throw new Error('Agent Runtime returned an empty Change Proposal summary.');
-    return { kind: 'change_proposal', message, proposalKind, summary };
+    const command = isRecord(parsed.proposedCommand) ? parsed.proposedCommand : undefined;
+    if (command?.kind === 'agent_session.attach_run') {
+      const targetAgentRunId = command.targetAgentRunId;
+      if (
+        typeof targetAgentRunId !== 'string' ||
+        targetAgentRunId === context.agentRun?.agentRunId ||
+        !context.availableAgentRuns.some((run) => run.agentRunId === targetAgentRunId)
+      ) throw new Error('Agent Runtime proposed an Agent Run outside the current Board scope.');
+      return {
+        kind: 'change_proposal',
+        message,
+        proposalKind,
+        proposedCommand: { kind: 'agent_session.attach_run', targetAgentRunId },
+        summary,
+      };
+    }
+    if (command?.kind === 'unsupported' && typeof command.reason === 'string' && command.reason.trim()) {
+      return {
+        kind: 'change_proposal',
+        message,
+        proposalKind,
+        proposedCommand: { kind: 'unsupported', reason: command.reason.trim() },
+        summary,
+      };
+    }
+    throw new Error('Agent Runtime returned an unregistered Change Proposal command.');
   }
   throw new Error('Agent Runtime returned an unknown decision kind.');
+}
+
+function runtimeEvent(
+  agentSessionId: string,
+  detail:
+    | { kind: 'turn_started' }
+    | { delta: string; kind: 'decision_delta' }
+    | { kind: 'turn_completed'; runtimeTurnId: string }
+    | { error: string; kind: 'turn_failed' },
+): AgentRuntimeEvent {
+  return {
+    agentSessionId,
+    occurredAt: nowIso(),
+    runtimeEventId: createId('agent_event'),
+    ...detail,
+  } as AgentRuntimeEvent;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }

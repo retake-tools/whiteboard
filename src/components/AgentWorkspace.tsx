@@ -1,6 +1,6 @@
 import { Archive, Bot, ChevronDown, CircleStop, Pause, Play, Plus, X } from 'lucide-react';
 import { useState, type ReactElement } from 'react';
-import { messagesForSession, proposalsForSession } from '../core/agentSession';
+import { messagesForSession, proposalsForSession, runtimeEventsForSession } from '../core/agentSession';
 import type { AgentRuntimeBindingRecord, AgentSessionRecord } from '../core/agentSessionContracts';
 import type { BoardSnapshot } from '../core/types';
 import { useI18n } from '../i18n';
@@ -18,7 +18,7 @@ export function AgentWorkspace({
   onClose,
   onCreateSession,
   onPauseAgentRun,
-  onRejectProposal,
+  onDecideProposal,
   onResumeAgentRun,
   onSelectAgentRun,
   onSelectSession,
@@ -35,7 +35,11 @@ export function AgentWorkspace({
   onClose: () => void;
   onCreateSession: () => void;
   onPauseAgentRun: (agentRunId: string) => void;
-  onRejectProposal: (proposalId: string) => void;
+  onDecideProposal: (
+    proposalId: string,
+    expectedProposalVersion: number,
+    decision: 'approve' | 'reject',
+  ) => void;
   onResumeAgentRun: (agentRunId: string) => void;
   onSelectAgentRun: (agentRunId?: string) => void;
   onSelectSession: (agentSessionId: string) => void;
@@ -48,6 +52,8 @@ export function AgentWorkspace({
   const [tab, setTab] = useState<AgentWorkspaceTab>('chat');
   const messages = selectedSession ? messagesForSession(snapshot, selectedSession.agentSessionId) : [];
   const proposals = selectedSession ? proposalsForSession(snapshot, selectedSession.agentSessionId) : [];
+  const runtimeEvents = selectedSession ? runtimeEventsForSession(snapshot, selectedSession.agentSessionId) : [];
+  const latestRuntimeEvent = runtimeEvents.at(-1);
   const agentRuns = [...(snapshot.agentRuns ?? [])].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   const activeRun = selectedSession?.activeAgentRunId
     ? agentRuns.find((run) => run.agentRunId === selectedSession.activeAgentRunId)
@@ -93,7 +99,7 @@ export function AgentWorkspace({
                   {message.contextRefs.length > 0 ? <small>{message.contextRefs.map(contextRefLabel).join(' · ')}</small> : null}
                 </article>
               ))}
-              {isSending ? <article className="is-assistant is-pending"><span>{t('agentWorkspace.agent')}</span><p>{t('agentWorkspace.thinking')}</p></article> : null}
+              {isSending ? <article className="is-assistant is-pending"><span>{t('agentWorkspace.agent')}</span><p>{latestRuntimeEvent?.kind === 'decision_delta' ? t('agentWorkspace.streaming') : t('agentWorkspace.thinking')}</p></article> : null}
             </div>
             {error ? <p className="agent-workspace-error" role="alert">{error}</p> : null}
             <AgentWorkspaceComposer disabled={isSending} snapshot={snapshot} onSubmit={onSubmitMessage} />
@@ -105,7 +111,7 @@ export function AgentWorkspace({
           </div>
         ) : (
           <div className="agent-workspace-changes">
-            {proposals.length === 0 ? <p className="agent-workspace-placeholder">{t('agentWorkspace.changesEmpty')}</p> : proposals.map((proposal) => <article key={proposal.proposalId} className={`is-${proposal.status}`}><header><strong>{proposal.kind}</strong><span>{proposal.status}</span></header><p>{proposal.summary}</p><small>{proposal.instruction}</small>{proposal.status === 'awaiting_decision' ? <button type="button" onClick={() => onRejectProposal(proposal.proposalId)}>{t('agentWorkspace.rejectProposal')}</button> : null}</article>)}
+            {proposals.length === 0 ? <p className="agent-workspace-placeholder">{t('agentWorkspace.changesEmpty')}</p> : proposals.map((proposal) => <article key={proposal.proposalId} className={`is-${proposal.status}`}><header><strong>{proposal.kind}</strong><span>{proposal.status}</span></header><p>{proposal.summary}</p><small>{proposal.instruction}</small><small>{proposal.proposedCommand.kind}</small>{proposal.applyError ? <p className="agent-workspace-error">{proposal.applyError}</p> : null}{proposal.status === 'awaiting_decision' ? <div className="agent-workspace-proposal-actions"><button type="button" disabled={proposal.proposedCommand.kind === 'unsupported'} onClick={() => onDecideProposal(proposal.proposalId, proposal.recordVersion, 'approve')}>{t('agentWorkspace.approveProposal')}</button><button type="button" onClick={() => onDecideProposal(proposal.proposalId, proposal.recordVersion, 'reject')}>{t('agentWorkspace.rejectProposal')}</button></div> : null}</article>)}
           </div>
         )}
       </div>

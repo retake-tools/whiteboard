@@ -474,6 +474,7 @@ type TranslationKey =
   | 'agentWorkspace.addEntrypoint'
   | 'agentWorkspace.addMention'
   | 'agentWorkspace.agent'
+  | 'agentWorkspace.approveProposal'
   | 'agentWorkspace.archiveSession'
   | 'agentWorkspace.changes'
   | 'agentWorkspace.changesEmpty'
@@ -497,6 +498,7 @@ type TranslationKey =
   | 'agentWorkspace.send'
   | 'agentWorkspace.session'
   | 'agentWorkspace.status'
+  | 'agentWorkspace.streaming'
   | 'agentWorkspace.targetRun'
   | 'agentWorkspace.thinking'
   | 'agentWorkspace.title'
@@ -1179,6 +1181,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.addEntrypoint': 'Add / Skill or Workflow',
     'agentWorkspace.addMention': 'Add reference',
     'agentWorkspace.agent': 'Agent',
+    'agentWorkspace.approveProposal': 'Approve and apply',
     'agentWorkspace.archiveSession': 'Archive session',
     'agentWorkspace.changes': 'Changes',
     'agentWorkspace.changesEmpty': 'Out-of-scope requests will appear here as reviewable Change Proposals.',
@@ -1202,6 +1205,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.send': 'Send message',
     'agentWorkspace.session': 'Session',
     'agentWorkspace.status': 'Status',
+    'agentWorkspace.streaming': 'Receiving structured decision…',
     'agentWorkspace.targetRun': 'Attached Agent Run',
     'agentWorkspace.thinking': 'Working within the attached scope…',
     'agentWorkspace.title': 'Agent Workspace',
@@ -1879,6 +1883,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.addEntrypoint': '添加 / Skill 或 Workflow',
     'agentWorkspace.addMention': '添加引用',
     'agentWorkspace.agent': 'Agent',
+    'agentWorkspace.approveProposal': '批准并应用',
     'agentWorkspace.archiveSession': '归档会话',
     'agentWorkspace.changes': '变更',
     'agentWorkspace.changesEmpty': '超出范围的请求会在这里形成可审阅的 Change Proposal。',
@@ -1902,6 +1907,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.send': '发送消息',
     'agentWorkspace.session': '会话',
     'agentWorkspace.status': '状态',
+    'agentWorkspace.streaming': '正在接收结构化决策…',
     'agentWorkspace.targetRun': '已绑定 Agent Run',
     'agentWorkspace.thinking': '正在已授权范围内处理…',
     'agentWorkspace.title': 'Agent Workspace',

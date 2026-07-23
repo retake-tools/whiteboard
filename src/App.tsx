@@ -529,8 +529,8 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
           onCancelAgentRun={agentRuntimeController.cancelAgentRun}
           onClose={() => setIsAgentWorkspaceOpen(false)}
           onCreateSession={() => agentWorkspaceController.newSession()}
+          onDecideProposal={agentWorkspaceController.decideProposal}
           onPauseAgentRun={agentRuntimeController.pauseAgentRun}
-          onRejectProposal={agentWorkspaceController.rejectProposal}
           onResumeAgentRun={agentRuntimeController.resumeAgentRun}
           onSelectAgentRun={agentWorkspaceController.selectAgentRun}
           onSelectSession={agentWorkspaceController.selectSession}
