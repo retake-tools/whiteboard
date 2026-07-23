@@ -305,7 +305,7 @@ function applyAgentRunControl(
 
 function allowedAgentRunActions(status: string): AgentRunControlAction[] {
   if (status === 'paused') return ['resume', 'cancel'];
-  if (['queued', 'running', 'waiting_input', 'waiting_selection', 'needs_attention'].includes(status)) {
+  if (['queued', 'running', 'waiting_input', 'waiting_selection', 'waiting_approval', 'needs_attention'].includes(status)) {
     return ['pause', 'cancel'];
   }
   return [];

@@ -6,6 +6,11 @@ import {
 } from './executionConfiguration';
 import { createId, nowIso } from './id';
 import type { BlockRecord, BoardSnapshot, ExecutionRecord } from './types';
+import {
+  reconcileWorkflowGates,
+  workflowGateRunState,
+  workflowGatesAllowStep,
+} from './workflowGateRuntime';
 import { workflowDefinitionFor } from './workflowRegistry';
 import type {
   WorkflowRunRecord,
@@ -107,6 +112,7 @@ export function createWorkflowRunForGroup(
       dependsOn: [...step.dependsOn],
       operationBlockId: operationBlock.blockId,
       resolvedInputBindings,
+      outputSlotIds: [...step.outputSlots],
       outputBlockIds,
       executionIds: [],
       acceptedOutputAssetIds: [],
@@ -140,6 +146,8 @@ export function createWorkflowRunForGroup(
       sourcePackageLock: packageContext.packageLock,
     } : {}),
     inputBindings,
+    gateDefinitionLocks: structuredClone(definition.gates),
+    gateEvaluationIds: [],
     stepRunIds: stepRuns.map((step) => step.stepRunId),
     currentStepIds: [],
     createdBy: 'user',
@@ -271,31 +279,12 @@ export function acceptWorkflowStepOutputs(
 export function reconcileWorkflowRuntime(snapshot: BoardSnapshot): BoardSnapshot {
   for (const run of snapshot.workflowRuns ?? []) {
     const stepRuns = stepRunsFor(snapshot, run);
-    const view = projectWorkflowRunView(snapshot, run, stepRuns);
     const updatedAt = nowIso();
-    for (const projected of view.steps) {
-      const record = projected.record;
-      if (record.outputAcceptancePolicy === 'manual_selection') {
-        updateSelectedOutputMarkers(snapshot, record);
-      }
-      const outputAssetIds = unique(record.executionIds.flatMap((executionId) =>
-        snapshot.executions.find((execution) => execution.executionId === executionId)?.outputAssetIds ?? [],
-      ));
-      const latest = latestStepExecution(snapshot, record);
-      const error = projected.status === 'failed' ? latest?.errorMessage : undefined;
-      if (
-        record.status === projected.status
-        && record.freshness === projected.freshness
-        && arraysEqual(record.outputAssetIds, outputAssetIds)
-        && record.error === error
-      ) continue;
-      record.status = projected.status;
-      record.freshness = projected.freshness;
-      record.outputAssetIds = outputAssetIds;
-      record.error = error;
-      record.updatedAt = updatedAt;
-      record.recordVersion += 1;
-    }
+    let view = projectWorkflowRunView(snapshot, run, stepRuns);
+    applyWorkflowStepProjection(snapshot, view, updatedAt);
+    reconcileWorkflowGates(snapshot, run, stepRuns);
+    view = projectWorkflowRunView(snapshot, run, stepRuns);
+    applyWorkflowStepProjection(snapshot, view, updatedAt);
     if (run.status === view.status && arraysEqual(run.currentStepIds, view.currentStepIds)) continue;
     run.status = view.status;
     run.currentStepIds = view.currentStepIds;
@@ -361,7 +350,10 @@ function projectWorkflowRunView(
         const dependency = projectedByStepId.get(stepId);
         return dependency ? [dependency] : [];
       });
-      projectedByStepId.set(step.stepId, projectStepView(snapshot, run, step, dependencies));
+      projectedByStepId.set(
+        step.stepId,
+        projectStepView(snapshot, run, step, dependencies, workflowGatesAllowStep(snapshot, run, step)),
+      );
       unresolved.delete(step.stepId);
     }
   }
@@ -371,7 +363,7 @@ function projectWorkflowRunView(
     freshness: 'current' as const,
     canStart: false,
   });
-  const status = projectedRunStatus(run, steps);
+  const status = projectedRunStatus(snapshot, run, steps);
   return {
     record: run,
     status,
@@ -392,6 +384,7 @@ function projectStepView(
   run: WorkflowRunRecord,
   record: WorkflowStepRunRecord,
   dependencies: WorkflowStepRuntimeView[],
+  gatesAllowDependencies: boolean,
 ): WorkflowStepRuntimeView {
   const latest = latestStepExecution(snapshot, record);
   let status: WorkflowStepRunStatus;
@@ -417,7 +410,10 @@ function projectStepView(
       : 'current';
   } else if (dependencies.some((dependency) => dependency.status === 'failed' || dependency.status === 'canceled' || dependency.status === 'blocked')) {
     status = 'blocked';
-  } else if (!dependencies.every((dependency) => dependency.status === 'succeeded' && dependency.freshness === 'current')) {
+  } else if (
+    !gatesAllowDependencies
+    || !dependencies.every((dependency) => dependency.status === 'succeeded' && dependency.freshness === 'current')
+  ) {
     status = 'pending';
   } else {
     const operation = snapshot.blocks.find((block) => block.blockId === record.operationBlockId && block.type === 'operation');
@@ -425,7 +421,7 @@ function projectStepView(
   }
   const dependencyReady = dependencies.every(
     (dependency) => dependency.status === 'succeeded' && dependency.freshness === 'current',
-  );
+  ) && gatesAllowDependencies;
   const canRetry =
     status === 'failed'
     || status === 'canceled'
@@ -443,25 +439,63 @@ function projectStepView(
   };
 }
 
-function projectedRunStatus(run: WorkflowRunRecord, steps: WorkflowStepRuntimeView[]): WorkflowRunStatus {
+function projectedRunStatus(
+  snapshot: BoardSnapshot,
+  run: WorkflowRunRecord,
+  steps: WorkflowStepRuntimeView[],
+): WorkflowRunStatus {
   if (run.status === 'paused' || run.status === 'canceled') return run.status;
-  if (steps.length > 0 && steps.every((step) => step.status === 'succeeded' && step.freshness === 'current')) {
-    return 'succeeded';
-  }
+  const gateState = workflowGateRunState(snapshot, run);
   if (steps.some((step) =>
     step.freshness === 'outdated'
     || step.status === 'failed'
     || step.status === 'canceled'
-    || step.status === 'blocked')) {
+    || step.status === 'blocked')
+    || gateState === 'failed') {
     return 'needs_attention';
   }
   if (steps.some((step) => step.status === 'queued' || step.status === 'running')) return 'running';
+  if (gateState === 'waiting_approval') return 'waiting_approval';
+  if (
+    steps.length > 0
+    && steps.every((step) => step.status === 'succeeded' && step.freshness === 'current')
+  ) return gateState === 'clear' ? 'succeeded' : 'needs_attention';
   if (steps.some((step) => step.status === 'waiting_selection')) return 'waiting_selection';
   if (steps.some((step) => step.status === 'waiting_input')) return 'waiting_input';
   if (steps.some((step) => step.status === 'ready')) {
     return steps.some((step) => step.record.executionIds.length > 0) ? 'running' : 'ready';
   }
   return run.status === 'draft' ? 'draft' : 'running';
+}
+
+function applyWorkflowStepProjection(
+  snapshot: BoardSnapshot,
+  view: WorkflowRunRuntimeView,
+  updatedAt: string,
+): void {
+  for (const projected of view.steps) {
+    const record = projected.record;
+    if (record.outputAcceptancePolicy === 'manual_selection') {
+      updateSelectedOutputMarkers(snapshot, record);
+    }
+    const outputAssetIds = unique(record.executionIds.flatMap((executionId) =>
+      snapshot.executions.find((execution) => execution.executionId === executionId)?.outputAssetIds ?? [],
+    ));
+    const latest = latestStepExecution(snapshot, record);
+    const error = projected.status === 'failed' ? latest?.errorMessage : undefined;
+    if (
+      record.status === projected.status
+      && record.freshness === projected.freshness
+      && arraysEqual(record.outputAssetIds, outputAssetIds)
+      && record.error === error
+    ) continue;
+    record.status = projected.status;
+    record.freshness = projected.freshness;
+    record.outputAssetIds = outputAssetIds;
+    record.error = error;
+    record.updatedAt = updatedAt;
+    record.recordVersion += 1;
+  }
 }
 
 function stepRunsFor(snapshot: BoardSnapshot, run: WorkflowRunRecord): WorkflowStepRunRecord[] {

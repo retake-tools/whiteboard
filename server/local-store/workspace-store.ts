@@ -152,6 +152,9 @@ export async function duplicateBoard(input: { projectId: string; boardId: string
   snapshot.changeDecisions = [];
   snapshot.workflowRuns = [];
   snapshot.workflowStepRuns = [];
+  snapshot.workflowGateEvaluations = [];
+  snapshot.workflowApprovalRequests = [];
+  snapshot.workflowApprovalDecisions = [];
   snapshot.project.defaultBoardId = boardId;
   touchSnapshot(snapshot);
   await saveSnapshot(snapshot);

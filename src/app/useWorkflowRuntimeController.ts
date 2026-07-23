@@ -1,6 +1,8 @@
 import type { OperationToast } from '../components/OperationFeedback';
 import { reconcileAgentRuntime } from '../core/agentRuntime';
 import type { BoardSnapshot } from '../core/types';
+import type { WorkflowApprovalDecisionValue } from '../core/workflowGateContracts';
+import { decideWorkflowApproval } from '../core/workflowGateRuntime';
 import { acceptWorkflowStepOutputs, createWorkflowRunForGroup } from '../core/workflowRuntime';
 import type { useI18n } from '../i18n';
 
@@ -71,5 +73,38 @@ export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerO
     }
   }
 
-  return { acceptWorkflowOutput, createWorkflowRun };
+  function decideWorkflowGate(
+    approvalRequestId: string,
+    expectedApprovalRequestVersion: number,
+    decision: WorkflowApprovalDecisionValue,
+  ): void {
+    try {
+      updateSnapshot((current) => {
+        decideWorkflowApproval(current, {
+          approvalRequestId,
+          decision,
+          expectedApprovalRequestVersion,
+        });
+        reconcileAgentRuntime(current);
+        return current;
+      }, { history: true, persist: true });
+      setOperationToast({
+        id: `workflow-approval:${approvalRequestId}`,
+        title: t(decision === 'approve'
+          ? 'workflowRuntime.gateApproved'
+          : 'workflowRuntime.gateRejected'),
+        body: t('workflowRuntime.gateDecisionBody'),
+        tone: 'success',
+      });
+    } catch (error) {
+      setOperationToast({
+        id: `workflow-approval:${approvalRequestId}`,
+        title: t('workflowRuntime.gateDecisionFailed'),
+        body: error instanceof Error ? error.message : undefined,
+        tone: 'error',
+      });
+    }
+  }
+
+  return { acceptWorkflowOutput, createWorkflowRun, decideWorkflowGate };
 }

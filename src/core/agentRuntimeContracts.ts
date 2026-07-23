@@ -7,6 +7,7 @@ export type AgentRunStatus =
   | 'running'
   | 'waiting_input'
   | 'waiting_selection'
+  | 'waiting_approval'
   | 'paused'
   | 'needs_attention'
   | 'succeeded'

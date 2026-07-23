@@ -62,6 +62,25 @@ assert.match(validateWorkflowDefinition(incompatibleWorkflowInput).join('\n'), /
 const missingDependency = structuredClone(storyToStoryboardWorkflow) as WorkflowDefinition;
 missingDependency.steps.find((step) => step.stepId === 'character_define')!.dependsOn = [];
 assert.match(validateWorkflowDefinition(missingDependency).join('\n'), /Workflow binding source is not a dependency/);
+const invalidGate = structuredClone(storyToStoryboardWorkflow) as WorkflowDefinition;
+invalidGate.gates.push({
+  definitionHash: 'invalid',
+  gateId: 'screenplay_approval',
+  kind: 'human_approval',
+  required: true,
+  subject: { kind: 'step_output', stepId: 'missing_step', outputSlotId: 'missing_output' },
+});
+assert.match(validateWorkflowDefinition(invalidGate).join('\n'), /definitionHash is invalid/);
+assert.match(validateWorkflowDefinition(invalidGate).join('\n'), /subject Step is missing/);
+const invalidGateOutput = structuredClone(storyToStoryboardWorkflow) as WorkflowDefinition;
+invalidGateOutput.gates.push({
+  definitionHash: 'sha256:test-invalid-gate-output',
+  gateId: 'screenplay_approval',
+  kind: 'human_approval',
+  required: true,
+  subject: { kind: 'step_output', stepId: 'screenplay_generate', outputSlotId: 'missing_output' },
+});
+assert.match(validateWorkflowDefinition(invalidGateOutput).join('\n'), /subject output is missing/);
 
 const firstProjection = projectWorkflowDraft(snapshot, {
   workflowId: storyToStoryboardWorkflow.workflowId,

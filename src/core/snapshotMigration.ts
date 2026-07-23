@@ -102,12 +102,20 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
       },
     })),
     changeDecisions: legacy.changeDecisions ?? [],
-    workflowRuns: legacy.workflowRuns ?? [],
+    workflowRuns: (legacy.workflowRuns ?? []).map((run) => ({
+      ...run,
+      gateDefinitionLocks: run.gateDefinitionLocks ?? [],
+      gateEvaluationIds: run.gateEvaluationIds ?? [],
+    })),
     workflowStepRuns: (legacy.workflowStepRuns ?? []).map((step) => ({
       ...step,
       acceptedOutputAssetIds: step.acceptedOutputAssetIds ?? [],
+      outputSlotIds: step.outputSlotIds ?? [],
       outputAcceptancePolicy: step.outputAcceptancePolicy ?? 'automatic',
     })),
+    workflowGateEvaluations: legacy.workflowGateEvaluations ?? [],
+    workflowApprovalRequests: legacy.workflowApprovalRequests ?? [],
+    workflowApprovalDecisions: legacy.workflowApprovalDecisions ?? [],
   };
   repairGroupRelationships(migratedSnapshot);
   ensureExecutionResultGroups(migratedSnapshot);

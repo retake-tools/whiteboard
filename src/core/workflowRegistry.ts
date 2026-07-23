@@ -50,11 +50,26 @@ export interface WorkflowOutputSlotDefinition {
   source: Extract<WorkflowBindingSource, { kind: 'step_output' }>;
 }
 
+export interface WorkflowHumanApprovalGateDefinition {
+  definitionHash: string;
+  gateId: string;
+  kind: 'human_approval';
+  required: true;
+  reviewChecklist?: string[];
+  subject: {
+    kind: 'step_output';
+    outputSlotId: string;
+    stepId: string;
+  };
+}
+
+export type WorkflowGateDefinition = WorkflowHumanApprovalGateDefinition;
+
 export interface WorkflowDefinition {
   defaultRunMode: WorkflowDefaultRunMode;
   definitionHash: string;
   description: string;
-  gates: [];
+  gates: WorkflowGateDefinition[];
   inputSlots: WorkflowInputSlotDefinition[];
   name: string;
   outputSlots: WorkflowOutputSlotDefinition[];
@@ -234,6 +249,21 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
   for (const step of workflow.steps) {
     if (stepById.has(step.stepId)) issues.push(`Duplicate Workflow stepId: ${step.stepId}`);
     stepById.set(step.stepId, step);
+  }
+
+  const gateIds = new Set<string>();
+  for (const gate of workflow.gates) {
+    if (gateIds.has(gate.gateId)) issues.push(`Duplicate Workflow gateId: ${gate.gateId}`);
+    gateIds.add(gate.gateId);
+    if (!gate.definitionHash.startsWith('sha256:')) {
+      issues.push(`Workflow Gate definitionHash is invalid: ${gate.gateId}`);
+    }
+    const subjectStep = stepById.get(gate.subject.stepId);
+    if (!subjectStep) {
+      issues.push(`Workflow Gate subject Step is missing: ${gate.gateId}.${gate.subject.stepId}`);
+    } else if (!subjectStep.outputSlots.includes(gate.subject.outputSlotId)) {
+      issues.push(`Workflow Gate subject output is missing: ${gate.gateId}.${gate.subject.outputSlotId}`);
+    }
   }
 
   for (const step of workflow.steps) {

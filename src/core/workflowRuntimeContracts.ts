@@ -1,6 +1,10 @@
 import type { CapabilityDefinitionLock, SkillDefinitionLock } from './capabilityContracts';
 import type { PackageLock } from './packageContracts';
-import type { WorkflowBindingSource, WorkflowOutputAcceptancePolicy } from './workflowRegistry';
+import type {
+  WorkflowBindingSource,
+  WorkflowGateDefinition,
+  WorkflowOutputAcceptancePolicy,
+} from './workflowRegistry';
 
 export type WorkflowRunStatus =
   | 'draft'
@@ -8,6 +12,7 @@ export type WorkflowRunStatus =
   | 'running'
   | 'waiting_input'
   | 'waiting_selection'
+  | 'waiting_approval'
   | 'paused'
   | 'needs_attention'
   | 'succeeded'
@@ -53,6 +58,8 @@ export interface WorkflowRunRecord {
   currentStepIds: string[];
   entrypointId?: string;
   inputBindings: WorkflowRunInputBinding[];
+  gateDefinitionLocks: WorkflowGateDefinition[];
+  gateEvaluationIds: string[];
   projectId: string;
   recordVersion: number;
   status: WorkflowRunStatus;
@@ -76,6 +83,7 @@ export interface WorkflowStepRunRecord {
   freshness: WorkflowStepRunFreshness;
   inputFingerprint?: string;
   operationBlockId: string;
+  outputSlotIds: string[];
   outputAcceptancePolicy: WorkflowOutputAcceptancePolicy;
   outputAssetIds: string[];
   outputBlockIds: string[];

@@ -21,6 +21,7 @@ const activeStatuses = new Set<AgentRunStatus>([
   'running',
   'waiting_input',
   'waiting_selection',
+  'waiting_approval',
   'paused',
   'needs_attention',
 ]);
@@ -151,7 +152,12 @@ export function startAgentRun(snapshot: BoardSnapshot, agentRunId: string): Agen
 
 export function pauseAgentRun(snapshot: BoardSnapshot, agentRunId: string): AgentRunRuntimeView {
   const record = agentRunRecord(snapshot, agentRunId);
-  if (record.status !== 'running' && record.status !== 'waiting_input' && record.status !== 'waiting_selection') {
+  if (
+    record.status !== 'running'
+    && record.status !== 'waiting_input'
+    && record.status !== 'waiting_selection'
+    && record.status !== 'waiting_approval'
+  ) {
     throw new Error(`Agent Run cannot pause from status: ${record.status}`);
   }
   updateAgentRun(record, { status: 'paused', stopReason: 'user_paused' });
@@ -360,6 +366,9 @@ function projectWorkflowAgentRun(
   if (workflow.status === 'paused') return { ...base, status: 'paused', stopReason: 'target_paused' };
   if (workflow.status === 'waiting_input') return { ...base, status: 'waiting_input', stopReason: undefined };
   if (workflow.status === 'waiting_selection') return { ...base, status: 'waiting_selection', stopReason: undefined };
+  if (workflow.status === 'waiting_approval') {
+    return { ...base, status: 'waiting_approval', stopReason: undefined };
+  }
   if (workflow.status === 'needs_attention' || workflow.status === 'failed') {
     return { ...base, status: 'needs_attention', stopReason: undefined };
   }
@@ -442,7 +451,11 @@ function agentRunView(record: AgentRunRecord): AgentRunRuntimeView {
   return {
     record,
     status: record.status,
-    canPause: record.status === 'running' || record.status === 'waiting_input' || record.status === 'waiting_selection',
+    canPause:
+      record.status === 'running'
+      || record.status === 'waiting_input'
+      || record.status === 'waiting_selection'
+      || record.status === 'waiting_approval',
     canResume: record.status === 'paused',
     canCancel: activeStatuses.has(record.status),
   };

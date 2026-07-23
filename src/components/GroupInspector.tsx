@@ -8,6 +8,11 @@ import {
   workflowRunViewForId,
   type WorkflowRunRuntimeView,
 } from '../core/workflowRuntime';
+import type { WorkflowApprovalDecisionValue } from '../core/workflowGateContracts';
+import {
+  workflowGateViewsForRun,
+  type WorkflowGateRuntimeView,
+} from '../core/workflowGateRuntime';
 import { latestAgentRunForWorkflowRun, type AgentRunRuntimeView } from '../core/agentRuntime';
 import { useI18n } from '../i18n';
 import {
@@ -33,6 +38,11 @@ interface GroupInspectorProps {
   onCopyPrompt: (input: CopyPromptInput) => void | Promise<void>;
   onCancelAgentRun: (agentRunId: string) => void;
   onCreateWorkflowAgentRun: (workflowRunId: string) => void;
+  onDecideWorkflowApproval: (
+    approvalRequestId: string,
+    expectedApprovalRequestVersion: number,
+    decision: WorkflowApprovalDecisionValue,
+  ) => void;
   onDownloadAll: (groupId: string) => void;
   onPauseAgentRun: (agentRunId: string) => void;
   onResumeAgentRun: (agentRunId: string) => void;
@@ -47,6 +57,7 @@ export function GroupInspector({
   onCopyPrompt,
   onCancelAgentRun,
   onCreateWorkflowAgentRun,
+  onDecideWorkflowApproval,
   onDownloadAll,
   onPauseAgentRun,
   onResumeAgentRun,
@@ -77,6 +88,9 @@ export function GroupInspector({
       ?? (execution?.workflowRunId ? workflowRunViewForId(snapshot, execution.workflowRunId) : undefined)
     : undefined;
   const agentRun = workflowRun ? latestAgentRunForWorkflowRun(snapshot, workflowRun.record.workflowRunId) : undefined;
+  const gateViews = workflowRun
+    ? workflowGateViewsForRun(snapshot, workflowRun.record.workflowRunId)
+    : [];
 
   useEffect(() => {
     setSelectedBlockId(firstMediaBlockId);
@@ -209,6 +223,7 @@ export function GroupInspector({
               descendantCount={descendantCount}
               directItemCount={directItemCount}
               agentRun={agentRun}
+              gateViews={gateViews}
               group={group}
               mediaCount={mediaItems.length}
               selectedItem={selectedItem}
@@ -216,6 +231,7 @@ export function GroupInspector({
               workflowRun={workflowRun}
               onCancelAgentRun={onCancelAgentRun}
               onCreateWorkflowAgentRun={onCreateWorkflowAgentRun}
+              onDecideWorkflowApproval={onDecideWorkflowApproval}
               onPauseAgentRun={onPauseAgentRun}
               onResumeAgentRun={onResumeAgentRun}
               onSelectWorkflowOutput={onSelectWorkflowOutput}
@@ -252,6 +268,7 @@ function GroupSummary({
   agentRun,
   descendantCount,
   directItemCount,
+  gateViews,
   group,
   mediaCount,
   selectedItem,
@@ -259,6 +276,7 @@ function GroupSummary({
   workflowRun,
   onCancelAgentRun,
   onCreateWorkflowAgentRun,
+  onDecideWorkflowApproval,
   onPauseAgentRun,
   onResumeAgentRun,
   onSelectWorkflowOutput,
@@ -267,6 +285,7 @@ function GroupSummary({
   agentRun?: AgentRunRuntimeView;
   descendantCount: number;
   directItemCount: number;
+  gateViews: WorkflowGateRuntimeView[];
   group: BlockRecord;
   mediaCount: number;
   selectedItem?: GroupMediaItem;
@@ -274,6 +293,11 @@ function GroupSummary({
   workflowRun?: WorkflowRunRuntimeView;
   onCancelAgentRun: (agentRunId: string) => void;
   onCreateWorkflowAgentRun: (workflowRunId: string) => void;
+  onDecideWorkflowApproval: (
+    approvalRequestId: string,
+    expectedApprovalRequestVersion: number,
+    decision: WorkflowApprovalDecisionValue,
+  ) => void;
   onPauseAgentRun: (agentRunId: string) => void;
   onResumeAgentRun: (agentRunId: string) => void;
   onSelectWorkflowOutput: (stepRunId: string, assetId: string, expectedStepRunVersion: number) => void;
@@ -333,6 +357,65 @@ function GroupSummary({
               );
             })}
           </div>
+          {gateViews.length > 0 ? (
+            <>
+              <h3>{t('workflowRuntime.gates')}</h3>
+              <div className="workflow-gate-list">
+                {gateViews.map((gate) => (
+                  <div
+                    key={gate.gateDefinitionLock.gateId}
+                    className={`workflow-gate is-${gate.evaluation?.status ?? 'not_ready'}`}
+                  >
+                    <div className="workflow-gate-heading">
+                      <span>{gate.gateDefinitionLock.gateId}</span>
+                      <strong>{t(workflowGateStatusKey(gate))}</strong>
+                    </div>
+                    <small>
+                      {t('workflowRuntime.gateSubject')}: {gate.gateDefinitionLock.subject.stepId}
+                      {' / '}{gate.gateDefinitionLock.subject.outputSlotId}
+                    </small>
+                    {gate.evaluation ? (
+                      <small>
+                        {t('workflowRuntime.gateAssets')}: {gate.evaluation.subjectAssetIds.length}
+                      </small>
+                    ) : null}
+                    {(gate.gateDefinitionLock.reviewChecklist?.length ?? 0) > 0 ? (
+                      <ul>
+                        {gate.gateDefinitionLock.reviewChecklist?.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {gate.canDecide && gate.request ? (
+                      <div className="workflow-gate-actions">
+                        <button
+                          type="button"
+                          onClick={() => onDecideWorkflowApproval(
+                            gate.request!.approvalRequestId,
+                            gate.request!.recordVersion,
+                            'approve',
+                          )}
+                        >
+                          <Check size={14} />{t('workflowRuntime.gateApprove')}
+                        </button>
+                        <button
+                          type="button"
+                          className="is-danger"
+                          onClick={() => onDecideWorkflowApproval(
+                            gate.request!.approvalRequestId,
+                            gate.request!.recordVersion,
+                            'reject',
+                          )}
+                        >
+                          <X size={14} />{t('workflowRuntime.gateReject')}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
           <h3>{t('agentRuntime.run')}</h3>
           {agentRun ? (
             <div className="agent-run-summary">
@@ -422,6 +505,10 @@ function workflowStepStatusKey(status: WorkflowRunRuntimeView['steps'][number]['
 
 function agentRunStatusKey(status: AgentRunRuntimeView['status']) {
   return `agentRuntime.status.${status}` as const;
+}
+
+function workflowGateStatusKey(gate: WorkflowGateRuntimeView) {
+  return `workflowRuntime.gateStatus.${gate.evaluation?.status ?? 'not_ready'}` as const;
 }
 
 function Meta({ label, mono, value }: { label: string; mono?: boolean; value?: string }): ReactElement | null {

@@ -6,6 +6,15 @@ import { executeExistingTextGenerationOperation, type TextGenerationLabels } fro
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import { storyToStoryboardWorkflow } from '../src/core/workflowRegistry';
 import {
+  createAgentRunForWorkflowRun,
+  reconcileAgentRuntime,
+  startAgentRun,
+} from '../src/core/agentRuntime';
+import {
+  decideWorkflowApproval,
+  workflowGateViewsForRun,
+} from '../src/core/workflowGateRuntime';
+import {
   acceptWorkflowStepOutputs,
   createWorkflowRunForGroup,
   reconcileWorkflowRuntime,
@@ -14,6 +23,7 @@ import {
 } from '../src/core/workflowRuntime';
 import type { AssetRecord, BlockRecord, BoardSnapshot, ExecutionRecord } from '../src/core/types';
 import { loadSnapshot, resetWorkspace, saveSnapshot } from './local-store/snapshot-store';
+import { duplicateBoard } from './local-store/workspace-store';
 
 const readyTextConnection: ExecutionConnectionSummary = {
   connectionId: 'test-text-connection',
@@ -42,6 +52,8 @@ assert.match(groupToolbarSource, /workflow-run-control/);
 assert.match(groupInspectorSource, /workflow-run-step-list/);
 assert.match(groupInspectorSource, /onSelectWorkflowOutput/);
 assert.match(groupInspectorSource, /workflow-output-selection/);
+assert.match(groupInspectorSource, /workflow-gate-list/);
+assert.match(groupInspectorSource, /onDecideWorkflowApproval/);
 assert.match(whiteboardCanvasSource, /workflowRuntime\.createWorkflowRun/);
 
 const snapshot = await emptySnapshot();
@@ -279,6 +291,156 @@ const recoveredSelectionStep = stepFor(
 assert.deepEqual(recoveredSelectionStep.acceptedOutputAssetIds, [firstCandidateAssetId]);
 assert.equal(blockFor(recoveredSelection, firstCandidateBlock.blockId).data.reviewStatus, 'selected');
 
+const gateSnapshot = await emptySnapshot();
+const gateProjection = projectWorkflowDraft(gateSnapshot, projectionInput());
+const gateBrief = blockFor(gateSnapshot, gateProjection.workflowInputBlockIds[0]);
+gateBrief.data.body = 'A courier cat crosses a collapsing bridge.';
+storyToStoryboardWorkflow.gates.push({
+  definitionHash: 'sha256:test-screenplay-human-approval-v0',
+  gateId: 'screenplay_human_approval',
+  kind: 'human_approval',
+  required: true,
+  reviewChecklist: ['The screenplay preserves the approved story intent.'],
+  subject: {
+    kind: 'step_output',
+    outputSlotId: 'screenplay',
+    stepId: 'screenplay_generate',
+  },
+});
+const gateRun = createWorkflowRunForGroup(gateSnapshot, gateProjection.groupBlock.blockId);
+storyToStoryboardWorkflow.gates.pop();
+assert.equal(gateRun.record.gateDefinitionLocks.length, 1);
+assert.equal(storyToStoryboardWorkflow.gates.length, 0, 'The built-in Workflow must keep no default Gate in V0.');
+const gateAgent = createAgentRunForWorkflowRun(gateSnapshot, gateRun.record.workflowRunId);
+startAgentRun(gateSnapshot, gateAgent.record.agentRunId);
+const gateScreenplayExecution = queueStep(
+  gateSnapshot,
+  operationForStep(gateSnapshot, gateRun.record.workflowRunId, 'screenplay_generate'),
+);
+const gateScreenplayAssetId = completeStep(
+  gateSnapshot,
+  gateScreenplayExecution,
+  '# Screenplay\n\nThe courier cat reaches the far side.',
+);
+reconcileAgentRuntime(gateSnapshot);
+assert.equal(
+  workflowRunViewForGroup(gateSnapshot, gateProjection.groupBlock.blockId)?.status,
+  'waiting_approval',
+);
+assert.equal(
+  (gateSnapshot.agentRuns ?? []).find((run) => run.agentRunId === gateAgent.record.agentRunId)?.status,
+  'waiting_approval',
+);
+assert.equal(stepView(gateSnapshot, gateRun.record.workflowRunId, 'character_define').status, 'pending');
+assert.equal(stepView(gateSnapshot, gateRun.record.workflowRunId, 'character_define').canStart, false);
+const firstGateView = workflowGateViewsForRun(gateSnapshot, gateRun.record.workflowRunId)[0];
+assert.ok(firstGateView?.request);
+assert.equal(firstGateView.canDecide, true);
+assert.deepEqual(firstGateView.evaluation?.subjectAssetIds, [gateScreenplayAssetId]);
+const firstRequestVersion = firstGateView.request.recordVersion;
+const approvedDecision = decideWorkflowApproval(gateSnapshot, {
+  approvalRequestId: firstGateView.request.approvalRequestId,
+  decision: 'approve',
+  expectedApprovalRequestVersion: firstRequestVersion,
+});
+reconcileAgentRuntime(gateSnapshot);
+assert.equal(approvedDecision.decision, 'approve');
+assert.equal(workflowGateViewsForRun(gateSnapshot, gateRun.record.workflowRunId)[0]?.evaluation?.status, 'passed');
+assert.equal(stepView(gateSnapshot, gateRun.record.workflowRunId, 'character_define').status, 'ready');
+assert.equal(
+  (gateSnapshot.agentRuns ?? []).find((run) => run.agentRunId === gateAgent.record.agentRunId)?.status,
+  'running',
+);
+assert.throws(
+  () => decideWorkflowApproval(gateSnapshot, {
+    approvalRequestId: firstGateView.request!.approvalRequestId,
+    decision: 'reject',
+    expectedApprovalRequestVersion: firstRequestVersion,
+  }),
+  /version conflict/,
+);
+
+gateBrief.data.body = 'A courier cat and dog cross a collapsing bridge.';
+reconcileAgentRuntime(gateSnapshot);
+assert.equal(firstGateView.evaluation?.freshness, 'outdated');
+assert.equal(firstGateView.request.status, 'approved', 'Historical decisions remain immutable after invalidation.');
+const gateScreenplayRetry = queueStep(
+  gateSnapshot,
+  operationForStep(gateSnapshot, gateRun.record.workflowRunId, 'screenplay_generate'),
+);
+const secondGateAssetId = completeStep(
+  gateSnapshot,
+  gateScreenplayRetry,
+  '# Screenplay v2\n\nThe courier cat and dog reach the far side.',
+);
+reconcileAgentRuntime(gateSnapshot);
+const refreshedGateView = workflowGateViewsForRun(gateSnapshot, gateRun.record.workflowRunId)[0];
+assert.ok(refreshedGateView?.request);
+assert.notEqual(refreshedGateView.evaluation?.gateEvaluationId, firstGateView.evaluation?.gateEvaluationId);
+assert.deepEqual(refreshedGateView.evaluation?.subjectAssetIds, [secondGateAssetId]);
+assert.equal(refreshedGateView.evaluation?.status, 'waiting_approval');
+assert.equal((gateSnapshot.workflowApprovalDecisions ?? []).length, 1);
+assert.equal(gateSnapshot.assets.some((asset) => asset.assetId === gateScreenplayAssetId), true);
+assert.equal(
+  workflowRunViewForGroup(gateSnapshot, gateProjection.groupBlock.blockId)?.status,
+  'waiting_approval',
+);
+const rejectedDecision = decideWorkflowApproval(gateSnapshot, {
+  approvalRequestId: refreshedGateView.request.approvalRequestId,
+  decision: 'reject',
+  expectedApprovalRequestVersion: refreshedGateView.request.recordVersion,
+});
+reconcileAgentRuntime(gateSnapshot);
+assert.equal(rejectedDecision.decision, 'reject');
+assert.equal(workflowGateViewsForRun(gateSnapshot, gateRun.record.workflowRunId)[0]?.evaluation?.status, 'failed');
+assert.equal(
+  workflowRunViewForGroup(gateSnapshot, gateProjection.groupBlock.blockId)?.status,
+  'needs_attention',
+);
+assert.equal(
+  (gateSnapshot.agentRuns ?? []).find((run) => run.agentRunId === gateAgent.record.agentRunId)?.status,
+  'needs_attention',
+);
+
+await saveSnapshot(gateSnapshot);
+const recoveredGateSnapshot = await loadSnapshot(
+  gateSnapshot.project.projectId,
+  gateSnapshot.board.boardId,
+);
+assert.equal((recoveredGateSnapshot.workflowGateEvaluations ?? []).length, 2);
+assert.equal((recoveredGateSnapshot.workflowApprovalRequests ?? []).length, 2);
+assert.equal((recoveredGateSnapshot.workflowApprovalDecisions ?? []).length, 2);
+const staleGateSnapshot = structuredClone(recoveredGateSnapshot);
+const newestGateRequest = (recoveredGateSnapshot.workflowApprovalRequests ?? []).find(
+  (request) => request.approvalRequestId === refreshedGateView.request?.approvalRequestId,
+);
+assert.ok(newestGateRequest);
+newestGateRequest.recordVersion += 1;
+newestGateRequest.updatedAt = new Date().toISOString();
+await saveSnapshot(recoveredGateSnapshot);
+await saveSnapshot(staleGateSnapshot);
+const gateConflictRecovered = await loadSnapshot(
+  gateSnapshot.project.projectId,
+  gateSnapshot.board.boardId,
+);
+assert.equal(
+  (gateConflictRecovered.workflowApprovalRequests ?? []).find(
+    (request) => request.approvalRequestId === newestGateRequest.approvalRequestId,
+  )?.recordVersion,
+  newestGateRequest.recordVersion,
+  'A stale board save must not roll back a newer ApprovalRequest record.',
+);
+const duplicatedGateBoard = await duplicateBoard({
+  projectId: gateSnapshot.project.projectId,
+  boardId: gateSnapshot.board.boardId,
+  name: '[TEST] gate copy clears runtime',
+});
+assert.deepEqual(duplicatedGateBoard.snapshot.workflowGateEvaluations, []);
+assert.deepEqual(duplicatedGateBoard.snapshot.workflowApprovalRequests, []);
+assert.deepEqual(duplicatedGateBoard.snapshot.workflowApprovalDecisions, []);
+assert.deepEqual(duplicatedGateBoard.snapshot.workflowRuns, []);
+assert.deepEqual(duplicatedGateBoard.snapshot.agentRuns, []);
+
 console.log(JSON.stringify({
   ok: true,
   workflowRunRecovered: true,
@@ -294,6 +456,12 @@ console.log(JSON.stringify({
   manualOutputSelection: true,
   outputReselectionPreservesAssets: true,
   outputSelectionVersionAndLineageValidated: true,
+  humanApprovalGateBlocksDownstream: true,
+  approvalResumesWorkflowAndAgent: true,
+  rejectionNeedsAttention: true,
+  upstreamRerunInvalidatesPriorApproval: true,
+  gateRecordsDurableAndVersionProtected: true,
+  copiedBoardClearsGateFacts: true,
 }));
 
 async function emptySnapshot(): Promise<BoardSnapshot> {
@@ -304,6 +472,10 @@ async function emptySnapshot(): Promise<BoardSnapshot> {
   next.executions = [];
   next.workflowRuns = [];
   next.workflowStepRuns = [];
+  next.workflowGateEvaluations = [];
+  next.workflowApprovalRequests = [];
+  next.workflowApprovalDecisions = [];
+  next.agentRuns = [];
   next.historyEvents = [];
   return next;
 }

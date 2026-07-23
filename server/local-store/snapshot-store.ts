@@ -158,6 +158,9 @@ export function createBlankSnapshot(input: {
     changeDecisions: [],
     workflowRuns: [],
     workflowStepRuns: [],
+    workflowGateEvaluations: [],
+    workflowApprovalRequests: [],
+    workflowApprovalDecisions: [],
     historyEvents: [],
   };
 }
@@ -217,6 +220,9 @@ function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSna
     (previous.changeDecisions?.length ?? 0) > 0 ||
     (previous.workflowRuns?.length ?? 0) > 0 ||
     (previous.workflowStepRuns?.length ?? 0) > 0 ||
+    (previous.workflowGateEvaluations?.length ?? 0) > 0 ||
+    (previous.workflowApprovalRequests?.length ?? 0) > 0 ||
+    (previous.workflowApprovalDecisions?.length ?? 0) > 0 ||
     (previous.historyEvents?.length ?? 0) > 0;
   if (isEmptyFallbackWrite && previousHasUserData) {
     throw new SnapshotWriteConflictError(
@@ -281,6 +287,21 @@ function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSna
     incoming.workflowStepRuns ?? [],
     previous.workflowStepRuns ?? [],
     (step) => step.stepRunId,
+  );
+  incoming.workflowGateEvaluations = mergeVersionedRecords(
+    incoming.workflowGateEvaluations ?? [],
+    previous.workflowGateEvaluations ?? [],
+    (evaluation) => evaluation.gateEvaluationId,
+  );
+  incoming.workflowApprovalRequests = mergeVersionedRecords(
+    incoming.workflowApprovalRequests ?? [],
+    previous.workflowApprovalRequests ?? [],
+    (request) => request.approvalRequestId,
+  );
+  incoming.workflowApprovalDecisions = mergeVersionedRecords(
+    incoming.workflowApprovalDecisions ?? [],
+    previous.workflowApprovalDecisions ?? [],
+    (decision) => decision.approvalDecisionId,
   );
 }
 

@@ -417,6 +417,19 @@ type TranslationKey =
   | 'workflowRuntime.created'
   | 'workflowRuntime.createdBody'
   | 'workflowRuntime.definition'
+  | 'workflowRuntime.gateApprove'
+  | 'workflowRuntime.gateApproved'
+  | 'workflowRuntime.gateAssets'
+  | 'workflowRuntime.gateDecisionBody'
+  | 'workflowRuntime.gateDecisionFailed'
+  | 'workflowRuntime.gateReject'
+  | 'workflowRuntime.gateRejected'
+  | 'workflowRuntime.gates'
+  | 'workflowRuntime.gateSubject'
+  | 'workflowRuntime.gateStatus.failed'
+  | 'workflowRuntime.gateStatus.not_ready'
+  | 'workflowRuntime.gateStatus.passed'
+  | 'workflowRuntime.gateStatus.waiting_approval'
   | 'workflowRuntime.changeSelectedOutput'
   | 'workflowRuntime.outdated'
   | 'workflowRuntime.outputSelected'
@@ -439,6 +452,7 @@ type TranslationKey =
   | 'workflowRuntime.runStatus.ready'
   | 'workflowRuntime.runStatus.running'
   | 'workflowRuntime.runStatus.succeeded'
+  | 'workflowRuntime.runStatus.waiting_approval'
   | 'workflowRuntime.runStatus.waiting_input'
   | 'workflowRuntime.runStatus.waiting_selection'
   | 'workflowRuntime.stepStatus.blocked'
@@ -475,6 +489,7 @@ type TranslationKey =
   | 'agentRuntime.status.queued'
   | 'agentRuntime.status.running'
   | 'agentRuntime.status.succeeded'
+  | 'agentRuntime.status.waiting_approval'
   | 'agentRuntime.status.waiting_input'
   | 'agentRuntime.status.waiting_selection'
   | 'agentWorkspace.addEntrypoint'
@@ -1130,6 +1145,19 @@ const translations: Record<Locale, Translations> = {
     'workflowRuntime.created': 'Workflow Run created',
     'workflowRuntime.createdBody': 'Ready Steps can now be started manually.',
     'workflowRuntime.definition': 'Definition',
+    'workflowRuntime.gateApprove': 'Approve',
+    'workflowRuntime.gateApproved': 'Gate approved',
+    'workflowRuntime.gateAssets': 'Subject assets',
+    'workflowRuntime.gateDecisionBody': 'The Workflow state was updated from this explicit decision.',
+    'workflowRuntime.gateDecisionFailed': 'Gate decision could not be recorded',
+    'workflowRuntime.gateReject': 'Reject',
+    'workflowRuntime.gateRejected': 'Gate rejected',
+    'workflowRuntime.gates': 'Approval Gates',
+    'workflowRuntime.gateSubject': 'Subject',
+    'workflowRuntime.gateStatus.failed': 'Rejected',
+    'workflowRuntime.gateStatus.not_ready': 'Not ready',
+    'workflowRuntime.gateStatus.passed': 'Approved',
+    'workflowRuntime.gateStatus.waiting_approval': 'Waiting for approval',
     'workflowRuntime.changeSelectedOutput': 'Use this result instead',
     'workflowRuntime.outdated': 'Outdated',
     'workflowRuntime.outputSelected': 'Workflow output selected',
@@ -1152,6 +1180,7 @@ const translations: Record<Locale, Translations> = {
     'workflowRuntime.runStatus.ready': 'Ready',
     'workflowRuntime.runStatus.running': 'Running',
     'workflowRuntime.runStatus.succeeded': 'Succeeded',
+    'workflowRuntime.runStatus.waiting_approval': 'Waiting for approval',
     'workflowRuntime.runStatus.waiting_input': 'Waiting for input',
     'workflowRuntime.runStatus.waiting_selection': 'Waiting for selection',
     'workflowRuntime.stepStatus.blocked': 'Blocked',
@@ -1188,6 +1217,7 @@ const translations: Record<Locale, Translations> = {
     'agentRuntime.status.queued': 'Queued',
     'agentRuntime.status.running': 'Running',
     'agentRuntime.status.succeeded': 'Succeeded',
+    'agentRuntime.status.waiting_approval': 'Waiting for approval',
     'agentRuntime.status.waiting_input': 'Waiting for input',
     'agentRuntime.status.waiting_selection': 'Waiting for selection',
     'agentWorkspace.addEntrypoint': 'Add / Skill or Workflow',
@@ -1838,6 +1868,19 @@ const translations: Record<Locale, Translations> = {
     'workflowRuntime.created': 'Workflow Run 已创建',
     'workflowRuntime.createdBody': '现在可以手动启动已就绪的 Step。',
     'workflowRuntime.definition': 'Definition',
+    'workflowRuntime.gateApprove': '批准',
+    'workflowRuntime.gateApproved': 'Gate 已批准',
+    'workflowRuntime.gateAssets': '审阅资产',
+    'workflowRuntime.gateDecisionBody': 'Workflow 已根据这次显式决定更新状态。',
+    'workflowRuntime.gateDecisionFailed': '无法记录 Gate 决定',
+    'workflowRuntime.gateReject': '拒绝',
+    'workflowRuntime.gateRejected': 'Gate 已拒绝',
+    'workflowRuntime.gates': '人工审批 Gate',
+    'workflowRuntime.gateSubject': '审阅对象',
+    'workflowRuntime.gateStatus.failed': '已拒绝',
+    'workflowRuntime.gateStatus.not_ready': '尚未就绪',
+    'workflowRuntime.gateStatus.passed': '已批准',
+    'workflowRuntime.gateStatus.waiting_approval': '等待批准',
     'workflowRuntime.changeSelectedOutput': '改用这个结果',
     'workflowRuntime.outdated': '上游已变化',
     'workflowRuntime.outputSelected': '已选用 Workflow 输出',
@@ -1860,6 +1903,7 @@ const translations: Record<Locale, Translations> = {
     'workflowRuntime.runStatus.ready': '已就绪',
     'workflowRuntime.runStatus.running': '运行中',
     'workflowRuntime.runStatus.succeeded': '已完成',
+    'workflowRuntime.runStatus.waiting_approval': '等待批准',
     'workflowRuntime.runStatus.waiting_input': '等待输入',
     'workflowRuntime.runStatus.waiting_selection': '等待选择',
     'workflowRuntime.stepStatus.blocked': '已阻塞',
@@ -1896,6 +1940,7 @@ const translations: Record<Locale, Translations> = {
     'agentRuntime.status.queued': '等待启动',
     'agentRuntime.status.running': '运行中',
     'agentRuntime.status.succeeded': '已完成',
+    'agentRuntime.status.waiting_approval': '等待批准',
     'agentRuntime.status.waiting_input': '等待输入',
     'agentRuntime.status.waiting_selection': '等待选择',
     'agentWorkspace.addEntrypoint': '添加 / Skill 或 Workflow',

@@ -502,6 +502,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         onClose={() => setInspectorBlockId(undefined)}
         onCopyPrompt={copyPromptWithHistory}
         onDownloadAll={downloadGroupAssets}
+        onDecideWorkflowApproval={workflowRuntimeController.decideWorkflowGate}
         onCancelAgentRun={agentRuntimeController.cancelAgentRun}
         onCreateWorkflowAgentRun={agentRuntimeController.createWorkflowAgentRun}
         onPauseAgentRun={agentRuntimeController.pauseAgentRun}

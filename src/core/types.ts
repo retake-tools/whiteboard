@@ -9,6 +9,11 @@ import type {
 } from './capabilityContracts';
 import type { RetakeSkillSnapshot } from './skillRegistry';
 import type { WorkflowRunRecord, WorkflowStepRunRecord, WorkflowStepRunFreshness, WorkflowStepRunStatus } from './workflowRuntimeContracts';
+import type {
+  WorkflowApprovalDecisionRecord,
+  WorkflowApprovalRequestRecord,
+  WorkflowGateEvaluationRecord,
+} from './workflowGateContracts';
 import type { AgentRunRecord } from './agentRuntimeContracts';
 import type {
   AgentMessageRecord,
@@ -415,6 +420,9 @@ export interface BoardSnapshot {
   changeDecisions?: ChangeDecisionRecord[];
   workflowRuns?: WorkflowRunRecord[];
   workflowStepRuns?: WorkflowStepRunRecord[];
+  workflowGateEvaluations?: WorkflowGateEvaluationRecord[];
+  workflowApprovalRequests?: WorkflowApprovalRequestRecord[];
+  workflowApprovalDecisions?: WorkflowApprovalDecisionRecord[];
   historyEvents?: BoardHistoryEvent[];
   groupMigrationVersion?: number;
 }
