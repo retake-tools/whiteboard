@@ -17,13 +17,14 @@ import { storyToStoryboardWorkflow } from '../src/core/workflowRegistry';
 import { createWorkflowRunForGroup, reconcileWorkflowRuntime, workflowRunViewForId } from '../src/core/workflowRuntime';
 import { resetWorkspace } from './local-store/snapshot-store';
 
-const [controllerSource, groupInspectorSource] = await Promise.all([
+const [controllerSource, groupInspectorSource, targetPickerSource] = await Promise.all([
   readFile(new URL('../src/app/useAgentRuntimeController.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/GroupInspector.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/WorkflowAgentTargetPicker.tsx', import.meta.url), 'utf8'),
 ]);
 assert.match(controllerSource, /createAgentRunForWorkflowSlice/);
-assert.match(groupInspectorSource, /agentRuntime\.fullWorkflow/);
-assert.match(groupInspectorSource, /agentRuntime\.untilStep/);
+assert.match(targetPickerSource, /agentRuntime\.fullWorkflow/);
+assert.match(targetPickerSource, /agentRuntime\.untilStep/);
 assert.match(groupInspectorSource, /onCreateWorkflowSliceAgentRun/);
 
 const readyTextConnection: ExecutionConnectionSummary = {

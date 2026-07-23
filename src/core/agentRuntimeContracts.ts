@@ -118,6 +118,8 @@ export interface AgentRunRecord {
   satisfiedArtifactRevisionIds?: string[];
   satisfiedGateEvaluationId?: string;
   scope: AgentRunScope;
+  sourceChangeProposalId?: string;
+  sourceDraftLaunchIdempotencyKey?: string;
   sourcePackageLock?: PackageLock;
   status: AgentRunStatus;
   stopPolicy: AgentRunStopPolicy;

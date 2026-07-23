@@ -8,6 +8,7 @@ import {
   createAgentRunForWorkflowSlice,
   createAgentRunForWorkflowStageSlice,
   createAgentRunForWorkflowRun,
+  markAgentRunNeedsAttention,
   nextAgentRunExecutionAction,
   pauseAgentRun,
   reconcileAgentRuntime,
@@ -68,20 +69,35 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
     const boardId = runtimeSnapshot.board.boardId;
     const knownExecutionIds = new Set(runtimeSnapshot.executions.map((execution) => execution.executionId));
     inFlightActionRef.current = { actionKey: action.actionKey, boardId };
-    void runOperationRef.current(action.operationBlockId).finally(() => {
+    const settleAction = (error?: unknown): void => {
       if (inFlightActionRef.current?.actionKey === action.actionKey) inFlightActionRef.current = undefined;
       if (snapshotRef.current.board.boardId !== boardId) return;
       updateSnapshot((current) => {
+        let attachedExecution = false;
         for (const execution of current.executions) {
           if (
             !knownExecutionIds.has(execution.executionId)
             && execution.params?.operationBlockId === action.operationBlockId
-          ) attachAgentRunExecution(current, action.agentRunId, execution.executionId);
+          ) {
+            attachAgentRunExecution(current, action.agentRunId, execution.executionId);
+            attachedExecution = true;
+          }
+        }
+        if (error && !attachedExecution) {
+          markAgentRunNeedsAttention(
+            current,
+            action.agentRunId,
+            error instanceof Error ? error.message : String(error),
+          );
         }
         reconcileAgentRuntime(current);
         return current;
       }, { history: false, persist: true });
-    });
+    };
+    void runOperationRef.current(action.operationBlockId).then(
+      () => settleAction(),
+      (error) => settleAction(error),
+    );
   }, [runtimeRevision]);
 
   function createWorkflowAgentRun(workflowRunId: string): void {

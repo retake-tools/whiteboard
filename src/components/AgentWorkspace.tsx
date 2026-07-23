@@ -1,43 +1,52 @@
 import { Archive, Bot, ChevronDown, CircleStop, Pause, Play, Plus, X } from 'lucide-react';
-import { useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
+import { operationReadinessFor } from '../core/capabilities';
 import { messagesForSession, proposalsForSession, runtimeEventsForSession } from '../core/agentSession';
 import type {
   AgentRuntimeBindingRecord,
   AgentSessionRecord,
   ChangeProposalRecord,
+  PackageEntrypointAgentLaunchTarget,
 } from '../core/agentSessionContracts';
 import { resolvePackageEntryPoint } from '../core/packageRegistry';
 import { skillUiDefinitionFor } from '../core/skillRegistry';
 import type { BoardSnapshot } from '../core/types';
-import { workflowUiDefinitionFor } from '../core/workflowRegistry';
+import { listWorkflows, workflowUiDefinitionFor } from '../core/workflowRegistry';
 import { useI18n } from '../i18n';
 import { AgentWorkspaceComposer } from './AgentWorkspaceComposer';
 import { TooltipIconButton } from './Tooltip';
+import { WorkflowAgentTargetPicker } from './WorkflowAgentTargetPicker';
 
 type AgentWorkspaceTab = 'chat' | 'run' | 'changes';
 
 export function AgentWorkspace({
   binding,
   error,
+  focusedAgentRunId,
   isSending,
+  launchingProposalId,
   onArchiveSession,
   onCancelAgentRun,
   onClose,
   onCreateSession,
   onPauseAgentRun,
   onDecideProposal,
+  onLaunchProposal,
   onResumeAgentRun,
   onSelectAgentRun,
   onSelectSession,
   onSubmitMessage,
   onViewProposalEffect,
+  onViewProposalRun,
   selectedSession,
   sessions,
   snapshot,
 }: {
   binding?: AgentRuntimeBindingRecord;
   error?: string;
+  focusedAgentRunId?: string;
   isSending: boolean;
+  launchingProposalId?: string;
   onArchiveSession: () => void;
   onCancelAgentRun: (agentRunId: string) => void;
   onClose: () => void;
@@ -48,11 +57,17 @@ export function AgentWorkspace({
     expectedProposalVersion: number,
     decision: 'approve' | 'reject',
   ) => void;
+  onLaunchProposal: (
+    proposalId: string,
+    expectedProposalVersion: number,
+    target: PackageEntrypointAgentLaunchTarget,
+  ) => void;
   onResumeAgentRun: (agentRunId: string) => void;
   onSelectAgentRun: (agentRunId?: string) => void;
   onSelectSession: (agentSessionId: string) => void;
   onSubmitMessage: (input: Parameters<typeof AgentWorkspaceComposer>[0]['onSubmit'] extends (value: infer T) => void ? T : never) => void;
   onViewProposalEffect: (proposalId: string) => void;
+  onViewProposalRun: (proposalId: string) => void;
   selectedSession?: AgentSessionRecord;
   sessions: AgentSessionRecord[];
   snapshot: BoardSnapshot;
@@ -67,6 +82,10 @@ export function AgentWorkspace({
   const activeRun = selectedSession?.activeAgentRunId
     ? agentRuns.find((run) => run.agentRunId === selectedSession.activeAgentRunId)
     : undefined;
+
+  useEffect(() => {
+    if (focusedAgentRunId) setTab('run');
+  }, [focusedAgentRunId]);
 
   return (
     <aside className="agent-workspace" aria-label={t('agentWorkspace.title')}>
@@ -120,14 +139,22 @@ export function AgentWorkspace({
           </div>
         ) : (
           <div className="agent-workspace-changes">
+            {error ? <p className="agent-workspace-error" role="alert">{error}</p> : null}
             {proposals.length === 0
               ? <p className="agent-workspace-placeholder">{t('agentWorkspace.changesEmpty')}</p>
               : proposals.map((proposal) => (
                   <ProposalCard
                     key={proposal.proposalId}
+                    isLaunching={launchingProposalId === proposal.proposalId}
                     proposal={proposal}
+                    snapshot={snapshot}
                     onDecide={onDecideProposal}
+                    onLaunch={onLaunchProposal}
                     onView={onViewProposalEffect}
+                    onViewRun={(proposalId) => {
+                      onViewProposalRun(proposalId);
+                      setTab('run');
+                    }}
                   />
                 ))}
           </div>
@@ -138,23 +165,56 @@ export function AgentWorkspace({
 }
 
 function ProposalCard({
+  isLaunching,
   onDecide,
+  onLaunch,
   onView,
+  onViewRun,
   proposal,
+  snapshot,
 }: {
+  isLaunching: boolean;
   onDecide: (
     proposalId: string,
     expectedProposalVersion: number,
     decision: 'approve' | 'reject',
   ) => void;
+  onLaunch: (
+    proposalId: string,
+    expectedProposalVersion: number,
+    target: PackageEntrypointAgentLaunchTarget,
+  ) => void;
   onView: (proposalId: string) => void;
+  onViewRun: (proposalId: string) => void;
   proposal: ChangeProposalRecord;
+  snapshot: BoardSnapshot;
 }): ReactElement {
   const { t } = useI18n();
+  const [isLaunchReviewOpen, setIsLaunchReviewOpen] = useState(false);
+  const [workflowTarget, setWorkflowTarget] = useState<
+    Exclude<PackageEntrypointAgentLaunchTarget, { kind: 'capability' }>
+  >({ kind: 'workflow_run' });
   const command = proposal.proposedCommand;
   const typedInvocation = command.kind === 'package_entrypoint.instantiate' ? command.invocation : undefined;
   const entrypointName = typedInvocation
     ? typedEntryPointName(typedInvocation.targetLock.entrypointId, t)
+    : undefined;
+  const skillOperation = proposal.appliedEffect?.entrypointKind === 'skill'
+    ? snapshot.blocks.find(
+        (block) =>
+          block.blockId === proposal.appliedEffect?.primaryBlockId
+          && block.type === 'operation',
+      )
+    : undefined;
+  const readiness = skillOperation
+    ? operationReadinessFor(snapshot, skillOperation)
+    : undefined;
+  const workflowDefinitionId = typedInvocation?.targetLock.entrypointKind === 'workflow'
+    ? typedInvocation.targetLock.workflowDefinitionLock.workflowDefinitionId
+    : undefined;
+  const isWorkflowEntrypoint = Boolean(workflowDefinitionId);
+  const workflowDefinition = workflowDefinitionId
+    ? listWorkflows().find((definition) => definition.workflowId === workflowDefinitionId)
     : undefined;
   return (
     <article className={`is-${proposal.status}`}>
@@ -221,9 +281,61 @@ function ProposalCard({
         </div>
       ) : null}
       {proposal.status === 'applied' && proposal.appliedEffect ? (
-        <button className="agent-workspace-view-effect" type="button" onClick={() => onView(proposal.proposalId)}>
-          {t('agentWorkspace.viewOnCanvas')}
-        </button>
+        <>
+          <div className="agent-workspace-applied-actions">
+            <button className="agent-workspace-view-effect" type="button" onClick={() => onView(proposal.proposalId)}>
+              {t('agentWorkspace.viewOnCanvas')}
+            </button>
+            {proposal.draftLaunchEffect ? (
+              <button type="button" onClick={() => onViewRun(proposal.proposalId)}>
+                {t('agentWorkspace.viewRun')}
+              </button>
+            ) : (
+              <button type="button" onClick={() => setIsLaunchReviewOpen((current) => !current)}>
+                <Play size={13} />{t('agentWorkspace.launchAgent')}
+              </button>
+            )}
+          </div>
+          {isLaunchReviewOpen && !proposal.draftLaunchEffect ? (
+            <div className="agent-workspace-launch-review">
+              <strong>{t('agentWorkspace.launchReview')}</strong>
+              {readiness ? (
+                <small>
+                  {readiness.canRun
+                    ? t('agentWorkspace.launchReady')
+                    : t('agentWorkspace.launchWaitingInput')}
+                </small>
+              ) : null}
+              {workflowDefinition ? (
+                <WorkflowAgentTargetPicker
+                  definition={workflowDefinition}
+                  value={workflowTarget}
+                  onChange={setWorkflowTarget}
+                />
+              ) : null}
+              {isWorkflowEntrypoint && !workflowDefinition ? (
+                <small className="agent-workspace-error">
+                  {t('agentWorkspace.launchDefinitionMissing')}
+                </small>
+              ) : null}
+              <p>{t('agentWorkspace.launchWarning')}</p>
+              <button
+                type="button"
+                disabled={isLaunching || (isWorkflowEntrypoint && !workflowDefinition)}
+                onClick={() => onLaunch(
+                  proposal.proposalId,
+                  proposal.recordVersion,
+                  isWorkflowEntrypoint ? workflowTarget : { kind: 'capability' },
+                )}
+              >
+                <Play size={13} />
+                {isLaunching
+                  ? t('agentWorkspace.launching')
+                  : t('agentWorkspace.confirmLaunch')}
+              </button>
+            </div>
+          ) : null}
+        </>
       ) : null}
     </article>
   );

@@ -28,13 +28,14 @@ import {
 } from './local-store/execution-store';
 import { loadSnapshot, resetWorkspace, saveSnapshot } from './local-store/snapshot-store';
 
-const [controllerSource, groupInspectorSource] = await Promise.all([
+const [controllerSource, groupInspectorSource, targetPickerSource] = await Promise.all([
   readFile(new URL('../src/app/useAgentRuntimeController.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/GroupInspector.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/WorkflowAgentTargetPicker.tsx', import.meta.url), 'utf8'),
 ]);
 assert.match(controllerSource, /createAgentRunForWorkflowArtifactSlice/);
 assert.match(controllerSource, /reconcileAgentArtifactTarget/);
-assert.match(groupInspectorSource, /agentRuntime\.untilArtifact/);
+assert.match(targetPickerSource, /agentRuntime\.untilArtifact/);
 assert.match(groupInspectorSource, /onCreateWorkflowArtifactSliceAgentRun/);
 
 const readyTextConnection: ExecutionConnectionSummary = {

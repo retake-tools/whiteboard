@@ -113,6 +113,8 @@ export interface WorkflowRunRecord {
   recordVersion: number;
   status: WorkflowRunStatus;
   sourcePackageLock?: PackageLock;
+  sourceChangeProposalId?: string;
+  sourceDraftLaunchIdempotencyKey?: string;
   stageDefinitionLocks?: WorkflowStageDefinitionLock[];
   stepRunIds: string[];
   updatedAt: string;

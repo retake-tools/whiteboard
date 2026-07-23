@@ -36,7 +36,7 @@ assert.match(portSource, /sandbox: 'read-only'/);
 assert.match(portSource, /Do not call tools/);
 assert.doesNotMatch(portSource, /saveSnapshot|createBlock|projectWorkflowDraft/);
 assert.match(appServerSource, /thread\/resume/);
-assert.match(appServerSource, /dynamicTools: \[\]/);
+assert.doesNotMatch(appServerSource, /dynamicTools:/);
 assert.match(workspaceSource, /'chat', 'run', 'changes'/);
 assert.match(composerSource, /listPackageEntryPoints/);
 assert.match(composerSource, /listPackageComposerMentionOptions/);

@@ -130,6 +130,16 @@
 .agent-workspace-proposal-details dd { margin: 0; overflow-wrap: anywhere; color: var(--retake-text-secondary); font-size: 10px; line-height: 1.4; }
 .agent-workspace-changes article .agent-workspace-draft-only { padding: 7px; border-radius: 6px; background: color-mix(in srgb, var(--retake-warning) 10%, transparent); color: var(--retake-text-secondary); }
 .agent-workspace-view-effect { justify-self: start; }
+.agent-workspace-applied-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.agent-workspace-applied-actions button,
+.agent-workspace-launch-review > button { display: inline-flex; align-items: center; gap: 5px; padding: 7px 9px; border: 1px solid var(--retake-border); border-radius: 7px; background: var(--retake-surface); color: var(--retake-text-secondary); font-size: 11px; cursor: pointer; }
+.agent-workspace-applied-actions button:last-child,
+.agent-workspace-launch-review > button { border-color: transparent; background: var(--retake-accent); color: var(--retake-on-accent); }
+.agent-workspace-launch-review { display: grid; gap: 8px; padding: 9px; border: 1px solid var(--retake-border); border-radius: 7px; background: var(--retake-surface); }
+.agent-workspace-launch-review > strong { font-size: 11px; }
+.agent-workspace-launch-review label { display: grid; gap: 4px; color: var(--retake-text-muted); font-size: 10px; }
+.agent-workspace-launch-review select { width: 100%; min-width: 0; padding: 6px; border: 1px solid var(--retake-border); border-radius: 6px; background: var(--retake-surface); color: var(--retake-text-secondary); font-size: 10px; }
+.agent-workspace-launch-review > button:disabled { opacity: .5; cursor: default; }
 
 @media (max-width: 640px) {
   .agent-workspace { top: 58px; right: 8px; bottom: 10px; width: calc(100vw - 16px); }

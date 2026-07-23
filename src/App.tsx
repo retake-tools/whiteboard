@@ -584,7 +584,9 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         <AgentWorkspace
           binding={agentWorkspaceController.selectedBinding}
           error={agentWorkspaceController.error}
+          focusedAgentRunId={agentWorkspaceController.focusedAgentRunId}
           isSending={agentWorkspaceController.isSending}
+          launchingProposalId={agentWorkspaceController.launchingProposalId}
           selectedSession={agentWorkspaceController.selectedSession}
           sessions={agentWorkspaceController.sessions}
           snapshot={snapshot}
@@ -593,12 +595,15 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
           onClose={() => setIsAgentWorkspaceOpen(false)}
           onCreateSession={() => agentWorkspaceController.newSession()}
           onDecideProposal={agentWorkspaceController.decideProposal}
+          onLaunchProposal={(proposalId, expectedProposalVersion, target) =>
+            void agentWorkspaceController.launchProposal(proposalId, expectedProposalVersion, target)}
           onPauseAgentRun={agentRuntimeController.pauseAgentRun}
           onResumeAgentRun={agentRuntimeController.resumeAgentRun}
           onSelectAgentRun={agentWorkspaceController.selectAgentRun}
           onSelectSession={agentWorkspaceController.selectSession}
           onSubmitMessage={(input) => void agentWorkspaceController.submitMessage(input)}
           onViewProposalEffect={agentWorkspaceController.focusProposalEffect}
+          onViewProposalRun={agentWorkspaceController.focusProposalRun}
         />
       ) : null}
       {reviewDocumentBlock ? (

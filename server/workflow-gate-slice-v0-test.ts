@@ -33,16 +33,23 @@ import {
 import { resetWorkspace, saveSnapshot } from './local-store/snapshot-store';
 import { reconcileWorkflowArtifactGates } from './workflow-gate-artifact-service';
 
-const [controllerSource, groupInspectorSource, appSource, artifactGateClientSource] = await Promise.all([
+const [
+  controllerSource,
+  groupInspectorSource,
+  targetPickerSource,
+  appSource,
+  artifactGateClientSource,
+] = await Promise.all([
   readFile(new URL('../src/app/useAgentRuntimeController.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/GroupInspector.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/WorkflowAgentTargetPicker.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/core/workflowArtifactGateClient.ts', import.meta.url), 'utf8'),
 ]);
 assert.match(controllerSource, /createAgentRunForWorkflowGateSlice/);
 assert.match(controllerSource, /createWorkflowGateSliceAgentRun/);
-assert.match(groupInspectorSource, /agentRuntime\.untilGate/);
-assert.match(groupInspectorSource, /agentRuntime\.gateCompletion/);
+assert.match(targetPickerSource, /agentRuntime\.untilGate/);
+assert.match(targetPickerSource, /agentRuntime\.gateCompletion/);
 assert.match(groupInspectorSource, /onCreateWorkflowGateSliceAgentRun/);
 assert.match(appSource, /onCreateWorkflowGateSliceAgentRun/);
 assert.match(artifactGateClientSource, /workflow\/artifact-gates\/reconcile/);

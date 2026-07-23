@@ -228,7 +228,6 @@ export async function runCodexAppServerTurn(
           approvalPolicy: 'never',
           sandbox: input.sandbox ?? 'read-only',
           ephemeral: input.ephemeral ?? true,
-          dynamicTools: [],
           ...(input.baseInstructions ? { baseInstructions: input.baseInstructions } : {}),
         });
     const thread = isRecord(threadResult.thread) ? threadResult.thread : undefined;

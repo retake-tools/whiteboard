@@ -151,6 +151,43 @@ export interface PackageEntryPointDraftAppliedEffect {
   workflowGroupId?: string;
 }
 
+export type PackageEntrypointAgentLaunchTarget =
+  | { kind: 'capability' }
+  | { kind: 'workflow_run' }
+  | {
+      kind: 'workflow_slice';
+      until:
+        | { kind: 'step'; stepId: string }
+        | { kind: 'artifact'; workflowOutputSlotId: string }
+        | { kind: 'stage'; stageId: string }
+        | {
+            completion: 'arrived' | 'passed';
+            gateId: string;
+            kind: 'gate';
+          };
+    };
+
+export interface PackageEntrypointDraftLaunchCommand {
+  agentSessionId: string;
+  expectedProposalVersion: number;
+  idempotencyKey: string;
+  kind: 'package_entrypoint_draft.launch_agent';
+  proposalId: string;
+  schemaVersion: 1;
+  target: PackageEntrypointAgentLaunchTarget;
+}
+
+export interface PackageEntrypointAgentLaunchEffect {
+  agentRunId: string;
+  agentSessionId: string;
+  createdWorkflowRun?: boolean;
+  idempotencyKey: string;
+  kind: 'package_entrypoint_agent_launch';
+  launchedAt: string;
+  targetKind: PackageEntrypointAgentLaunchTarget['kind'];
+  workflowRunId?: string;
+}
+
 export interface ChangeProposalRecord {
   agentRunId?: string;
   agentSessionId: string;
@@ -166,6 +203,7 @@ export interface ChangeProposalRecord {
   status: ChangeProposalStatus;
   summary: string;
   appliedEffect?: PackageEntryPointDraftAppliedEffect;
+  draftLaunchEffect?: PackageEntrypointAgentLaunchEffect;
   appliedAt?: string;
   applyError?: string;
   changeDecisionId?: string;

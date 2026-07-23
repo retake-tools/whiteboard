@@ -430,6 +430,21 @@ export function cancelAgentRun(snapshot: BoardSnapshot, agentRunId: string): Age
   return agentRunView(record);
 }
 
+export function markAgentRunNeedsAttention(
+  snapshot: BoardSnapshot,
+  agentRunId: string,
+  error: string,
+): AgentRunRuntimeView {
+  const record = agentRunRecord(snapshot, agentRunId);
+  if (!activeStatuses.has(record.status)) return agentRunView(record);
+  updateAgentRun(record, {
+    error,
+    status: 'needs_attention',
+  });
+  touchBoard(snapshot);
+  return agentRunView(record);
+}
+
 export function reconcileAgentRuntime(snapshot: BoardSnapshot): boolean {
   reconcileWorkflowRuntime(snapshot);
   let changed = false;

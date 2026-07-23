@@ -26,14 +26,15 @@ import {
 } from './local-store/execution-store';
 import { loadSnapshot, resetWorkspace, saveSnapshot } from './local-store/snapshot-store';
 
-const [controllerSource, groupInspectorSource, appSource] = await Promise.all([
+const [controllerSource, groupInspectorSource, targetPickerSource, appSource] = await Promise.all([
   readFile(new URL('../src/app/useAgentRuntimeController.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/GroupInspector.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/WorkflowAgentTargetPicker.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
 ]);
 assert.match(controllerSource, /createAgentRunForWorkflowStageSlice/);
 assert.match(controllerSource, /createWorkflowStageSliceAgentRun/);
-assert.match(groupInspectorSource, /agentRuntime\.untilStage/);
+assert.match(targetPickerSource, /agentRuntime\.untilStage/);
 assert.match(groupInspectorSource, /onCreateWorkflowStageSliceAgentRun/);
 assert.match(appSource, /onCreateWorkflowStageSliceAgentRun/);
 

@@ -566,6 +566,7 @@ type TranslationKey =
   | 'agentWorkspace.archiveSession'
   | 'agentWorkspace.changes'
   | 'agentWorkspace.changesEmpty'
+  | 'agentWorkspace.confirmLaunch'
   | 'agentWorkspace.chat'
   | 'agentWorkspace.chatEmpty'
   | 'agentWorkspace.createSession'
@@ -576,6 +577,13 @@ type TranslationKey =
   | 'agentWorkspace.eyebrow'
   | 'agentWorkspace.inputPlaceholder'
   | 'agentWorkspace.instruction'
+  | 'agentWorkspace.launchAgent'
+  | 'agentWorkspace.launching'
+  | 'agentWorkspace.launchReady'
+  | 'agentWorkspace.launchDefinitionMissing'
+  | 'agentWorkspace.launchReview'
+  | 'agentWorkspace.launchWaitingInput'
+  | 'agentWorkspace.launchWarning'
   | 'agentWorkspace.newSession'
   | 'agentWorkspace.noRun'
   | 'agentWorkspace.noSession'
@@ -597,6 +605,7 @@ type TranslationKey =
   | 'agentWorkspace.thinking'
   | 'agentWorkspace.title'
   | 'agentWorkspace.viewOnCanvas'
+  | 'agentWorkspace.viewRun'
   | 'agentWorkspace.workflowDraftEffect'
   | 'agentWorkspace.you'
   | 'operationInputQuickAdd.add'
@@ -1369,6 +1378,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.archiveSession': 'Archive session',
     'agentWorkspace.changes': 'Changes',
     'agentWorkspace.changesEmpty': 'Out-of-scope requests will appear here as reviewable Change Proposals.',
+    'agentWorkspace.confirmLaunch': 'Confirm and start Agent',
     'agentWorkspace.chat': 'Chat',
     'agentWorkspace.chatEmpty': 'Ask about this Board or control the currently attached Agent Run.',
     'agentWorkspace.createSession': 'Create session',
@@ -1379,6 +1389,13 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.eyebrow': 'Board Agent',
     'agentWorkspace.inputPlaceholder': 'Ask about this Board or request an allowed Run action…',
     'agentWorkspace.instruction': 'Instruction',
+    'agentWorkspace.launchAgent': 'Start Agent',
+    'agentWorkspace.launching': 'Starting…',
+    'agentWorkspace.launchReady': 'Inputs are ready for execution.',
+    'agentWorkspace.launchDefinitionMissing': 'The locked Workflow definition is not installed. Restore the matching Package before launch.',
+    'agentWorkspace.launchReview': 'Review execution authorization',
+    'agentWorkspace.launchWaitingInput': 'Required input is incomplete. The Agent will wait without calling a Provider.',
+    'agentWorkspace.launchWarning': 'Starting may call the configured Provider and consume credits or incur costs.',
     'agentWorkspace.newSession': 'New session',
     'agentWorkspace.noRun': 'No Agent Run attached',
     'agentWorkspace.noSession': 'No active session',
@@ -1400,6 +1417,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.thinking': 'Working within the attached scope…',
     'agentWorkspace.title': 'Agent Workspace',
     'agentWorkspace.viewOnCanvas': 'View on canvas',
+    'agentWorkspace.viewRun': 'View Run',
     'agentWorkspace.workflowDraftEffect': 'Create a Workflow Group and its locked Step Projection.',
     'agentWorkspace.you': 'You',
     'operationInputQuickAdd.add': 'Add',
@@ -2167,6 +2185,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.archiveSession': '归档会话',
     'agentWorkspace.changes': '变更',
     'agentWorkspace.changesEmpty': '超出范围的请求会在这里形成可审阅的 Change Proposal。',
+    'agentWorkspace.confirmLaunch': '确认启动 Agent',
     'agentWorkspace.chat': '对话',
     'agentWorkspace.chatEmpty': '可以询问当前画板，或控制已绑定 Agent Run 的允许动作。',
     'agentWorkspace.createSession': '创建会话',
@@ -2177,6 +2196,13 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.eyebrow': '画板 Agent',
     'agentWorkspace.inputPlaceholder': '询问当前画板，或请求 Agent Run 范围内的动作…',
     'agentWorkspace.instruction': '指令',
+    'agentWorkspace.launchAgent': '启动 Agent',
+    'agentWorkspace.launching': '正在启动…',
+    'agentWorkspace.launchReady': '输入已就绪，可以执行。',
+    'agentWorkspace.launchDefinitionMissing': '已锁定的 Workflow Definition 未安装；请恢复对应 Package 后再启动。',
+    'agentWorkspace.launchReview': '审阅执行授权',
+    'agentWorkspace.launchWaitingInput': '必填输入尚未完整；Agent 会等待输入，不会调用 Provider。',
+    'agentWorkspace.launchWarning': '启动后可能调用当前配置的 Provider，并消耗额度或产生费用。',
     'agentWorkspace.newSession': '新建会话',
     'agentWorkspace.noRun': '未绑定 Agent Run',
     'agentWorkspace.noSession': '没有活动会话',
@@ -2198,6 +2224,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.thinking': '正在已授权范围内处理…',
     'agentWorkspace.title': 'Agent Workspace',
     'agentWorkspace.viewOnCanvas': '在画布中查看',
+    'agentWorkspace.viewRun': '查看 Run',
     'agentWorkspace.workflowDraftEffect': '创建 Workflow Group 与锁定版本的 Step Projection。',
     'agentWorkspace.you': '你',
     'operationInputQuickAdd.add': '添加',

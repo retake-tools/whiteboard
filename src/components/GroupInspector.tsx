@@ -18,6 +18,7 @@ import {
 } from '../core/workflowGateRuntime';
 import { latestAgentRunForWorkflowRun, type AgentRunRuntimeView } from '../core/agentRuntime';
 import type { AgentWorkflowGateCompletion } from '../core/agentRuntimeContracts';
+import type { PackageEntrypointAgentLaunchTarget } from '../core/agentSessionContracts';
 import { useI18n } from '../i18n';
 import {
   ExecutionDetailContent,
@@ -25,6 +26,7 @@ import {
   type ExecutionDetailCopySource,
 } from './ExecutionDetailContent';
 import { TooltipIconButton } from './Tooltip';
+import { WorkflowAgentTargetPicker } from './WorkflowAgentTargetPicker';
 
 interface CopyPromptInput {
   blockIds?: string[];
@@ -342,8 +344,9 @@ function GroupSummary({
   outputSelectionStep?: WorkflowStepRunRecord;
 }): ReactElement {
   const { t } = useI18n();
-  const [agentTarget, setAgentTarget] = useState('workflow_run');
-  const [gateCompletion, setGateCompletion] = useState<AgentWorkflowGateCompletion>('arrived');
+  const [agentTarget, setAgentTarget] = useState<
+    Exclude<PackageEntrypointAgentLaunchTarget, { kind: 'capability' }>
+  >({ kind: 'workflow_run' });
   const kind = (group.data.groupKind ?? 'manual') as GroupKind;
   const dimensions = selectedItem
     ? mediaDimensions(selectedItem.asset.width, selectedItem.asset.height)
@@ -359,22 +362,9 @@ function GroupSummary({
     && (outputSelectionStep.status === 'waiting_selection' || outputSelectionStep.status === 'succeeded')
     ? { assetId: selectedAssetId, step: outputSelectionStep }
     : undefined;
-  const selectedSliceStepRunId = agentTarget.startsWith('step:')
-    ? agentTarget.slice('step:'.length)
-    : undefined;
-  const selectedSliceArtifactSlotId = agentTarget.startsWith('artifact:')
-    ? agentTarget.slice('artifact:'.length)
-    : undefined;
-  const selectedSliceStageId = agentTarget.startsWith('stage:')
-    ? agentTarget.slice('stage:'.length)
-    : undefined;
-  const selectedSliceGateId = agentTarget.startsWith('gate:')
-    ? agentTarget.slice('gate:'.length)
-    : undefined;
 
   useEffect(() => {
-    setAgentTarget('workflow_run');
-    setGateCompletion('arrived');
+    setAgentTarget({ kind: 'workflow_run' });
   }, [workflowRun?.record.workflowRunId]);
 
   return (
@@ -551,109 +541,71 @@ function GroupSummary({
           ) : null}
           {!agentRun?.canCancel ? (
             <div className="agent-run-create">
-              <label>
-                <span>{t('agentRuntime.executionRange')}</span>
-                <select value={agentTarget} onChange={(event) => setAgentTarget(event.target.value)}>
-                  <option value="workflow_run">{t('agentRuntime.fullWorkflow')}</option>
-                  {gateViews.map((gate) => (
-                    <option
-                      key={`gate:${gate.gateDefinitionLock.gateId}`}
-                      value={`gate:${gate.gateDefinitionLock.gateId}`}
-                    >
-                      {t('agentRuntime.untilGate')}:{' '}
-                      {workflowGateDefinitionLabel(gate.gateDefinitionLock, workflowRun, snapshot)}
-                    </option>
-                  ))}
-                  {workflowRun.stages.map((stage) => (
-                    <option
-                      key={`stage:${stage.stageDefinitionLock.stageId}`}
-                      value={`stage:${stage.stageDefinitionLock.stageId}`}
-                    >
-                      {t('agentRuntime.untilStage')}: {stage.stageDefinitionLock.name}
-                    </option>
-                  ))}
-                  {workflowRun.steps.map((step) => {
-                    const operation = snapshot.blocks.find(
-                      (block) => block.blockId === step.record.operationBlockId,
-                    );
-                    return (
-                      <option key={step.record.stepRunId} value={`step:${step.record.stepRunId}`}>
-                        {t('agentRuntime.untilStep')}: {operation?.data.title ?? step.record.stepId}
-                      </option>
-                    );
-                  })}
-                  {workflowRun.record.outputSlotLocks.map((output) => {
-                    const step = workflowRun.steps.find(
-                      (candidate) => candidate.record.stepId === output.stepId,
-                    );
-                    const operation = snapshot.blocks.find(
-                      (block) => block.blockId === step?.record.operationBlockId,
-                    );
-                    return (
-                      <option
-                        key={`artifact:${output.workflowOutputSlotId}`}
-                        value={`artifact:${output.workflowOutputSlotId}`}
-                      >
-                        {t('agentRuntime.untilArtifact')}: {operation?.data.title ?? output.stepId}
-                        {' · '}{output.workflowOutputSlotId}
-                      </option>
-                    );
-                  })}
-                </select>
-              </label>
-              {selectedSliceGateId ? (
-                <label>
-                  <span>{t('agentRuntime.gateCompletion')}</span>
-                  <select
-                    value={gateCompletion}
-                    onChange={(event) => setGateCompletion(
-                      event.target.value as AgentWorkflowGateCompletion,
-                    )}
-                  >
-                    <option value="arrived">{t('agentRuntime.gateCompletion.arrived')}</option>
-                    <option value="passed">{t('agentRuntime.gateCompletion.passed')}</option>
-                  </select>
-                  <small>
-                    {gateCompletion === 'arrived'
-                      ? t('agentRuntime.gateCompletion.arrivedDescription')
-                      : t('agentRuntime.gateCompletion.passedDescription')}
-                  </small>
-                </label>
-              ) : null}
+              <WorkflowAgentTargetPicker
+                definition={{
+                  gates: gateViews.map((gate) => ({
+                    gateId: gate.gateDefinitionLock.gateId,
+                    name: workflowGateDefinitionLabel(
+                      gate.gateDefinitionLock,
+                      workflowRun,
+                      snapshot,
+                    ),
+                  })),
+                  outputSlots: workflowRun.record.outputSlotLocks.map((output) => ({
+                    slotId: output.workflowOutputSlotId,
+                  })),
+                  stages: workflowRun.stages.map((stage) => ({
+                    name: stage.stageDefinitionLock.name,
+                    stageId: stage.stageDefinitionLock.stageId,
+                  })),
+                  steps: workflowRun.steps.map((step) => ({
+                    stepId: step.record.stepId,
+                  })),
+                }}
+                value={agentTarget}
+                onChange={setAgentTarget}
+              />
               <button
                 type="button"
                 className="agent-run-start"
                 onClick={() => {
-                  if (selectedSliceGateId) {
+                  if (agentTarget.kind === 'workflow_run') {
+                    onCreateWorkflowAgentRun(workflowRun.record.workflowRunId);
+                    return;
+                  }
+                  const until = agentTarget.until;
+                  if (until.kind === 'gate') {
                     onCreateWorkflowGateSliceAgentRun(
                       workflowRun.record.workflowRunId,
-                      selectedSliceGateId,
-                      gateCompletion,
+                      until.gateId,
+                      until.completion,
                     );
                     return;
                   }
-                  if (selectedSliceStageId) {
+                  if (until.kind === 'stage') {
                     onCreateWorkflowStageSliceAgentRun(
                       workflowRun.record.workflowRunId,
-                      selectedSliceStageId,
+                      until.stageId,
                     );
                     return;
                   }
-                  if (selectedSliceArtifactSlotId) {
+                  if (until.kind === 'artifact') {
                     onCreateWorkflowArtifactSliceAgentRun(
                       workflowRun.record.workflowRunId,
-                      selectedSliceArtifactSlotId,
+                      until.workflowOutputSlotId,
                     );
                     return;
                   }
-                  if (selectedSliceStepRunId) {
+                  if (until.kind === 'step') {
+                    const step = workflowRun.steps.find(
+                      (candidate) => candidate.record.stepId === until.stepId,
+                    );
+                    if (!step) return;
                     onCreateWorkflowSliceAgentRun(
                       workflowRun.record.workflowRunId,
-                      selectedSliceStepRunId,
+                      step.record.stepRunId,
                     );
-                    return;
                   }
-                  onCreateWorkflowAgentRun(workflowRun.record.workflowRunId);
                 }}
               >
                 <Bot size={15} />
