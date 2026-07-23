@@ -103,11 +103,13 @@ export interface WorkflowUiDefinition {
   descriptionKey:
     | 'workflow.storyToStoryboard.description'
     | 'workflow.storyboardUnitToSheet.description'
-    | 'workflow.storyboardUnitToGenerationPackage.description';
+    | 'workflow.storyboardUnitToGenerationPackage.description'
+    | 'workflow.approvedGenerationPackageToVideo.description';
   nameKey:
     | 'workflow.storyToStoryboard.name'
     | 'workflow.storyboardUnitToSheet.name'
-    | 'workflow.storyboardUnitToGenerationPackage.name';
+    | 'workflow.storyboardUnitToGenerationPackage.name'
+    | 'workflow.approvedGenerationPackageToVideo.name';
 }
 
 function capabilityLock(capabilityId: string): WorkflowCapabilityStepDefinition['capabilityLock'] {
@@ -498,10 +500,81 @@ export const storyboardUnitToGenerationPackageWorkflow: WorkflowDefinition = {
   defaultRunMode: 'manual',
 };
 
+export const approvedGenerationPackageToVideoWorkflow: WorkflowDefinition = {
+  schemaVersion: 1,
+  workflowId: 'retake.workflow.approved-generation-package-to-video',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-workflow-approved-generation-package-to-video-v1',
+  name: 'Approved generation package to video',
+  description: 'Generate, select, and review one video candidate from an approved Generation Package.',
+  inputSlots: [{
+    slotId: 'generation_package',
+    artifactTypes: ['video_generation_package'],
+    cardinality: 'one',
+    dataTypes: ['document'],
+    required: true,
+  }],
+  outputSlots: [{
+    slotId: 'selected_video',
+    source: {
+      kind: 'step_output',
+      stepId: 'domain_video_generate',
+      outputSlotId: 'videos',
+    },
+    exposedAsIntermediate: false,
+  }],
+  stages: [{
+    stageId: 'media_generation',
+    stageTypeId: 'retake.stage.media_generation',
+    name: 'Media Generation',
+    completionPolicy: 'all_required_steps',
+    outputWorkflowSlotIds: ['selected_video'],
+  }],
+  steps: [{
+    stepId: 'domain_video_generate',
+    type: 'capability',
+    stageId: 'media_generation',
+    capabilityLock: capabilityLock('generation.video.generate'),
+    skillLock: skillLock('retake.video-generation.from-approved-package'),
+    inputBindings: [{
+      inputSlotId: 'generation_package',
+      source: { kind: 'workflow_input', slotId: 'generation_package' },
+    }],
+    outputSlots: ['videos'],
+    outputAcceptancePolicy: 'manual_single',
+    runPolicy: 'manual',
+    dependsOn: [],
+    optional: false,
+  }],
+  gates: [{
+    definitionHash: 'sha256:retake-workflow-gate-video-generation-result-review-v1',
+    gateId: 'video_generation_result_review',
+    kind: 'human_approval',
+    name: 'Video generation result review',
+    required: true,
+    reviewChecklist: [
+      'technical_validity',
+      'storyboard_panel_execution',
+      'source_fidelity',
+      'performance_shape',
+      'identity_and_design',
+      'continuity_and_state',
+      'dialogue_voice_sound',
+      'text_overlay_boundary',
+    ],
+    subject: {
+      kind: 'artifact_revision',
+      workflowOutputSlotId: 'selected_video',
+    },
+  }],
+  defaultRunMode: 'manual',
+};
+
 const builtInWorkflows = [
   storyToStoryboardWorkflow,
   storyboardUnitToSheetWorkflow,
   storyboardUnitToGenerationPackageWorkflow,
+  approvedGenerationPackageToVideoWorkflow,
 ] as const;
 
 const workflowUiDefinitions: Record<string, WorkflowUiDefinition> = {
@@ -516,6 +589,10 @@ const workflowUiDefinitions: Record<string, WorkflowUiDefinition> = {
   [storyboardUnitToGenerationPackageWorkflow.workflowId]: {
     nameKey: 'workflow.storyboardUnitToGenerationPackage.name',
     descriptionKey: 'workflow.storyboardUnitToGenerationPackage.description',
+  },
+  [approvedGenerationPackageToVideoWorkflow.workflowId]: {
+    nameKey: 'workflow.approvedGenerationPackageToVideo.name',
+    descriptionKey: 'workflow.approvedGenerationPackageToVideo.description',
   },
 };
 

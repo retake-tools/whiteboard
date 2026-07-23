@@ -18,6 +18,11 @@ import {
   normalizeGenerationReferenceManifest,
 } from './generationPreparationContracts';
 import type { CapabilityBindingKind } from './capabilityContracts';
+import {
+  domainVideoGenerationCapabilityId,
+  domainVideoGenerationWorkflowId,
+  normalizeDomainVideoGenerationParameters,
+} from './domainVideoGenerationContracts';
 
 export type PackageComposerMention =
   | { blockId: string; kind: 'block'; slotId: string }
@@ -140,6 +145,8 @@ export function resolvePackageComposerInvocation(
     ? { ...normalizeStoryboardSheetGenerationParameters(invocation.parameters) }
     : targetUsesGenerationPreparation(resolution.target)
       ? { ...normalizeGenerationPreparationParameters(invocation.parameters) }
+      : targetUsesDomainVideoGeneration(resolution.target)
+        ? { ...normalizeDomainVideoGenerationParameters(invocation.parameters) }
       : structuredClone(invocation.parameters ?? {});
   return {
     target: resolution.target,
@@ -230,6 +237,7 @@ function inputSlotsForTarget(target: ResolvedPackageEntryPointTarget): ComposerI
     bindingKinds: slot.dataTypes.includes('structured_data')
       ? ['inline']
       : slot.artifactTypes.includes('storyboard_sheet')
+        || slot.artifactTypes.includes('video_generation_package')
         ? ['artifact_revision']
         : ['inline', 'block', 'asset', 'artifact_revision'],
     cardinality: slot.cardinality,
@@ -272,6 +280,10 @@ function mentionOptionsForBlock(
   return slots.filter((slot) => (
     compatibleSlot(slot, dataType, artifactType)
     && (
+      !slot.artifactTypes.includes('video_generation_package')
+      || currentPassedGenerationPackageGate(snapshot, block)
+    )
+    && (
       slot.bindingKinds.includes('block')
       || (
         slot.bindingKinds.includes('artifact_revision')
@@ -293,6 +305,22 @@ function mentionOptionsForBlock(
     artifactType,
     slotCardinality: slot.cardinality,
   }));
+}
+
+function currentPassedGenerationPackageGate(
+  snapshot: BoardSnapshot,
+  block: BlockRecord,
+): boolean {
+  const revisionId = stringValue(block.data.artifactRevisionId);
+  return Boolean(
+    revisionId
+    && (snapshot.workflowGateEvaluations ?? []).some((evaluation) =>
+      evaluation.gateId === 'generation_package_review'
+      && evaluation.subjectArtifactRevisionId === revisionId
+      && evaluation.status === 'passed'
+      && evaluation.freshness === 'current',
+    ),
+  );
 }
 
 function mentionOptionsForAsset(
@@ -373,4 +401,10 @@ function targetUsesGenerationPreparation(target: ResolvedPackageEntryPointTarget
   return target.kind === 'skill'
     ? target.capabilityLock.capabilityId === generationPreparationCapabilityId
     : target.workflowDefinitionLock.workflowDefinitionId === generationPreparationWorkflowId;
+}
+
+function targetUsesDomainVideoGeneration(target: ResolvedPackageEntryPointTarget): boolean {
+  return target.kind === 'skill'
+    ? target.capabilityLock.capabilityId === domainVideoGenerationCapabilityId
+    : target.workflowDefinitionLock.workflowDefinitionId === domainVideoGenerationWorkflowId;
 }

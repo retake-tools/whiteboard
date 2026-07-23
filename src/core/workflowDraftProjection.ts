@@ -20,6 +20,10 @@ import {
   createDraftGenerationPreparationOperation,
 } from './generationPreparationOperations';
 import { generationPreparationCapabilityId } from './generationPreparationContracts';
+import {
+  domainVideoGenerationCapabilityId,
+} from './domainVideoGenerationContracts';
+import { createDraftDomainVideoGenerationOperation } from './domainVideoGenerationOperations';
 
 export interface WorkflowDraftProjectionLabels {
   labelsForSkill: (skillId: string) => TextGenerationLabels;
@@ -134,7 +138,9 @@ export function projectWorkflowDraft(
     });
     const labels = input.labelsForSkill(step.skillLock.skillId);
     const capability = capabilityDefinitionFor(step.capabilityLock.capabilityId);
-    const mediaOutput = capability.outputSlots.some((slot) => slot.dataType === 'image');
+    const mediaOutput = capability.outputSlots.some(
+      (slot) => slot.dataType === 'image' || slot.dataType === 'video',
+    );
     const unitValue = workflowInputBindings.get('unit_id')?.find(
       (value): value is Extract<CapabilityBindingValue, { kind: 'inline' }> => value.kind === 'inline',
     );
@@ -151,6 +157,7 @@ export function projectWorkflowDraft(
           }))
         : []
     ));
+    const domainVideoGeneration = step.capabilityLock.capabilityId === domainVideoGenerationCapabilityId;
     const draft = generationPreparation
       ? createDraftGenerationPreparationOperation(snapshot, {
           connectionId: input.connectionIdForCapability(step.capabilityLock.capabilityId),
@@ -160,6 +167,13 @@ export function projectWorkflowDraft(
           referenceManifest: manifestValue?.value,
           unitId: typeof unitValue?.value === 'string' ? unitValue.value : undefined,
         })
+      : domainVideoGeneration
+        ? createDraftDomainVideoGenerationOperation(snapshot, {
+            connectionId: input.connectionIdForCapability(step.capabilityLock.capabilityId),
+            explicitInputBindings: explicitGenerationInputs,
+            labels,
+            parameters: input.composerInput?.parameters,
+          })
       : mediaOutput
       ? createDraftStoryboardSheetOperation(snapshot, {
           connectionId: input.connectionIdForCapability(step.capabilityLock.capabilityId),
@@ -200,7 +214,11 @@ export function projectWorkflowDraft(
     for (const outputSlotId of step.outputSlots) {
       const outputSlot = capability.outputSlots.find((candidate) => candidate.slotId === outputSlotId);
       if (!outputSlot) throw new Error(`Capability output slot not found: ${capability.capabilityId}.${outputSlotId}`);
-      if (outputSlot.dataType !== 'document' && outputSlot.dataType !== 'image') {
+      if (
+        outputSlot.dataType !== 'document'
+        && outputSlot.dataType !== 'image'
+        && outputSlot.dataType !== 'video'
+      ) {
         throw new Error(`Workflow Draft Projection does not support output: ${capability.capabilityId}.${outputSlotId}`);
       }
       const resultBlock = createBlockRecord(snapshot, outputSlot.dataType);
@@ -212,9 +230,9 @@ export function projectWorkflowDraft(
         ...(outputSlot.dataType === 'document' ? {
           documentKind: outputSlot.artifactType ?? 'general',
           managedDocumentResult: true,
-        } : {
+        } : outputSlot.dataType === 'image' ? {
           storyboardUnitId: typeof unitValue?.value === 'string' ? unitValue.value : undefined,
-        }),
+        } : {}),
         operationBlockId: draft.operationBlock.blockId,
         workflowOutputSlotId: outputSlotId,
         workflowStepId: step.stepId,
@@ -305,6 +323,9 @@ function createWorkflowInputBlock(
         assetId,
         previewUrl: source.data.previewUrl,
       } : assetId ? {
+        artifactId: source.data.artifactId,
+        artifactRevisionId: source.data.artifactRevisionId,
+        artifactType: source.data.artifactType,
         assetId,
         documentKind: typeof source.data.documentKind === 'string'
           ? source.data.documentKind

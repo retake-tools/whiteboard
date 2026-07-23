@@ -59,6 +59,7 @@ import { runAgentRuntimeTurn } from './agent-runtime-port';
 import { materializeWorkflowOutputArtifacts } from './workflow-output-artifact-service';
 import { reconcileAgentArtifactTargets } from './agent-artifact-target-service';
 import { reconcileWorkflowArtifactGates } from './workflow-gate-artifact-service';
+import { reviewDomainVideoLaunch } from './domain-video-launch-review-service';
 
 type MiddlewareContainer = {
   use(
@@ -97,6 +98,24 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               return;
             }
             sendJson(res, await readProjectArtifactLibrary(projectId));
+            return;
+          }
+
+          if (method === 'POST' && url.pathname === '/domain-video/launch-review') {
+            const body = (await readJson(req)) as {
+              blockId?: string;
+              boardId?: string;
+              projectId?: string;
+            };
+            if (!body.blockId || !body.boardId || !body.projectId) {
+              sendJson(res, { error: 'blockId, boardId, and projectId are required' }, 400);
+              return;
+            }
+            sendJson(res, await reviewDomainVideoLaunch({
+              blockId: body.blockId,
+              boardId: body.boardId,
+              projectId: body.projectId,
+            }));
             return;
           }
 

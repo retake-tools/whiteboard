@@ -9,7 +9,8 @@ export type SkillNameKey =
   | 'skill.sceneBible.name'
   | 'skill.storyboardPlan.name'
   | 'skill.storyboardSheet.name'
-  | 'skill.generationPackage.name';
+  | 'skill.generationPackage.name'
+  | 'skill.domainVideo.name';
 
 export type SkillDescriptionKey =
   | 'skill.screenplayFromBrief.description'
@@ -18,7 +19,8 @@ export type SkillDescriptionKey =
   | 'skill.sceneBible.description'
   | 'skill.storyboardPlan.description'
   | 'skill.storyboardSheet.description'
-  | 'skill.generationPackage.description';
+  | 'skill.generationPackage.description'
+  | 'skill.domainVideo.description';
 
 export type SkillInputKey =
   | 'skill.common.referencesInput'
@@ -38,7 +40,8 @@ export type SkillInputKey =
   | 'skill.generationPackage.unitInput'
   | 'skill.generationPackage.referencesInput'
   | 'skill.generationPackage.manifestInput'
-  | 'skill.generationPackage.instructionInput';
+  | 'skill.generationPackage.instructionInput'
+  | 'skill.domainVideo.packageInput';
 
 export type SkillPlaceholderKey =
   | 'skill.common.referencesPlaceholder'
@@ -58,7 +61,8 @@ export type SkillPlaceholderKey =
   | 'skill.generationPackage.unitPlaceholder'
   | 'skill.generationPackage.referencesPlaceholder'
   | 'skill.generationPackage.manifestPlaceholder'
-  | 'skill.generationPackage.instructionPlaceholder';
+  | 'skill.generationPackage.instructionPlaceholder'
+  | 'skill.domainVideo.packagePlaceholder';
 
 export type SkillOperationTitleKey =
   | 'operation.generateScreenplay.title'
@@ -67,7 +71,8 @@ export type SkillOperationTitleKey =
   | 'operation.defineScene.title'
   | 'operation.generateStoryboardPlan.title'
   | 'operation.generateStoryboardSheet.title'
-  | 'operation.prepareGenerationPackage.title';
+  | 'operation.prepareGenerationPackage.title'
+  | 'operation.generateDomainVideo.title';
 
 export interface RetakeSkillUiInputSlot {
   inputKey: SkillInputKey;
@@ -363,6 +368,41 @@ Do not select a provider, model, connection, seed, account, or billing route. Do
   },
 };
 
+export const videoGenerationFromApprovedPackageSkill: RetakeSkillDefinition = {
+  schemaVersion: 1,
+  skillId: 'retake.video-generation.from-approved-package',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-video-generation-from-approved-package-v1',
+  name: 'Generate video from approved package',
+  description: 'Render candidates from one approved Generation Package without changing its story authority.',
+  category: 'media_generation',
+  capabilityBindings: [{
+    capabilityId: 'generation.video.generate',
+    inputSlots: ['generation_package', 'references'],
+    outputSlots: ['videos'],
+  }],
+  instructionTemplate: `Execute one approved Retake Generation Package as an immutable story and continuity authority.
+
+Preserve the ordered Pxx responsibilities, performance, dialogue, sound, state transitions, negative constraints, and exact reference roles. Resolve references only from the typed manifest snapshot. Format the provider request deterministically; do not invent, expand, reorder, merge, or weaken package facts.
+
+Do not select a Provider, Connection, model, account, quality tier, output count, or billing route. Do not approve a Gate or authorize upload, submission, payment, or publication. If package approval, freshness, reference compatibility, prompt budget, Connection readiness, or explicit external-action authorization is missing, stop with the exact typed blocker.`,
+  outputRequirements: [
+    'Produce only video candidates for the exact approved Generation Package Revision.',
+    'Keep every candidate independent while preserving the same frozen request.',
+    'Persist exact request and reference mapping before any Provider action.',
+    'Never treat Provider completion as user selection or Human Gate approval.',
+  ],
+  source: {
+    kind: 'catmeme_migration',
+    paths: [
+      'skills/production-workflow/registry.yaml',
+      'skills/stage-video-generation/SKILL.md',
+      'skills/video-generation-prompt-preparation/SKILL.md',
+      'skills/role-director/references/storyboard-authority.md',
+    ],
+  },
+};
+
 const builtInSkills = [
   screenplayFromBriefSkill,
   normalizeScreenplaySkill,
@@ -371,6 +411,7 @@ const builtInSkills = [
   storyboardPlanFromProductionDesignSkill,
   storyboardSheetFromUnitPlanSkill,
   videoGenerationPackageFromApprovedStoryboardSkill,
+  videoGenerationFromApprovedPackageSkill,
 ] as const;
 
 const skillUiDefinitions: Record<string, RetakeSkillUiDefinition> = {
@@ -541,6 +582,18 @@ const skillUiDefinitions: Record<string, RetakeSkillUiDefinition> = {
         placeholderKey: 'skill.generationPackage.instructionPlaceholder',
       },
     ],
+  },
+  [videoGenerationFromApprovedPackageSkill.skillId]: {
+    nameKey: 'skill.domainVideo.name',
+    descriptionKey: 'skill.domainVideo.description',
+    inputKey: 'skill.domainVideo.packageInput',
+    placeholderKey: 'skill.domainVideo.packagePlaceholder',
+    operationTitleKey: 'operation.generateDomainVideo.title',
+    inputSlots: [{
+      slotId: 'generation_package',
+      inputKey: 'skill.domainVideo.packageInput',
+      placeholderKey: 'skill.domainVideo.packagePlaceholder',
+    }],
   },
 };
 

@@ -32,6 +32,7 @@ import { usePackageEntryPointController } from './app/usePackageEntryPointContro
 import { useAgentRuntimeController } from './app/useAgentRuntimeController';
 import { useAgentWorkspaceController } from './app/useAgentWorkspaceController';
 import { useArtifactLibraryController } from './app/useArtifactLibraryController';
+import { useDomainVideoLaunchReviewController } from './app/useDomainVideoLaunchReviewController';
 import { WhiteboardCanvas } from './app/WhiteboardCanvas';
 
 const DocumentReviewWorkspace = lazy(() => import('./components/DocumentReviewWorkspace').then((module) => ({
@@ -39,6 +40,9 @@ const DocumentReviewWorkspace = lazy(() => import('./components/DocumentReviewWo
 })));
 const ArtifactLibraryPanel = lazy(() => import('./components/ArtifactLibraryPanel').then((module) => ({
   default: module.ArtifactLibraryPanel,
+})));
+const DomainVideoLaunchReviewDialog = lazy(() => import('./components/DomainVideoLaunchReviewDialog').then((module) => ({
+  default: module.DomainVideoLaunchReviewDialog,
 })));
 
 export function App(): ReactElement {
@@ -243,6 +247,14 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     createWorkflowDraft: workflowDraftController.createWorkflowDraft,
     snapshotRef,
   });
+  const {
+    closeDomainVideoLaunchReview,
+    domainVideoLaunchReview,
+  } = useDomainVideoLaunchReviewController(
+    snapshotRef,
+    snapshot.project.projectId,
+    snapshot.board.boardId,
+  );
   const workflowRuntimeController = useWorkflowRuntimeController({
     persistSnapshot,
     setOperationToast,
@@ -490,6 +502,14 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
           });
         }}
       />
+      {domainVideoLaunchReview ? (
+        <Suspense fallback={null}>
+          <DomainVideoLaunchReviewDialog
+            state={domainVideoLaunchReview}
+            onClose={closeDomainVideoLaunchReview}
+          />
+        </Suspense>
+      ) : null}
       {inputReferencePicker ? (
         <InputReferencePicker
           anchor={inputReferencePicker.anchor}

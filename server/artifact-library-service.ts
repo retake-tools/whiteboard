@@ -20,10 +20,27 @@ export async function readProjectArtifactLibrary(
   projectId: string,
 ): Promise<ProjectArtifactLibrarySnapshot> {
   const snapshot = await readProjectArtifacts(projectId);
-  const listed = snapshot.artifacts.filter(
-    (artifact) => artifact.scope === 'project' && artifact.libraryVisibility === 'listed',
+  return hydrateProjectArtifactItems(projectId, snapshot, (artifact) =>
+    artifact.scope === 'project' && artifact.libraryVisibility === 'listed',
   );
-  const items = await Promise.all(listed.map(async (artifact) => {
+}
+
+export async function readProjectArtifactAuthority(
+  projectId: string,
+): Promise<ProjectArtifactLibrarySnapshot> {
+  const snapshot = await readProjectArtifacts(projectId);
+  return hydrateProjectArtifactItems(projectId, snapshot, () => true);
+}
+
+async function hydrateProjectArtifactItems(
+  projectId: string,
+  snapshot: Awaited<ReturnType<typeof readProjectArtifacts>>,
+  include: (artifact: Awaited<ReturnType<typeof readProjectArtifacts>>['artifacts'][number]) => boolean,
+): Promise<ProjectArtifactLibrarySnapshot> {
+  const artifacts = snapshot.artifacts.filter(
+    include,
+  );
+  const items = await Promise.all(artifacts.map(async (artifact) => {
     const currentRevision = snapshot.revisions.find(
       (revision) => revision.artifactRevisionId === artifact.currentRevisionId,
     );

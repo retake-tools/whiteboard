@@ -272,6 +272,28 @@
   overflow-wrap: anywhere;
 }
 
+.operation-domain-video-parameters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.operation-domain-video-parameters label {
+  display: grid;
+  gap: 4px;
+  color: var(--retake-text-muted);
+  font-size: 11px;
+}
+
+.operation-domain-video-parameters select {
+  min-width: 0;
+  height: 32px;
+  border: 1px solid var(--retake-border);
+  border-radius: 8px;
+  background: var(--retake-surface);
+  color: var(--retake-text);
+}
+
 .operation-run-button:hover:not(:disabled) {
   border-color: var(--retake-accent-strong);
   background: var(--retake-accent-strong);

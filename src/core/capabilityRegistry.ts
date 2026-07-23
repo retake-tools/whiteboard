@@ -372,6 +372,57 @@ export const generationPreparationCapabilityDefinition: CapabilityDefinition = {
   supportedAdapterClasses: ['agent_runtime.text'],
 };
 
+export const domainVideoGenerationCapabilityDefinition: CapabilityDefinition = {
+  schemaVersion: 1,
+  capabilityId: 'generation.video.generate',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-generation-video-generate-approved-package-v1',
+  category: 'video_generation',
+  displayName: 'Generate video from approved package',
+  inputSlots: [
+    {
+      slotId: 'generation_package',
+      semanticRole: 'approved_generation_package',
+      dataTypes: ['document'],
+      artifactTypes: ['video_generation_package'],
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['artifact_revision'],
+    },
+    {
+      slotId: 'references',
+      semanticRole: 'generation_reference',
+      dataTypes: ['image', 'video', 'audio'],
+      artifactTypes: [
+        'character_reference',
+        'scene_reference',
+        'prop_reference',
+        'storyboard_reference',
+        'reference',
+      ],
+      cardinality: 'many',
+      required: false,
+      bindingKinds: ['asset', 'artifact_revision'],
+    },
+  ],
+  outputSlots: [{
+    slotId: 'videos',
+    semanticRole: 'generated_video',
+    dataType: 'video',
+    artifactType: 'video_clip',
+    schemaRef: 'retake.video-set/v1',
+    cardinality: 'many',
+    projectionBlockTypes: ['video'],
+  }],
+  parametersSchemaRef: 'retake.params.generation.video.generate/v1',
+  runtimeRequirements: [
+    'video_generation',
+    'durable_asset_output',
+    'explicit_external_action_authorization',
+  ],
+  supportedAdapterClasses: ['video.generate'],
+};
+
 const canonicalCapabilityDefinitions = [
   textGenerateCapabilityDefinition,
   screenplayGenerateCapabilityDefinition,
@@ -381,6 +432,7 @@ const canonicalCapabilityDefinitions = [
   storyboardPlanCapabilityDefinition,
   storyboardSheetGenerateCapabilityDefinition,
   generationPreparationCapabilityDefinition,
+  domainVideoGenerationCapabilityDefinition,
 ] as const;
 
 const allTextDocumentCapabilityIds = canonicalCapabilityDefinitions
@@ -578,13 +630,13 @@ export const videoGenerateCapabilityDefinition: CapabilityDefinition = {
 export const mockVideoAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.video.mock',
-  version: '0.1.0',
-  definitionHash: 'sha256:retake-video-mock-v0',
+  version: '0.2.0',
+  definitionHash: 'sha256:retake-video-mock-domain-video-v1',
   adapterClass: 'video.generate',
   routeKind: 'local',
   provider: 'retake-mock',
   model: 'contract-placeholder',
-  supportedCapabilityIds: ['video.generate'],
+  supportedCapabilityIds: ['video.generate', 'generation.video.generate'],
   inputProfiles: [
     {
       profileId: 'flexible_video_input',
@@ -596,6 +648,11 @@ export const mockVideoAdapterDefinition: AdapterDefinition = {
         'scene_references',
         'general_references',
       ],
+    },
+    {
+      profileId: 'approved_generation_package_video',
+      requiredSlots: ['generation_package'],
+      optionalSlots: ['references'],
     },
   ],
   constraints: {
@@ -609,13 +666,13 @@ export const mockVideoAdapterDefinition: AdapterDefinition = {
 export const seedanceModelArkAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.video.seedance-modelark',
-  version: '0.1.0',
-  definitionHash: 'sha256:retake-video-seedance-modelark-v0',
+  version: '0.2.0',
+  definitionHash: 'sha256:retake-video-seedance-modelark-domain-video-v1',
   adapterClass: 'video.generate',
   routeKind: 'direct_api',
   provider: 'byteplus-modelark',
   model: 'dreamina-seedance-2-0-260128',
-  supportedCapabilityIds: ['video.generate'],
+  supportedCapabilityIds: ['video.generate', 'generation.video.generate'],
   inputProfiles: [
     {
       profileId: 'seedance_2_multimodal_video',
@@ -627,6 +684,11 @@ export const seedanceModelArkAdapterDefinition: AdapterDefinition = {
         'scene_references',
         'general_references',
       ],
+    },
+    {
+      profileId: 'approved_generation_package_video',
+      requiredSlots: ['generation_package'],
+      optionalSlots: ['references'],
     },
   ],
   constraints: {
@@ -644,13 +706,13 @@ export const seedanceModelArkAdapterDefinition: AdapterDefinition = {
 export const dreaminaCliAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.video.dreamina-cli',
-  version: '0.1.0',
-  definitionHash: 'sha256:retake-video-dreamina-cli-v0',
+  version: '0.2.0',
+  definitionHash: 'sha256:retake-video-dreamina-cli-domain-video-v1',
   adapterClass: 'video.generate',
   routeKind: 'provider_cli',
   provider: 'dreamina',
   model: 'seedance2.0_vip',
-  supportedCapabilityIds: ['video.generate'],
+  supportedCapabilityIds: ['video.generate', 'generation.video.generate'],
   inputProfiles: [
     {
       profileId: 'dreamina_cli_video',
@@ -662,6 +724,11 @@ export const dreaminaCliAdapterDefinition: AdapterDefinition = {
         'scene_references',
         'general_references',
       ],
+    },
+    {
+      profileId: 'approved_generation_package_video',
+      requiredSlots: ['generation_package'],
+      optionalSlots: ['references'],
     },
   ],
   constraints: {

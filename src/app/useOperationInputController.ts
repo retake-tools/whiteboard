@@ -18,6 +18,10 @@ import type {
 } from '../core/imageOperations';
 import { createId, nowIso } from '../core/id';
 import { executionConnection } from '../core/executionProviderPreferences';
+import {
+  domainVideoGenerationCapabilityId,
+  normalizeDomainVideoGenerationParameters,
+} from '../core/domainVideoGenerationContracts';
 import { skillUiDefinitionFor, skillsForCapability } from '../core/skillRegistry';
 import type {
   BlockRecord,
@@ -252,6 +256,12 @@ export function useOperationInputController(options: OperationInputControllerOpt
   async function runOperation(blockId: string, queuedConfigurationStale = false): Promise<void> {
     const block = snapshotRef.current.blocks.find((candidate) => candidate.blockId === blockId && candidate.type === 'operation');
     if (!block || blockLockedByGroup(snapshotRef.current, block.blockId) || block.data.status === 'running') return;
+    if (block.data.capabilityId === domainVideoGenerationCapabilityId) {
+      window.dispatchEvent(new CustomEvent('retake:open-domain-video-launch-review', {
+        detail: { blockId: block.blockId },
+      }));
+      return;
+    }
     const isTextDocument = block.data.capabilityId === 'text.generate'
       || (typeof block.data.capabilityId === 'string' && block.data.capabilityId.startsWith('story.screenplay.'));
     if (isTextDocument && block.data.status === 'queued') return;
@@ -300,6 +310,26 @@ export function useOperationInputController(options: OperationInputControllerOpt
       const detail = (event as CustomEvent<{ blockId?: string; connectionId?: string }>).detail;
       if (detail?.blockId && detail.connectionId) updateOperationConnection(detail.blockId, detail.connectionId);
     }
+    function onUpdateDomainVideoParameters(event: Event): void {
+      const detail = (event as CustomEvent<{
+        blockId?: string;
+        parameters?: Record<string, unknown>;
+      }>).detail;
+      if (!detail?.blockId || !detail.parameters) return;
+      updateSnapshot((current) => {
+        const operation = current.blocks.find((block) =>
+          block.blockId === detail.blockId
+          && block.type === 'operation'
+          && block.data.capabilityId === domainVideoGenerationCapabilityId,
+        );
+        if (!operation || blockLockedByGroup(current, operation.blockId)) return current;
+        const parameters = normalizeDomainVideoGenerationParameters(detail.parameters);
+        operation.data.domainVideoGenerationParameters = parameters;
+        operation.data.workflowParameters = parameters;
+        operation.updatedAt = nowIso();
+        return touchBoard(current);
+      }, { persist: true, history: true });
+    }
     function onUpdateSkill(event: Event): void {
       const detail = (event as CustomEvent<{ blockId?: string; skillId?: string }>).detail;
       if (!detail?.blockId || !detail.skillId) return;
@@ -328,6 +358,7 @@ export function useOperationInputController(options: OperationInputControllerOpt
     window.addEventListener('retake:update-operation-generation-params', onUpdateParams);
     window.addEventListener('retake:update-operation-generation-profile', onUpdateProfile);
     window.addEventListener('retake:update-operation-connection', onUpdateConnection);
+    window.addEventListener('retake:update-domain-video-parameters', onUpdateDomainVideoParameters);
     window.addEventListener('retake:update-operation-skill', onUpdateSkill);
     window.addEventListener('retake:update-operation-capability', onUpdateCapability);
     window.addEventListener('retake:update-operation-input-role', onUpdateRole);
@@ -336,6 +367,7 @@ export function useOperationInputController(options: OperationInputControllerOpt
       window.removeEventListener('retake:update-operation-generation-params', onUpdateParams);
       window.removeEventListener('retake:update-operation-generation-profile', onUpdateProfile);
       window.removeEventListener('retake:update-operation-connection', onUpdateConnection);
+      window.removeEventListener('retake:update-domain-video-parameters', onUpdateDomainVideoParameters);
       window.removeEventListener('retake:update-operation-skill', onUpdateSkill);
       window.removeEventListener('retake:update-operation-capability', onUpdateCapability);
       window.removeEventListener('retake:update-operation-input-role', onUpdateRole);

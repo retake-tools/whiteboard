@@ -29,6 +29,8 @@ import {
 } from '../core/generationPreparationOperations';
 import { generationPreparationCapabilityId } from '../core/generationPreparationContracts';
 import { loadProjectArtifactLibrary } from '../core/artifactLibraryClient';
+import { domainVideoGenerationCapabilityId } from '../core/domainVideoGenerationContracts';
+import { createDraftDomainVideoGenerationOperation } from '../core/domainVideoGenerationOperations';
 
 interface TextGenerationControllerOptions {
   centerWorkflowBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
@@ -125,6 +127,22 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
           referenceManifest: manifestValue,
           selectedBlockIds: composer ? [] : selectedBlockIdsRef.current,
           unitId: typeof unitValue === 'string' ? unitValue : undefined,
+        });
+        workflowBlockIds = [...draft.inputBlocks.map((inputBlock) => inputBlock.blockId), draft.operationBlock.blockId];
+        centerWorkflowBlocks(current, workflowBlockIds);
+        return current;
+      }
+      if (target.capabilityLock.capabilityId === domainVideoGenerationCapabilityId) {
+        const draft = createDraftDomainVideoGenerationOperation(current, {
+          connectionId: preferredVideoConnection(current, target.capabilityLock.capabilityId),
+          explicitInputBindings,
+          labels: skillLabels,
+          packageContext: {
+            entrypointId: target.entrypoint.entrypointId,
+            packageLock: target.packageLock,
+          },
+          parameters: composer?.invocation.parameters,
+          selectedBlockIds: composer ? [] : selectedBlockIdsRef.current,
         });
         workflowBlockIds = [...draft.inputBlocks.map((inputBlock) => inputBlock.blockId), draft.operationBlock.blockId];
         centerWorkflowBlocks(current, workflowBlockIds);
@@ -351,6 +369,15 @@ function preferredImageConnection(snapshot: BoardSnapshot, capabilityId: string)
     initialConnectionId: 'codex-app-server',
     projectId: snapshot.project.projectId,
     useCase: 'image',
+  }).connectionId;
+}
+
+function preferredVideoConnection(snapshot: BoardSnapshot, capabilityId: string): string | undefined {
+  return resolveExecutionConnectionPreference({
+    capabilityId,
+    initialConnectionId: 'retake-mock',
+    projectId: snapshot.project.projectId,
+    useCase: 'video',
   }).connectionId;
 }
 

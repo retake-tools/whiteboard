@@ -9,6 +9,10 @@ import {
   normalizeGenerationPreparationParameters,
   normalizeGenerationReferenceManifest,
 } from './generationPreparationContracts';
+import {
+  domainVideoGenerationCapabilityId,
+  normalizeDomainVideoGenerationParameters,
+} from './domainVideoGenerationContracts';
 
 export type CapabilityInputRole = ExecutionInputRole;
 export type CapabilityInputSource = 'block' | 'generated_asset' | 'inline';
@@ -141,6 +145,17 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
       'reference_manifest',
     ],
     supportedAdapters: ['mcp_agent'],
+  },
+  'generation.video.generate': {
+    capabilityId: 'generation.video.generate',
+    defaultAdapter: 'direct_api',
+    displayNameKey: 'operation.generateDomainVideo.title',
+    inputContracts: [],
+    outputContracts: [{ type: 'video' }],
+    paramsSchema: { count: true },
+    promptSource: 'inline',
+    requiredInputSlotIds: ['generation_package'],
+    supportedAdapters: ['direct_api', 'cli_agent', 'mock'],
   },
   'image.text_to_image': {
     capabilityId: 'image.text_to_image',
@@ -388,6 +403,27 @@ export function operationReadinessFor(
         item.required
         && (!item.bindingIdentity || !referenceIdentities.has(item.bindingIdentity))
       ))) issues.add('image_asset_missing');
+    } catch {
+      issues.add('prompt_empty');
+    }
+    return { canRun: issues.size === 0, issues: [...issues] };
+  }
+  if (capabilityId === domainVideoGenerationCapabilityId) {
+    const packageEdge = inputEdges.find((edge) => edge.inputSlotId === 'generation_package');
+    const packageBlock = packageEdge ? blockById.get(packageEdge.sourceBlockId) : undefined;
+    if (packageBlock?.type !== 'document') {
+      issues.add('text_input_missing');
+    } else if (
+      packageBlock.data.artifactType !== 'video_generation_package'
+      || typeof packageBlock.data.artifactRevisionId !== 'string'
+      || typeof packageBlock.data.assetId !== 'string'
+    ) {
+      issues.add('prompt_empty');
+    }
+    try {
+      normalizeDomainVideoGenerationParameters(
+        objectRecord(operationBlock.data.domainVideoGenerationParameters),
+      );
     } catch {
       issues.add('prompt_empty');
     }

@@ -19,6 +19,8 @@ import { createDraftStoryboardSheetOperation } from './storyboardSheetOperations
 import { storyboardSheetCapabilityId } from './storyboardSheetContracts';
 import { createDraftGenerationPreparationOperation } from './generationPreparationOperations';
 import { generationPreparationCapabilityId } from './generationPreparationContracts';
+import { domainVideoGenerationCapabilityId } from './domainVideoGenerationContracts';
+import { createDraftDomainVideoGenerationOperation } from './domainVideoGenerationOperations';
 
 type PackageEntrypointInstantiateCommand = Extract<
   ChangeProposalCommand,
@@ -143,6 +145,18 @@ export function stagePackageEntrypointDraft(
             referenceManifest: manifestValue,
             selectedBlockIds: [],
             unitId: typeof unitValue === 'string' ? unitValue : undefined,
+          })
+      : resolved.target.capabilityLock.capabilityId === domainVideoGenerationCapabilityId
+        ? createDraftDomainVideoGenerationOperation(stagedSnapshot, {
+            connectionId: presentation.connectionIdForCapability?.(
+              resolved.target.capabilityLock.capabilityId,
+              stagedSnapshot,
+            ),
+            explicitInputBindings,
+            labels,
+            packageContext,
+            parameters: command.invocation.parameters,
+            selectedBlockIds: [],
           })
       : createDraftSkillOperation(stagedSnapshot, {
           ...labels,

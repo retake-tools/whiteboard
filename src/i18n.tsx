@@ -361,6 +361,7 @@ type TranslationKey =
   | 'operation.generateStoryboardPlan.title'
   | 'operation.generateStoryboardSheet.title'
   | 'operation.prepareGenerationPackage.title'
+  | 'operation.generateDomainVideo.title'
   | 'operation.annotationEdit.prompt'
   | 'operation.annotationEdit.title'
   | 'operation.quickEdit.prompt'
@@ -485,12 +486,18 @@ type TranslationKey =
   | 'skill.generationPackage.manifestPlaceholder'
   | 'skill.generationPackage.instructionInput'
   | 'skill.generationPackage.instructionPlaceholder'
+  | 'skill.domainVideo.name'
+  | 'skill.domainVideo.description'
+  | 'skill.domainVideo.packageInput'
+  | 'skill.domainVideo.packagePlaceholder'
   | 'workflow.storyToStoryboard.name'
   | 'workflow.storyToStoryboard.description'
   | 'workflow.storyboardUnitToSheet.name'
   | 'workflow.storyboardUnitToSheet.description'
   | 'workflow.storyboardUnitToGenerationPackage.name'
   | 'workflow.storyboardUnitToGenerationPackage.description'
+  | 'workflow.approvedGenerationPackageToVideo.name'
+  | 'workflow.approvedGenerationPackageToVideo.description'
   | 'workflowDraft.outputPending'
   | 'workflowRuntime.create'
   | 'workflowRuntime.createFailed'
@@ -1220,6 +1227,7 @@ const translations: Record<Locale, Translations> = {
     'operation.generateStoryboardPlan.title': 'Generate storyboard plan',
     'operation.generateStoryboardSheet.title': 'Generate storyboard sheet',
     'operation.prepareGenerationPackage.title': 'Prepare generation package',
+    'operation.generateDomainVideo.title': 'Generate approved package video',
     'operation.annotationEdit.prompt': 'Edit image from annotation note',
     'operation.annotationEdit.title': 'Annotation Edit',
     'operation.quickEdit.prompt': 'Describe how to transform the source image...',
@@ -1344,12 +1352,18 @@ const translations: Record<Locale, Translations> = {
     'skill.generationPackage.manifestPlaceholder': 'Declare each reference role, purpose, binding, and whether it is required...',
     'skill.generationPackage.instructionInput': 'Preparation instruction',
     'skill.generationPackage.instructionPlaceholder': 'Optional bounded instruction for this generation package...',
+    'skill.domainVideo.name': 'Generate video from approved package',
+    'skill.domainVideo.description': 'Generate video candidates from one current, approved Generation Package revision.',
+    'skill.domainVideo.packageInput': 'Approved Generation Package',
+    'skill.domainVideo.packagePlaceholder': 'Connect the current V2 Generation Package revision that passed review...',
     'workflow.storyToStoryboard.name': 'Story to storyboard plan',
     'workflow.storyToStoryboard.description': 'Create an editable draft graph from brief through screenplay and production design to storyboard planning.',
     'workflow.storyboardUnitToSheet.name': 'Storyboard unit to sheet',
     'workflow.storyboardUnitToSheet.description': 'Generate and review one accepted storyboard sheet for an explicitly selected Unit.',
     'workflow.storyboardUnitToGenerationPackage.name': 'Storyboard unit to generation package',
     'workflow.storyboardUnitToGenerationPackage.description': 'Prepare and review one provider-neutral generation package from an approved storyboard Unit.',
+    'workflow.approvedGenerationPackageToVideo.name': 'Approved package to video',
+    'workflow.approvedGenerationPackageToVideo.description': 'Generate, select, and review one video from an approved Generation Package.',
     'workflowDraft.outputPending': 'Run the upstream operation to create this document.',
     'workflowRuntime.create': 'Create Workflow Run',
     'workflowRuntime.createFailed': 'Workflow Run could not be created',
@@ -2074,6 +2088,7 @@ const translations: Record<Locale, Translations> = {
     'operation.generateStoryboardPlan.title': '生成故事板计划',
     'operation.generateStoryboardSheet.title': '生成分镜图',
     'operation.prepareGenerationPackage.title': '准备视频生成包',
+    'operation.generateDomainVideo.title': '从已批准生成包生成视频',
     'operation.annotationEdit.prompt': '根据标注备注编辑图片',
     'operation.annotationEdit.title': '标注编辑',
     'operation.quickEdit.prompt': '描述要如何基于源图生成新图片...',
@@ -2198,12 +2213,18 @@ const translations: Record<Locale, Translations> = {
     'skill.generationPackage.manifestPlaceholder': '声明每项参考的角色、用途、绑定以及是否必需...',
     'skill.generationPackage.instructionInput': '准备说明',
     'skill.generationPackage.instructionPlaceholder': '针对本次生成包的可选范围内说明...',
+    'skill.domainVideo.name': '从已批准生成包生成视频',
+    'skill.domainVideo.description': '基于一个当前且已通过审阅的生成包修订生成视频候选。',
+    'skill.domainVideo.packageInput': '已批准生成包',
+    'skill.domainVideo.packagePlaceholder': '连接当前且已通过审阅的 V2 视频生成包修订...',
     'workflow.storyToStoryboard.name': '从 Brief 到故事板计划',
     'workflow.storyToStoryboard.description': '创建从 Brief、剧本、角色与场景设定到故事板计划的可编辑草稿图。',
     'workflow.storyboardUnitToSheet.name': '单 Unit 分镜图',
     'workflow.storyboardUnitToSheet.description': '为明确选择的一个 Unit 生成候选并审核一个权威分镜图。',
     'workflow.storyboardUnitToGenerationPackage.name': '单 Unit 视频生成包',
     'workflow.storyboardUnitToGenerationPackage.description': '基于一个已审阅的分镜 Unit 准备并审核供应商中立的视频生成包。',
+    'workflow.approvedGenerationPackageToVideo.name': '已批准生成包转视频',
+    'workflow.approvedGenerationPackageToVideo.description': '基于已批准生成包生成、选择并审阅一个视频。',
     'workflowDraft.outputPending': '执行上游 Operation 后将在这里生成文档。',
     'workflowRuntime.create': '创建 Workflow Run',
     'workflowRuntime.createFailed': '无法创建 Workflow Run',

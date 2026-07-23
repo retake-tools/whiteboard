@@ -29,6 +29,10 @@ import {
   normalizeGenerationPreparationParameters,
   normalizeGenerationReferenceManifest,
 } from '../core/generationPreparationContracts';
+import {
+  domainVideoGenerationCapabilityId,
+  normalizeDomainVideoGenerationParameters,
+} from '../core/domainVideoGenerationContracts';
 
 type AspectPreset = 'source' | '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '3:2' | '2:3';
 type ResolutionPreset = '1K' | '2K' | '4K';
@@ -121,10 +125,17 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
   const generationReferenceManifest = capabilityId === generationPreparationCapabilityId
     ? normalizeGenerationReferenceManifest(data.generationReferenceManifest)
     : undefined;
+  const domainVideoParameters = capabilityId === domainVideoGenerationCapabilityId
+    ? normalizeDomainVideoGenerationParameters(
+        data.domainVideoGenerationParameters && typeof data.domainVideoGenerationParameters === 'object'
+          ? data.domainVideoGenerationParameters as Record<string, unknown>
+          : undefined,
+      )
+    : undefined;
   const availableAspectOptions = sourceAspectRatio
     ? [{ label: t('operationToolbar.sourceAspectRatio'), value: 'source' as const }, ...standardAspectOptions]
     : standardAspectOptions;
-  const hasVisibleParams = parameterKeys.some(
+  const hasVisibleParams = !domainVideoParameters && parameterKeys.some(
     (key) => paramsSchema[key] && generationParameterVisible(parameterProfile, key),
   );
   const displayState = operationDisplayState(data);
@@ -227,6 +238,37 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
             </strong>
           </div>
         </>
+      ) : null}
+      {domainVideoParameters ? (
+        <div className="operation-domain-video-parameters">
+          <label>
+            <span>{t('skillComposer.candidateCount')}</span>
+            <select
+              disabled={isLocked}
+              value={domainVideoParameters.outputCount}
+              onChange={(event) => dispatchUpdateDomainVideoParameters(blockId, {
+                ...domainVideoParameters,
+                outputCount: Number(event.target.value) as 1 | 2 | 3 | 4,
+              })}
+            >
+              {[1, 2, 3, 4].map((count) => <option key={count} value={count}>{count}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Quality</span>
+            <select
+              disabled={isLocked}
+              value={domainVideoParameters.qualityTier}
+              onChange={(event) => dispatchUpdateDomainVideoParameters(blockId, {
+                ...domainVideoParameters,
+                qualityTier: event.target.value as 'preview' | 'final',
+              })}
+            >
+              <option value="preview">Preview</option>
+              <option value="final">Final</option>
+            </select>
+          </label>
+        </div>
       ) : null}
       {compatibleSkills.length > 0 ? (
         <div className="operation-option-popover-wrap">
@@ -488,6 +530,8 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
         <span>
           {isRunning || automatedPending
             ? t('operationToolbar.running')
+            : capabilityId === domainVideoGenerationCapabilityId
+              ? '检查执行条件'
             : isTextGeneration
               ? t(isRepeat ? 'operationToolbar.generateAgain' : textOperationActionKey(capabilityId))
             : usesPromptHandoff && isQueued
@@ -573,6 +617,15 @@ function dispatchUpdateOperationGenerationParams(
       detail: { blockId, generationParams },
     }),
   );
+}
+
+function dispatchUpdateDomainVideoParameters(
+  blockId: string,
+  parameters: { outputCount: 1 | 2 | 3 | 4; qualityTier: 'preview' | 'final' },
+): void {
+  window.dispatchEvent(new CustomEvent('retake:update-domain-video-parameters', {
+    detail: { blockId, parameters },
+  }));
 }
 
 function dispatchUpdateOperationConnection(blockId: string, connectionId: string): void {

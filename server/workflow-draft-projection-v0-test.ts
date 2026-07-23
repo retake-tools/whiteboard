@@ -42,6 +42,7 @@ assert.deepEqual(listWorkflows().map((workflow) => workflow.workflowId), [
   'retake.workflow.story-to-storyboard',
   'retake.workflow.storyboard-unit-to-sheet',
   'retake.workflow.storyboard-unit-to-generation-package',
+  'retake.workflow.approved-generation-package-to-video',
 ]);
 assert.deepEqual(listPackageEntryPoints()
   .map(({ entrypoint }) => entrypoint)
@@ -50,6 +51,7 @@ assert.deepEqual(listPackageEntryPoints()
   ['workflow', 'workflow:retake.workflow.story-to-storyboard'],
   ['workflow', 'workflow:retake.workflow.storyboard-unit-to-sheet'],
   ['workflow', 'workflow:retake.workflow.storyboard-unit-to-generation-package'],
+  ['workflow', 'workflow:retake.workflow.approved-generation-package-to-video'],
 ]);
 assert.deepEqual(validateWorkflowDefinition(storyboardUnitToSheetWorkflow), []);
 assert.deepEqual(storyToStoryboardWorkflow.steps.map((step) => [step.stepId, step.dependsOn]), [

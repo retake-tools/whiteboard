@@ -78,8 +78,8 @@ export interface PackageEntryPointQuery {
 export const storyProductionStarterPackage: RetakePackageManifest = {
   schemaVersion: 1,
   packageId: 'retake.package.story-production-starter',
-  version: '0.4.1',
-  digest: 'sha256:retake-package-story-production-starter-generation-package-manifest-v2',
+  version: '0.5.0',
+  digest: 'sha256:retake-package-story-production-starter-domain-video-v1',
   name: 'Retake Story Production Starter',
   description: 'Built-in screenplay, production-design, storyboard, and provider-neutral generation-preparation methods.',
   source: { kind: 'builtin' },
@@ -120,6 +120,11 @@ export const storyProductionStarterPackage: RetakePackageManifest = {
         version: '0.2.0',
         definitionHash: 'sha256:retake-video-generation-package-from-approved-storyboard-manifest-v2',
       },
+      {
+        skillId: 'retake.video-generation.from-approved-package',
+        version: '0.1.0',
+        definitionHash: 'sha256:retake-video-generation-from-approved-package-v1',
+      },
     ],
     workflows: [
       {
@@ -136,6 +141,11 @@ export const storyProductionStarterPackage: RetakePackageManifest = {
         workflowDefinitionId: 'retake.workflow.storyboard-unit-to-generation-package',
         version: '0.2.0',
         definitionHash: 'sha256:retake-workflow-storyboard-unit-to-generation-package-manifest-v2',
+      },
+      {
+        workflowDefinitionId: 'retake.workflow.approved-generation-package-to-video',
+        version: '0.1.0',
+        definitionHash: 'sha256:retake-workflow-approved-generation-package-to-video-v1',
       },
     ],
     agentPresets: [],
@@ -209,6 +219,14 @@ export const storyProductionStarterPackage: RetakePackageManifest = {
       ],
       recommended: true,
     }),
+    skillEntryPoint({
+      skillId: 'retake.video-generation.from-approved-package',
+      capabilityId: 'generation.video.generate',
+      name: 'Generate video from approved package',
+      description: 'Create one Domain Video Operation without the result Artifact or Human Gate.',
+      compatibleStageIds: ['media_generation'],
+      requiredInputSlotIds: ['generation_package'],
+    }),
     {
       schemaVersion: 1,
       entrypointId: 'workflow:retake.workflow.story-to-storyboard',
@@ -244,6 +262,17 @@ export const storyProductionStarterPackage: RetakePackageManifest = {
         'unit_id',
         'reference_manifest',
       ],
+    },
+    {
+      schemaVersion: 1,
+      entrypointId: 'workflow:retake.workflow.approved-generation-package-to-video',
+      kind: 'workflow',
+      name: 'Approved generation package to video',
+      description: 'Generate, select, and review one video from an approved Generation Package.',
+      ref: { workflowDefinitionId: 'retake.workflow.approved-generation-package-to-video' },
+      compatibleStageIds: ['media_generation'],
+      requiredInputSlotIds: ['generation_package'],
+      recommended: true,
     },
   ],
 };

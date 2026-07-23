@@ -80,6 +80,7 @@ assert.deepEqual(listSkills().map((skill) => skill.skillId), [
   'retake.storyboard-plan.from-production-design',
   'retake.storyboard-sheet.from-unit-plan',
   'retake.video-generation-package.from-approved-storyboard',
+  'retake.video-generation.from-approved-package',
 ]);
 assert.deepEqual(skillsForCapability('story.screenplay.generate').map((skill) => skill.skillId), ['retake.screenplay.from-brief']);
 assert.deepEqual(skillsForCapability('design.character.define').map((skill) => skill.skillId), ['retake.character-bible.from-screenplay']);
@@ -88,6 +89,9 @@ assert.deepEqual(skillsForCapability('previs.storyboard.plan').map((skill) => sk
 assert.deepEqual(skillsForCapability('previs.storyboard_sheet.generate').map((skill) => skill.skillId), ['retake.storyboard-sheet.from-unit-plan']);
 assert.deepEqual(skillsForCapability('generation.video_package.prepare').map((skill) => skill.skillId), [
   'retake.video-generation-package.from-approved-storyboard',
+]);
+assert.deepEqual(skillsForCapability('generation.video.generate').map((skill) => skill.skillId), [
+  'retake.video-generation.from-approved-package',
 ]);
 assert.deepEqual(listPackageEntryPoints()
   .map(({ entrypoint }) => entrypoint)
@@ -100,6 +104,7 @@ assert.deepEqual(listPackageEntryPoints()
   ['skill', 'skill:retake.storyboard-plan.from-production-design'],
   ['skill', 'skill:retake.storyboard-sheet.from-unit-plan'],
   ['skill', 'skill:retake.video-generation-package.from-approved-storyboard'],
+  ['skill', 'skill:retake.video-generation.from-approved-package'],
 ]);
 
 for (const capabilityId of legacyCapabilityIds) {
