@@ -64,6 +64,7 @@ export interface WorkflowHumanApprovalGateDefinition {
   definitionHash: string;
   gateId: string;
   kind: 'human_approval';
+  name?: string;
   required: true;
   reviewChecklist?: string[];
   subject:
@@ -298,6 +299,9 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
   for (const gate of workflow.gates) {
     if (gateIds.has(gate.gateId)) issues.push(`Duplicate Workflow gateId: ${gate.gateId}`);
     gateIds.add(gate.gateId);
+    if (gate.name !== undefined && gate.name.trim().length === 0) {
+      issues.push(`Workflow Gate name is invalid: ${gate.gateId}`);
+    }
     if (!gate.definitionHash.startsWith('sha256:')) {
       issues.push(`Workflow Gate definitionHash is invalid: ${gate.gateId}`);
     }

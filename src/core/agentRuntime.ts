@@ -8,6 +8,7 @@ import type {
   AgentRunRecord,
   AgentRunStatus,
   AgentRunStopReason,
+  AgentWorkflowGateCompletion,
 } from './agentRuntimeContracts';
 import {
   assertWorkflowAgentTarget,
@@ -269,6 +270,68 @@ export function createAgentRunForWorkflowStageSlice(
   return agentRunView(record);
 }
 
+export function createAgentRunForWorkflowGateSlice(
+  snapshot: BoardSnapshot,
+  workflowRunId: string,
+  gateId: string,
+  completion: AgentWorkflowGateCompletion,
+): AgentRunRuntimeView {
+  reconcileWorkflowRuntime(snapshot);
+  assertNoActiveAgentRun(snapshot);
+  const workflow = workflowRunViewForId(snapshot, workflowRunId);
+  if (!workflow) throw new Error(`Workflow Run not found: ${workflowRunId}`);
+  const gateDefinitionLock = workflow.record.gateDefinitionLocks.find(
+    (candidate) => candidate.gateId === gateId,
+  );
+  if (!gateDefinitionLock) throw new Error(`Workflow Gate lock not found: ${gateId}`);
+  const subjectStep = workflow.steps.find(
+    (step) => step.record.stepId === gateDefinitionLock.subject.stepId,
+  );
+  if (!subjectStep) {
+    throw new Error(`Workflow Gate subject StepRun not found: ${gateDefinitionLock.subject.stepId}`);
+  }
+  const target = {
+    kind: 'workflow_slice' as const,
+    workflowRunId,
+    workflowDefinitionLock: structuredClone(workflow.record.workflowDefinitionLock),
+    until: {
+      completion,
+      gateDefinitionLock: structuredClone(gateDefinitionLock),
+      kind: 'gate' as const,
+      subjectStepRunId: subjectStep.record.stepRunId,
+    },
+  };
+  const createdAt = nowIso();
+  const record: AgentRunRecord = {
+    agentRunId: createId('agent_run'),
+    projectId: snapshot.project.projectId,
+    boardId: snapshot.board.boardId,
+    runtimeKind: 'retake_orchestrator',
+    target,
+    scope: {
+      projectId: snapshot.project.projectId,
+      boardId: snapshot.board.boardId,
+      workflowRunId,
+      ...workflowAgentScope(workflow, target),
+    },
+    stopPolicy: { kind: 'workflow_slice_target' },
+    permissions: defaultPermissions(),
+    status: 'queued',
+    executionIds: [],
+    ...(workflow.record.entrypointId ? { entrypointId: workflow.record.entrypointId } : {}),
+    ...(workflow.record.sourcePackageLock
+      ? { sourcePackageLock: structuredClone(workflow.record.sourcePackageLock) }
+      : {}),
+    createdBy: 'user',
+    createdAt,
+    updatedAt: createdAt,
+    recordVersion: 1,
+  };
+  snapshot.agentRuns = [...(snapshot.agentRuns ?? []), record];
+  touchBoard(snapshot);
+  return agentRunView(record);
+}
+
 export function createAgentRunForOperation(
   snapshot: BoardSnapshot,
   operationBlockId: string,
@@ -383,6 +446,7 @@ export function reconcileAgentRuntime(snapshot: BoardSnapshot): boolean {
       && record.currentOperationBlockId === projection.currentOperationBlockId
       && record.satisfiedArtifactRevisionId === projection.satisfiedArtifactRevisionId
       && optionalArraysEqual(record.satisfiedArtifactRevisionIds, projection.satisfiedArtifactRevisionIds)
+      && record.satisfiedGateEvaluationId === projection.satisfiedGateEvaluationId
       && arraysEqual(record.executionIds, projection.executionIds)
     ) continue;
     updateAgentRun(record, projection);
@@ -464,7 +528,7 @@ function projectAgentRun(
   record: AgentRunRecord,
 ): Pick<AgentRunRecord,
   'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId'
-  | 'satisfiedArtifactRevisionIds' | 'status' | 'stopReason'
+  | 'satisfiedArtifactRevisionIds' | 'satisfiedGateEvaluationId' | 'status' | 'stopReason'
 > | undefined {
   try {
     assertAgentRunTarget(snapshot, record);
@@ -476,6 +540,7 @@ function projectAgentRun(
       executionIds: record.executionIds,
       satisfiedArtifactRevisionId: record.satisfiedArtifactRevisionId,
       satisfiedArtifactRevisionIds: record.satisfiedArtifactRevisionIds,
+      satisfiedGateEvaluationId: record.satisfiedGateEvaluationId,
       currentOperationBlockId: undefined,
     };
   }
@@ -488,7 +553,7 @@ function projectCapabilityAgentRun(
   record: AgentRunRecord,
 ): Pick<AgentRunRecord,
   'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId'
-  | 'satisfiedArtifactRevisionIds' | 'status' | 'stopReason'
+  | 'satisfiedArtifactRevisionIds' | 'satisfiedGateEvaluationId' | 'status' | 'stopReason'
 > {
   if (record.target.kind !== 'capability') throw new Error('Capability Agent Run target required.');
   const operation = operationBlock(snapshot, record.target.operationBlockId);
@@ -702,7 +767,7 @@ function updateAgentRun(
   record: AgentRunRecord,
   values: Partial<Pick<AgentRunRecord,
     'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId'
-    | 'satisfiedArtifactRevisionIds' | 'status' | 'stopReason'>>,
+    | 'satisfiedArtifactRevisionIds' | 'satisfiedGateEvaluationId' | 'status' | 'stopReason'>>,
 ): void {
   Object.assign(record, values, { updatedAt: nowIso(), recordVersion: record.recordVersion + 1 });
   if ('error' in values && values.error === undefined) delete record.error;
@@ -715,6 +780,9 @@ function updateAgentRun(
   }
   if ('satisfiedArtifactRevisionIds' in values && values.satisfiedArtifactRevisionIds === undefined) {
     delete record.satisfiedArtifactRevisionIds;
+  }
+  if ('satisfiedGateEvaluationId' in values && values.satisfiedGateEvaluationId === undefined) {
+    delete record.satisfiedGateEvaluationId;
   }
 }
 

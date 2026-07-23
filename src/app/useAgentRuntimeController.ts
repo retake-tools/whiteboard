@@ -4,6 +4,7 @@ import {
   attachAgentRunExecution,
   cancelAgentRun,
   createAgentRunForWorkflowArtifactSlice,
+  createAgentRunForWorkflowGateSlice,
   createAgentRunForWorkflowSlice,
   createAgentRunForWorkflowStageSlice,
   createAgentRunForWorkflowRun,
@@ -13,7 +14,9 @@ import {
   startAgentRun,
 } from '../core/agentRuntime';
 import { reconcileAgentArtifactTarget } from '../core/agentArtifactTargetClient';
+import type { AgentWorkflowGateCompletion } from '../core/agentRuntimeContracts';
 import type { BoardSnapshot } from '../core/types';
+import { reconcileWorkflowArtifactGates } from '../core/workflowArtifactGateClient';
 import type { useI18n } from '../i18n';
 
 interface AgentRuntimeControllerOptions {
@@ -173,6 +176,46 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
     }
   }
 
+  async function createWorkflowGateSliceAgentRun(
+    workflowRunId: string,
+    gateId: string,
+    completion: AgentWorkflowGateCompletion,
+  ): Promise<void> {
+    let agentRunId = '';
+    try {
+      const createdSnapshot = updateSnapshot((current) => {
+        const created = createAgentRunForWorkflowGateSlice(
+          current,
+          workflowRunId,
+          gateId,
+          completion,
+        );
+        startAgentRun(current, created.record.agentRunId);
+        agentRunId = created.record.agentRunId;
+        return current;
+      }, { history: true });
+      await persistSnapshot(createdSnapshot, { requireLocalApi: true });
+      const reconciled = await reconcileWorkflowArtifactGates({
+        boardId: createdSnapshot.board.boardId,
+        projectId: createdSnapshot.project.projectId,
+        workflowRunId,
+      });
+      updateSnapshot(() => reconciled, { history: false, persist: false });
+      setOperationToast({
+        id: agentRunId,
+        title: t('agentRuntime.created'),
+        tone: 'success',
+      });
+    } catch (error) {
+      setOperationToast({
+        id: agentRunId || 'agent-run:create-gate-slice',
+        title: t('agentRuntime.actionFailed'),
+        body: error instanceof Error ? error.message : undefined,
+        tone: 'error',
+      });
+    }
+  }
+
   function pause(agentRunId: string): void {
     mutateAgentRun('pause', (current) => pauseAgentRun(current, agentRunId).record.agentRunId);
   }
@@ -215,6 +258,7 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
     cancelAgentRun: cancel,
     createWorkflowArtifactSliceAgentRun,
     createWorkflowAgentRun,
+    createWorkflowGateSliceAgentRun,
     createWorkflowSliceAgentRun,
     createWorkflowStageSliceAgentRun,
     pauseAgentRun: pause,

@@ -149,7 +149,18 @@ workflowSnapshot.workflowRuns = [{
   workflowProjectionId: 'projection_stage_render',
   status: 'draft',
   inputBindings: [],
-  gateDefinitionLocks: [],
+  gateDefinitionLocks: [{
+    gateId: 'screenplay_review',
+    name: 'Screenplay review',
+    kind: 'human_approval',
+    required: true,
+    definitionHash: 'sha256:screenplay-review',
+    subject: {
+      kind: 'step_output',
+      stepId: 'screenplay_generate',
+      outputSlotId: 'screenplay',
+    },
+  }],
   gateEvaluationIds: [],
   outputSlotLocks: [],
   stageDefinitionLocks: [{
@@ -210,6 +221,7 @@ const workflowMarkup = renderToStaticMarkup(
       onCopyPrompt={() => undefined}
       onCreateWorkflowAgentRun={() => undefined}
       onCreateWorkflowArtifactSliceAgentRun={() => undefined}
+      onCreateWorkflowGateSliceAgentRun={() => undefined}
       onCreateWorkflowSliceAgentRun={() => undefined}
       onCreateWorkflowStageSliceAgentRun={() => undefined}
       onDecideWorkflowApproval={() => undefined}
@@ -225,6 +237,8 @@ assert.match(workflowMarkup, /Story &amp; Screenplay/);
 assert.match(workflowMarkup, /Required steps.*1/);
 assert.match(workflowMarkup, /Outputs.*0\/0.*No required output/);
 assert.match(workflowMarkup, /Run until Stage/);
+assert.match(workflowMarkup, /Run until approval: Screenplay review/);
+assert.match(workflowMarkup, /Screenplay review/);
 
 const drawOverlayMarkup = renderToStaticMarkup(
   <I18nProvider>

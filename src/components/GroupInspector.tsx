@@ -2,7 +2,10 @@ import { Bot, Check, ChevronLeft, ChevronRight, CirclePause, Download, ImageIcon
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { directGroupChildren, descendantBlockIds, groupMediaItems, type GroupMediaItem } from '../core/grouping';
 import type { BlockRecord, BoardSnapshot, GroupKind } from '../core/types';
-import type { WorkflowStepRunRecord } from '../core/workflowRuntimeContracts';
+import type {
+  WorkflowGateDefinitionLock,
+  WorkflowStepRunRecord,
+} from '../core/workflowRuntimeContracts';
 import {
   workflowRunViewForGroup,
   workflowRunViewForId,
@@ -14,6 +17,7 @@ import {
   type WorkflowGateRuntimeView,
 } from '../core/workflowGateRuntime';
 import { latestAgentRunForWorkflowRun, type AgentRunRuntimeView } from '../core/agentRuntime';
+import type { AgentWorkflowGateCompletion } from '../core/agentRuntimeContracts';
 import { useI18n } from '../i18n';
 import {
   ExecutionDetailContent,
@@ -42,6 +46,11 @@ interface GroupInspectorProps {
     workflowOutputSlotId: string,
   ) => void;
   onCreateWorkflowAgentRun: (workflowRunId: string) => void;
+  onCreateWorkflowGateSliceAgentRun: (
+    workflowRunId: string,
+    gateId: string,
+    completion: AgentWorkflowGateCompletion,
+  ) => void;
   onCreateWorkflowSliceAgentRun: (workflowRunId: string, stepRunId: string) => void;
   onCreateWorkflowStageSliceAgentRun: (workflowRunId: string, stageId: string) => void;
   onDecideWorkflowApproval: (
@@ -64,6 +73,7 @@ export function GroupInspector({
   onCancelAgentRun,
   onCreateWorkflowArtifactSliceAgentRun,
   onCreateWorkflowAgentRun,
+  onCreateWorkflowGateSliceAgentRun,
   onCreateWorkflowSliceAgentRun,
   onCreateWorkflowStageSliceAgentRun,
   onDecideWorkflowApproval,
@@ -241,6 +251,7 @@ export function GroupInspector({
               onCancelAgentRun={onCancelAgentRun}
               onCreateWorkflowArtifactSliceAgentRun={onCreateWorkflowArtifactSliceAgentRun}
               onCreateWorkflowAgentRun={onCreateWorkflowAgentRun}
+              onCreateWorkflowGateSliceAgentRun={onCreateWorkflowGateSliceAgentRun}
               onCreateWorkflowSliceAgentRun={onCreateWorkflowSliceAgentRun}
               onCreateWorkflowStageSliceAgentRun={onCreateWorkflowStageSliceAgentRun}
               onDecideWorkflowApproval={onDecideWorkflowApproval}
@@ -289,6 +300,7 @@ function GroupSummary({
   onCancelAgentRun,
   onCreateWorkflowArtifactSliceAgentRun,
   onCreateWorkflowAgentRun,
+  onCreateWorkflowGateSliceAgentRun,
   onCreateWorkflowSliceAgentRun,
   onCreateWorkflowStageSliceAgentRun,
   onDecideWorkflowApproval,
@@ -312,6 +324,11 @@ function GroupSummary({
     workflowOutputSlotId: string,
   ) => void;
   onCreateWorkflowAgentRun: (workflowRunId: string) => void;
+  onCreateWorkflowGateSliceAgentRun: (
+    workflowRunId: string,
+    gateId: string,
+    completion: AgentWorkflowGateCompletion,
+  ) => void;
   onCreateWorkflowSliceAgentRun: (workflowRunId: string, stepRunId: string) => void;
   onCreateWorkflowStageSliceAgentRun: (workflowRunId: string, stageId: string) => void;
   onDecideWorkflowApproval: (
@@ -326,6 +343,7 @@ function GroupSummary({
 }): ReactElement {
   const { t } = useI18n();
   const [agentTarget, setAgentTarget] = useState('workflow_run');
+  const [gateCompletion, setGateCompletion] = useState<AgentWorkflowGateCompletion>('arrived');
   const kind = (group.data.groupKind ?? 'manual') as GroupKind;
   const dimensions = selectedItem
     ? mediaDimensions(selectedItem.asset.width, selectedItem.asset.height)
@@ -350,9 +368,13 @@ function GroupSummary({
   const selectedSliceStageId = agentTarget.startsWith('stage:')
     ? agentTarget.slice('stage:'.length)
     : undefined;
+  const selectedSliceGateId = agentTarget.startsWith('gate:')
+    ? agentTarget.slice('gate:'.length)
+    : undefined;
 
   useEffect(() => {
     setAgentTarget('workflow_run');
+    setGateCompletion('arrived');
   }, [workflowRun?.record.workflowRunId]);
 
   return (
@@ -434,7 +456,9 @@ function GroupSummary({
                     className={`workflow-gate is-${gate.evaluation?.status ?? 'not_ready'}`}
                   >
                     <div className="workflow-gate-heading">
-                      <span>{gate.gateDefinitionLock.gateId}</span>
+                      <span title={gate.gateDefinitionLock.gateId}>
+                        {workflowGateDefinitionLabel(gate.gateDefinitionLock, workflowRun, snapshot)}
+                      </span>
                       <strong>{t(workflowGateStatusKey(gate))}</strong>
                     </div>
                     <small>
@@ -531,6 +555,15 @@ function GroupSummary({
                 <span>{t('agentRuntime.executionRange')}</span>
                 <select value={agentTarget} onChange={(event) => setAgentTarget(event.target.value)}>
                   <option value="workflow_run">{t('agentRuntime.fullWorkflow')}</option>
+                  {gateViews.map((gate) => (
+                    <option
+                      key={`gate:${gate.gateDefinitionLock.gateId}`}
+                      value={`gate:${gate.gateDefinitionLock.gateId}`}
+                    >
+                      {t('agentRuntime.untilGate')}:{' '}
+                      {workflowGateDefinitionLabel(gate.gateDefinitionLock, workflowRun, snapshot)}
+                    </option>
+                  ))}
                   {workflowRun.stages.map((stage) => (
                     <option
                       key={`stage:${stage.stageDefinitionLock.stageId}`}
@@ -568,10 +601,37 @@ function GroupSummary({
                   })}
                 </select>
               </label>
+              {selectedSliceGateId ? (
+                <label>
+                  <span>{t('agentRuntime.gateCompletion')}</span>
+                  <select
+                    value={gateCompletion}
+                    onChange={(event) => setGateCompletion(
+                      event.target.value as AgentWorkflowGateCompletion,
+                    )}
+                  >
+                    <option value="arrived">{t('agentRuntime.gateCompletion.arrived')}</option>
+                    <option value="passed">{t('agentRuntime.gateCompletion.passed')}</option>
+                  </select>
+                  <small>
+                    {gateCompletion === 'arrived'
+                      ? t('agentRuntime.gateCompletion.arrivedDescription')
+                      : t('agentRuntime.gateCompletion.passedDescription')}
+                  </small>
+                </label>
+              ) : null}
               <button
                 type="button"
                 className="agent-run-start"
                 onClick={() => {
+                  if (selectedSliceGateId) {
+                    onCreateWorkflowGateSliceAgentRun(
+                      workflowRun.record.workflowRunId,
+                      selectedSliceGateId,
+                      gateCompletion,
+                    );
+                    return;
+                  }
                   if (selectedSliceStageId) {
                     onCreateWorkflowStageSliceAgentRun(
                       workflowRun.record.workflowRunId,
@@ -673,6 +733,13 @@ function agentRunTargetLabel(agentRun: AgentRunRuntimeView, snapshot: BoardSnaps
     );
     return `${target.kind} · ${stage?.stageDefinitionLock.name ?? stageId}`;
   }
+  if (until.kind === 'gate') {
+    const workflow = workflowRunViewForId(snapshot, target.workflowRunId);
+    const label = workflow
+      ? workflowGateDefinitionLabel(until.gateDefinitionLock, workflow, snapshot)
+      : until.gateDefinitionLock.name ?? until.gateDefinitionLock.gateId;
+    return `${target.kind} · ${label} · ${until.completion}`;
+  }
   const operationBlockId = (snapshot.workflowStepRuns ?? []).find(
     (step) => step.stepRunId === until.stepRunId,
   )?.operationBlockId;
@@ -680,6 +747,25 @@ function agentRunTargetLabel(agentRun: AgentRunRuntimeView, snapshot: BoardSnaps
   return until.kind === 'artifact'
     ? `${target.kind} · ${operation?.data.title ?? until.stepId} · ${until.workflowOutputSlotId}`
     : `${target.kind} · ${operation?.data.title ?? until.stepId}`;
+}
+
+function workflowGateDefinitionLabel(
+  gate: WorkflowGateDefinitionLock,
+  workflow: WorkflowRunRuntimeView,
+  snapshot: BoardSnapshot,
+): string {
+  if (gate.name?.trim()) return gate.name.trim();
+  const subjectStep = workflow.steps.find(
+    (step) => step.record.stepId === gate.subject.stepId,
+  );
+  const operation = snapshot.blocks.find(
+    (block) => block.blockId === subjectStep?.record.operationBlockId,
+  );
+  const operationLabel = String(operation?.data.title ?? gate.subject.stepId);
+  const outputLabel = gate.subject.kind === 'artifact_revision'
+    ? gate.subject.workflowOutputSlotId
+    : gate.subject.outputSlotId;
+  return `${operationLabel} · ${outputLabel}`;
 }
 
 function workflowGateStatusKey(gate: WorkflowGateRuntimeView) {

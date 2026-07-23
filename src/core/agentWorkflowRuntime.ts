@@ -4,7 +4,10 @@ import type {
   AgentRunScope,
 } from './agentRuntimeContracts';
 import type { BoardSnapshot } from './types';
-import type { WorkflowStepOutputArtifactBinding } from './workflowRuntimeContracts';
+import type {
+  WorkflowGateDefinitionLock,
+  WorkflowStepOutputArtifactBinding,
+} from './workflowRuntimeContracts';
 import { workflowGateViewsForRun } from './workflowGateRuntime';
 import {
   workflowRunViewForId,
@@ -16,7 +19,7 @@ type WorkflowAgentTarget = Extract<AgentRunRecord['target'], { kind: 'workflow_r
 type AgentRunProjection = Pick<
   AgentRunRecord,
   'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId'
-  | 'satisfiedArtifactRevisionIds' | 'status' | 'stopReason'
+  | 'satisfiedArtifactRevisionIds' | 'satisfiedGateEvaluationId' | 'status' | 'stopReason'
 >;
 
 export interface WorkflowOutputArtifactTarget {
@@ -101,6 +104,22 @@ export function assertWorkflowAgentTarget(
       })
     ) throw new Error('Agent Run Workflow Stage target lock changed.');
   }
+  if (record.target.kind === 'workflow_slice' && record.target.until.kind === 'gate') {
+    const until = record.target.until;
+    const gate = workflow.record.gateDefinitionLocks.find(
+      (candidate) => candidate.gateId === until.gateDefinitionLock.gateId,
+    );
+    const subjectStep = workflow.steps.find(
+      (step) => step.record.stepRunId === until.subjectStepRunId,
+    );
+    if (
+      (until.completion !== 'arrived' && until.completion !== 'passed')
+      || !gate
+      || !gateDefinitionLocksEqual(gate, until.gateDefinitionLock)
+      || !subjectStep
+      || subjectStep.record.stepId !== gate.subject.stepId
+    ) throw new Error('Agent Run Workflow Gate target lock changed.');
+  }
 
   const expectedScope = workflowAgentScope(workflow, record.target);
   if (
@@ -169,9 +188,10 @@ function projectWorkflowSliceAgentRun(
   record: AgentRunRecord,
 ): AgentRunProjection {
   if (record.target.kind !== 'workflow_slice') throw new Error('Workflow Slice target required.');
-  const targetStepRunIds = record.target.until.kind === 'stage'
-    ? record.target.until.requiredStepRunIds
-    : [record.target.until.stepRunId];
+  const until = record.target.until;
+  const targetStepRunIds = until.kind === 'stage'
+    ? until.requiredStepRunIds
+    : [until.kind === 'gate' ? until.subjectStepRunId : until.stepRunId];
   const allowedStepRunIds = new Set(record.scope.allowedStepRunIds);
   const steps = workflow.steps.filter((step) => allowedStepRunIds.has(step.record.stepRunId));
   const targets = targetStepRunIds.flatMap((stepRunId) => {
@@ -195,6 +215,7 @@ function projectWorkflowSliceAgentRun(
     error: failedStep?.record.error,
     satisfiedArtifactRevisionId: record.satisfiedArtifactRevisionId,
     satisfiedArtifactRevisionIds: record.satisfiedArtifactRevisionIds,
+    satisfiedGateEvaluationId: record.satisfiedGateEvaluationId,
   };
 
   if (workflow.status === 'canceled') return { ...base, status: 'canceled', stopReason: 'target_canceled' };
@@ -207,7 +228,14 @@ function projectWorkflowSliceAgentRun(
     return { ...base, status: 'waiting_selection', stopReason: undefined };
   }
 
-  const gateState = scopedGateState(snapshot, workflow, steps);
+  const gateState = until.kind === 'gate'
+    ? gateSlicePrerequisiteState(
+        snapshot,
+        workflow,
+        steps,
+        until.gateDefinitionLock.subject.stepId,
+      )
+    : scopedGateState(snapshot, workflow, steps);
   if (gateState === 'failed') return { ...base, status: 'needs_attention', stopReason: undefined };
   if (gateState === 'waiting_approval') {
     return { ...base, status: 'waiting_approval', stopReason: undefined };
@@ -216,7 +244,66 @@ function projectWorkflowSliceAgentRun(
     return { ...base, status: 'waiting_input', stopReason: undefined };
   }
   if (targets.every((target) => target.status === 'succeeded' && target.freshness === 'current')) {
-    if (record.target.until.kind === 'artifact') {
+    if (until.kind === 'gate') {
+      if (gateState !== 'passed') {
+        return {
+          ...base,
+          currentOperationBlockId: undefined,
+          status: 'needs_attention',
+          stopReason: undefined,
+          error: 'A prerequisite Workflow Gate has no current approval evaluation.',
+        };
+      }
+      const gate = workflowGateViewsForRun(snapshot, workflow.record.workflowRunId).find(
+        (candidate) => candidate.gateDefinitionLock.gateId === until.gateDefinitionLock.gateId,
+      );
+      const evaluation = gate?.evaluation;
+      if (!evaluation) {
+        return {
+          ...base,
+          currentOperationBlockId: undefined,
+          status: 'running',
+          stopReason: undefined,
+        };
+      }
+      if (
+        record.satisfiedGateEvaluationId
+        && record.satisfiedGateEvaluationId !== evaluation.gateEvaluationId
+      ) {
+        return {
+          ...base,
+          currentOperationBlockId: undefined,
+          status: 'needs_attention',
+          stopReason: undefined,
+          error: 'The satisfied Gate Evaluation no longer matches the current Workflow Gate.',
+        };
+      }
+      if (evaluation.status === 'failed') {
+        return {
+          ...base,
+          currentOperationBlockId: undefined,
+          status: 'needs_attention',
+          stopReason: undefined,
+          error: 'The target Workflow Gate was rejected.',
+        };
+      }
+      if (evaluation.status === 'waiting_approval' && until.completion === 'passed') {
+        return {
+          ...base,
+          currentOperationBlockId: undefined,
+          status: 'waiting_approval',
+          stopReason: undefined,
+        };
+      }
+      return {
+        ...base,
+        currentOperationBlockId: undefined,
+        satisfiedGateEvaluationId: evaluation.gateEvaluationId,
+        status: 'succeeded',
+        stopReason: 'slice_target_satisfied',
+      };
+    }
+    if (until.kind === 'artifact') {
       const binding = workflowArtifactTargetBinding(snapshot, record);
       if (!binding) {
         return {
@@ -246,7 +333,7 @@ function projectWorkflowSliceAgentRun(
         };
       }
     }
-    if (record.target.until.kind === 'stage') {
+    if (until.kind === 'stage') {
       const bindings = workflowStageTargetBindings(snapshot, record);
       if (!bindings) {
         return {
@@ -270,7 +357,7 @@ function projectWorkflowSliceAgentRun(
         };
       }
       if (
-        record.target.until.outputTargets.length > 0
+        until.outputTargets.length > 0
         && verifiedRevisionIds.length === 0
       ) {
         return {
@@ -302,13 +389,22 @@ function scopedWorkflowSteps(
   const targetSteps = until.kind === 'stage'
     ? until.requiredStepRunIds.map((stepRunId) =>
         workflow.steps.find((step) => step.record.stepRunId === stepRunId))
-    : [workflow.steps.find((step) => step.record.stepRunId === until.stepRunId)];
+    : [workflow.steps.find(
+        (step) => step.record.stepRunId === (
+          until.kind === 'gate' ? until.subjectStepRunId : until.stepRunId
+        ),
+      )];
+  const expectedTargetStepId = until.kind === 'stage'
+    ? undefined
+    : until.kind === 'gate'
+      ? until.gateDefinitionLock.subject.stepId
+      : until.stepId;
   if (
     targetSteps.some((step) => !step)
     || targetSteps.some((step) => step?.record.workflowRunId !== target.workflowRunId)
     || (
       until.kind !== 'stage'
-      && targetSteps[0]?.record.stepId !== until.stepId
+      && targetSteps[0]?.record.stepId !== expectedTargetStepId
     )
   ) throw new Error('Workflow Slice target StepRun changed.');
 
@@ -456,6 +552,63 @@ function scopedGateState(
   return gates.every((gate) => gate.evaluation?.freshness === 'current' && gate.evaluation.status === 'passed')
     ? 'passed'
     : 'incomplete';
+}
+
+function gateSlicePrerequisiteState(
+  snapshot: BoardSnapshot,
+  workflow: WorkflowRunRuntimeView,
+  steps: WorkflowStepRuntimeView[],
+  subjectStepId: string,
+): 'failed' | 'incomplete' | 'passed' | 'waiting_approval' {
+  const strictDependencyStepIds = new Set(
+    steps
+      .map((step) => step.record.stepId)
+      .filter((stepId) => stepId !== subjectStepId),
+  );
+  const gates = workflowGateViewsForRun(snapshot, workflow.record.workflowRunId)
+    .filter((gate) => strictDependencyStepIds.has(gate.gateDefinitionLock.subject.stepId));
+  if (gates.length === 0) return 'passed';
+  if (gates.some((gate) => gate.evaluation?.status === 'failed')) return 'failed';
+  if (gates.some((gate) => gate.evaluation?.status === 'waiting_approval')) return 'waiting_approval';
+  return gates.every((gate) => gate.evaluation?.freshness === 'current' && gate.evaluation.status === 'passed')
+    ? 'passed'
+    : 'incomplete';
+}
+
+function gateDefinitionLocksEqual(
+  left: WorkflowGateDefinitionLock,
+  right: WorkflowGateDefinitionLock,
+): boolean {
+  if (
+    left.gateId !== right.gateId
+    || left.definitionHash !== right.definitionHash
+    || left.kind !== right.kind
+    || left.required !== right.required
+    || left.name !== right.name
+    || !optionalStringArraysEqual(left.reviewChecklist, right.reviewChecklist)
+    || left.subject.kind !== right.subject.kind
+  ) return false;
+  if (left.subject.kind === 'step_output' && right.subject.kind === 'step_output') {
+    return left.subject.stepId === right.subject.stepId
+      && left.subject.outputSlotId === right.subject.outputSlotId;
+  }
+  if (left.subject.kind === 'artifact_revision' && right.subject.kind === 'artifact_revision') {
+    return left.subject.stepId === right.subject.stepId
+      && left.subject.outputSlotId === right.subject.outputSlotId
+      && left.subject.workflowOutputSlotId === right.subject.workflowOutputSlotId
+      && left.subject.artifactType === right.subject.artifactType
+      && left.subject.artifactScope === right.subject.artifactScope
+      && left.subject.semanticKey === right.subject.semanticKey;
+  }
+  return false;
+}
+
+function optionalStringArraysEqual(
+  left: string[] | undefined,
+  right: string[] | undefined,
+): boolean {
+  if (!left || !right) return left === right;
+  return arraysEqual(left, right);
 }
 
 function locksEqual(

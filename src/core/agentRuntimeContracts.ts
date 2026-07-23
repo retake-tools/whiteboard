@@ -1,6 +1,9 @@
 import type { CapabilityDefinitionLock, SkillDefinitionLock } from './capabilityContracts';
 import type { PackageLock } from './packageContracts';
-import type { WorkflowDefinitionLock } from './workflowRuntimeContracts';
+import type {
+  WorkflowDefinitionLock,
+  WorkflowGateDefinitionLock,
+} from './workflowRuntimeContracts';
 
 export type AgentRunStatus =
   | 'queued'
@@ -34,6 +37,8 @@ export interface AgentWorkflowArtifactTarget {
   workflowOutputSlotId: string;
 }
 
+export type AgentWorkflowGateCompletion = 'arrived' | 'passed';
+
 export type AgentRunTarget =
   | {
     capabilityLock: CapabilityDefinitionLock;
@@ -63,6 +68,12 @@ export type AgentRunTarget =
         requiredStepRunIds: string[];
         stageId: string;
         stageTypeId: string;
+      }
+      | {
+        completion: AgentWorkflowGateCompletion;
+        gateDefinitionLock: WorkflowGateDefinitionLock;
+        kind: 'gate';
+        subjectStepRunId: string;
       };
     workflowDefinitionLock: WorkflowDefinitionLock;
     workflowRunId: string;
@@ -105,6 +116,7 @@ export interface AgentRunRecord {
   runtimeKind: 'retake_orchestrator';
   satisfiedArtifactRevisionId?: string;
   satisfiedArtifactRevisionIds?: string[];
+  satisfiedGateEvaluationId?: string;
   scope: AgentRunScope;
   sourcePackageLock?: PackageLock;
   status: AgentRunStatus;

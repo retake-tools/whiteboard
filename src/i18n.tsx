@@ -543,6 +543,12 @@ type TranslationKey =
   | 'agentRuntime.untilStep'
   | 'agentRuntime.untilArtifact'
   | 'agentRuntime.untilStage'
+  | 'agentRuntime.untilGate'
+  | 'agentRuntime.gateCompletion'
+  | 'agentRuntime.gateCompletion.arrived'
+  | 'agentRuntime.gateCompletion.passed'
+  | 'agentRuntime.gateCompletion.arrivedDescription'
+  | 'agentRuntime.gateCompletion.passedDescription'
   | 'agentRuntime.status.canceled'
   | 'agentRuntime.status.failed'
   | 'agentRuntime.status.needs_attention'
@@ -1332,6 +1338,12 @@ const translations: Record<Locale, Translations> = {
     'agentRuntime.untilStep': 'Run until',
     'agentRuntime.untilArtifact': 'Run until Artifact',
     'agentRuntime.untilStage': 'Run until Stage',
+    'agentRuntime.untilGate': 'Run until approval',
+    'agentRuntime.gateCompletion': 'Stop condition',
+    'agentRuntime.gateCompletion.arrived': 'Approval requested',
+    'agentRuntime.gateCompletion.passed': 'Approval passed',
+    'agentRuntime.gateCompletion.arrivedDescription': 'Stop after the approval request is ready.',
+    'agentRuntime.gateCompletion.passedDescription': 'Wait for your explicit approval, then stop before downstream steps.',
     'agentRuntime.status.canceled': 'Canceled',
     'agentRuntime.status.failed': 'Failed',
     'agentRuntime.status.needs_attention': 'Needs attention',
@@ -2116,6 +2128,12 @@ const translations: Record<Locale, Translations> = {
     'agentRuntime.untilStep': '运行到',
     'agentRuntime.untilArtifact': '运行到 Artifact',
     'agentRuntime.untilStage': '运行到阶段',
+    'agentRuntime.untilGate': '运行到审批',
+    'agentRuntime.gateCompletion': '停止条件',
+    'agentRuntime.gateCompletion.arrived': '审批请求已产生',
+    'agentRuntime.gateCompletion.passed': '审批已通过',
+    'agentRuntime.gateCompletion.arrivedDescription': '审批请求准备好后停止。',
+    'agentRuntime.gateCompletion.passedDescription': '等待你的明确批准，然后在下游节点前停止。',
     'agentRuntime.status.canceled': '已停止',
     'agentRuntime.status.failed': '失败',
     'agentRuntime.status.needs_attention': '需要处理',
