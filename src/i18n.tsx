@@ -472,6 +472,8 @@ type TranslationKey =
   | 'agentRuntime.cancelCurrentExecutionContinues'
   | 'agentRuntime.created'
   | 'agentRuntime.executions'
+  | 'agentRuntime.executionRange'
+  | 'agentRuntime.fullWorkflow'
   | 'agentRuntime.pause'
   | 'agentRuntime.paused'
   | 'agentRuntime.permissions'
@@ -480,8 +482,10 @@ type TranslationKey =
   | 'agentRuntime.run'
   | 'agentRuntime.runId'
   | 'agentRuntime.startWorkflow'
+  | 'agentRuntime.startSelectedTarget'
   | 'agentRuntime.stopPolicy'
   | 'agentRuntime.target'
+  | 'agentRuntime.untilStep'
   | 'agentRuntime.status.canceled'
   | 'agentRuntime.status.failed'
   | 'agentRuntime.status.needs_attention'
@@ -1200,6 +1204,8 @@ const translations: Record<Locale, Translations> = {
     'agentRuntime.cancelCurrentExecutionContinues': 'The Agent will not start another Step. An already running Execution is not canceled.',
     'agentRuntime.created': 'Agent Run started',
     'agentRuntime.executions': 'Executions',
+    'agentRuntime.executionRange': 'Execution range',
+    'agentRuntime.fullWorkflow': 'Complete Workflow',
     'agentRuntime.pause': 'Pause',
     'agentRuntime.paused': 'Agent Run paused',
     'agentRuntime.permissions': 'Permissions',
@@ -1208,8 +1214,10 @@ const translations: Record<Locale, Translations> = {
     'agentRuntime.run': 'Agent Run',
     'agentRuntime.runId': 'Agent Run ID',
     'agentRuntime.startWorkflow': 'Run existing Workflow with Agent',
+    'agentRuntime.startSelectedTarget': 'Start Agent',
     'agentRuntime.stopPolicy': 'Stop policy',
     'agentRuntime.target': 'Typed target',
+    'agentRuntime.untilStep': 'Run until',
     'agentRuntime.status.canceled': 'Canceled',
     'agentRuntime.status.failed': 'Failed',
     'agentRuntime.status.needs_attention': 'Needs attention',
@@ -1923,6 +1931,8 @@ const translations: Record<Locale, Translations> = {
     'agentRuntime.cancelCurrentExecutionContinues': 'Agent 不会再启动下一个 Step；已经运行中的 Execution 不会被取消。',
     'agentRuntime.created': 'Agent Run 已启动',
     'agentRuntime.executions': 'Execution 数量',
+    'agentRuntime.executionRange': '运行范围',
+    'agentRuntime.fullWorkflow': '完整 Workflow',
     'agentRuntime.pause': '暂停',
     'agentRuntime.paused': 'Agent Run 已暂停',
     'agentRuntime.permissions': '权限',
@@ -1931,8 +1941,10 @@ const translations: Record<Locale, Translations> = {
     'agentRuntime.run': 'Agent Run',
     'agentRuntime.runId': 'Agent Run ID',
     'agentRuntime.startWorkflow': '交给 Agent 推进现有 Workflow',
+    'agentRuntime.startSelectedTarget': '启动 Agent',
     'agentRuntime.stopPolicy': '停止条件',
     'agentRuntime.target': '类型化目标',
+    'agentRuntime.untilStep': '运行到',
     'agentRuntime.status.canceled': '已停止',
     'agentRuntime.status.failed': '失败',
     'agentRuntime.status.needs_attention': '需要处理',

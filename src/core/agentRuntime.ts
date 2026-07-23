@@ -9,11 +9,16 @@ import type {
   AgentRunStatus,
   AgentRunStopReason,
 } from './agentRuntimeContracts';
+import {
+  assertWorkflowAgentTarget,
+  nextWorkflowAgentExecutionAction,
+  projectWorkflowAgentRun,
+  workflowAgentScope,
+} from './agentWorkflowRuntime';
 import type { BlockRecord, BoardSnapshot, ExecutionRecord } from './types';
 import {
   reconcileWorkflowRuntime,
   workflowRunViewForId,
-  type WorkflowRunRuntimeView,
 } from './workflowRuntime';
 
 const activeStatuses = new Set<AgentRunStatus>([
@@ -44,26 +49,75 @@ export function createAgentRunForWorkflowRun(
   if (!workflow) throw new Error(`Workflow Run not found: ${workflowRunId}`);
   const stepRuns = workflow.steps.map((step) => step.record);
   if (stepRuns.length === 0) throw new Error(`Workflow Run has no StepRuns: ${workflowRunId}`);
+  const target = {
+    kind: 'workflow_run' as const,
+    workflowRunId,
+    workflowDefinitionLock: structuredClone(workflow.record.workflowDefinitionLock),
+  };
   const createdAt = nowIso();
   const record: AgentRunRecord = {
     agentRunId: createId('agent_run'),
     projectId: snapshot.project.projectId,
     boardId: snapshot.board.boardId,
     runtimeKind: 'retake_orchestrator',
-    target: {
-      kind: 'workflow_run',
-      workflowRunId,
-      workflowDefinitionLock: structuredClone(workflow.record.workflowDefinitionLock),
-    },
+    target,
     scope: {
       projectId: snapshot.project.projectId,
       boardId: snapshot.board.boardId,
       workflowRunId,
-      allowedStepRunIds: stepRuns.map((step) => step.stepRunId),
-      allowedOperationBlockIds: stepRuns.map((step) => step.operationBlockId),
-      allowedCapabilityIds: unique(stepRuns.map((step) => step.capabilityLock.capabilityId)),
+      ...workflowAgentScope(workflow, target),
     },
     stopPolicy: { kind: 'workflow_terminal' },
+    permissions: defaultPermissions(),
+    status: 'queued',
+    executionIds: [],
+    ...(workflow.record.entrypointId ? { entrypointId: workflow.record.entrypointId } : {}),
+    ...(workflow.record.sourcePackageLock ? { sourcePackageLock: structuredClone(workflow.record.sourcePackageLock) } : {}),
+    createdBy: 'user',
+    createdAt,
+    updatedAt: createdAt,
+    recordVersion: 1,
+  };
+  snapshot.agentRuns = [...(snapshot.agentRuns ?? []), record];
+  touchBoard(snapshot);
+  return agentRunView(record);
+}
+
+export function createAgentRunForWorkflowSlice(
+  snapshot: BoardSnapshot,
+  workflowRunId: string,
+  stepRunId: string,
+): AgentRunRuntimeView {
+  reconcileWorkflowRuntime(snapshot);
+  assertNoActiveAgentRun(snapshot);
+  const workflow = workflowRunViewForId(snapshot, workflowRunId);
+  if (!workflow) throw new Error(`Workflow Run not found: ${workflowRunId}`);
+  const step = workflow.steps.find((candidate) => candidate.record.stepRunId === stepRunId);
+  if (!step) throw new Error(`Workflow Slice target StepRun not found: ${stepRunId}`);
+  const target = {
+    kind: 'workflow_slice' as const,
+    workflowRunId,
+    workflowDefinitionLock: structuredClone(workflow.record.workflowDefinitionLock),
+    until: {
+      kind: 'step' as const,
+      stepId: step.record.stepId,
+      stepRunId: step.record.stepRunId,
+    },
+  };
+  const createdAt = nowIso();
+  const record: AgentRunRecord = {
+    agentRunId: createId('agent_run'),
+    projectId: snapshot.project.projectId,
+    boardId: snapshot.board.boardId,
+    runtimeKind: 'retake_orchestrator',
+    target,
+    scope: {
+      projectId: snapshot.project.projectId,
+      boardId: snapshot.board.boardId,
+      workflowRunId,
+      ...workflowAgentScope(workflow, target),
+    },
+    stopPolicy: { kind: 'workflow_slice_target' },
     permissions: defaultPermissions(),
     status: 'queued',
     executionIds: [],
@@ -220,17 +274,7 @@ export function nextAgentRunExecutionAction(snapshot: BoardSnapshot): AgentRunEx
       operationBlockId: operation.blockId,
     };
   }
-  const workflow = workflowRunViewForId(snapshot, record.target.workflowRunId);
-  if (!workflow || workflow.steps.some((step) => step.status === 'queued' || step.status === 'running')) return undefined;
-  const step = workflow.steps.find((candidate) => candidate.status === 'ready');
-  if (!step || !record.scope.allowedStepRunIds.includes(step.record.stepRunId)) return undefined;
-  if (!record.scope.allowedOperationBlockIds.includes(step.record.operationBlockId)) return undefined;
-  return {
-    actionKey: `${record.agentRunId}:step:${step.record.stepRunId}:${step.record.executionIds.length}`,
-    agentRunId: record.agentRunId,
-    operationBlockId: step.record.operationBlockId,
-    stepRunId: step.record.stepRunId,
-  };
+  return nextWorkflowAgentExecutionAction(snapshot, record);
 }
 
 export function attachAgentRunExecution(
@@ -252,7 +296,7 @@ export function attachAgentRunExecution(
   if (record.target.kind === 'capability' && operationBlockId !== record.target.operationBlockId) {
     throw new Error('Execution does not match the Agent Run Capability target.');
   }
-  if (record.target.kind === 'workflow_run' && execution.workflowRunId !== record.target.workflowRunId) {
+  if (record.target.kind !== 'capability' && execution.workflowRunId !== record.target.workflowRunId) {
     throw new Error('Execution does not match the Agent Run Workflow target.');
   }
   if (execution.agentRunId && execution.agentRunId !== record.agentRunId) {
@@ -267,7 +311,7 @@ export function latestAgentRunForWorkflowRun(
   workflowRunId: string,
 ): AgentRunRuntimeView | undefined {
   const record = [...(snapshot.agentRuns ?? [])].reverse().find(
-    (candidate) => candidate.target.kind === 'workflow_run' && candidate.target.workflowRunId === workflowRunId,
+    (candidate) => candidate.target.kind !== 'capability' && candidate.target.workflowRunId === workflowRunId,
   );
   return record ? agentRunView(record) : undefined;
 }
@@ -341,40 +385,6 @@ function projectCapabilityAgentRun(
   };
 }
 
-function projectWorkflowAgentRun(
-  snapshot: BoardSnapshot,
-  record: AgentRunRecord,
-): Pick<AgentRunRecord, 'currentOperationBlockId' | 'error' | 'executionIds' | 'status' | 'stopReason'> {
-  if (record.target.kind !== 'workflow_run') throw new Error('Workflow Agent Run target required.');
-  const workflow = workflowRunViewForId(snapshot, record.target.workflowRunId);
-  if (!workflow) throw new Error(`Workflow Run not found: ${record.target.workflowRunId}`);
-  const executionIds = workflow.steps.flatMap((step) => step.record.executionIds);
-  const current = workflow.steps.find((step) =>
-    step.status === 'queued'
-    || step.status === 'running'
-    || step.status === 'ready'
-    || step.status === 'waiting_input'
-    || step.status === 'waiting_selection',
-  );
-  const base = {
-    executionIds,
-    currentOperationBlockId: current?.record.operationBlockId,
-    error: workflow.steps.find((step) => step.status === 'failed')?.record.error,
-  };
-  if (workflow.status === 'succeeded') return { ...base, status: 'succeeded', stopReason: 'workflow_terminal' };
-  if (workflow.status === 'canceled') return { ...base, status: 'canceled', stopReason: 'target_canceled' };
-  if (workflow.status === 'paused') return { ...base, status: 'paused', stopReason: 'target_paused' };
-  if (workflow.status === 'waiting_input') return { ...base, status: 'waiting_input', stopReason: undefined };
-  if (workflow.status === 'waiting_selection') return { ...base, status: 'waiting_selection', stopReason: undefined };
-  if (workflow.status === 'waiting_approval') {
-    return { ...base, status: 'waiting_approval', stopReason: undefined };
-  }
-  if (workflow.status === 'needs_attention' || workflow.status === 'failed') {
-    return { ...base, status: 'needs_attention', stopReason: undefined };
-  }
-  return { ...base, status: 'running', stopReason: undefined };
-}
-
 function assertAgentRunTarget(snapshot: BoardSnapshot, record: AgentRunRecord): void {
   if (record.projectId !== snapshot.project.projectId || record.scope.projectId !== snapshot.project.projectId) {
     throw new Error('Agent Run Project scope does not match the Board.');
@@ -391,6 +401,9 @@ function assertAgentRunTarget(snapshot: BoardSnapshot, record: AgentRunRecord): 
     || record.permissions.canModifyWorkflow
   ) throw new Error('Agent Run permissions exceed the V0 execution boundary.');
   if (record.target.kind === 'capability') {
+    if (record.stopPolicy.kind !== 'capability_completed') {
+      throw new Error('Agent Run Capability stop policy changed.');
+    }
     const operation = operationBlock(snapshot, record.target.operationBlockId);
     if (operation.data.capabilityId !== record.target.capabilityLock.capabilityId) {
       throw new Error('Agent Run Capability target changed.');
@@ -419,21 +432,7 @@ function assertAgentRunTarget(snapshot: BoardSnapshot, record: AgentRunRecord): 
     ) throw new Error('Agent Run Capability scope is invalid.');
     return;
   }
-  const workflow = workflowRunViewForId(snapshot, record.target.workflowRunId);
-  if (!workflow || record.scope.workflowRunId !== workflow.record.workflowRunId) {
-    throw new Error('Agent Run Workflow target is missing.');
-  }
-  if (!locksEqual(record.target.workflowDefinitionLock, workflow.record.workflowDefinitionLock)) {
-    throw new Error('Agent Run Workflow Definition lock changed.');
-  }
-  const stepRunIds = workflow.steps.map((step) => step.record.stepRunId);
-  const operationBlockIds = workflow.steps.map((step) => step.record.operationBlockId);
-  const capabilityIds = unique(workflow.steps.map((step) => step.record.capabilityLock.capabilityId));
-  if (
-    !arraysEqual(record.scope.allowedStepRunIds, stepRunIds)
-    || !arraysEqual(record.scope.allowedOperationBlockIds, operationBlockIds)
-    || !arraysEqual(record.scope.allowedCapabilityIds, capabilityIds)
-  ) throw new Error('Agent Run Workflow scope changed.');
+  assertWorkflowAgentTarget(snapshot, record);
 }
 
 function assertNoActiveAgentRun(snapshot: BoardSnapshot): void {
@@ -495,19 +494,8 @@ function updateAgentRun(
   if (values.currentOperationBlockId === undefined) delete record.currentOperationBlockId;
 }
 
-function locksEqual(
-  left: { definitionHash: string; version: string; workflowId: string },
-  right: { definitionHash: string; version: string; workflowId: string },
-): boolean {
-  return left.workflowId === right.workflowId && left.version === right.version && left.definitionHash === right.definitionHash;
-}
-
 function arraysEqual(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
-}
-
-function unique(values: string[]): string[] {
-  return [...new Set(values)];
 }
 
 function defaultPermissions(): AgentRunRecord['permissions'] {

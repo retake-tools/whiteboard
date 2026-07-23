@@ -47,7 +47,7 @@ assert.doesNotMatch(agentRuntimeSource, /createBlockRecord|projectWorkflowDraft/
 assert.match(controllerSource, /nextAgentRunExecutionAction/);
 assert.match(controllerSource, /runOperationRef\.current\(action\.operationBlockId\)/);
 assert.match(controllerSource, /attachAgentRunExecution\(current, action\.agentRunId, execution\.executionId\)/);
-assert.match(groupInspectorSource, /agentRuntime\.startWorkflow/);
+assert.match(groupInspectorSource, /agentRuntime\.startSelectedTarget/);
 assert.match(groupInspectorSource, /latestAgentRunForWorkflowRun/);
 
 const snapshot = await workflowSnapshot('A courier cat must reach the cinema before sunrise.');
@@ -192,7 +192,7 @@ assert.equal(capabilityAgent.record.stopReason, 'capability_completed');
 
 console.log(JSON.stringify({
   ok: true,
-  typedTargets: ['capability', 'workflow_run'],
+  typedTargets: ['capability', 'workflow_run', 'workflow_slice'],
   exactScopeFrozen: true,
   workflowAutoProgressionPlanned: true,
   waitingInputRecovered: true,

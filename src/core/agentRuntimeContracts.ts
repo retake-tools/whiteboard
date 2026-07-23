@@ -16,6 +16,7 @@ export type AgentRunStatus =
 
 export type AgentRunStopReason =
   | 'capability_completed'
+  | 'slice_target_satisfied'
   | 'workflow_terminal'
   | 'target_paused'
   | 'target_canceled'
@@ -34,6 +35,16 @@ export type AgentRunTarget =
     kind: 'workflow_run';
     workflowDefinitionLock: WorkflowDefinitionLock;
     workflowRunId: string;
+  }
+  | {
+    kind: 'workflow_slice';
+    until: {
+      kind: 'step';
+      stepId: string;
+      stepRunId: string;
+    };
+    workflowDefinitionLock: WorkflowDefinitionLock;
+    workflowRunId: string;
   };
 
 export interface AgentRunScope {
@@ -47,6 +58,7 @@ export interface AgentRunScope {
 
 export type AgentRunStopPolicy =
   | { kind: 'capability_completed' }
+  | { kind: 'workflow_slice_target' }
   | { kind: 'workflow_terminal' };
 
 export interface AgentRunPermissions {

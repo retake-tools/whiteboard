@@ -3,6 +3,7 @@ import type { OperationToast } from '../components/OperationFeedback';
 import {
   attachAgentRunExecution,
   cancelAgentRun,
+  createAgentRunForWorkflowSlice,
   createAgentRunForWorkflowRun,
   nextAgentRunExecutionAction,
   pauseAgentRun,
@@ -80,6 +81,14 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
     });
   }
 
+  function createWorkflowSliceAgentRun(workflowRunId: string, stepRunId: string): void {
+    mutateAgentRun('create', (current) => {
+      const created = createAgentRunForWorkflowSlice(current, workflowRunId, stepRunId);
+      startAgentRun(current, created.record.agentRunId);
+      return created.record.agentRunId;
+    });
+  }
+
   function pause(agentRunId: string): void {
     mutateAgentRun('pause', (current) => pauseAgentRun(current, agentRunId).record.agentRunId);
   }
@@ -121,6 +130,7 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
   return {
     cancelAgentRun: cancel,
     createWorkflowAgentRun,
+    createWorkflowSliceAgentRun,
     pauseAgentRun: pause,
     resumeAgentRun: resume,
   };

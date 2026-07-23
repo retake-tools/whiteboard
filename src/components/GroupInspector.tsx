@@ -38,6 +38,7 @@ interface GroupInspectorProps {
   onCopyPrompt: (input: CopyPromptInput) => void | Promise<void>;
   onCancelAgentRun: (agentRunId: string) => void;
   onCreateWorkflowAgentRun: (workflowRunId: string) => void;
+  onCreateWorkflowSliceAgentRun: (workflowRunId: string, stepRunId: string) => void;
   onDecideWorkflowApproval: (
     approvalRequestId: string,
     expectedApprovalRequestVersion: number,
@@ -57,6 +58,7 @@ export function GroupInspector({
   onCopyPrompt,
   onCancelAgentRun,
   onCreateWorkflowAgentRun,
+  onCreateWorkflowSliceAgentRun,
   onDecideWorkflowApproval,
   onDownloadAll,
   onPauseAgentRun,
@@ -231,6 +233,7 @@ export function GroupInspector({
               workflowRun={workflowRun}
               onCancelAgentRun={onCancelAgentRun}
               onCreateWorkflowAgentRun={onCreateWorkflowAgentRun}
+              onCreateWorkflowSliceAgentRun={onCreateWorkflowSliceAgentRun}
               onDecideWorkflowApproval={onDecideWorkflowApproval}
               onPauseAgentRun={onPauseAgentRun}
               onResumeAgentRun={onResumeAgentRun}
@@ -276,6 +279,7 @@ function GroupSummary({
   workflowRun,
   onCancelAgentRun,
   onCreateWorkflowAgentRun,
+  onCreateWorkflowSliceAgentRun,
   onDecideWorkflowApproval,
   onPauseAgentRun,
   onResumeAgentRun,
@@ -293,6 +297,7 @@ function GroupSummary({
   workflowRun?: WorkflowRunRuntimeView;
   onCancelAgentRun: (agentRunId: string) => void;
   onCreateWorkflowAgentRun: (workflowRunId: string) => void;
+  onCreateWorkflowSliceAgentRun: (workflowRunId: string, stepRunId: string) => void;
   onDecideWorkflowApproval: (
     approvalRequestId: string,
     expectedApprovalRequestVersion: number,
@@ -304,6 +309,7 @@ function GroupSummary({
   outputSelectionStep?: WorkflowStepRunRecord;
 }): ReactElement {
   const { t } = useI18n();
+  const [agentTarget, setAgentTarget] = useState('workflow_run');
   const kind = (group.data.groupKind ?? 'manual') as GroupKind;
   const dimensions = selectedItem
     ? mediaDimensions(selectedItem.asset.width, selectedItem.asset.height)
@@ -319,6 +325,13 @@ function GroupSummary({
     && (outputSelectionStep.status === 'waiting_selection' || outputSelectionStep.status === 'succeeded')
     ? { assetId: selectedAssetId, step: outputSelectionStep }
     : undefined;
+  const selectedSliceStepRunId = agentTarget.startsWith('step:')
+    ? agentTarget.slice('step:'.length)
+    : undefined;
+
+  useEffect(() => {
+    setAgentTarget('workflow_run');
+  }, [workflowRun?.record.workflowRunId]);
 
   return (
     <section className="group-inspector-summary">
@@ -422,7 +435,10 @@ function GroupSummary({
               <dl className="execution-inspector-meta">
                 <Meta label={t('agentRuntime.runId')} value={agentRun.record.agentRunId} mono />
                 <Meta label={t('inspector.status')} value={t(agentRunStatusKey(agentRun.status))} />
-                <Meta label={t('agentRuntime.target')} value={agentRun.record.target.kind} />
+                <Meta
+                  label={t('agentRuntime.target')}
+                  value={agentRunTargetLabel(agentRun, snapshot)}
+                />
                 <Meta label={t('agentRuntime.stopPolicy')} value={agentRun.record.stopPolicy.kind} />
                 <Meta label={t('agentRuntime.permissions')} value={agentRun.record.permissions.allowedToolPermissions.join(', ')} />
                 <Meta label={t('agentRuntime.executions')} value={String(agentRun.record.executionIds.length)} />
@@ -446,16 +462,44 @@ function GroupSummary({
                 ) : null}
               </div>
             </div>
-          ) : (
-            <button
-              type="button"
-              className="agent-run-start"
-              onClick={() => onCreateWorkflowAgentRun(workflowRun.record.workflowRunId)}
-            >
-              <Bot size={15} />
-              <span>{t('agentRuntime.startWorkflow')}</span>
-            </button>
-          )}
+          ) : null}
+          {!agentRun?.canCancel ? (
+            <div className="agent-run-create">
+              <label>
+                <span>{t('agentRuntime.executionRange')}</span>
+                <select value={agentTarget} onChange={(event) => setAgentTarget(event.target.value)}>
+                  <option value="workflow_run">{t('agentRuntime.fullWorkflow')}</option>
+                  {workflowRun.steps.map((step) => {
+                    const operation = snapshot.blocks.find(
+                      (block) => block.blockId === step.record.operationBlockId,
+                    );
+                    return (
+                      <option key={step.record.stepRunId} value={`step:${step.record.stepRunId}`}>
+                        {t('agentRuntime.untilStep')}: {operation?.data.title ?? step.record.stepId}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="agent-run-start"
+                onClick={() => {
+                  if (selectedSliceStepRunId) {
+                    onCreateWorkflowSliceAgentRun(
+                      workflowRun.record.workflowRunId,
+                      selectedSliceStepRunId,
+                    );
+                    return;
+                  }
+                  onCreateWorkflowAgentRun(workflowRun.record.workflowRunId);
+                }}
+              >
+                <Bot size={15} />
+                <span>{t('agentRuntime.startSelectedTarget')}</span>
+              </button>
+            </div>
+          ) : null}
         </>
       ) : null}
       {selectedItem ? (
@@ -505,6 +549,16 @@ function workflowStepStatusKey(status: WorkflowRunRuntimeView['steps'][number]['
 
 function agentRunStatusKey(status: AgentRunRuntimeView['status']) {
   return `agentRuntime.status.${status}` as const;
+}
+
+function agentRunTargetLabel(agentRun: AgentRunRuntimeView, snapshot: BoardSnapshot): string {
+  const target = agentRun.record.target;
+  if (target.kind !== 'workflow_slice') return target.kind;
+  const operationBlockId = (snapshot.workflowStepRuns ?? []).find(
+    (step) => step.stepRunId === target.until.stepRunId,
+  )?.operationBlockId;
+  const operation = snapshot.blocks.find((block) => block.blockId === operationBlockId);
+  return `${target.kind} · ${operation?.data.title ?? target.until.stepId}`;
 }
 
 function workflowGateStatusKey(gate: WorkflowGateRuntimeView) {
