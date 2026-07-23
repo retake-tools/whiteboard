@@ -1,6 +1,7 @@
 import type {
   PackageComposerInlineValue,
   PackageComposerMention,
+  PackageComposerParametersValue,
 } from './packageComposer';
 import type { AgentPresetSelectionLock } from './agentPresetContracts';
 
@@ -27,7 +28,8 @@ export type AgentMessageContextRef =
   | { agentRunId: string; kind: 'agent_run' }
   | { entrypointId: string; kind: 'entrypoint' }
   | PackageComposerInlineValue
-  | PackageComposerMention;
+  | PackageComposerMention
+  | PackageComposerParametersValue;
 
 export interface AgentMessageRecord {
   agentMessageId: string;
@@ -275,6 +277,7 @@ export interface AgentRuntimeTurnContext {
   history: Array<{ content: string; role: AgentMessageRole }>;
   inlineValues: PackageComposerInlineValue[];
   mentions: PackageComposerMention[];
+  parameters: Record<string, unknown>;
   projectId: string;
   userMessage: string;
 }

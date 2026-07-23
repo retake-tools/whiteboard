@@ -1,4 +1,7 @@
-import { textDocumentCapabilityIds } from './capabilityRegistry';
+import {
+  codexTextDocumentCapabilityIds,
+  textDocumentCapabilityIds,
+} from './capabilityRegistry';
 
 export type ExecutionConnectionKind = 'model_provider' | 'agent_host' | 'provider_cli' | 'local';
 
@@ -119,7 +122,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     connectionMode: 'multiple',
     requiresCredential: false,
     supportedCapabilityIds: [
-      ...textDocumentCapabilityIds,
+      ...codexTextDocumentCapabilityIds,
       'image.annotation_edit',
       'image.image_to_image',
       'image.text_to_image',

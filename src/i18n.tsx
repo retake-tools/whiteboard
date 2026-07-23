@@ -360,6 +360,7 @@ type TranslationKey =
   | 'operation.defineScene.title'
   | 'operation.generateStoryboardPlan.title'
   | 'operation.generateStoryboardSheet.title'
+  | 'operation.prepareGenerationPackage.title'
   | 'operation.annotationEdit.prompt'
   | 'operation.annotationEdit.title'
   | 'operation.quickEdit.prompt'
@@ -426,6 +427,14 @@ type TranslationKey =
   | 'skillComposer.storyboardParameters'
   | 'skillComposer.panelCount'
   | 'skillComposer.candidateCount'
+  | 'skillComposer.generationParameters'
+  | 'skillComposer.aspectRatio'
+  | 'skillComposer.durationSeconds'
+  | 'skillComposer.promptLanguage'
+  | 'skillComposer.maxPromptChars'
+  | 'skillComposer.referenceRole'
+  | 'skillComposer.referenceRequired'
+  | 'skillComposer.referencePurpose'
   | 'skill.common.referencesInput'
   | 'skill.common.referencesPlaceholder'
   | 'skill.screenplayFromBrief.name'
@@ -462,10 +471,26 @@ type TranslationKey =
   | 'skill.storyboardSheet.unitPlaceholder'
   | 'skill.storyboardSheet.referencesInput'
   | 'skill.storyboardSheet.referencesPlaceholder'
+  | 'skill.generationPackage.name'
+  | 'skill.generationPackage.description'
+  | 'skill.generationPackage.planInput'
+  | 'skill.generationPackage.planPlaceholder'
+  | 'skill.generationPackage.sheetInput'
+  | 'skill.generationPackage.sheetPlaceholder'
+  | 'skill.generationPackage.unitInput'
+  | 'skill.generationPackage.unitPlaceholder'
+  | 'skill.generationPackage.referencesInput'
+  | 'skill.generationPackage.referencesPlaceholder'
+  | 'skill.generationPackage.manifestInput'
+  | 'skill.generationPackage.manifestPlaceholder'
+  | 'skill.generationPackage.instructionInput'
+  | 'skill.generationPackage.instructionPlaceholder'
   | 'workflow.storyToStoryboard.name'
   | 'workflow.storyToStoryboard.description'
   | 'workflow.storyboardUnitToSheet.name'
   | 'workflow.storyboardUnitToSheet.description'
+  | 'workflow.storyboardUnitToGenerationPackage.name'
+  | 'workflow.storyboardUnitToGenerationPackage.description'
   | 'workflowDraft.outputPending'
   | 'workflowRuntime.create'
   | 'workflowRuntime.createFailed'
@@ -1194,6 +1219,7 @@ const translations: Record<Locale, Translations> = {
     'operation.defineScene.title': 'Define scenes',
     'operation.generateStoryboardPlan.title': 'Generate storyboard plan',
     'operation.generateStoryboardSheet.title': 'Generate storyboard sheet',
+    'operation.prepareGenerationPackage.title': 'Prepare generation package',
     'operation.annotationEdit.prompt': 'Edit image from annotation note',
     'operation.annotationEdit.title': 'Annotation Edit',
     'operation.quickEdit.prompt': 'Describe how to transform the source image...',
@@ -1260,6 +1286,14 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.storyboardParameters': 'Storyboard sheet parameters',
     'skillComposer.panelCount': 'Panels',
     'skillComposer.candidateCount': 'Candidates',
+    'skillComposer.generationParameters': 'Generation package profile',
+    'skillComposer.aspectRatio': 'Aspect ratio',
+    'skillComposer.durationSeconds': 'Duration (seconds)',
+    'skillComposer.promptLanguage': 'Prompt language',
+    'skillComposer.maxPromptChars': 'Submit-source budget',
+    'skillComposer.referenceRole': 'Reference role',
+    'skillComposer.referenceRequired': 'Required',
+    'skillComposer.referencePurpose': 'Purpose',
     'skill.common.referencesInput': 'Additional direction / references',
     'skill.common.referencesPlaceholder': 'Add optional direction or reference material...',
     'skill.screenplayFromBrief.name': 'Generate screenplay',
@@ -1296,10 +1330,26 @@ const translations: Record<Locale, Translations> = {
     'skill.storyboardSheet.unitPlaceholder': 'Enter the exact storyboard Unit ID...',
     'skill.storyboardSheet.referencesInput': 'Image references',
     'skill.storyboardSheet.referencesPlaceholder': 'Connect character, scene, prop, or storyboard references...',
+    'skill.generationPackage.name': 'Prepare video generation package',
+    'skill.generationPackage.description': 'Prepare a provider-neutral package from one approved storyboard unit and declared references.',
+    'skill.generationPackage.planInput': 'Storyboard Plan',
+    'skill.generationPackage.planPlaceholder': 'Connect the authoritative Storyboard Plan...',
+    'skill.generationPackage.sheetInput': 'Approved Storyboard Sheet',
+    'skill.generationPackage.sheetPlaceholder': 'Connect the current approved Storyboard Sheet revision...',
+    'skill.generationPackage.unitInput': 'Unit ID',
+    'skill.generationPackage.unitPlaceholder': 'Enter the exact Unit ID shared by the Plan and Sheet...',
+    'skill.generationPackage.referencesInput': 'Generation references',
+    'skill.generationPackage.referencesPlaceholder': 'Connect declared character, scene, prop, frame, or motion references...',
+    'skill.generationPackage.manifestInput': 'Reference Manifest',
+    'skill.generationPackage.manifestPlaceholder': 'Declare each reference role, purpose, binding, and whether it is required...',
+    'skill.generationPackage.instructionInput': 'Preparation instruction',
+    'skill.generationPackage.instructionPlaceholder': 'Optional bounded instruction for this generation package...',
     'workflow.storyToStoryboard.name': 'Story to storyboard plan',
     'workflow.storyToStoryboard.description': 'Create an editable draft graph from brief through screenplay and production design to storyboard planning.',
     'workflow.storyboardUnitToSheet.name': 'Storyboard unit to sheet',
     'workflow.storyboardUnitToSheet.description': 'Generate and review one accepted storyboard sheet for an explicitly selected Unit.',
+    'workflow.storyboardUnitToGenerationPackage.name': 'Storyboard unit to generation package',
+    'workflow.storyboardUnitToGenerationPackage.description': 'Prepare and review one provider-neutral generation package from an approved storyboard Unit.',
     'workflowDraft.outputPending': 'Run the upstream operation to create this document.',
     'workflowRuntime.create': 'Create Workflow Run',
     'workflowRuntime.createFailed': 'Workflow Run could not be created',
@@ -2023,6 +2073,7 @@ const translations: Record<Locale, Translations> = {
     'operation.defineScene.title': '生成场景设定',
     'operation.generateStoryboardPlan.title': '生成故事板计划',
     'operation.generateStoryboardSheet.title': '生成分镜图',
+    'operation.prepareGenerationPackage.title': '准备视频生成包',
     'operation.annotationEdit.prompt': '根据标注备注编辑图片',
     'operation.annotationEdit.title': '标注编辑',
     'operation.quickEdit.prompt': '描述要如何基于源图生成新图片...',
@@ -2089,6 +2140,14 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.storyboardParameters': '分镜图参数',
     'skillComposer.panelCount': '格数',
     'skillComposer.candidateCount': '候选数',
+    'skillComposer.generationParameters': '视频生成包档案',
+    'skillComposer.aspectRatio': '画面比例',
+    'skillComposer.durationSeconds': '时长（秒）',
+    'skillComposer.promptLanguage': '提示词语言',
+    'skillComposer.maxPromptChars': '提交源字数预算',
+    'skillComposer.referenceRole': '参考角色',
+    'skillComposer.referenceRequired': '必需',
+    'skillComposer.referencePurpose': '用途',
     'skill.common.referencesInput': '补充要求 / 参考资料',
     'skill.common.referencesPlaceholder': '补充可选要求或参考资料...',
     'skill.screenplayFromBrief.name': '生成剧本',
@@ -2125,10 +2184,26 @@ const translations: Record<Locale, Translations> = {
     'skill.storyboardSheet.unitPlaceholder': '输入故事板计划中的精确 Unit ID...',
     'skill.storyboardSheet.referencesInput': '图片参考',
     'skill.storyboardSheet.referencesPlaceholder': '连接角色、场景、道具或故事板图片参考...',
+    'skill.generationPackage.name': '准备视频生成包',
+    'skill.generationPackage.description': '基于一个已审阅的分镜 Unit 与声明的参考，准备供应商中立的视频生成包。',
+    'skill.generationPackage.planInput': '故事板计划',
+    'skill.generationPackage.planPlaceholder': '连接作为依据的故事板计划...',
+    'skill.generationPackage.sheetInput': '已审阅分镜图',
+    'skill.generationPackage.sheetPlaceholder': '连接当前且已通过审阅的分镜图修订...',
+    'skill.generationPackage.unitInput': 'Unit ID',
+    'skill.generationPackage.unitPlaceholder': '输入计划与分镜图共同对应的精确 Unit ID...',
+    'skill.generationPackage.referencesInput': '生成参考',
+    'skill.generationPackage.referencesPlaceholder': '连接已声明的角色、场景、道具、帧或动作参考...',
+    'skill.generationPackage.manifestInput': '参考清单',
+    'skill.generationPackage.manifestPlaceholder': '声明每项参考的角色、用途、绑定以及是否必需...',
+    'skill.generationPackage.instructionInput': '准备说明',
+    'skill.generationPackage.instructionPlaceholder': '针对本次生成包的可选范围内说明...',
     'workflow.storyToStoryboard.name': '从 Brief 到故事板计划',
     'workflow.storyToStoryboard.description': '创建从 Brief、剧本、角色与场景设定到故事板计划的可编辑草稿图。',
     'workflow.storyboardUnitToSheet.name': '单 Unit 分镜图',
     'workflow.storyboardUnitToSheet.description': '为明确选择的一个 Unit 生成候选并审核一个权威分镜图。',
+    'workflow.storyboardUnitToGenerationPackage.name': '单 Unit 视频生成包',
+    'workflow.storyboardUnitToGenerationPackage.description': '基于一个已审阅的分镜 Unit 准备并审核供应商中立的视频生成包。',
     'workflowDraft.outputPending': '执行上游 Operation 后将在这里生成文档。',
     'workflowRuntime.create': '创建 Workflow Run',
     'workflowRuntime.createFailed': '无法创建 Workflow Run',

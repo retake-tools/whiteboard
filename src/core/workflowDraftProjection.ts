@@ -16,6 +16,10 @@ import {
   workflowDefinitionFor,
   type WorkflowDefinition,
 } from './workflowRegistry';
+import {
+  createDraftGenerationPreparationOperation,
+} from './generationPreparationOperations';
+import { generationPreparationCapabilityId } from './generationPreparationContracts';
 
 export interface WorkflowDraftProjectionLabels {
   labelsForSkill: (skillId: string) => TextGenerationLabels;
@@ -87,7 +91,13 @@ export function projectWorkflowDraft(
         promptTitle: slotLabels?.promptTitle ?? labels.promptTitle,
       })] : []),
     ];
-    if (blocks.length === 0 && inlineValues.length === 0 && slot.required && slot.slotId !== 'unit_id') {
+    if (
+      blocks.length === 0
+      && inlineValues.length === 0
+      && slot.required
+      && !slot.dataTypes.includes('structured_data')
+      && !(slot.dataTypes.includes('text') && slot.artifactTypes.length === 0)
+    ) {
       blocks.push(createWorkflowInputBlock(snapshot, {
         artifactType: slot.artifactTypes[0],
         dataType: slot.dataTypes[0],
@@ -128,7 +138,29 @@ export function projectWorkflowDraft(
     const unitValue = workflowInputBindings.get('unit_id')?.find(
       (value): value is Extract<CapabilityBindingValue, { kind: 'inline' }> => value.kind === 'inline',
     );
-    const draft = mediaOutput
+    const generationPreparation = step.capabilityLock.capabilityId === generationPreparationCapabilityId;
+    const manifestValue = workflowInputBindings.get('reference_manifest')?.find(
+      (value): value is Extract<CapabilityBindingValue, { kind: 'inline' }> => value.kind === 'inline',
+    );
+    const explicitGenerationInputs = step.inputBindings.flatMap((binding) => (
+      binding.source.kind === 'workflow_input'
+        ? (workflowInputs.get(binding.source.slotId) ?? []).map((block) => ({
+            blockId: block.blockId,
+            inputSlotId: binding.inputSlotId,
+            kind: 'block' as const,
+          }))
+        : []
+    ));
+    const draft = generationPreparation
+      ? createDraftGenerationPreparationOperation(snapshot, {
+          connectionId: input.connectionIdForCapability(step.capabilityLock.capabilityId),
+          explicitInputBindings: explicitGenerationInputs,
+          labels,
+          parameters: input.composerInput?.parameters,
+          referenceManifest: manifestValue?.value,
+          unitId: typeof unitValue?.value === 'string' ? unitValue.value : undefined,
+        })
+      : mediaOutput
       ? createDraftStoryboardSheetOperation(snapshot, {
           connectionId: input.connectionIdForCapability(step.capabilityLock.capabilityId),
           labels,
@@ -267,6 +299,9 @@ function createWorkflowInputBlock(
       ...block.data,
       title: input.promptTitle,
       ...(source.type === 'image' ? {
+        artifactId: source.data.artifactId,
+        artifactRevisionId: source.data.artifactRevisionId,
+        artifactType: source.data.artifactType,
         assetId,
         previewUrl: source.data.previewUrl,
       } : assetId ? {

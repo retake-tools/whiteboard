@@ -287,7 +287,7 @@ function ProposalCard({
           {typedInvocation.inlineValues.map((value) => (
             <div key={`inline:${value.slotId}`}>
               <dt>{value.slotId}</dt>
-              <dd>{value.value}</dd>
+              <dd>{inlineValueSummary(value.value)}</dd>
             </div>
           ))}
           <div>
@@ -355,7 +355,9 @@ function ProposalCard({
               {typedInvocation ? (
                 <div className="agent-workspace-preset-summary">
                   {typedInvocation.inlineValues.map((value) => (
-                    <small key={`launch-inline:${value.slotId}`}>{value.slotId}: {value.value}</small>
+                    <small key={`launch-inline:${value.slotId}`}>
+                      {value.slotId}: {inlineValueSummary(value.value)}
+                    </small>
                   ))}
                   <small>
                     {t('agentWorkspace.sourceBinding')}: {typedInvocation.mentionLocks.map(
@@ -527,7 +529,8 @@ function typedEntryPointName(
 function contextRefLabel(ref: NonNullable<ReturnType<typeof messagesForSession>[number]>['contextRefs'][number]): string {
   if (ref.kind === 'entrypoint') return `/${ref.entrypointId}`;
   if (ref.kind === 'agent_run') return `Run ${ref.agentRunId.slice(-8)}`;
-  if (ref.kind === 'inline') return `${ref.slotId}: ${String(ref.value)}`;
+  if (ref.kind === 'inline') return `${ref.slotId}: ${inlineValueSummary(ref.value)}`;
+  if (ref.kind === 'parameters') return invocationParameterSummary(ref.value);
   if (ref.kind === 'block') return `@Block ${ref.blockId.slice(-8)}`;
   return `@Asset ${ref.assetId.slice(-8)}`;
 }
@@ -536,4 +539,13 @@ function invocationParameterSummary(parameters: Record<string, unknown>): string
   const entries = Object.entries(parameters);
   if (entries.length === 0) return '—';
   return entries.map(([key, value]) => `${key}=${String(value)}`).join(' · ');
+}
+
+function inlineValueSummary(value: unknown): string {
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }

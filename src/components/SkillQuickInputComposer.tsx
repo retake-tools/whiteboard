@@ -1,11 +1,22 @@
 import { ArrowUp, AtSign, ChevronDown, Search, Sparkles, X } from 'lucide-react';
-import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactElement } from 'react';
+import {
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactElement,
+  type SetStateAction,
+} from 'react';
 import {
   listPackageComposerInlineInputOptions,
   listPackageComposerMentionOptions,
   packageComposerMentionId,
+  packageComposerMentionBindingIdentity,
   resolvePackageComposerInvocation,
   type PackageComposerInvocation,
+  type PackageComposerInlineValue,
   type PackageComposerMention,
   type PackageComposerMentionOption,
 } from '../core/packageComposer';
@@ -23,6 +34,12 @@ import type { BoardSnapshot } from '../core/types';
 import { workflowUiDefinitionFor } from '../core/workflowRegistry';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
+import {
+  defaultGenerationPreparationParameters,
+  generationReferenceRoles,
+  type GenerationPreparationParameters,
+  type GenerationReferenceRole,
+} from '../core/generationPreparationContracts';
 
 interface SkillQuickInputComposerProps {
   onInvokeEntryPoint: (invocation: PackageComposerInvocation) => void;
@@ -30,6 +47,7 @@ interface SkillQuickInputComposerProps {
 }
 
 type PickerState = { mode: 'entrypoint' | 'mention'; query: string } | undefined;
+type ReferenceSetting = { purpose: string; required: boolean; role: GenerationReferenceRole };
 
 export function SkillQuickInputComposer({
   onInvokeEntryPoint,
@@ -43,6 +61,10 @@ export function SkillQuickInputComposer({
   const [inlineValuesBySlot, setInlineValuesBySlot] = useState<Record<string, string>>({});
   const [storyboardOutputCount, setStoryboardOutputCount] = useState<1 | 2 | 3 | 4>(1);
   const [storyboardPanelCount, setStoryboardPanelCount] = useState<StoryboardSheetPanelCount>(6);
+  const [generationParameters, setGenerationParameters] = useState<GenerationPreparationParameters>(
+    defaultGenerationPreparationParameters,
+  );
+  const [referenceSettings, setReferenceSettings] = useState<Record<string, ReferenceSetting>>({});
   const [mentions, setMentions] = useState<PackageComposerMention[]>([]);
   const [picker, setPicker] = useState<PickerState>();
   const [submitError, setSubmitError] = useState<string>();
@@ -56,6 +78,9 @@ export function SkillQuickInputComposer({
   const usesStoryboardSheet = inlineInputOptions.some(
     (option) => option.schemaRef === 'retake.storyboard-unit-id/v1',
   );
+  const usesGenerationPreparation = inlineInputOptions.some(
+    (option) => option.schemaRef === 'retake.generation-reference-manifest/v1',
+  );
   const mentionOptions = useMemo(
     () => entrypointId ? listPackageComposerMentionOptions(snapshot, entrypointId) : [],
     [entrypointId, snapshot],
@@ -64,6 +89,9 @@ export function SkillQuickInputComposer({
     () => new Map(mentionOptions.map((option) => [option.mentionId, option])),
     [mentionOptions],
   );
+  const generationReferenceMentions = useMemo(() => mentions.filter(
+    (mention) => mention.slotId === 'references',
+  ), [mentions]);
   const filteredEntryPoints = useMemo(() => filterEntryPoints(entrypoints, picker?.mode === 'entrypoint' ? picker.query : '', t), [entrypoints, picker, t]);
   const filteredMentions = useMemo(() => filterMentionOptions(
     mentionOptions,
@@ -71,7 +99,29 @@ export function SkillQuickInputComposer({
   ), [mentionOptions, picker]);
   const invocation = useMemo((): PackageComposerInvocation | undefined => entrypointId ? ({
     entrypointId,
-    inlineValues: inlineInputOptions.flatMap((option) => {
+    inlineValues: inlineInputOptions.flatMap((option): PackageComposerInlineValue[] => {
+      if (option.schemaRef === 'retake.generation-reference-manifest/v1') {
+        return [{
+          kind: 'inline' as const,
+          slotId: option.slotId,
+          value: {
+            schemaRef: 'retake.generation-reference-manifest/v1' as const,
+            items: generationReferenceMentions.map((mention, index) => {
+              const mentionId = packageComposerMentionId(mention);
+              const optionDefinition = mentionOptionsById.get(mentionId);
+              const setting = referenceSettings[mentionId] ?? defaultReferenceSetting(optionDefinition?.label);
+              const bindingIdentity = packageComposerMentionBindingIdentity(snapshot, mention);
+              return {
+                requirementId: `ref_${index + 1}`,
+                role: setting.role,
+                required: setting.required,
+                ...(bindingIdentity ? { bindingIdentity } : {}),
+                purpose: setting.purpose,
+              };
+            }),
+          },
+        }];
+      }
       const value = inlineValuesBySlot[option.slotId] ?? '';
       return value.trim() ? [{ kind: 'inline' as const, slotId: option.slotId, value }] : [];
     }),
@@ -79,6 +129,8 @@ export function SkillQuickInputComposer({
     mentions,
     ...(usesStoryboardSheet ? {
       parameters: { ...storyboardSheetParameters(storyboardPanelCount, storyboardOutputCount) },
+    } : usesGenerationPreparation ? {
+      parameters: { ...generationParameters },
     } : {}),
   }) : undefined, [
     entrypointId,
@@ -88,6 +140,12 @@ export function SkillQuickInputComposer({
     mentions,
     storyboardOutputCount,
     storyboardPanelCount,
+    generationParameters,
+    generationReferenceMentions,
+    mentionOptionsById,
+    referenceSettings,
+    snapshot,
+    usesGenerationPreparation,
     usesStoryboardSheet,
   ]);
   const canSubmit = useMemo(() => {
@@ -112,6 +170,8 @@ export function SkillQuickInputComposer({
     setInlineValuesBySlot({});
     setStoryboardOutputCount(1);
     setStoryboardPanelCount(6);
+    setGenerationParameters(defaultGenerationPreparationParameters);
+    setReferenceSettings({});
     setMentions([]);
     setPicker(undefined);
     setSubmitError(undefined);
@@ -165,6 +225,8 @@ export function SkillQuickInputComposer({
       setInlineValuesBySlot({});
       setStoryboardOutputCount(1);
       setStoryboardPanelCount(6);
+      setGenerationParameters(defaultGenerationPreparationParameters);
+      setReferenceSettings({});
       setMentions([]);
       setPicker(undefined);
       setSubmitError(undefined);
@@ -216,7 +278,9 @@ export function SkillQuickInputComposer({
               })}
             </div>
           ) : null}
-          {inlineInputOptions.map((option) => (
+          {inlineInputOptions.filter(
+            (option) => option.schemaRef !== 'retake.generation-reference-manifest/v1',
+          ).map((option) => (
             <label key={option.slotId} className="skill-composer-inline-input">
               <span>{option.schemaRef === 'retake.storyboard-unit-id/v1' ? t('skill.storyboardSheet.unitInput') : option.slotId}</span>
               <input
@@ -258,6 +322,108 @@ export function SkillQuickInputComposer({
                   {[1, 2, 3, 4].map((count) => <option key={count} value={count}>{count}</option>)}
                 </select>
               </label>
+            </div>
+          ) : null}
+          {usesGenerationPreparation ? (
+            <div className="skill-composer-storyboard-parameters" aria-label={t('skillComposer.generationParameters')}>
+              <label>
+                <span>{t('skillComposer.aspectRatio')}</span>
+                <select
+                  value={generationParameters.aspectRatio}
+                  onChange={(event) => setGenerationParameters((current) => ({
+                    ...current,
+                    aspectRatio: event.target.value as GenerationPreparationParameters['aspectRatio'],
+                  }))}
+                >
+                  {['9:16', '16:9', '1:1'].map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>{t('skillComposer.durationSeconds')}</span>
+                <input
+                  type="number"
+                  min={4}
+                  max={15}
+                  value={generationParameters.durationSeconds}
+                  onChange={(event) => setGenerationParameters((current) => ({
+                    ...current,
+                    durationSeconds: Number(event.target.value),
+                  }))}
+                />
+              </label>
+              <label>
+                <span>{t('skillComposer.promptLanguage')}</span>
+                <select
+                  value={generationParameters.promptLanguage}
+                  onChange={(event) => setGenerationParameters((current) => ({
+                    ...current,
+                    promptLanguage: event.target.value as GenerationPreparationParameters['promptLanguage'],
+                  }))}
+                >
+                  <option value="zh">中文</option>
+                  <option value="en">English</option>
+                </select>
+              </label>
+              <label>
+                <span>{t('skillComposer.maxPromptChars')}</span>
+                <input
+                  type="number"
+                  min={500}
+                  max={4000}
+                  step={100}
+                  value={generationParameters.maxPromptChars}
+                  onChange={(event) => setGenerationParameters((current) => ({
+                    ...current,
+                    maxPromptChars: Number(event.target.value),
+                  }))}
+                />
+              </label>
+              {generationReferenceMentions.map((mention) => {
+                const mentionId = packageComposerMentionId(mention);
+                const option = mentionOptionsById.get(mentionId);
+                const setting = referenceSettings[mentionId] ?? defaultReferenceSetting(option?.label);
+                return (
+                  <fieldset key={`reference-setting:${mentionId}`}>
+                    <legend>@{option?.label ?? mentionId}</legend>
+                    <label>
+                      <span>{t('skillComposer.referenceRole')}</span>
+                      <select
+                        value={setting.role}
+                        onChange={(event) => updateReferenceSetting(
+                          mentionId,
+                          { role: event.target.value as GenerationReferenceRole },
+                          setReferenceSettings,
+                        )}
+                      >
+                        {generationReferenceRoles.map((role) => <option key={role} value={role}>{role}</option>)}
+                      </select>
+                    </label>
+                    <label>
+                      <span>{t('skillComposer.referencePurpose')}</span>
+                      <input
+                        value={setting.purpose}
+                        onChange={(event) => updateReferenceSetting(
+                          mentionId,
+                          { purpose: event.target.value },
+                          setReferenceSettings,
+                        )}
+                      />
+                    </label>
+                    <label>
+                      <span>{t('skillComposer.referenceRequired')}</span>
+                      <input
+                        type="checkbox"
+                        checked={setting.required}
+                        onChange={(event) => updateReferenceSetting(
+                          mentionId,
+                          { required: event.target.checked },
+                          setReferenceSettings,
+                        )}
+                      />
+                    </label>
+                  </fieldset>
+                );
+              })}
             </div>
           ) : null}
           <textarea
@@ -356,6 +522,29 @@ function storyboardSheetParameters(
     panelCount,
     renderMode: 'panel_grid',
   };
+}
+
+function defaultReferenceSetting(label?: string): ReferenceSetting {
+  return {
+    purpose: label ? `Preserve ${label}` : 'Preserve the declared visual authority.',
+    required: true,
+    role: 'general',
+  };
+}
+
+function updateReferenceSetting(
+  mentionId: string,
+  patch: Partial<ReferenceSetting>,
+  setSettings: Dispatch<SetStateAction<Record<string, ReferenceSetting>>>,
+): void {
+  setSettings((current) => ({
+    ...current,
+    [mentionId]: {
+      ...defaultReferenceSetting(),
+      ...current[mentionId],
+      ...patch,
+    },
+  }));
 }
 
 function isRunnableRegistration(registration: RegisteredPackageEntryPoint): boolean {

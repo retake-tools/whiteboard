@@ -4,6 +4,7 @@ import {
   listPackageComposerInlineInputOptions,
   listPackageComposerMentionOptions,
   packageComposerMentionId,
+  packageComposerMentionBindingIdentity,
   type PackageComposerMention,
   type PackageComposerInlineValue,
   type PackageComposerMentionOption,
@@ -14,8 +15,15 @@ import type { BoardSnapshot } from '../core/types';
 import { workflowUiDefinitionFor } from '../core/workflowRegistry';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
+import {
+  defaultGenerationPreparationParameters,
+  generationReferenceRoles,
+  type GenerationPreparationParameters,
+  type GenerationReferenceRole,
+} from '../core/generationPreparationContracts';
 
 type PickerState = { mode: 'entrypoint' | 'mention'; query: string } | undefined;
+type ReferenceSetting = { purpose: string; required: boolean; role: GenerationReferenceRole };
 
 export function AgentWorkspaceComposer({
   disabled,
@@ -28,6 +36,7 @@ export function AgentWorkspaceComposer({
     entrypointId?: string;
     inlineValues: PackageComposerInlineValue[];
     mentions: PackageComposerMention[];
+    parameters: Record<string, unknown>;
   }) => void;
   snapshot: BoardSnapshot;
 }): ReactElement {
@@ -38,6 +47,10 @@ export function AgentWorkspaceComposer({
   const [entrypointId, setEntrypointId] = useState<string>();
   const [mentions, setMentions] = useState<PackageComposerMention[]>([]);
   const [inlineValuesBySlot, setInlineValuesBySlot] = useState<Record<string, string>>({});
+  const [generationParameters, setGenerationParameters] = useState<GenerationPreparationParameters>(
+    defaultGenerationPreparationParameters,
+  );
+  const [referenceSettings, setReferenceSettings] = useState<Record<string, ReferenceSetting>>({});
   const [picker, setPicker] = useState<PickerState>();
   const entrypoints = useMemo(() => listPackageEntryPoints().filter(isRunnableRegistration), []);
   const selectedEntryPoint = entrypoints.find((item) => item.entrypoint.entrypointId === entrypointId);
@@ -45,7 +58,32 @@ export function AgentWorkspaceComposer({
     () => entrypointId ? listPackageComposerInlineInputOptions(entrypointId) : [],
     [entrypointId],
   );
+  const usesGenerationPreparation = inlineInputOptions.some(
+    (option) => option.schemaRef === 'retake.generation-reference-manifest/v1',
+  );
   const inlineValues = inlineInputOptions.flatMap((option): PackageComposerInlineValue[] => {
+    if (option.schemaRef === 'retake.generation-reference-manifest/v1') {
+      const referenceMentions = mentions.filter((mention) => mention.slotId === 'references');
+      return [{
+        kind: 'inline',
+        slotId: option.slotId,
+        value: {
+          schemaRef: 'retake.generation-reference-manifest/v1',
+          items: referenceMentions.map((mention, index) => {
+            const id = packageComposerMentionId(mention);
+            const setting = referenceSettings[id] ?? defaultReferenceSetting();
+            const bindingIdentity = packageComposerMentionBindingIdentity(snapshot, mention);
+            return {
+              requirementId: `ref_${index + 1}`,
+              role: setting.role,
+              required: setting.required,
+              ...(bindingIdentity ? { bindingIdentity } : {}),
+              purpose: setting.purpose,
+            };
+          }),
+        },
+      }];
+    }
     const value = inlineValuesBySlot[option.slotId]?.trim();
     return value ? [{ kind: 'inline', slotId: option.slotId, value }] : [];
   });
@@ -83,6 +121,8 @@ export function AgentWorkspaceComposer({
     setContent((current) => stripTrailingTrigger(current, '/'));
     setMentions([]);
     setInlineValuesBySlot({});
+    setGenerationParameters(defaultGenerationPreparationParameters);
+    setReferenceSettings({});
     setPicker(undefined);
     inputRef.current?.focus();
   }
@@ -105,11 +145,19 @@ export function AgentWorkspaceComposer({
   function submit(event: FormEvent): void {
     event.preventDefault();
     if (disabled || (!content.trim() && mentions.length === 0 && inlineValues.length === 0)) return;
-    onSubmit({ content: content.trim(), entrypointId, inlineValues, mentions });
+    onSubmit({
+      content: content.trim(),
+      entrypointId,
+      inlineValues,
+      mentions,
+      parameters: usesGenerationPreparation ? { ...generationParameters } : {},
+    });
     setContent('');
     setEntrypointId(undefined);
     setMentions([]);
     setInlineValuesBySlot({});
+    setGenerationParameters(defaultGenerationPreparationParameters);
+    setReferenceSettings({});
     setPicker(undefined);
   }
 
@@ -150,7 +198,9 @@ export function AgentWorkspaceComposer({
               <AtSign size={13} />{t('agentWorkspace.addMention')}
             </button>
           ) : null}
-          {inlineInputOptions.map((option) => (
+          {inlineInputOptions.filter(
+            (option) => option.schemaRef !== 'retake.generation-reference-manifest/v1',
+          ).map((option) => (
             <label key={option.slotId} className="agent-workspace-inline-input">
               <span>{option.schemaRef === 'retake.storyboard-unit-id/v1' ? t('skill.storyboardSheet.unitInput') : option.slotId}</span>
               <input
@@ -165,6 +215,70 @@ export function AgentWorkspaceComposer({
               />
             </label>
           ))}
+          {usesGenerationPreparation ? (
+            <>
+              <label className="agent-workspace-inline-input">
+                <span>{t('skillComposer.aspectRatio')}</span>
+                <select
+                  value={generationParameters.aspectRatio}
+                  onChange={(event) => setGenerationParameters((current) => ({
+                    ...current,
+                    aspectRatio: event.target.value as GenerationPreparationParameters['aspectRatio'],
+                  }))}
+                >
+                  {['9:16', '16:9', '1:1'].map((value) => <option key={value}>{value}</option>)}
+                </select>
+              </label>
+              <label className="agent-workspace-inline-input">
+                <span>{t('skillComposer.durationSeconds')}</span>
+                <input
+                  type="number"
+                  min={4}
+                  max={15}
+                  value={generationParameters.durationSeconds}
+                  onChange={(event) => setGenerationParameters((current) => ({
+                    ...current,
+                    durationSeconds: Number(event.target.value),
+                  }))}
+                />
+              </label>
+              <label className="agent-workspace-inline-input">
+                <span>{t('skillComposer.maxPromptChars')}</span>
+                <input
+                  type="number"
+                  min={500}
+                  max={4000}
+                  step={100}
+                  value={generationParameters.maxPromptChars}
+                  onChange={(event) => setGenerationParameters((current) => ({
+                    ...current,
+                    maxPromptChars: Number(event.target.value),
+                  }))}
+                />
+              </label>
+              {mentions.filter((mention) => mention.slotId === 'references').map((mention) => {
+                const id = packageComposerMentionId(mention);
+                const setting = referenceSettings[id] ?? defaultReferenceSetting();
+                return (
+                  <label key={`agent-reference:${id}`} className="agent-workspace-inline-input">
+                    <span>{t('skillComposer.referenceRole')}</span>
+                    <select
+                      value={setting.role}
+                      onChange={(event) => setReferenceSettings((current) => ({
+                        ...current,
+                        [id]: {
+                          ...(current[id] ?? defaultReferenceSetting()),
+                          role: event.target.value as GenerationReferenceRole,
+                        },
+                      }))}
+                    >
+                      {generationReferenceRoles.map((role) => <option key={role}>{role}</option>)}
+                    </select>
+                  </label>
+                );
+              })}
+            </>
+          ) : null}
         </div>
         <div className="agent-workspace-input-row">
           <textarea
@@ -232,4 +346,12 @@ function trailingTriggerQuery(value: string, trigger: '/' | '@'): string | undef
 
 function stripTrailingTrigger(value: string, trigger: '/' | '@'): string {
   return value.replace(new RegExp(`(?:^|\\s)\\${trigger}[^\\s${trigger === '/' ? '@' : '/'}]*$`), '').trimEnd();
+}
+
+function defaultReferenceSetting(): ReferenceSetting {
+  return {
+    purpose: 'Preserve the declared visual authority.',
+    required: true,
+    role: 'general',
+  };
 }

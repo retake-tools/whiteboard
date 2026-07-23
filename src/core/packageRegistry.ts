@@ -78,10 +78,10 @@ export interface PackageEntryPointQuery {
 export const storyProductionStarterPackage: RetakePackageManifest = {
   schemaVersion: 1,
   packageId: 'retake.package.story-production-starter',
-  version: '0.3.0',
-  digest: 'sha256:retake-package-story-production-starter-storyboard-sheet-v1',
+  version: '0.4.0',
+  digest: 'sha256:retake-package-story-production-starter-generation-package-v1',
   name: 'Retake Story Production Starter',
-  description: 'Built-in screenplay, production-design, storyboard planning, and single-unit storyboard-sheet methods.',
+  description: 'Built-in screenplay, production-design, storyboard, and provider-neutral generation-preparation methods.',
   source: { kind: 'builtin' },
   components: {
     skills: [
@@ -115,6 +115,11 @@ export const storyProductionStarterPackage: RetakePackageManifest = {
         version: '0.1.0',
         definitionHash: 'sha256:retake-storyboard-sheet-from-unit-plan-catmeme-v1',
       },
+      {
+        skillId: 'retake.video-generation-package.from-approved-storyboard',
+        version: '0.1.0',
+        definitionHash: 'sha256:retake-video-generation-package-from-approved-storyboard-v1',
+      },
     ],
     workflows: [
       {
@@ -126,6 +131,11 @@ export const storyProductionStarterPackage: RetakePackageManifest = {
         workflowDefinitionId: 'retake.workflow.storyboard-unit-to-sheet',
         version: '0.1.0',
         definitionHash: 'sha256:retake-workflow-storyboard-unit-to-sheet-v1',
+      },
+      {
+        workflowDefinitionId: 'retake.workflow.storyboard-unit-to-generation-package',
+        version: '0.1.0',
+        definitionHash: 'sha256:retake-workflow-storyboard-unit-to-generation-package-v1',
       },
     ],
     agentPresets: [],
@@ -185,6 +195,20 @@ export const storyProductionStarterPackage: RetakePackageManifest = {
       requiredInputSlotIds: ['storyboard_plan', 'unit_id'],
       recommended: true,
     }),
+    skillEntryPoint({
+      skillId: 'retake.video-generation-package.from-approved-storyboard',
+      capabilityId: 'generation.video_package.prepare',
+      name: 'Prepare video generation package',
+      description: 'Prepare one provider-neutral package from an approved storyboard unit and declared references.',
+      compatibleStageIds: ['media_generation'],
+      requiredInputSlotIds: [
+        'storyboard_plan',
+        'storyboard_sheet',
+        'unit_id',
+        'reference_manifest',
+      ],
+      recommended: true,
+    }),
     {
       schemaVersion: 1,
       entrypointId: 'workflow:retake.workflow.story-to-storyboard',
@@ -206,14 +230,29 @@ export const storyProductionStarterPackage: RetakePackageManifest = {
       compatibleStageIds: ['storyboard_previsualization'],
       requiredInputSlotIds: ['storyboard_plan', 'unit_id'],
     },
+    {
+      schemaVersion: 1,
+      entrypointId: 'workflow:retake.workflow.storyboard-unit-to-generation-package',
+      kind: 'workflow',
+      name: 'Storyboard unit to generation package',
+      description: 'Project a manual preparation and review flow for one provider-neutral generation package.',
+      ref: { workflowDefinitionId: 'retake.workflow.storyboard-unit-to-generation-package' },
+      compatibleStageIds: ['media_generation'],
+      requiredInputSlotIds: [
+        'storyboard_plan',
+        'storyboard_sheet',
+        'unit_id',
+        'reference_manifest',
+      ],
+    },
   ],
 };
 
 export const storyProductionAgentPackage: RetakePackageManifest = {
   schemaVersion: 1,
   packageId: 'retake.package.story-production-agent',
-  version: '0.2.0',
-  digest: 'sha256:retake-package-story-production-agent-storyboard-sheet-v1',
+  version: '0.3.0',
+  digest: 'sha256:retake-package-story-production-agent-generation-package-v1',
   name: 'Retake Story Production Agent',
   description: 'A bounded AgentPreset for coordinating the built-in story-production target.',
   source: { kind: 'builtin' },
@@ -232,7 +271,12 @@ export const storyProductionAgentPackage: RetakePackageManifest = {
     name: storyProductionDirectorPreset.name,
     description: storyProductionDirectorPreset.description,
     ref: { agentPresetId: storyProductionDirectorPreset.agentPresetId },
-    compatibleStageIds: ['story_screenplay', 'production_design', 'storyboard_previsualization'],
+    compatibleStageIds: [
+      'story_screenplay',
+      'production_design',
+      'storyboard_previsualization',
+      'media_generation',
+    ],
     requiredInputSlotIds: [],
   }],
 };

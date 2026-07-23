@@ -14,6 +14,7 @@ import {
   codexAppServerImageAdapterDefinition,
   codexAppServerTextAdapterDefinition,
   dreaminaCliAdapterDefinition,
+  generationPreparationCapabilityDefinition,
   seedanceModelArkAdapterDefinition,
   screenplayGenerateCapabilityDefinition,
   screenplayNormalizeCapabilityDefinition,
@@ -47,6 +48,7 @@ assertNoIssues(validateCapabilityDefinition(characterBibleCapabilityDefinition),
 assertNoIssues(validateCapabilityDefinition(sceneBibleCapabilityDefinition), 'canonical scene bible definition');
 assertNoIssues(validateCapabilityDefinition(storyboardPlanCapabilityDefinition), 'canonical storyboard plan definition');
 assertNoIssues(validateCapabilityDefinition(storyboardSheetGenerateCapabilityDefinition), 'canonical storyboard sheet definition');
+assertNoIssues(validateCapabilityDefinition(generationPreparationCapabilityDefinition), 'canonical generation preparation definition');
 assertNoIssues(validateAdapterDefinition(codexAppServerTextAdapterDefinition), 'Codex App Server text adapter');
 assertNoIssues(validateAdapterDefinition(codexAppServerImageAdapterDefinition), 'Codex App Server image adapter');
 assert.deepEqual(screenplayGenerateCapabilityDefinition.inputSlots.map((slot) => slot.slotId), ['brief', 'references']);
@@ -55,12 +57,21 @@ assert.deepEqual(characterBibleCapabilityDefinition.inputSlots.map((slot) => slo
 assert.deepEqual(sceneBibleCapabilityDefinition.inputSlots.map((slot) => slot.slotId), ['screenplay', 'references']);
 assert.deepEqual(storyboardPlanCapabilityDefinition.inputSlots.map((slot) => slot.slotId), ['screenplay', 'character_bible', 'scene_bible', 'references']);
 assert.deepEqual(storyboardSheetGenerateCapabilityDefinition.inputSlots.map((slot) => slot.slotId), ['storyboard_plan', 'unit_id', 'references']);
+assert.deepEqual(generationPreparationCapabilityDefinition.inputSlots.map((slot) => slot.slotId), [
+  'storyboard_plan',
+  'storyboard_sheet',
+  'unit_id',
+  'references',
+  'reference_manifest',
+  'instruction',
+]);
 assert.equal(screenplayGenerateCapabilityDefinition.outputSlots[0]?.artifactType, 'screenplay_master');
 assert.equal(characterBibleCapabilityDefinition.outputSlots[0]?.artifactType, 'character_bible');
 assert.equal(sceneBibleCapabilityDefinition.outputSlots[0]?.artifactType, 'scene_bible');
 assert.equal(storyboardPlanCapabilityDefinition.outputSlots[0]?.artifactType, 'storyboard_plan');
 assert.equal(storyboardSheetGenerateCapabilityDefinition.outputSlots[0]?.artifactType, 'storyboard_sheet');
 assert.equal(storyboardSheetGenerateCapabilityDefinition.outputSlots[0]?.cardinality, 'many');
+assert.equal(generationPreparationCapabilityDefinition.outputSlots[0]?.artifactType, 'video_generation_package');
 assert.deepEqual(listSkills().map((skill) => skill.skillId), [
   'retake.screenplay.from-brief',
   'retake.screenplay.normalize',
@@ -68,12 +79,16 @@ assert.deepEqual(listSkills().map((skill) => skill.skillId), [
   'retake.scene-bible.from-screenplay',
   'retake.storyboard-plan.from-production-design',
   'retake.storyboard-sheet.from-unit-plan',
+  'retake.video-generation-package.from-approved-storyboard',
 ]);
 assert.deepEqual(skillsForCapability('story.screenplay.generate').map((skill) => skill.skillId), ['retake.screenplay.from-brief']);
 assert.deepEqual(skillsForCapability('design.character.define').map((skill) => skill.skillId), ['retake.character-bible.from-screenplay']);
 assert.deepEqual(skillsForCapability('design.scene.define').map((skill) => skill.skillId), ['retake.scene-bible.from-screenplay']);
 assert.deepEqual(skillsForCapability('previs.storyboard.plan').map((skill) => skill.skillId), ['retake.storyboard-plan.from-production-design']);
 assert.deepEqual(skillsForCapability('previs.storyboard_sheet.generate').map((skill) => skill.skillId), ['retake.storyboard-sheet.from-unit-plan']);
+assert.deepEqual(skillsForCapability('generation.video_package.prepare').map((skill) => skill.skillId), [
+  'retake.video-generation-package.from-approved-storyboard',
+]);
 assert.deepEqual(listPackageEntryPoints()
   .map(({ entrypoint }) => entrypoint)
   .filter((entrypoint) => entrypoint.kind === 'skill')
@@ -84,6 +99,7 @@ assert.deepEqual(listPackageEntryPoints()
   ['skill', 'skill:retake.scene-bible.from-screenplay'],
   ['skill', 'skill:retake.storyboard-plan.from-production-design'],
   ['skill', 'skill:retake.storyboard-sheet.from-unit-plan'],
+  ['skill', 'skill:retake.video-generation-package.from-approved-storyboard'],
 ]);
 
 for (const capabilityId of legacyCapabilityIds) {

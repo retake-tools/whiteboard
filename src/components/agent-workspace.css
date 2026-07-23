@@ -96,6 +96,7 @@
 .agent-workspace-context-chips > span > button { display: inline-grid; width: 16px; height: 16px; place-items: center; padding: 0; border-radius: 4px; background: transparent; cursor: pointer; }
 .agent-workspace-inline-input { display: inline-flex; flex: none; align-items: center; gap: 4px; min-height: 24px; padding: 3px 6px; border-radius: 6px; background: var(--retake-surface-hover); color: var(--retake-text-secondary); font-size: 10px; font-weight: 700; }
 .agent-workspace-inline-input input { width: 74px; border: 0; outline: 0; background: transparent; color: var(--retake-text-primary); font: inherit; }
+.agent-workspace-inline-input select { max-width: 86px; border: 0; outline: 0; background: transparent; color: var(--retake-text-primary); font: inherit; }
 .agent-workspace-input-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; align-items: end; }
 .agent-workspace-input-row textarea { min-height: 56px; max-height: 130px; resize: vertical; padding: 9px; border: 1px solid var(--retake-border); border-radius: 8px; color: var(--retake-text); font: inherit; font-size: 12px; line-height: 1.4; }
 .agent-workspace-input-row > button { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 8px; background: var(--retake-accent); color: var(--retake-on-accent); cursor: pointer; }

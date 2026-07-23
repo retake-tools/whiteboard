@@ -5,6 +5,14 @@ import {
 } from './storyboardSheetContracts';
 import type { AssetRecord } from './types';
 import type { WorkflowDefinitionLock } from './workflowRuntimeContracts';
+import {
+  isVideoGenerationPackageArtifactRevisionMetadata,
+  type VideoGenerationPackageArtifactRevisionMetadata,
+} from './generationPreparationContracts';
+
+export type ArtifactRevisionMetadata =
+  | StoryboardSheetArtifactRevisionMetadata
+  | VideoGenerationPackageArtifactRevisionMetadata;
 
 export type ArtifactScope = 'project' | 'workflow_run' | 'step_run';
 
@@ -55,7 +63,7 @@ export interface ArtifactRevision {
   createdByActor: ArtifactActorRef;
   createdByExecutionId?: string;
   definitionLocks?: ArtifactDefinitionLocks;
-  metadata?: StoryboardSheetArtifactRevisionMetadata;
+  metadata?: ArtifactRevisionMetadata;
   primaryAssetId: string;
   projectId: string;
   revision: number;
@@ -105,7 +113,7 @@ export interface CreateOrAdvanceArtifactCommand {
   expectedCurrentRevisionId: string | null;
   idempotencyKey: string;
   libraryVisibility: ArtifactLibraryVisibility;
-  metadata?: StoryboardSheetArtifactRevisionMetadata;
+  metadata?: ArtifactRevisionMetadata;
   primaryAssetId: string;
   projectId: string;
   schemaVersion: 1;
@@ -185,6 +193,10 @@ export function assertValidCreateOrAdvanceArtifactCommand(
   if (command.artifactType === 'storyboard_sheet') {
     if (!isStoryboardSheetArtifactRevisionMetadata(command.metadata)) {
       throw new Error('Storyboard Sheet Artifact requires valid typed metadata.');
+    }
+  } else if (command.artifactType === 'video_generation_package') {
+    if (!isVideoGenerationPackageArtifactRevisionMetadata(command.metadata)) {
+      throw new Error('Video Generation Package Artifact requires valid typed metadata.');
     }
   } else if (command.metadata !== undefined) {
     throw new Error(`Artifact metadata is not supported for type: ${command.artifactType}`);

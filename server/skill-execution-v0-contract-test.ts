@@ -34,11 +34,12 @@ assert.match(textOperationsSource, /textDocumentInputBindings/);
 assert.equal(textOperationsSource.includes('screenplayInputBindings'), false);
 
 const skills = listSkills();
-assert.equal(skills.length, 6);
+assert.equal(skills.length, 7);
 assert.deepEqual(listRecommendedPackageEntryPoints().map(({ entrypoint }) => entrypoint.entrypointId), [
   'skill:retake.screenplay.from-brief',
   'skill:retake.screenplay.normalize',
   'skill:retake.storyboard-sheet.from-unit-plan',
+  'skill:retake.video-generation-package.from-approved-storyboard',
 ]);
 const packageEntryPoints = listPackageEntryPoints().map(({ entrypoint }) => entrypoint);
 for (const entrypoint of packageEntryPoints.filter((candidate) => candidate.kind === 'skill')) {
@@ -47,10 +48,10 @@ for (const entrypoint of packageEntryPoints.filter((candidate) => candidate.kind
   const definition = capabilityDefinitionFor(entrypoint.ref.capabilityId);
   assert.equal(skillsForCapability(definition.capabilityId).some((skill) => skill.skillId === entrypoint.ref.skillId), true);
 }
-assert.equal(listWorkflows().length, 2);
+assert.equal(listWorkflows().length, 3);
 assert.deepEqual(
   packageEntryPoints.filter((entrypoint) => entrypoint.kind === 'workflow').map((entrypoint) => entrypoint.kind),
-  ['workflow', 'workflow'],
+  ['workflow', 'workflow', 'workflow'],
 );
 
 console.log(JSON.stringify({

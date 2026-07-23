@@ -282,6 +282,96 @@ export const storyboardSheetGenerateCapabilityDefinition: CapabilityDefinition =
   supportedAdapterClasses: ['image.generate', 'agent_runtime.media'],
 };
 
+export const generationPreparationCapabilityDefinition: CapabilityDefinition = {
+  schemaVersion: 1,
+  capabilityId: 'generation.video_package.prepare',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-generation-video-package-prepare-v1',
+  category: 'media_generation',
+  displayName: 'Prepare video generation package',
+  inputSlots: [
+    {
+      slotId: 'storyboard_plan',
+      semanticRole: 'storyboard_plan',
+      dataTypes: ['document'],
+      artifactTypes: ['storyboard_plan'],
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['block', 'asset', 'artifact_revision'],
+    },
+    {
+      slotId: 'storyboard_sheet',
+      semanticRole: 'approved_storyboard_sheet',
+      dataTypes: ['image'],
+      artifactTypes: ['storyboard_sheet'],
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['artifact_revision'],
+    },
+    {
+      slotId: 'unit_id',
+      semanticRole: 'storyboard_unit_id',
+      dataTypes: ['text'],
+      artifactTypes: [],
+      schemaRef: 'retake.storyboard-unit-id/v1',
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['inline'],
+    },
+    {
+      slotId: 'references',
+      semanticRole: 'generation_reference',
+      dataTypes: ['image', 'video', 'audio'],
+      artifactTypes: [
+        'character_reference',
+        'scene_reference',
+        'prop_reference',
+        'storyboard_reference',
+        'reference',
+      ],
+      cardinality: 'many',
+      required: false,
+      bindingKinds: ['block', 'asset', 'artifact_revision'],
+    },
+    {
+      slotId: 'reference_manifest',
+      semanticRole: 'generation_reference_manifest',
+      dataTypes: ['structured_data'],
+      artifactTypes: [],
+      schemaRef: 'retake.generation-reference-manifest/v1',
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['inline'],
+    },
+    {
+      slotId: 'instruction',
+      semanticRole: 'instruction',
+      dataTypes: ['text', 'document'],
+      artifactTypes: [],
+      cardinality: 'optional',
+      required: false,
+      bindingKinds: ['inline', 'block', 'asset', 'artifact_revision'],
+    },
+  ],
+  outputSlots: [{
+    slotId: 'generation_package',
+    semanticRole: 'video_generation_package',
+    dataType: 'document',
+    artifactType: 'video_generation_package',
+    schemaRef: 'retake.video-generation-package-markdown/v1',
+    cardinality: 'one',
+    projectionBlockTypes: ['document'],
+  }],
+  parametersSchemaRef: 'retake.params.generation.video-package.prepare/v1',
+  runtimeRequirements: [
+    'multimodal_text_generation',
+    'approved_storyboard_sheet_revision',
+    'typed_reference_manifest',
+    'durable_asset_output',
+  ],
+  supportedAdapterClasses: ['agent_runtime.text'],
+};
+
 const canonicalCapabilityDefinitions = [
   textGenerateCapabilityDefinition,
   screenplayGenerateCapabilityDefinition,
@@ -290,14 +380,21 @@ const canonicalCapabilityDefinitions = [
   sceneBibleCapabilityDefinition,
   storyboardPlanCapabilityDefinition,
   storyboardSheetGenerateCapabilityDefinition,
+  generationPreparationCapabilityDefinition,
 ] as const;
 
-export const textDocumentCapabilityIds = canonicalCapabilityDefinitions
+const allTextDocumentCapabilityIds = canonicalCapabilityDefinitions
   .filter((definition) => definition.outputSlots.some((slot) => slot.dataType === 'document'))
   .filter((definition) => definition.supportedAdapterClasses.some(
     (adapterClass) => adapterClass === 'text.generate' || adapterClass === 'text.document' || adapterClass === 'agent_runtime.text',
   ))
   .map((definition) => definition.capabilityId);
+
+export const textDocumentCapabilityIds = allTextDocumentCapabilityIds.filter(
+  (capabilityId) => capabilityId !== generationPreparationCapabilityDefinition.capabilityId,
+);
+
+export const codexTextDocumentCapabilityIds = [...allTextDocumentCapabilityIds];
 
 export const aiSdkTextAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
@@ -327,12 +424,12 @@ export const aiSdkTextAdapterDefinition: AdapterDefinition = {
 export const codexAppServerTextAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.text.codex-app-server',
-  version: '0.3.0',
-  definitionHash: 'sha256:retake-text-codex-app-server-v2',
+  version: '0.4.0',
+  definitionHash: 'sha256:retake-text-codex-app-server-generation-package-v1',
   adapterClass: 'agent_runtime.text',
   routeKind: 'codex_app_server',
   provider: 'codex',
-  supportedCapabilityIds: textDocumentCapabilityIds,
+  supportedCapabilityIds: codexTextDocumentCapabilityIds,
   inputProfiles: [
     { profileId: 'text_prompt', requiredSlots: ['prompt'], optionalSlots: [] },
     { profileId: 'screenplay_from_brief', requiredSlots: ['brief'], optionalSlots: ['references'] },
@@ -340,6 +437,11 @@ export const codexAppServerTextAdapterDefinition: AdapterDefinition = {
     { profileId: 'character_bible_from_screenplay', requiredSlots: ['screenplay'], optionalSlots: ['references'] },
     { profileId: 'scene_bible_from_screenplay', requiredSlots: ['screenplay'], optionalSlots: ['references'] },
     { profileId: 'storyboard_plan', requiredSlots: ['screenplay', 'character_bible', 'scene_bible'], optionalSlots: ['references'] },
+    {
+      profileId: 'generation_package_from_storyboard',
+      requiredSlots: ['storyboard_plan', 'storyboard_sheet', 'unit_id', 'reference_manifest'],
+      optionalSlots: ['references', 'instruction'],
+    },
   ],
   constraints: {
     outputCount: { min: 1, max: 1 },

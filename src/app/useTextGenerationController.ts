@@ -23,6 +23,12 @@ import type { useI18n } from '../i18n';
 import { textGenerationLabelsForSkill } from './skillTextLabels';
 import { createDraftStoryboardSheetOperation } from '../core/storyboardSheetOperations';
 import { storyboardSheetCapabilityId } from '../core/storyboardSheetContracts';
+import {
+  createDraftGenerationPreparationOperation,
+  executeExistingGenerationPreparationOperation,
+} from '../core/generationPreparationOperations';
+import { generationPreparationCapabilityId } from '../core/generationPreparationContracts';
+import { loadProjectArtifactLibrary } from '../core/artifactLibraryClient';
 
 interface TextGenerationControllerOptions {
   centerWorkflowBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
@@ -94,9 +100,33 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
           },
           parameters: composer?.invocation.parameters,
           selectedBlockIds: composer ? [] : selectedBlockIdsRef.current,
-          unitId,
+          unitId: typeof unitId === 'string' ? unitId : undefined,
         });
         workflowBlockIds = [...draft.inputBlocks.map((block) => block.blockId), draft.operationBlock.blockId];
+        centerWorkflowBlocks(current, workflowBlockIds);
+        return current;
+      }
+      if (target.capabilityLock.capabilityId === generationPreparationCapabilityId) {
+        const unitValue = composer?.invocation.inlineValues?.find(
+          (value) => value.slotId === 'unit_id',
+        )?.value;
+        const manifestValue = composer?.invocation.inlineValues?.find(
+          (value) => value.slotId === 'reference_manifest',
+        )?.value;
+        const draft = createDraftGenerationPreparationOperation(current, {
+          connectionId: preferredTextConnection(current, target.capabilityLock.capabilityId),
+          explicitInputBindings,
+          labels: skillLabels,
+          packageContext: {
+            entrypointId: target.entrypoint.entrypointId,
+            packageLock: target.packageLock,
+          },
+          parameters: composer?.invocation.parameters,
+          referenceManifest: manifestValue,
+          selectedBlockIds: composer ? [] : selectedBlockIdsRef.current,
+          unitId: typeof unitValue === 'string' ? unitValue : undefined,
+        });
+        workflowBlockIds = [...draft.inputBlocks.map((inputBlock) => inputBlock.blockId), draft.operationBlock.blockId];
         centerWorkflowBlocks(current, workflowBlockIds);
         return current;
       }
@@ -135,6 +165,9 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
     let resultBlockId = '';
     try {
       await persistSnapshot(snapshotRef.current, { requireLocalApi: true });
+      const artifactLibrary = currentCapabilityId(block) === generationPreparationCapabilityId
+        ? await loadProjectArtifactLibrary(snapshotRef.current.project.projectId)
+        : undefined;
       const queuedSnapshot = updateSnapshot((current) => {
         const currentBlock = current.blocks.find((candidate) => candidate.blockId === block.blockId);
         if (!currentBlock || currentBlock.type !== 'operation') return current;
@@ -150,11 +183,18 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
         connectionId = preference.connectionId ?? '';
         const connection = executionConnection(connectionId, current.project.projectId);
         if (!connection || !preference.isUsable) throw new Error(t('feedback.connectionUnavailable'));
-        const run = executeExistingTextGenerationOperation(current, {
-          connection,
-          labels: labelsForOperation(currentBlock),
-          operationBlockId: currentBlock.blockId,
-        });
+        const run = currentBlock.data.capabilityId === generationPreparationCapabilityId
+          ? executeExistingGenerationPreparationOperation(current, {
+              artifactLibrary: artifactLibrary!,
+              connection,
+              labels: labelsForOperation(currentBlock),
+              operationBlockId: currentBlock.blockId,
+            })
+          : executeExistingTextGenerationOperation(current, {
+              connection,
+              labels: labelsForOperation(currentBlock),
+              operationBlockId: currentBlock.blockId,
+            });
         executionId = run.execution.executionId;
         resultBlockId = run.resultBlock.blockId;
         return current;

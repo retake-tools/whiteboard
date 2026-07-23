@@ -132,6 +132,7 @@ export function insertArtifactReference(
     ...block.data,
     artifactId: input.item.artifact.artifactId,
     artifactRevisionId: input.item.currentRevision.artifactRevisionId,
+    artifactType: input.item.artifact.artifactType,
     assetId: input.item.primaryAsset.assetId,
     documentKind: blockType === 'document'
       ? input.item.artifact.artifactType

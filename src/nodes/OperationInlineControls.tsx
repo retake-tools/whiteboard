@@ -24,6 +24,11 @@ import {
 import type { BlockData } from '../core/types';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
+import {
+  generationPreparationCapabilityId,
+  normalizeGenerationPreparationParameters,
+  normalizeGenerationReferenceManifest,
+} from '../core/generationPreparationContracts';
 
 type AspectPreset = 'source' | '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '3:2' | '2:3';
 type ResolutionPreset = '1K' | '2K' | '4K';
@@ -106,6 +111,16 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
           : undefined,
       )
     : undefined;
+  const generationPreparationParameters = capabilityId === generationPreparationCapabilityId
+    ? normalizeGenerationPreparationParameters(
+        data.generationPreparationParameters && typeof data.generationPreparationParameters === 'object'
+          ? data.generationPreparationParameters as Record<string, unknown>
+          : undefined,
+      )
+    : undefined;
+  const generationReferenceManifest = capabilityId === generationPreparationCapabilityId
+    ? normalizeGenerationReferenceManifest(data.generationReferenceManifest)
+    : undefined;
   const availableAspectOptions = sourceAspectRatio
     ? [{ label: t('operationToolbar.sourceAspectRatio'), value: 'source' as const }, ...standardAspectOptions]
     : standardAspectOptions;
@@ -184,6 +199,31 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
               {t('operationToolbar.referenceCompletenessUnverified')} · {
                 typeof data.storyboardReferenceCount === 'number' ? data.storyboardReferenceCount : 0
               }
+            </strong>
+          </div>
+        </>
+      ) : null}
+      {generationPreparationParameters && generationReferenceManifest ? (
+        <>
+          <div className="operation-option-row is-read-only">
+            <span>{t('skill.generationPackage.unitInput')}</span>
+            <strong>{typeof data.generationUnitId === 'string' && data.generationUnitId ? data.generationUnitId : '—'}</strong>
+          </div>
+          <div className="operation-option-row is-read-only">
+            <span>{t('skillComposer.generationParameters')}</span>
+            <strong>
+              {generationPreparationParameters.aspectRatio}
+              {' · '}{generationPreparationParameters.durationSeconds}s
+              {' · '}{generationPreparationParameters.promptLanguage}
+              {' · '}{generationPreparationParameters.maxPromptChars}
+            </strong>
+          </div>
+          <div className="operation-option-row is-read-only">
+            <span>{t('operationToolbar.referenceCompleteness')}</span>
+            <strong>
+              {generationReferenceManifest.items.filter((item) => item.bindingIdentity).length}
+              /{generationReferenceManifest.items.length}
+              {' · '}{generationReferenceManifest.items.filter((item) => item.required).length} {t('skillComposer.referenceRequired')}
             </strong>
           </div>
         </>

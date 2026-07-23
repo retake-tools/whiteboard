@@ -6,6 +6,7 @@ import type { SwitchableOperationMode } from '../core/imageOperations';
 import { operationDisplayState } from '../core/operationDisplay';
 import { managedResultStatusMessageKey } from '../core/resultStatus';
 import { storyboardSheetCapabilityId } from '../core/storyboardSheetContracts';
+import { generationPreparationCapabilityId } from '../core/generationPreparationContracts';
 import type { BlockData, BlockType, ExecutionConfigurationChangeKind, ExecutionInputRole, RetakeNode } from '../core/types';
 import { useI18n } from '../i18n';
 import { TooltipIconButton } from '../components/Tooltip';
@@ -36,6 +37,8 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
   const title = displayBlockTitle(data as BlockData, blockType, t);
   const isLocalCanvasOperation = blockType === 'operation' && isLocalCanvasCapability(data.capabilityId);
   const isStoryboardSheetOperation = blockType === 'operation' && data.capabilityId === storyboardSheetCapabilityId;
+  const isGenerationPreparationOperation = blockType === 'operation'
+    && data.capabilityId === generationPreparationCapabilityId;
   const [isHeadingHovered, setIsHeadingHovered] = useState(false);
 
   if (blockType === 'group') {
@@ -100,7 +103,10 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
       }}
     >
       <Handle type="target" position={Position.Left} />
-      {blockType === 'operation' && !isLocalCanvasOperation && !isStoryboardSheetOperation
+      {blockType === 'operation'
+        && !isLocalCanvasOperation
+        && !isStoryboardSheetOperation
+        && !isGenerationPreparationOperation
         ? <OperationInputQuickAdd data={data as BlockData} operationBlockId={id} />
         : null}
       {data.operationInputEdgeId ? (
@@ -116,6 +122,7 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
         {blockType === 'operation'
           && !isLocalCanvasOperation
           && !isStoryboardSheetOperation
+          && !isGenerationPreparationOperation
           && data.capabilityId !== 'text.generate'
           ? <OperationCapabilityControl blockId={id} data={data as BlockData} />
           : null}

@@ -199,6 +199,7 @@ export function agentRuntimeTurnContext(
   const entrypoint = message.contextRefs.find((ref) => ref.kind === 'entrypoint');
   const mentions = message.contextRefs.filter((ref) => ref.kind === 'block' || ref.kind === 'asset');
   const inlineValues = message.contextRefs.filter((ref) => ref.kind === 'inline');
+  const parameters = message.contextRefs.find((ref) => ref.kind === 'parameters');
   const run = session.activeAgentRunId ? requireScopedAgentRun(snapshot, session.activeAgentRunId) : undefined;
   return {
     ...(run ? {
@@ -238,6 +239,7 @@ export function agentRuntimeTurnContext(
       .map(({ content, role }) => ({ content, role })),
     mentions,
     inlineValues,
+    parameters: parameters?.kind === 'parameters' ? structuredClone(parameters.value) : {},
     projectId: snapshot.project.projectId,
     userMessage: message.content,
   };
@@ -381,7 +383,9 @@ function assertContextRefs(
   }
   const mentionRefs = refs.filter((ref) => ref.kind === 'block' || ref.kind === 'asset');
   const inlineRefs = refs.filter((ref) => ref.kind === 'inline');
-  if ((mentionRefs.length > 0 || inlineRefs.length > 0) && !entrypointId) {
+  const parameterRefs = refs.filter((ref) => ref.kind === 'parameters');
+  if (parameterRefs.length > 1) throw new Error('Agent message has multiple parameter refs.');
+  if ((mentionRefs.length > 0 || inlineRefs.length > 0 || parameterRefs.length > 0) && !entrypointId) {
     throw new Error('Agent message typed inputs require one EntryPoint context.');
   }
   const compatibleMentionIds = entrypointId
@@ -408,8 +412,20 @@ function assertContextRefs(
         throw new Error('Agent message Asset ref is incompatible with the typed EntryPoint.');
       }
     } else if (ref.kind === 'inline') {
-      if (!compatibleInlineSlotIds.has(ref.slotId) || !ref.value.trim()) {
+      if (
+        !compatibleInlineSlotIds.has(ref.slotId)
+        || (
+          typeof ref.value === 'string'
+            ? !ref.value.trim()
+            : !ref.value || typeof ref.value !== 'object' || Array.isArray(ref.value)
+        )
+      ) {
         throw new Error('Agent message inline input is incompatible with the typed EntryPoint.');
+      }
+    } else if (ref.kind === 'parameters') {
+      if (!entrypointId) throw new Error('Agent message parameters require one EntryPoint context.');
+      if (!ref.value || typeof ref.value !== 'object' || Array.isArray(ref.value)) {
+        throw new Error('Agent message EntryPoint parameters are invalid.');
       }
     }
   }

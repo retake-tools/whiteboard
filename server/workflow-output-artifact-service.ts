@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 import { capabilityDefinitionFor } from '../src/core/capabilityRegistry';
-import { artifactIdentityKey, type CreateOrAdvanceArtifactResult } from '../src/core/artifactContracts';
+import {
+  artifactIdentityKey,
+  type ArtifactRevisionMetadata,
+  type CreateOrAdvanceArtifactResult,
+} from '../src/core/artifactContracts';
 import type { BoardSnapshot, ExecutionRecord } from '../src/core/types';
 import { workflowDefinitionFor } from '../src/core/workflowRegistry';
 import type {
@@ -11,6 +15,7 @@ import type {
 } from '../src/core/workflowRuntimeContracts';
 import { workflowRunViewForId } from '../src/core/workflowRuntime';
 import {
+  isStoryboardSheetArtifactRevisionMetadata,
   normalizeStoryboardSheetGenerationParameters,
   normalizeStoryboardUnitId,
   storyboardSheetArtifactMetadata,
@@ -24,6 +29,11 @@ import { touchSnapshot } from './local-store/context';
 import { loadSnapshot, saveSnapshot } from './local-store/snapshot-store';
 import { reconcileAgentArtifactTargets } from './agent-artifact-target-service';
 import { reconcileWorkflowArtifactGates } from './workflow-gate-artifact-service';
+import {
+  generationPackageArtifactMetadata,
+  normalizeGenerationPreparationParameters,
+  normalizeGenerationReferenceManifest,
+} from '../src/core/generationPreparationContracts';
 
 export type WorkflowOutputMaterializationTrigger =
   | { kind: 'execution_succeeded'; executionId: string }
@@ -53,7 +63,7 @@ interface MaterializationCandidate {
   executionIds: string[];
   outputSlotId: string;
   primaryAssetId: string;
-  metadata?: StoryboardSheetArtifactRevisionMetadata;
+  metadata?: ArtifactRevisionMetadata;
   sourceArtifactRevisionIds: string[];
   stepRunId: string;
   workflowOutputSlotId: string;
@@ -317,7 +327,9 @@ function materializationCandidates(
     });
     const metadata = output.artifactType === 'storyboard_sheet'
       ? storyboardSheetMetadataForExecution(executions.at(-1))
-      : undefined;
+      : output.artifactType === 'video_generation_package'
+        ? generationPackageMetadataForExecution(executions.at(-1))
+        : undefined;
     return [{
       artifactType: output.artifactType,
       assetIds: resolved.assetIds,
@@ -481,6 +493,44 @@ function storyboardSheetMetadataForExecution(
   return storyboardSheetArtifactMetadata({
     unitId: normalizeStoryboardUnitId(inlineUnit?.value),
     parameters,
+  });
+}
+
+function generationPackageMetadataForExecution(
+  execution: ExecutionRecord | undefined,
+): ArtifactRevisionMetadata {
+  if (!execution) throw new Error('Video Generation Package Artifact requires one source Execution.');
+  const unitBinding = execution.inputBindingsSnapshot?.find((binding) => binding.slotId === 'unit_id');
+  const inlineUnit = unitBinding?.values.find(
+    (value): value is Extract<typeof value, { kind: 'inline' }> => value.kind === 'inline',
+  );
+  const manifestBinding = execution.inputBindingsSnapshot?.find(
+    (binding) => binding.slotId === 'reference_manifest',
+  );
+  const inlineManifest = manifestBinding?.values.find(
+    (value): value is Extract<typeof value, { kind: 'inline' }> => value.kind === 'inline',
+  );
+  const sheetBinding = execution.inputBindingsSnapshot?.find(
+    (binding) => binding.slotId === 'storyboard_sheet',
+  );
+  const sheetRevision = sheetBinding?.values.find(
+    (value): value is Extract<typeof value, { kind: 'artifact_revision' }> => value.kind === 'artifact_revision',
+  );
+  const storyboardSheetMetadata = execution.params?.storyboardSheetMetadata;
+  if (!sheetRevision || !isStoryboardSheetArtifactRevisionMetadata(storyboardSheetMetadata)) {
+    throw new Error('Video Generation Package source Storyboard Sheet metadata is missing.');
+  }
+  if (typeof inlineUnit?.value !== 'string') {
+    throw new Error('Video Generation Package Unit ID is missing.');
+  }
+  return generationPackageArtifactMetadata({
+    parameters: normalizeGenerationPreparationParameters(
+      objectRecord(execution.params?.generationPreparation),
+    ),
+    referenceManifest: normalizeGenerationReferenceManifest(inlineManifest?.value),
+    storyboardSheetArtifactRevisionId: sheetRevision.artifactRevisionId,
+    storyboardSheetMetadata,
+    unitId: inlineUnit.value,
   });
 }
 

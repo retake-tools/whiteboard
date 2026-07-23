@@ -206,6 +206,7 @@ function runtimePrompt(context: AgentRuntimeTurnContext): string {
       entrypointId: context.entrypointId ?? null,
       inlineValues: context.inlineValues,
       mentions: context.mentions,
+      parameters: context.parameters,
     },
     recentHistory: context.history,
     userMessage: context.userMessage,

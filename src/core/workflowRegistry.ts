@@ -102,10 +102,12 @@ export interface WorkflowDefinition {
 export interface WorkflowUiDefinition {
   descriptionKey:
     | 'workflow.storyToStoryboard.description'
-    | 'workflow.storyboardUnitToSheet.description';
+    | 'workflow.storyboardUnitToSheet.description'
+    | 'workflow.storyboardUnitToGenerationPackage.description';
   nameKey:
     | 'workflow.storyToStoryboard.name'
-    | 'workflow.storyboardUnitToSheet.name';
+    | 'workflow.storyboardUnitToSheet.name'
+    | 'workflow.storyboardUnitToGenerationPackage.name';
 }
 
 function capabilityLock(capabilityId: string): WorkflowCapabilityStepDefinition['capabilityLock'] {
@@ -361,7 +363,146 @@ export const storyboardUnitToSheetWorkflow: WorkflowDefinition = {
   defaultRunMode: 'manual',
 };
 
-const builtInWorkflows = [storyToStoryboardWorkflow, storyboardUnitToSheetWorkflow] as const;
+export const storyboardUnitToGenerationPackageWorkflow: WorkflowDefinition = {
+  schemaVersion: 1,
+  workflowId: 'retake.workflow.storyboard-unit-to-generation-package',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-workflow-storyboard-unit-to-generation-package-v1',
+  name: 'Storyboard unit to generation package',
+  description: 'Prepare and review one provider-neutral video generation package from an approved storyboard unit.',
+  inputSlots: [
+    {
+      slotId: 'storyboard_plan',
+      artifactTypes: ['storyboard_plan'],
+      cardinality: 'one',
+      dataTypes: ['document'],
+      required: true,
+    },
+    {
+      slotId: 'storyboard_sheet',
+      artifactTypes: ['storyboard_sheet'],
+      cardinality: 'one',
+      dataTypes: ['image'],
+      required: true,
+    },
+    {
+      slotId: 'unit_id',
+      artifactTypes: [],
+      cardinality: 'one',
+      dataTypes: ['text'],
+      required: true,
+      schemaRef: 'retake.storyboard-unit-id/v1',
+    },
+    {
+      slotId: 'references',
+      artifactTypes: [
+        'character_reference',
+        'scene_reference',
+        'prop_reference',
+        'storyboard_reference',
+        'reference',
+      ],
+      cardinality: 'many',
+      dataTypes: ['image', 'video', 'audio'],
+      required: false,
+    },
+    {
+      slotId: 'reference_manifest',
+      artifactTypes: [],
+      cardinality: 'one',
+      dataTypes: ['structured_data'],
+      required: true,
+      schemaRef: 'retake.generation-reference-manifest/v1',
+    },
+    {
+      slotId: 'instruction',
+      artifactTypes: [],
+      cardinality: 'optional',
+      dataTypes: ['text', 'document'],
+      required: false,
+    },
+  ],
+  outputSlots: [{
+    slotId: 'generation_package',
+    source: {
+      kind: 'step_output',
+      stepId: 'generation_package_prepare',
+      outputSlotId: 'generation_package',
+    },
+    exposedAsIntermediate: false,
+  }],
+  stages: [{
+    stageId: 'media_generation',
+    stageTypeId: 'retake.stage.media_generation',
+    name: 'Media Generation',
+    completionPolicy: 'all_required_steps',
+    outputWorkflowSlotIds: ['generation_package'],
+  }],
+  steps: [{
+    stepId: 'generation_package_prepare',
+    type: 'capability',
+    stageId: 'media_generation',
+    capabilityLock: capabilityLock('generation.video_package.prepare'),
+    skillLock: skillLock('retake.video-generation-package.from-approved-storyboard'),
+    inputBindings: [
+      {
+        inputSlotId: 'storyboard_plan',
+        source: { kind: 'workflow_input', slotId: 'storyboard_plan' },
+      },
+      {
+        inputSlotId: 'storyboard_sheet',
+        source: { kind: 'workflow_input', slotId: 'storyboard_sheet' },
+      },
+      {
+        inputSlotId: 'unit_id',
+        source: { kind: 'workflow_input', slotId: 'unit_id' },
+      },
+      {
+        inputSlotId: 'references',
+        source: { kind: 'workflow_input', slotId: 'references' },
+      },
+      {
+        inputSlotId: 'reference_manifest',
+        source: { kind: 'workflow_input', slotId: 'reference_manifest' },
+      },
+      {
+        inputSlotId: 'instruction',
+        source: { kind: 'workflow_input', slotId: 'instruction' },
+      },
+    ],
+    outputSlots: ['generation_package'],
+    outputAcceptancePolicy: 'automatic',
+    runPolicy: 'manual',
+    dependsOn: [],
+    optional: false,
+  }],
+  gates: [{
+    definitionHash: 'sha256:retake-workflow-gate-generation-package-review-v1',
+    gateId: 'generation_package_review',
+    kind: 'human_approval',
+    name: 'Generation package review',
+    required: true,
+    reviewChecklist: [
+      'authority_traceability',
+      'reference_mapping',
+      'state_and_continuity',
+      'prompt_budget',
+      'provider_neutrality',
+      'readiness',
+    ],
+    subject: {
+      kind: 'artifact_revision',
+      workflowOutputSlotId: 'generation_package',
+    },
+  }],
+  defaultRunMode: 'manual',
+};
+
+const builtInWorkflows = [
+  storyToStoryboardWorkflow,
+  storyboardUnitToSheetWorkflow,
+  storyboardUnitToGenerationPackageWorkflow,
+] as const;
 
 const workflowUiDefinitions: Record<string, WorkflowUiDefinition> = {
   [storyToStoryboardWorkflow.workflowId]: {
@@ -371,6 +512,10 @@ const workflowUiDefinitions: Record<string, WorkflowUiDefinition> = {
   [storyboardUnitToSheetWorkflow.workflowId]: {
     nameKey: 'workflow.storyboardUnitToSheet.name',
     descriptionKey: 'workflow.storyboardUnitToSheet.description',
+  },
+  [storyboardUnitToGenerationPackageWorkflow.workflowId]: {
+    nameKey: 'workflow.storyboardUnitToGenerationPackage.name',
+    descriptionKey: 'workflow.storyboardUnitToGenerationPackage.description',
   },
 };
 

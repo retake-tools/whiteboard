@@ -132,13 +132,36 @@
   font-weight: 700;
 }
 
+.skill-composer-storyboard-parameters input,
 .skill-composer-storyboard-parameters select {
+  width: 64px;
+  min-width: 0;
   border: 1px solid #cbd5e1;
   border-radius: 7px;
   background: #fff;
   color: #0f172a;
   font: inherit;
   padding: 3px 5px;
+}
+
+.skill-composer-storyboard-parameters fieldset {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  margin: 0;
+  padding: 3px 5px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+}
+
+.skill-composer-storyboard-parameters legend {
+  max-width: 120px;
+  padding: 0 3px;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .skill-composer-mention-chip {

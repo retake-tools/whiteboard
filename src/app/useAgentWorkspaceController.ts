@@ -253,6 +253,7 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     entrypointId?: string;
     inlineValues: Extract<AgentMessageContextRef, { kind: 'inline' }>[];
     mentions: PackageComposerMention[];
+    parameters: Record<string, unknown>;
   }): Promise<void> {
     if (inFlightRef.current) return;
     const agentSessionId = selectedSessionId ?? newSession();
@@ -265,6 +266,9 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
         ...(input.entrypointId ? [{ kind: 'entrypoint' as const, entrypointId: input.entrypointId }] : []),
         ...input.inlineValues,
         ...input.mentions,
+        ...(Object.keys(input.parameters).length > 0
+          ? [{ kind: 'parameters' as const, value: structuredClone(input.parameters) }]
+          : []),
       ];
       const withUserMessage = updateSnapshot((current) => {
         const message = appendAgentUserMessage(current, agentSessionId, {

@@ -14,6 +14,13 @@ import {
 import { loadSnapshot, saveSnapshot } from './local-store/snapshot-store';
 import { generateOpenAICompatibleText, type OpenAICompatibleTextResult } from './openai-compatible-client';
 import { resolveTextExecutionPrompt } from './skill-prompt-resolver';
+import {
+  assertGenerationPackageMarkdown,
+  generationPreparationCapabilityId,
+} from '../src/core/generationPreparationContracts';
+import {
+  resolveGenerationPreparationRequest,
+} from './generation-preparation-prompt-resolver';
 
 type TextGenerationResult = NativeTextResult | OpenAICompatibleTextResult;
 
@@ -51,6 +58,12 @@ export async function startTextGeneration(input: {
   if (!connectionSummary.supportedCapabilityIds.includes(queued.capabilityId)) {
     throw new Error(`Connection cannot execute ${queued.capabilityId}: ${input.connectionId}`);
   }
+  if (
+    queued.capabilityId === generationPreparationCapabilityId
+    && connectorId !== 'codex-app-server'
+  ) {
+    throw new Error('Generation Preparation V0 requires the Codex App Server multimodal text route.');
+  }
 
   const started = await markExecutionRunning(input);
   publishExecutionEvent(input.executionId, { type: 'execution.started' });
@@ -78,7 +91,11 @@ async function executeTextGeneration(
   dependencies: TextGenerationDependencies,
 ): Promise<void> {
   const snapshot = await loadSnapshot(execution.projectId, execution.boardId);
-  const providerPrompt = await resolveTextExecutionPrompt(execution, snapshot);
+  const generationRequest = execution.capabilityId === generationPreparationCapabilityId
+    ? await resolveGenerationPreparationRequest(execution, snapshot)
+    : undefined;
+  const providerPrompt = generationRequest?.prompt
+    ?? await resolveTextExecutionPrompt(execution, snapshot);
   await recordExecutionRequestPrompts({
     projectId: execution.projectId,
     boardId: execution.boardId,
@@ -96,6 +113,7 @@ async function executeTextGeneration(
       cwd: process.env.TMPDIR || '/tmp',
       model: connection.modelId || 'gpt-5.4',
       prompt: providerPrompt,
+      localImagePaths: generationRequest?.localImagePaths,
       sandbox: 'read-only',
       onTextDelta: (delta) => publishExecutionEvent(execution.executionId, {
         type: 'text.delta',
@@ -130,13 +148,26 @@ async function executeTextGeneration(
   }
   const markdown = result.text.trim();
   if (!markdown) throw new Error('The provider returned an empty text result.');
+  if (execution.capabilityId === generationPreparationCapabilityId) {
+    const parameters = execution.params?.generationPreparation;
+    const parameterRecord = parameters && typeof parameters === 'object' && !Array.isArray(parameters)
+      ? parameters as Record<string, unknown>
+      : undefined;
+    const maxPromptChars = (
+      parameterRecord
+      && typeof parameterRecord.maxPromptChars === 'number'
+    ) ? parameterRecord.maxPromptChars : 2_000;
+    assertGenerationPackageMarkdown(markdown, maxPromptChars);
+  }
 
   await recordProviderResult(execution, result);
   const asset = await createAssetFromDataUrl({
     projectId: execution.projectId,
     sourceExecutionId: execution.executionId,
     dataUrl: `data:text/markdown;base64,${Buffer.from(markdown, 'utf8').toString('base64')}`,
-    fileName: 'generated.md',
+    fileName: execution.capabilityId === generationPreparationCapabilityId
+      ? 'video-generation-package.md'
+      : 'generated.md',
     kind: 'document',
   });
   const completed = await updateDocumentResultBlock({

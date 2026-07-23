@@ -4,6 +4,11 @@ import {
   normalizeStoryboardUnitId,
   storyboardSheetCapabilityId,
 } from './storyboardSheetContracts';
+import {
+  generationPreparationCapabilityId,
+  normalizeGenerationPreparationParameters,
+  normalizeGenerationReferenceManifest,
+} from './generationPreparationContracts';
 
 export type CapabilityInputRole = ExecutionInputRole;
 export type CapabilityInputSource = 'block' | 'generated_asset' | 'inline';
@@ -120,6 +125,22 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
     promptSource: 'inline',
     requiredInputSlotIds: ['storyboard_plan', 'unit_id'],
     supportedAdapters: ['mcp_agent', 'direct_api', 'manual_import'],
+  },
+  'generation.video_package.prepare': {
+    capabilityId: 'generation.video_package.prepare',
+    defaultAdapter: 'mcp_agent',
+    displayNameKey: 'operation.prepareGenerationPackage.title',
+    inputContracts: [],
+    outputContracts: [{ type: 'document' }],
+    paramsSchema: {},
+    promptSource: 'inline',
+    requiredInputSlotIds: [
+      'storyboard_plan',
+      'storyboard_sheet',
+      'unit_id',
+      'reference_manifest',
+    ],
+    supportedAdapters: ['mcp_agent'],
   },
   'image.text_to_image': {
     capabilityId: 'image.text_to_image',
@@ -312,6 +333,66 @@ export function operationReadinessFor(
     if (missingReferenceAsset) issues.add('image_asset_missing');
     return { canRun: issues.size === 0, issues: [...issues] };
   }
+  if (capabilityId === generationPreparationCapabilityId) {
+    const planEdge = inputEdges.find((edge) => edge.inputSlotId === 'storyboard_plan');
+    const planBlock = planEdge ? blockById.get(planEdge.sourceBlockId) : undefined;
+    if (planBlock?.type !== 'document') issues.add('text_input_missing');
+    else if (typeof planBlock.data.assetId !== 'string') issues.add('prompt_empty');
+
+    const sheetEdge = inputEdges.find((edge) => edge.inputSlotId === 'storyboard_sheet');
+    const sheetBlock = sheetEdge ? blockById.get(sheetEdge.sourceBlockId) : undefined;
+    const sheetRevisionId = typeof sheetBlock?.data.artifactRevisionId === 'string'
+      ? sheetBlock.data.artifactRevisionId
+      : undefined;
+    if (sheetBlock?.type !== 'image') issues.add('image_input_missing');
+    else if (typeof sheetBlock.data.assetId !== 'string' || !sheetRevisionId) {
+      issues.add('image_asset_missing');
+    }
+    if (
+      sheetRevisionId
+      && !(snapshot.workflowGateEvaluations ?? []).some((evaluation) => (
+        evaluation.gateId === 'storyboard_sheet_review'
+        && evaluation.subjectArtifactRevisionId === sheetRevisionId
+        && evaluation.status === 'passed'
+        && evaluation.freshness === 'current'
+      ))
+    ) issues.add('workflow_step_not_ready');
+
+    if (
+      typeof operationBlock.data.generationUnitId !== 'string'
+      || !operationBlock.data.generationUnitId.trim()
+    ) issues.add('prompt_empty');
+    try {
+      normalizeGenerationPreparationParameters(
+        objectRecord(operationBlock.data.generationPreparationParameters),
+      );
+      const manifest = normalizeGenerationReferenceManifest(
+        operationBlock.data.generationReferenceManifest,
+      );
+      const referenceIdentities = new Set(inputEdges
+        .filter((edge) => edge.inputSlotId === 'references')
+        .flatMap((edge) => {
+          const block = blockById.get(edge.sourceBlockId);
+          if (block?.type !== 'image' || typeof block.data.assetId !== 'string') {
+            issues.add('image_asset_missing');
+            return [];
+          }
+          return [
+            `asset:${block.data.assetId}`,
+            ...(typeof block.data.artifactRevisionId === 'string'
+              ? [`artifact_revision:${block.data.artifactRevisionId}`]
+              : []),
+          ];
+        }));
+      if (manifest.items.some((item) => (
+        item.required
+        && (!item.bindingIdentity || !referenceIdentities.has(item.bindingIdentity))
+      ))) issues.add('image_asset_missing');
+    } catch {
+      issues.add('prompt_empty');
+    }
+    return { canRun: issues.size === 0, issues: [...issues] };
+  }
 
   for (const slotId of schema.requiredInputSlotIds ?? []) {
     const edge = inputEdges.find((candidate) => candidate.inputSlotId === slotId);
@@ -357,6 +438,12 @@ export function operationReadinessFor(
   }
 
   return { canRun: issues.size === 0, issues: [...issues] };
+}
+
+function objectRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
 }
 
 export function operationReadinessMessageKey(issue: OperationReadinessIssue) {

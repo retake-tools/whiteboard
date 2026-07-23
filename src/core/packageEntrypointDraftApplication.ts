@@ -17,6 +17,8 @@ import type { BoardSnapshot } from './types';
 import { projectWorkflowDraft } from './workflowDraftProjection';
 import { createDraftStoryboardSheetOperation } from './storyboardSheetOperations';
 import { storyboardSheetCapabilityId } from './storyboardSheetContracts';
+import { createDraftGenerationPreparationOperation } from './generationPreparationOperations';
+import { generationPreparationCapabilityId } from './generationPreparationContracts';
 
 type PackageEntrypointInstantiateCommand = Extract<
   ChangeProposalCommand,
@@ -52,11 +54,18 @@ export function buildPackageEntrypointInstantiationCommand(
   const inlineValues = source.contextRefs.filter(
     (ref): ref is PackageComposerInlineValue => ref.kind === 'inline',
   );
+  const parameterRefs = source.contextRefs.filter((ref) => ref.kind === 'parameters');
+  if (parameterRefs.length > 1) {
+    throw new Error('Typed EntryPoint Proposal requires at most one parameter snapshot.');
+  }
   const resolved = resolvePackageComposerInvocation(snapshot, {
     entrypointId: entrypoints[0].entrypointId,
     inlineValues,
     instruction: source.content,
     mentions,
+    parameters: parameterRefs[0]?.kind === 'parameters'
+      ? parameterRefs[0].value
+      : undefined,
   });
   return {
     idempotencyKey: `proposal:${proposalId}:package_entrypoint.instantiate`,
@@ -104,6 +113,10 @@ export function stagePackageEntrypointDraft(
     const explicitInputBindings = command.invocation.mentionLocks.map((mention) => mention.kind === 'block'
       ? { blockId: mention.blockId, inputSlotId: mention.slotId, kind: 'block' as const }
       : { assetId: mention.assetId, inputSlotId: mention.slotId, kind: 'asset' as const });
+    const unitValue = command.invocation.inlineValues.find((value) => value.slotId === 'unit_id')?.value;
+    const manifestValue = command.invocation.inlineValues.find(
+      (value) => value.slotId === 'reference_manifest',
+    )?.value;
     const draft = resolved.target.capabilityLock.capabilityId === storyboardSheetCapabilityId
       ? createDraftStoryboardSheetOperation(stagedSnapshot, {
           connectionId: presentation.connectionIdForCapability?.(
@@ -115,8 +128,22 @@ export function stagePackageEntrypointDraft(
           packageContext,
           parameters: command.invocation.parameters,
           selectedBlockIds: [],
-          unitId: command.invocation.inlineValues.find((value) => value.slotId === 'unit_id')?.value,
+          unitId: typeof unitValue === 'string' ? unitValue : undefined,
         })
+      : resolved.target.capabilityLock.capabilityId === generationPreparationCapabilityId
+        ? createDraftGenerationPreparationOperation(stagedSnapshot, {
+            connectionId: presentation.connectionIdForCapability?.(
+              resolved.target.capabilityLock.capabilityId,
+              stagedSnapshot,
+            ),
+            explicitInputBindings,
+            labels,
+            packageContext,
+            parameters: command.invocation.parameters,
+            referenceManifest: manifestValue,
+            selectedBlockIds: [],
+            unitId: typeof unitValue === 'string' ? unitValue : undefined,
+          })
       : createDraftSkillOperation(stagedSnapshot, {
           ...labels,
           connectionId: presentation.connectionIdForCapability?.(
@@ -189,6 +216,9 @@ export function semanticSourceFingerprint(
   const semanticValue = block.type === 'text'
     ? JSON.stringify({ body: stringValue(block.data.body), type: block.type })
     : JSON.stringify({
+        artifactId: stringValue(block.data.artifactId),
+        artifactRevisionId: stringValue(block.data.artifactRevisionId),
+        artifactType: stringValue(block.data.artifactType),
         assetId: stringValue(block.data.assetId),
         documentKind: stringValue(block.data.documentKind),
         previewUrl: stringValue(block.data.previewUrl),

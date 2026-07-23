@@ -11,6 +11,13 @@ import {
   storyboardSheetWorkflowId,
 } from './storyboardSheetContracts';
 import { workflowDefinitionFor } from './workflowRegistry';
+import {
+  generationPreparationCapabilityId,
+  generationPreparationWorkflowId,
+  normalizeGenerationPreparationParameters,
+  normalizeGenerationReferenceManifest,
+} from './generationPreparationContracts';
+import type { CapabilityBindingKind } from './capabilityContracts';
 
 export type PackageComposerMention =
   | { blockId: string; kind: 'block'; slotId: string }
@@ -19,7 +26,7 @@ export type PackageComposerMention =
 export interface PackageComposerInlineValue {
   kind: 'inline';
   slotId: string;
-  value: string;
+  value: unknown;
 }
 
 export interface PackageComposerInvocation {
@@ -28,6 +35,11 @@ export interface PackageComposerInvocation {
   instruction: string;
   mentions: PackageComposerMention[];
   parameters?: Record<string, unknown>;
+}
+
+export interface PackageComposerParametersValue {
+  kind: 'parameters';
+  value: Record<string, unknown>;
 }
 
 export type PackageComposerMentionOption = PackageComposerMention & {
@@ -80,12 +92,24 @@ export function resolvePackageComposerInvocation(
   const inputSlots = inputSlotsForTarget(resolution.target);
   for (const inlineValue of inlineValues) {
     const slot = inputSlots.find((candidate) => candidate.slotId === inlineValue.slotId);
-    if (!slot?.dataTypes.includes('text')) {
+    if (!slot || !slot.bindingKinds.includes('inline')) {
       throw new Error(`Package Composer inline input is incompatible: ${inlineValue.slotId}`);
     }
-    const value = inlineValue.value.trim();
-    if (!value) throw new Error(`Package Composer inline input is empty: ${inlineValue.slotId}`);
-    if ([...value].length > 64) throw new Error(`Package Composer inline input is too long: ${inlineValue.slotId}`);
+    if (slot.dataTypes.includes('text')) {
+      if (typeof inlineValue.value !== 'string') {
+        throw new Error(`Package Composer inline text input is invalid: ${inlineValue.slotId}`);
+      }
+      const value = inlineValue.value.trim();
+      if (!value) throw new Error(`Package Composer inline input is empty: ${inlineValue.slotId}`);
+      if ([...value].length > 64) throw new Error(`Package Composer inline input is too long: ${inlineValue.slotId}`);
+    } else if (
+      slot.dataTypes.includes('structured_data')
+      && slot.schemaRef === 'retake.generation-reference-manifest/v1'
+    ) {
+      normalizeGenerationReferenceManifest(inlineValue.value);
+    } else {
+      throw new Error(`Package Composer inline input is incompatible: ${inlineValue.slotId}`);
+    }
   }
   for (const slot of inputSlots) {
     const count = invocation.mentions.filter((mention) => mention.slotId === slot.slotId).length
@@ -114,12 +138,19 @@ export function resolvePackageComposerInvocation(
   }
   const parameters = targetUsesStoryboardSheet(resolution.target)
     ? { ...normalizeStoryboardSheetGenerationParameters(invocation.parameters) }
-    : structuredClone(invocation.parameters ?? {});
+    : targetUsesGenerationPreparation(resolution.target)
+      ? { ...normalizeGenerationPreparationParameters(invocation.parameters) }
+      : structuredClone(invocation.parameters ?? {});
   return {
     target: resolution.target,
     invocation: {
       ...invocation,
-      inlineValues: inlineValues.map((value) => ({ ...value, value: value.value.trim() })),
+      inlineValues: inlineValues.map((value) => ({
+        ...value,
+        value: typeof value.value === 'string'
+          ? value.value.trim()
+          : structuredClone(value.value),
+      })),
       instruction,
       mentions: structuredClone(invocation.mentions),
       parameters,
@@ -134,7 +165,7 @@ export function listPackageComposerInlineInputOptions(
   const resolution = resolvePackageEntryPoint({ entrypointId });
   if (resolution.status !== 'resolved') return [];
   return inputSlotsForTarget(resolution.target).flatMap((slot) => (
-    slot.schemaRef && slot.dataTypes.includes('text')
+    slot.schemaRef && slot.bindingKinds.includes('inline')
       ? [{ schemaRef: slot.schemaRef, slotId: slot.slotId }]
       : []
   ));
@@ -158,10 +189,25 @@ export function packageComposerMentionId(mention: PackageComposerMention): strin
     : `asset:${mention.assetId}:${mention.slotId}`;
 }
 
+export function packageComposerMentionBindingIdentity(
+  snapshot: BoardSnapshot,
+  mention: PackageComposerMention,
+): `asset:${string}` | `artifact_revision:${string}` | undefined {
+  if (mention.kind === 'asset') return `asset:${mention.assetId}`;
+  const block = snapshot.blocks.find((candidate) => candidate.blockId === mention.blockId);
+  if (typeof block?.data.artifactRevisionId === 'string') {
+    return `artifact_revision:${block.data.artifactRevisionId}`;
+  }
+  return typeof block?.data.assetId === 'string'
+    ? `asset:${block.data.assetId}`
+    : undefined;
+}
+
 type ComposerInputSlot = {
   artifactTypes: string[];
+  bindingKinds: CapabilityBindingKind[];
   cardinality: CapabilityCardinality;
-  dataTypes: Array<Extract<CapabilityDataType, 'document' | 'image' | 'text'>>;
+  dataTypes: CapabilityDataType[];
   required: boolean;
   schemaRef?: string;
   slotId: string;
@@ -171,25 +217,23 @@ function inputSlotsForTarget(target: ResolvedPackageEntryPointTarget): ComposerI
   if (target.kind === 'skill') {
     return capabilityDefinitionFor(target.capabilityLock.capabilityId).inputSlots.map((slot) => ({
       artifactTypes: slot.artifactTypes,
+      bindingKinds: slot.bindingKinds,
       cardinality: slot.cardinality,
-      dataTypes: slot.dataTypes.filter(
-        (type): type is Extract<CapabilityDataType, 'document' | 'image' | 'text'> => (
-          type === 'document' || type === 'image' || type === 'text'
-        ),
-      ),
+      dataTypes: slot.dataTypes,
       required: slot.required,
       schemaRef: slot.schemaRef,
       slotId: slot.slotId,
-    })).filter((slot) => slot.dataTypes.length > 0);
+    }));
   }
   return workflowDefinitionFor(target.workflowDefinitionLock.workflowDefinitionId).inputSlots.map((slot) => ({
     artifactTypes: slot.artifactTypes,
+    bindingKinds: slot.dataTypes.includes('structured_data')
+      ? ['inline']
+      : slot.artifactTypes.includes('storyboard_sheet')
+        ? ['artifact_revision']
+        : ['inline', 'block', 'asset', 'artifact_revision'],
     cardinality: slot.cardinality,
-    dataTypes: slot.dataTypes.filter(
-      (type): type is Extract<CapabilityDataType, 'document' | 'image' | 'text'> => (
-        type === 'document' || type === 'image' || type === 'text'
-      ),
-    ),
+    dataTypes: slot.dataTypes,
     required: slot.required,
     schemaRef: slot.schemaRef,
     slotId: slot.slotId,
@@ -205,8 +249,16 @@ function instructionSlotFor(
     ...mentions.map((mention) => mention.slotId),
     ...inlineValues.map((value) => value.slotId),
   ]);
-  return slots.find((slot) => slot.required && !occupied.has(slot.slotId))?.slotId
-    ?? slots.find((slot) => !slot.required && (slot.cardinality === 'many' || !occupied.has(slot.slotId)))?.slotId;
+  return slots.find((slot) => (
+    slot.required
+    && slot.dataTypes.some((type) => type === 'text' || type === 'document')
+    && !occupied.has(slot.slotId)
+  ))?.slotId
+    ?? slots.find((slot) => (
+      !slot.required
+      && slot.dataTypes.some((type) => type === 'text' || type === 'document')
+      && (slot.cardinality === 'many' || !occupied.has(slot.slotId))
+    ))?.slotId;
 }
 
 function mentionOptionsForBlock(
@@ -217,7 +269,16 @@ function mentionOptionsForBlock(
   if (block.type !== 'text' && block.type !== 'document' && block.type !== 'image') return [];
   const dataType = block.type;
   const artifactType = artifactTypeForBlock(snapshot, block);
-  return slots.filter((slot) => compatibleSlot(slot, dataType, artifactType)).map((slot) => ({
+  return slots.filter((slot) => (
+    compatibleSlot(slot, dataType, artifactType)
+    && (
+      slot.bindingKinds.includes('block')
+      || (
+        slot.bindingKinds.includes('artifact_revision')
+        && typeof block.data.artifactRevisionId === 'string'
+      )
+    )
+  )).map((slot) => ({
     kind: 'block',
     blockId: block.blockId,
     slotId: slot.slotId,
@@ -242,7 +303,10 @@ function mentionOptionsForAsset(
   if (asset.kind !== 'document' && asset.kind !== 'image') return [];
   const artifactType = artifactTypeForAsset(snapshot, asset);
   const dataType = asset.kind;
-  return slots.filter((slot) => compatibleSlot(slot, dataType, artifactType)).map((slot) => ({
+  return slots.filter((slot) => (
+    slot.bindingKinds.includes('asset')
+    && compatibleSlot(slot, dataType, artifactType)
+  )).map((slot) => ({
     kind: 'asset',
     assetId: asset.assetId,
     slotId: slot.slotId,
@@ -265,6 +329,8 @@ function compatibleSlot(
 }
 
 function artifactTypeForBlock(snapshot: BoardSnapshot, block: BlockRecord): string | undefined {
+  const explicitArtifactType = stringValue(block.data.artifactType);
+  if (explicitArtifactType) return explicitArtifactType;
   const documentKind = stringValue(block.data.documentKind);
   if (documentKind && documentKind !== 'general' && documentKind !== 'markdown_document') return documentKind;
   return artifactTypeForExecutionOutput(snapshot, stringValue(block.data.sourceExecutionId), block.blockId, undefined);
@@ -301,4 +367,10 @@ function targetUsesStoryboardSheet(target: ResolvedPackageEntryPointTarget): boo
   return target.kind === 'skill'
     ? target.capabilityLock.capabilityId === storyboardSheetCapabilityId
     : target.workflowDefinitionLock.workflowDefinitionId === storyboardSheetWorkflowId;
+}
+
+function targetUsesGenerationPreparation(target: ResolvedPackageEntryPointTarget): boolean {
+  return target.kind === 'skill'
+    ? target.capabilityLock.capabilityId === generationPreparationCapabilityId
+    : target.workflowDefinitionLock.workflowDefinitionId === generationPreparationWorkflowId;
 }

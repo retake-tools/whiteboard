@@ -41,6 +41,7 @@ const readyTextConnection: ExecutionConnectionSummary = {
 assert.deepEqual(listWorkflows().map((workflow) => workflow.workflowId), [
   'retake.workflow.story-to-storyboard',
   'retake.workflow.storyboard-unit-to-sheet',
+  'retake.workflow.storyboard-unit-to-generation-package',
 ]);
 assert.deepEqual(listPackageEntryPoints()
   .map(({ entrypoint }) => entrypoint)
@@ -48,6 +49,7 @@ assert.deepEqual(listPackageEntryPoints()
   .map((entrypoint) => [entrypoint.kind, entrypoint.entrypointId]), [
   ['workflow', 'workflow:retake.workflow.story-to-storyboard'],
   ['workflow', 'workflow:retake.workflow.storyboard-unit-to-sheet'],
+  ['workflow', 'workflow:retake.workflow.storyboard-unit-to-generation-package'],
 ]);
 assert.deepEqual(validateWorkflowDefinition(storyboardUnitToSheetWorkflow), []);
 assert.deepEqual(storyToStoryboardWorkflow.steps.map((step) => [step.stepId, step.dependsOn]), [

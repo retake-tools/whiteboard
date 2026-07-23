@@ -1,6 +1,6 @@
 import type { CapabilityInputBinding, SkillDefinitionLock } from './capabilityContracts';
 
-export type SkillCategory = 'previsualization' | 'production_design' | 'screenplay';
+export type SkillCategory = 'media_generation' | 'previsualization' | 'production_design' | 'screenplay';
 
 export type SkillNameKey =
   | 'skill.screenplayFromBrief.name'
@@ -8,7 +8,8 @@ export type SkillNameKey =
   | 'skill.characterBible.name'
   | 'skill.sceneBible.name'
   | 'skill.storyboardPlan.name'
-  | 'skill.storyboardSheet.name';
+  | 'skill.storyboardSheet.name'
+  | 'skill.generationPackage.name';
 
 export type SkillDescriptionKey =
   | 'skill.screenplayFromBrief.description'
@@ -16,7 +17,8 @@ export type SkillDescriptionKey =
   | 'skill.characterBible.description'
   | 'skill.sceneBible.description'
   | 'skill.storyboardPlan.description'
-  | 'skill.storyboardSheet.description';
+  | 'skill.storyboardSheet.description'
+  | 'skill.generationPackage.description';
 
 export type SkillInputKey =
   | 'skill.common.referencesInput'
@@ -30,7 +32,13 @@ export type SkillInputKey =
   | 'skill.storyboardPlan.sceneInput'
   | 'skill.storyboardSheet.planInput'
   | 'skill.storyboardSheet.unitInput'
-  | 'skill.storyboardSheet.referencesInput';
+  | 'skill.storyboardSheet.referencesInput'
+  | 'skill.generationPackage.planInput'
+  | 'skill.generationPackage.sheetInput'
+  | 'skill.generationPackage.unitInput'
+  | 'skill.generationPackage.referencesInput'
+  | 'skill.generationPackage.manifestInput'
+  | 'skill.generationPackage.instructionInput';
 
 export type SkillPlaceholderKey =
   | 'skill.common.referencesPlaceholder'
@@ -44,7 +52,13 @@ export type SkillPlaceholderKey =
   | 'skill.storyboardPlan.scenePlaceholder'
   | 'skill.storyboardSheet.planPlaceholder'
   | 'skill.storyboardSheet.unitPlaceholder'
-  | 'skill.storyboardSheet.referencesPlaceholder';
+  | 'skill.storyboardSheet.referencesPlaceholder'
+  | 'skill.generationPackage.planPlaceholder'
+  | 'skill.generationPackage.sheetPlaceholder'
+  | 'skill.generationPackage.unitPlaceholder'
+  | 'skill.generationPackage.referencesPlaceholder'
+  | 'skill.generationPackage.manifestPlaceholder'
+  | 'skill.generationPackage.instructionPlaceholder';
 
 export type SkillOperationTitleKey =
   | 'operation.generateScreenplay.title'
@@ -52,7 +66,8 @@ export type SkillOperationTitleKey =
   | 'operation.defineCharacter.title'
   | 'operation.defineScene.title'
   | 'operation.generateStoryboardPlan.title'
-  | 'operation.generateStoryboardSheet.title';
+  | 'operation.generateStoryboardSheet.title'
+  | 'operation.prepareGenerationPackage.title';
 
 export interface RetakeSkillUiInputSlot {
   inputKey: SkillInputKey;
@@ -304,6 +319,50 @@ Render one clean panel grid using the locked panel count, layout, and 16:9 panel
   },
 };
 
+export const videoGenerationPackageFromApprovedStoryboardSkill: RetakeSkillDefinition = {
+  schemaVersion: 1,
+  skillId: 'retake.video-generation-package.from-approved-storyboard',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-video-generation-package-from-approved-storyboard-v1',
+  name: 'Prepare video generation package',
+  description: 'Turn one approved storyboard unit and its declared references into a provider-neutral generation package.',
+  category: 'media_generation',
+  capabilityBindings: [{
+    capabilityId: 'generation.video_package.prepare',
+    inputSlots: [
+      'storyboard_plan',
+      'storyboard_sheet',
+      'unit_id',
+      'references',
+      'reference_manifest',
+      'instruction',
+    ],
+    outputSlots: ['generation_package'],
+  }],
+  instructionTemplate: `You are the Generation Package Director for one locked storyboard unit.
+
+The supplied Storyboard Plan defines story intent, shot order, performance, continuity, and sound. The approved Storyboard Sheet revision is the visual and composition authority for the same unit. Use only the declared Reference Manifest to interpret attached references. Never infer that an unattached or undeclared asset is available, approved, or current.
+
+Translate those authorities into one provider-neutral Markdown package for a later video-generation submission. Preserve the ordered storyboard-panel responsibilities as an authority sequence rather than rewriting them into a new story. State active subjects, identity and scene bindings, start and end state, continuity, dialogue, voice, ambience, sound effects, negative constraints, and a bounded submit source.
+
+Do not select a provider, model, connection, seed, account, or billing route. Do not execute video generation, create provider jobs, or claim that generation has started. If a required reference is missing, the approved sheet is stale or unapproved, the unit does not match, or the prompt budget cannot preserve authority, stop with the exact readiness blocker.`,
+  outputRequirements: [
+    'Return one Markdown Generation Package document and no media output.',
+    'Include all required contract headings, an ordered Pxx storyboard authority sequence, and a provider-neutral submit source within the locked character budget.',
+    'Map every declared reference requirement to its exact bound Asset or ArtifactRevision identity; never silently substitute a source.',
+    'End with a readiness review that distinguishes ready facts, missing inputs, and later provider-specific choices.',
+  ],
+  source: {
+    kind: 'catmeme_migration',
+    paths: [
+      'skills/production-workflow/registry.yaml',
+      'skills/stage-video-generation/SKILL.md',
+      'skills/video-generation-prompt-preparation/SKILL.md',
+      'skills/role-director/references/storyboard-authority.md',
+    ],
+  },
+};
+
 const builtInSkills = [
   screenplayFromBriefSkill,
   normalizeScreenplaySkill,
@@ -311,6 +370,7 @@ const builtInSkills = [
   sceneBibleFromScreenplaySkill,
   storyboardPlanFromProductionDesignSkill,
   storyboardSheetFromUnitPlanSkill,
+  videoGenerationPackageFromApprovedStoryboardSkill,
 ] as const;
 
 const skillUiDefinitions: Record<string, RetakeSkillUiDefinition> = {
@@ -440,6 +500,45 @@ const skillUiDefinitions: Record<string, RetakeSkillUiDefinition> = {
         slotId: 'references',
         inputKey: 'skill.storyboardSheet.referencesInput',
         placeholderKey: 'skill.storyboardSheet.referencesPlaceholder',
+      },
+    ],
+  },
+  [videoGenerationPackageFromApprovedStoryboardSkill.skillId]: {
+    nameKey: 'skill.generationPackage.name',
+    descriptionKey: 'skill.generationPackage.description',
+    inputKey: 'skill.generationPackage.planInput',
+    placeholderKey: 'skill.generationPackage.planPlaceholder',
+    operationTitleKey: 'operation.prepareGenerationPackage.title',
+    inputSlots: [
+      {
+        slotId: 'storyboard_plan',
+        inputKey: 'skill.generationPackage.planInput',
+        placeholderKey: 'skill.generationPackage.planPlaceholder',
+      },
+      {
+        slotId: 'storyboard_sheet',
+        inputKey: 'skill.generationPackage.sheetInput',
+        placeholderKey: 'skill.generationPackage.sheetPlaceholder',
+      },
+      {
+        slotId: 'unit_id',
+        inputKey: 'skill.generationPackage.unitInput',
+        placeholderKey: 'skill.generationPackage.unitPlaceholder',
+      },
+      {
+        slotId: 'references',
+        inputKey: 'skill.generationPackage.referencesInput',
+        placeholderKey: 'skill.generationPackage.referencesPlaceholder',
+      },
+      {
+        slotId: 'reference_manifest',
+        inputKey: 'skill.generationPackage.manifestInput',
+        placeholderKey: 'skill.generationPackage.manifestPlaceholder',
+      },
+      {
+        slotId: 'instruction',
+        inputKey: 'skill.generationPackage.instructionInput',
+        placeholderKey: 'skill.generationPackage.instructionPlaceholder',
       },
     ],
   },
