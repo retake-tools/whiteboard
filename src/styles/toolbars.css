@@ -94,6 +94,53 @@
 
 .skill-composer-mentions { display: contents; }
 
+.skill-composer-inline-input {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 5px;
+  align-items: center;
+  padding: 4px 7px;
+  border-radius: 7px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.skill-composer-inline-input input {
+  width: 86px;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #0f172a;
+  font: inherit;
+}
+
+.skill-composer-storyboard-parameters {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.skill-composer-storyboard-parameters label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.skill-composer-storyboard-parameters select {
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  padding: 3px 5px;
+}
+
 .skill-composer-mention-chip {
   display: inline-flex;
   height: 24px;

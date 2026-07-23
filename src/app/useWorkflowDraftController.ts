@@ -1,4 +1,5 @@
 import { resolveExecutionConnectionPreference } from '../core/executionProviderPreferences';
+import { capabilityDefinitionFor } from '../core/capabilityRegistry';
 import type { BoardSnapshot } from '../core/types';
 import { projectWorkflowDraft } from '../core/workflowDraftProjection';
 import type { ResolvedPackageEntryPointTarget } from '../core/packageRegistry';
@@ -42,21 +43,27 @@ export function useWorkflowDraftController(options: WorkflowDraftControllerOptio
         outputPlaceholder: t('workflowDraft.outputPending'),
         composerInput: composer ? {
           mentions: composer.invocation.mentions,
+          inlineValues: composer.invocation.inlineValues ?? [],
           instruction: composer.instructionSlotId && composer.invocation.instruction
             ? { body: composer.invocation.instruction, slotId: composer.instructionSlotId }
             : undefined,
+          parameters: composer.invocation.parameters ?? {},
         } : undefined,
         packageContext: {
           entrypointId: target.entrypoint.entrypointId,
           packageLock: target.packageLock,
         },
         labelsForSkill: (skillId) => textGenerationLabelsForSkill(skillId, t),
-        connectionIdForCapability: (capabilityId) => resolveExecutionConnectionPreference({
-          capabilityId,
-          initialConnectionId: 'codex-app-server',
-          projectId: current.project.projectId,
-          useCase: 'text',
-        }).connectionId,
+        connectionIdForCapability: (capabilityId) => {
+          const definition = capabilityDefinitionFor(capabilityId);
+          const useCase = definition.outputSlots.some((slot) => slot.dataType === 'image') ? 'image' : 'text';
+          return resolveExecutionConnectionPreference({
+            capabilityId,
+            initialConnectionId: 'codex-app-server',
+            projectId: current.project.projectId,
+            useCase,
+          }).connectionId;
+        },
       });
       workflowBlockIds = projection.blockIds;
       workflowGroupId = projection.groupBlock.blockId;

@@ -78,10 +78,10 @@ export interface PackageEntryPointQuery {
 export const storyProductionStarterPackage: RetakePackageManifest = {
   schemaVersion: 1,
   packageId: 'retake.package.story-production-starter',
-  version: '0.2.0',
-  digest: 'sha256:retake-package-story-production-starter-stage-runtime-v2',
+  version: '0.3.0',
+  digest: 'sha256:retake-package-story-production-starter-storyboard-sheet-v1',
   name: 'Retake Story Production Starter',
-  description: 'Built-in screenplay, production-design, and storyboard planning methods with one manual workflow.',
+  description: 'Built-in screenplay, production-design, storyboard planning, and single-unit storyboard-sheet methods.',
   source: { kind: 'builtin' },
   components: {
     skills: [
@@ -110,12 +110,24 @@ export const storyProductionStarterPackage: RetakePackageManifest = {
         version: '0.1.0',
         definitionHash: 'sha256:retake-storyboard-plan-from-production-design-catmeme-v1',
       },
+      {
+        skillId: 'retake.storyboard-sheet.from-unit-plan',
+        version: '0.1.0',
+        definitionHash: 'sha256:retake-storyboard-sheet-from-unit-plan-catmeme-v1',
+      },
     ],
-    workflows: [{
-      workflowDefinitionId: 'retake.workflow.story-to-storyboard',
-      version: '0.2.0',
-      definitionHash: 'sha256:retake-workflow-story-to-storyboard-stage-runtime-v2',
-    }],
+    workflows: [
+      {
+        workflowDefinitionId: 'retake.workflow.story-to-storyboard',
+        version: '0.2.0',
+        definitionHash: 'sha256:retake-workflow-story-to-storyboard-stage-runtime-v2',
+      },
+      {
+        workflowDefinitionId: 'retake.workflow.storyboard-unit-to-sheet',
+        version: '0.1.0',
+        definitionHash: 'sha256:retake-workflow-storyboard-unit-to-sheet-v1',
+      },
+    ],
     agentPresets: [],
     capabilityPlugins: [],
     adapterPlugins: [],
@@ -164,6 +176,15 @@ export const storyProductionStarterPackage: RetakePackageManifest = {
       compatibleStageIds: ['storyboard_previsualization'],
       requiredInputSlotIds: ['screenplay', 'character_bible', 'scene_bible'],
     }),
+    skillEntryPoint({
+      skillId: 'retake.storyboard-sheet.from-unit-plan',
+      capabilityId: 'previs.storyboard_sheet.generate',
+      name: 'Generate storyboard sheet',
+      description: 'Generate visual panel-grid candidates for one explicitly selected storyboard unit.',
+      compatibleStageIds: ['storyboard_previsualization'],
+      requiredInputSlotIds: ['storyboard_plan', 'unit_id'],
+      recommended: true,
+    }),
     {
       schemaVersion: 1,
       entrypointId: 'workflow:retake.workflow.story-to-storyboard',
@@ -175,14 +196,24 @@ export const storyProductionStarterPackage: RetakePackageManifest = {
       requiredInputSlotIds: ['brief'],
       default: true,
     },
+    {
+      schemaVersion: 1,
+      entrypointId: 'workflow:retake.workflow.storyboard-unit-to-sheet',
+      kind: 'workflow',
+      name: 'Storyboard unit to sheet',
+      description: 'Project a manual single-unit storyboard-sheet generation and review workflow.',
+      ref: { workflowDefinitionId: 'retake.workflow.storyboard-unit-to-sheet' },
+      compatibleStageIds: ['storyboard_previsualization'],
+      requiredInputSlotIds: ['storyboard_plan', 'unit_id'],
+    },
   ],
 };
 
 export const storyProductionAgentPackage: RetakePackageManifest = {
   schemaVersion: 1,
   packageId: 'retake.package.story-production-agent',
-  version: '0.1.0',
-  digest: 'sha256:retake-package-story-production-agent-catmeme-v1',
+  version: '0.2.0',
+  digest: 'sha256:retake-package-story-production-agent-storyboard-sheet-v1',
   name: 'Retake Story Production Agent',
   description: 'A bounded AgentPreset for coordinating the built-in story-production target.',
   source: { kind: 'builtin' },

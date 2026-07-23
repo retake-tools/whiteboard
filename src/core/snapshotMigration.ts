@@ -11,6 +11,7 @@ import { displaySlotSizeForGenerationParams, type ImageGenerationParams } from '
 import { isExecutionInputRole } from './inputRoles';
 import { fitImageBlockSize, imageResultColumnGap } from './blockSizing';
 import { ensureExecutionResultGroups, repairGroupRelationships } from './grouping';
+import type { ChangeProposalCommand } from './agentSessionContracts';
 
 type LegacyBlockType = BlockType | 'task' | 'frame';
 type LegacyConnectionKind = ConnectionKind | 'reference' | 'derived_from';
@@ -96,16 +97,22 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
     agentRuntimeEvents: legacy.agentRuntimeEvents ?? [],
     changeProposals: (legacy.changeProposals ?? []).map((proposal) => ({
       ...proposal,
-      proposedCommand: proposal.proposedCommand ?? {
-        kind: 'unsupported' as const,
-        reason: 'Legacy Proposal has no registered Application Service command.',
-      },
+      proposedCommand: migrateChangeProposalCommand(proposal.proposedCommand),
     })),
     changeDecisions: legacy.changeDecisions ?? [],
     workflowRuns: (legacy.workflowRuns ?? []).map((run) => ({
       ...run,
       gateDefinitionLocks: run.gateDefinitionLocks ?? [],
       gateEvaluationIds: run.gateEvaluationIds ?? [],
+      inputBindings: (run.inputBindings ?? []).map((binding) => {
+        const legacyBinding = binding as typeof binding & { blockId?: string };
+        return {
+          workflowInputSlotId: binding.workflowInputSlotId,
+          values: binding.values ?? (legacyBinding.blockId
+            ? [{ kind: 'block' as const, blockId: legacyBinding.blockId }]
+            : []),
+        };
+      }),
       outputSlotLocks: run.outputSlotLocks ?? [],
     })),
     workflowStepRuns: (legacy.workflowStepRuns ?? []).map((step) => ({
@@ -114,6 +121,16 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
       outputArtifactBindings: step.outputArtifactBindings ?? [],
       outputSlotIds: step.outputSlotIds ?? [],
       outputAcceptancePolicy: step.outputAcceptancePolicy ?? 'automatic',
+      resolvedInputBindings: (step.resolvedInputBindings ?? []).map((binding) => {
+        const legacyBinding = binding as typeof binding & { blockId?: string };
+        return {
+          inputSlotId: binding.inputSlotId,
+          source: binding.source,
+          values: binding.values ?? (legacyBinding.blockId
+            ? [{ kind: 'block' as const, blockId: legacyBinding.blockId }]
+            : []),
+        };
+      }),
     })),
     workflowGateEvaluations: legacy.workflowGateEvaluations ?? [],
     workflowApprovalRequests: legacy.workflowApprovalRequests ?? [],
@@ -123,6 +140,26 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
   ensureExecutionResultGroups(migratedSnapshot);
   if ((legacy.groupMigrationVersion ?? 0) < 1) migratedSnapshot.groupMigrationVersion = 1;
   return migratedSnapshot;
+}
+
+function migrateChangeProposalCommand(
+  command: ChangeProposalCommand | undefined,
+): ChangeProposalCommand {
+  if (!command) {
+    return {
+      kind: 'unsupported',
+      reason: 'Legacy Proposal has no registered Application Service command.',
+    };
+  }
+  if (command.kind !== 'package_entrypoint.instantiate') return command;
+  return {
+    ...command,
+    invocation: {
+      ...command.invocation,
+      inlineValues: command.invocation.inlineValues ?? [],
+      parameters: command.invocation.parameters ?? {},
+    },
+  };
 }
 
 function repairImageAssetBlockSizes(

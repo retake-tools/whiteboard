@@ -118,7 +118,13 @@ const connectors: ExecutionConnectorDefinition[] = [
     installStatus: 'installed',
     connectionMode: 'multiple',
     requiresCredential: false,
-    supportedCapabilityIds: [...textDocumentCapabilityIds, 'image.annotation_edit', 'image.image_to_image', 'image.text_to_image'],
+    supportedCapabilityIds: [
+      ...textDocumentCapabilityIds,
+      'image.annotation_edit',
+      'image.image_to_image',
+      'image.text_to_image',
+      'previs.storyboard_sheet.generate',
+    ],
     defaultUseCases: ['text', 'image'],
   },
   {

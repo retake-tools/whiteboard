@@ -11,7 +11,11 @@ import type {
   ChangeProposalRecord,
 } from './agentSessionContracts';
 import { createId, nowIso } from './id';
-import { listPackageComposerMentionOptions, packageComposerMentionId } from './packageComposer';
+import {
+  listPackageComposerInlineInputOptions,
+  listPackageComposerMentionOptions,
+  packageComposerMentionId,
+} from './packageComposer';
 import { buildPackageEntrypointInstantiationCommand } from './packageEntrypointDraftApplication';
 import { resolvePackageEntryPoint } from './packageRegistry';
 import type { BoardSnapshot } from './types';
@@ -72,7 +76,7 @@ export function appendAgentUserMessage(
   const content = input.content.trim();
   const contextRefs = structuredClone(input.contextRefs ?? []);
   const hasTypedInput = contextRefs.some((ref) => ref.kind === 'entrypoint')
-    && contextRefs.some((ref) => ref.kind === 'block' || ref.kind === 'asset');
+    && contextRefs.some((ref) => ref.kind === 'block' || ref.kind === 'asset' || ref.kind === 'inline');
   if (!content && !hasTypedInput) throw new Error('Agent message cannot be empty.');
   assertContextRefs(snapshot, session, contextRefs);
   const message: AgentMessageRecord = {
@@ -194,6 +198,7 @@ export function agentRuntimeTurnContext(
   }
   const entrypoint = message.contextRefs.find((ref) => ref.kind === 'entrypoint');
   const mentions = message.contextRefs.filter((ref) => ref.kind === 'block' || ref.kind === 'asset');
+  const inlineValues = message.contextRefs.filter((ref) => ref.kind === 'inline');
   const run = session.activeAgentRunId ? requireScopedAgentRun(snapshot, session.activeAgentRunId) : undefined;
   return {
     ...(run ? {
@@ -232,6 +237,7 @@ export function agentRuntimeTurnContext(
       .slice(-20)
       .map(({ content, role }) => ({ content, role })),
     mentions,
+    inlineValues,
     projectId: snapshot.project.projectId,
     userMessage: message.content,
   };
@@ -374,11 +380,15 @@ function assertContextRefs(
     throw new Error(`Agent message EntryPoint ref is not installed: ${entrypointId}`);
   }
   const mentionRefs = refs.filter((ref) => ref.kind === 'block' || ref.kind === 'asset');
-  if (mentionRefs.length > 0 && !entrypointId) {
-    throw new Error('Agent message @ refs require one typed EntryPoint context.');
+  const inlineRefs = refs.filter((ref) => ref.kind === 'inline');
+  if ((mentionRefs.length > 0 || inlineRefs.length > 0) && !entrypointId) {
+    throw new Error('Agent message typed inputs require one EntryPoint context.');
   }
   const compatibleMentionIds = entrypointId
     ? new Set(listPackageComposerMentionOptions(snapshot, entrypointId).map((option) => option.mentionId))
+    : new Set<string>();
+  const compatibleInlineSlotIds = entrypointId
+    ? new Set(listPackageComposerInlineInputOptions(entrypointId).map((option) => option.slotId))
     : new Set<string>();
   for (const ref of refs) {
     if (ref.kind === 'agent_run') {
@@ -396,6 +406,10 @@ function assertContextRefs(
       }
       if (!compatibleMentionIds.has(packageComposerMentionId(ref))) {
         throw new Error('Agent message Asset ref is incompatible with the typed EntryPoint.');
+      }
+    } else if (ref.kind === 'inline') {
+      if (!compatibleInlineSlotIds.has(ref.slotId) || !ref.value.trim()) {
+        throw new Error('Agent message inline input is incompatible with the typed EntryPoint.');
       }
     }
   }

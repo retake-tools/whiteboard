@@ -21,6 +21,12 @@ import {
 } from './local-store/execution-store';
 import { loadSnapshot, saveSnapshot } from './local-store/snapshot-store';
 import { createSerialTaskQueue } from './serial-task-queue';
+import {
+  assertStoryboardUnitExists,
+  normalizeStoryboardUnitId,
+  StoryboardSheetContractError,
+  storyboardSheetCapabilityId,
+} from '../src/core/storyboardSheetContracts';
 
 interface CodexAppServerImageDependencies {
   runTurn?: typeof runCodexAppServerTurn;
@@ -87,14 +93,17 @@ async function executeCodexImageRun(
   const initial = await loadSnapshot(execution.projectId, execution.boardId);
   const inputAssignments = imageExecutionInputAssignments(execution);
   const localImagePaths = await executionInputImagePaths(initial, inputAssignments);
+  const storyboardContext = execution.capabilityId === storyboardSheetCapabilityId
+    ? await storyboardSheetPromptContext(initial, execution)
+    : '';
   const requests = resultBlockIds.map((outputBlockId) => ({
     index: execution.outputBlockIds.indexOf(outputBlockId),
     outputBlockId,
-    prompt: createProviderImagePrompt(execution, inputAssignments, {
+    prompt: `${createProviderImagePrompt(execution, inputAssignments, {
       dialect: 'codex_imagegen',
       variantIndex: execution.outputBlockIds.indexOf(outputBlockId),
       variantCount: execution.outputBlockIds.length,
-    }),
+    })}${storyboardContext}`,
   }));
   await recordExecutionRequestPrompts({
     projectId: execution.projectId,
@@ -146,8 +155,12 @@ async function executeCodexImageRun(
         executionId: execution.executionId,
         assetId: asset.assetId,
         resultBlockId,
-        title: execution.outputBlockIds.length > 1 ? `Codex image ${index + 1}` : 'Codex image',
-        body: 'Generated through Codex App Server and imported into Retake.',
+        title: execution.capabilityId === storyboardSheetCapabilityId
+          ? storyboardSheetResultTitle(execution, index)
+          : execution.outputBlockIds.length > 1 ? `Codex image ${index + 1}` : 'Codex image',
+        body: execution.capabilityId === storyboardSheetCapabilityId
+          ? 'Generated as a same-unit Storyboard Sheet candidate through Codex App Server.'
+          : 'Generated through Codex App Server and imported into Retake.',
       });
       publishExecutionEvent(execution.executionId, { type: 'execution.snapshot', snapshot: updated.snapshot });
     });
@@ -158,6 +171,58 @@ async function executeCodexImageRun(
       ? failed.reason
       : new Error('Codex App Server image generation failed for one or more candidates.');
   }
+}
+
+function storyboardSheetResultTitle(execution: ExecutionRecord, index: number): string {
+  const unitBinding = execution.inputBindingsSnapshot?.find((binding) => binding.slotId === 'unit_id');
+  const unitValue = unitBinding?.values.find((value) => value.kind === 'inline');
+  const unitId = normalizeStoryboardUnitId(unitValue?.kind === 'inline' ? unitValue.value : undefined);
+  return execution.outputBlockIds.length > 1
+    ? `Storyboard sheet · ${unitId} · same-unit candidate ${index + 1}/${execution.outputBlockIds.length}`
+    : `Storyboard sheet · ${unitId}`;
+}
+
+async function storyboardSheetPromptContext(
+  snapshot: BoardSnapshot,
+  execution: ExecutionRecord,
+): Promise<string> {
+  const unitBinding = execution.inputBindingsSnapshot?.find((binding) => binding.slotId === 'unit_id');
+  const unitValue = unitBinding?.values.find((value) => value.kind === 'inline');
+  const unitId = normalizeStoryboardUnitId(unitValue?.kind === 'inline' ? unitValue.value : undefined);
+  const planBinding = execution.inputBindingsSnapshot?.find(
+    (binding) => binding.slotId === 'storyboard_plan',
+  );
+  const planValue = planBinding?.values[0];
+  const planAssetId = planValue?.kind === 'asset'
+    ? planValue.assetId
+    : planValue && 'blockId' in planValue && planValue.blockId
+      ? snapshot.blocks.find((block) => block.blockId === planValue.blockId)?.data.assetId
+      : undefined;
+  if (typeof planAssetId !== 'string') {
+    throw new StoryboardSheetContractError(
+      'storyboard_plan_missing',
+      'Storyboard Sheet execution is missing an asset-backed Storyboard Plan.',
+    );
+  }
+  const planAsset = snapshot.assets.find(
+    (asset) => asset.assetId === planAssetId && asset.kind === 'document',
+  );
+  if (!planAsset) {
+    throw new StoryboardSheetContractError(
+      'storyboard_plan_missing',
+      `Storyboard Plan Asset not found: ${planAssetId}`,
+    );
+  }
+  const planPath = await resolveAssetStoragePath(snapshot.project.projectId, planAsset.assetId);
+  const planMarkdown = await readFile(planPath, 'utf8');
+  if (!planMarkdown.trim() || Buffer.byteLength(planMarkdown, 'utf8') > 2 * 1024 * 1024) {
+    throw new StoryboardSheetContractError(
+      'storyboard_plan_unreadable',
+      'Storyboard Plan is empty or too large.',
+    );
+  }
+  assertStoryboardUnitExists(planMarkdown, unitId);
+  return `\n\nAuthoritative Storyboard Plan:\n${planMarkdown}\n\nRender only the exact Unit ID ${unitId}.`;
 }
 
 async function settleIncompleteRetry(input: {

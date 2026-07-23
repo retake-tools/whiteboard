@@ -21,6 +21,8 @@ import type { ResolvedPackageEntryPointTarget } from '../core/packageRegistry';
 import type { ResolvedPackageComposerInvocation } from '../core/packageComposer';
 import type { useI18n } from '../i18n';
 import { textGenerationLabelsForSkill } from './skillTextLabels';
+import { createDraftStoryboardSheetOperation } from '../core/storyboardSheetOperations';
+import { storyboardSheetCapabilityId } from '../core/storyboardSheetContracts';
 
 interface TextGenerationControllerOptions {
   centerWorkflowBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
@@ -75,6 +77,29 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
     let workflowBlockIds: string[] = [];
     const nextSnapshot = updateSnapshot((current) => {
       const skillLabels = textGenerationLabelsForSkill(skillId, t);
+      const explicitInputBindings = composer?.invocation.mentions.map((mention) => mention.kind === 'block'
+        ? { kind: 'block' as const, blockId: mention.blockId, inputSlotId: mention.slotId }
+        : { kind: 'asset' as const, assetId: mention.assetId, inputSlotId: mention.slotId });
+      if (target.capabilityLock.capabilityId === storyboardSheetCapabilityId) {
+        const unitId = composer?.invocation.inlineValues?.find(
+          (value) => value.slotId === 'unit_id',
+        )?.value;
+        const draft = createDraftStoryboardSheetOperation(current, {
+          connectionId: preferredImageConnection(current, target.capabilityLock.capabilityId),
+          explicitInputBindings,
+          labels: skillLabels,
+          packageContext: {
+            entrypointId: target.entrypoint.entrypointId,
+            packageLock: target.packageLock,
+          },
+          parameters: composer?.invocation.parameters,
+          selectedBlockIds: composer ? [] : selectedBlockIdsRef.current,
+          unitId,
+        });
+        workflowBlockIds = [...draft.inputBlocks.map((block) => block.blockId), draft.operationBlock.blockId];
+        centerWorkflowBlocks(current, workflowBlockIds);
+        return current;
+      }
       const draft = createDraftSkillOperation(current, {
         ...skillLabels,
         connectionId: preferredTextConnection(current, target.capabilityLock.capabilityId),
@@ -82,9 +107,7 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
           entrypointId: target.entrypoint.entrypointId,
           packageLock: target.packageLock,
         },
-        explicitInputBindings: composer?.invocation.mentions.map((mention) => mention.kind === 'block'
-          ? { kind: 'block' as const, blockId: mention.blockId, inputSlotId: mention.slotId }
-          : { kind: 'asset' as const, assetId: mention.assetId, inputSlotId: mention.slotId }),
+        explicitInputBindings,
         initialText: composer?.instructionSlotId && composer.invocation.instruction
           ? { body: composer.invocation.instruction, inputSlotId: composer.instructionSlotId }
           : undefined,
@@ -279,6 +302,15 @@ function preferredTextConnection(snapshot: BoardSnapshot, capabilityId = 'text.g
     initialConnectionId: 'codex-app-server',
     projectId: snapshot.project.projectId,
     useCase: 'text',
+  }).connectionId;
+}
+
+function preferredImageConnection(snapshot: BoardSnapshot, capabilityId: string): string | undefined {
+  return resolveExecutionConnectionPreference({
+    capabilityId,
+    initialConnectionId: 'codex-app-server',
+    projectId: snapshot.project.projectId,
+    useCase: 'image',
   }).connectionId;
 }
 

@@ -1,4 +1,8 @@
-import type { CapabilityDefinitionLock, SkillDefinitionLock } from './capabilityContracts';
+import type {
+  CapabilityBindingValue,
+  CapabilityDefinitionLock,
+  SkillDefinitionLock,
+} from './capabilityContracts';
 import type { PackageLock } from './packageContracts';
 import type {
   WorkflowBindingSource,
@@ -42,14 +46,14 @@ export interface WorkflowDefinitionLock {
 }
 
 export interface WorkflowRunInputBinding {
-  blockId: string;
   workflowInputSlotId: string;
+  values: CapabilityBindingValue[];
 }
 
 export interface WorkflowStepResolvedInputBinding {
-  blockId: string;
   inputSlotId: string;
   source: WorkflowBindingSource;
+  values: CapabilityBindingValue[];
 }
 
 export interface WorkflowStepOutputArtifactBinding {
@@ -140,6 +144,7 @@ export interface WorkflowStepRunRecord {
   outputArtifactBindings: WorkflowStepOutputArtifactBinding[];
   outputAssetIds: string[];
   outputBlockIds: string[];
+  parameters?: Record<string, unknown>;
   optional?: boolean;
   recordVersion: number;
   resolvedInputBindings: WorkflowStepResolvedInputBinding[];

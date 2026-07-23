@@ -1,5 +1,7 @@
 import { operationReadinessFor } from './capabilities';
 import { capabilityDefinitionFor } from './capabilityRegistry';
+import { capabilityBindingValueForBlock } from './artifactLibrary';
+import type { CapabilityBindingValue } from './capabilityContracts';
 import { touchBoard } from './blockFactory';
 import {
   configurationFingerprint,
@@ -98,17 +100,34 @@ export function createWorkflowRunForGroup(
     ) {
       throw new Error(`Workflow Operation lock mismatch: ${step.stepId}`);
     }
+    const projectedBindings = projectedStepInputBindings(operationBlock);
     const resolvedInputBindings = step.inputBindings.map((binding) => {
-      const edge = snapshot.edges.find(
-        (candidate) => candidate.kind === 'execution_input'
-          && candidate.targetBlockId === operationBlock.blockId
-          && candidate.inputSlotId === binding.inputSlotId,
+      const projected = projectedBindings.find(
+        (candidate) => candidate.inputSlotId === binding.inputSlotId,
       );
-      if (!edge) throw new Error(`Workflow input projection is missing: ${step.stepId}.${binding.inputSlotId}`);
+      const edgeValues = snapshot.edges
+        .filter(
+          (candidate) => candidate.kind === 'execution_input'
+            && candidate.targetBlockId === operationBlock.blockId
+            && candidate.inputSlotId === binding.inputSlotId,
+        )
+        .flatMap((edge) => {
+          const block = snapshot.blocks.find((candidate) => candidate.blockId === edge.sourceBlockId);
+          return block ? [capabilityBindingValueForBlock(block)] : [];
+        });
+      const values = projected?.values.length ? projected.values : edgeValues;
+      const capability = capabilityDefinitionFor(step.capabilityLock.capabilityId);
+      const slot = capability.inputSlots.find((candidate) => candidate.slotId === binding.inputSlotId);
+      if (slot?.required && values.length === 0) {
+        throw new Error(`Workflow input projection is missing: ${step.stepId}.${binding.inputSlotId}`);
+      }
+      if (slot?.cardinality !== 'many' && values.length > 1) {
+        throw new Error(`Workflow input projection has too many values: ${step.stepId}.${binding.inputSlotId}`);
+      }
       return {
-        blockId: edge.sourceBlockId,
         inputSlotId: binding.inputSlotId,
         source: structuredClone(binding.source),
+        values: structuredClone(values),
       };
     });
     const outputBlockIds = snapshot.edges
@@ -128,6 +147,7 @@ export function createWorkflowRunForGroup(
       resolvedInputBindings,
       outputSlotIds: [...step.outputSlots],
       outputBlockIds,
+      parameters: objectRecord(operationBlock.data.workflowParameters),
       executionIds: [],
       acceptedOutputAssetIds: [],
       outputAcceptancePolicy: step.outputAcceptancePolicy ?? 'automatic',
@@ -142,10 +162,22 @@ export function createWorkflowRunForGroup(
       updatedAt: createdAt,
     };
   });
+  const projectedWorkflowBindings = projectedRunInputBindings(group);
   const inputBindings = definition.inputSlots.map((slot) => {
-    const block = projectionBlocks.find((candidate) => candidate.data.workflowInputSlotId === slot.slotId);
-    if (!block) throw new Error(`Workflow input Block projection is missing: ${slot.slotId}`);
-    return { workflowInputSlotId: slot.slotId, blockId: block.blockId };
+    const projected = projectedWorkflowBindings.find(
+      (candidate) => candidate.workflowInputSlotId === slot.slotId,
+    );
+    const blockValues = projectionBlocks
+      .filter((candidate) => candidate.data.workflowInputSlotId === slot.slotId)
+      .map(capabilityBindingValueForBlock);
+    const values = projected?.values.length ? projected.values : blockValues;
+    if (slot.required && values.length === 0) {
+      throw new Error(`Workflow input projection is missing: ${slot.slotId}`);
+    }
+    if (slot.cardinality !== 'many' && values.length > 1) {
+      throw new Error(`Workflow input projection has too many values: ${slot.slotId}`);
+    }
+    return { workflowInputSlotId: slot.slotId, values: structuredClone(values) };
   });
   const outputSlotLocks = definition.outputSlots.map((output) => {
     const step = definition.steps.find((candidate) => candidate.stepId === output.source.stepId);
@@ -275,7 +307,7 @@ export function attachWorkflowExecution(
   execution.stepRunId = view.record.stepRunId;
   view.record.executionIds = [...view.record.executionIds, execution.executionId];
   view.record.outputArtifactBindings = [];
-  if (view.record.outputAcceptancePolicy === 'manual_selection') {
+  if (view.record.outputAcceptancePolicy !== 'automatic') {
     view.record.acceptedOutputAssetIds = [];
     view.record.acceptedAt = undefined;
     view.record.acceptedBy = undefined;
@@ -304,7 +336,7 @@ export function acceptWorkflowStepOutputs(
   if (record.recordVersion !== input.expectedStepRunVersion) {
     throw new Error(`Workflow StepRun version conflict: ${input.stepRunId}`);
   }
-  if (record.outputAcceptancePolicy !== 'manual_selection') {
+  if (record.outputAcceptancePolicy === 'automatic') {
     throw new Error(`Workflow Step output selection is not enabled: ${record.stepId}`);
   }
   const run = (snapshot.workflowRuns ?? []).find(
@@ -325,6 +357,9 @@ export function acceptWorkflowStepOutputs(
   const acceptedOutputAssetIds = unique(input.acceptedOutputAssetIds);
   if (acceptedOutputAssetIds.length === 0) {
     throw new Error('Workflow Step output selection requires at least one Asset.');
+  }
+  if (record.outputAcceptancePolicy === 'manual_single' && acceptedOutputAssetIds.length !== 1) {
+    throw new Error('Workflow Step output selection requires exactly one Asset.');
   }
   const executionById = new Map(
     record.executionIds.flatMap((executionId) => {
@@ -488,7 +523,7 @@ function projectStepView(
   if (latest?.status === 'queued' || latest?.status === 'running' || latest?.status === 'failed' || latest?.status === 'canceled') {
     status = latest.status;
   } else if (latest?.status === 'succeeded') {
-    status = record.outputAcceptancePolicy === 'manual_selection' && !hasValidAcceptedOutputs(snapshot, record)
+    status = record.outputAcceptancePolicy !== 'automatic' && !hasValidAcceptedOutputs(snapshot, record)
       ? 'waiting_selection'
       : 'succeeded';
     const operation = snapshot.blocks.find((block) => block.blockId === record.operationBlockId && block.type === 'operation');
@@ -571,7 +606,7 @@ function applyWorkflowStepProjection(
 ): void {
   for (const projected of view.steps) {
     const record = projected.record;
-    if (record.outputAcceptancePolicy === 'manual_selection') {
+    if (record.outputAcceptancePolicy !== 'automatic') {
       updateSelectedOutputMarkers(snapshot, record);
     }
     const outputAssetIds = unique(record.executionIds.flatMap((executionId) =>
@@ -700,24 +735,108 @@ function packageContextFromGroup(group: BlockRecord): {
 
 function workflowStepInputFingerprint(snapshot: BoardSnapshot, step: WorkflowStepRunRecord): string {
   const blockById = new Map(snapshot.blocks.map((block) => [block.blockId, block]));
-  const value = JSON.stringify(step.resolvedInputBindings.map((binding) => {
-    const block = blockById.get(binding.blockId);
-    return {
+  const value = JSON.stringify({
+    parameters: step.parameters ?? {},
+    inputs: step.resolvedInputBindings.map((binding) => ({
       inputSlotId: binding.inputSlotId,
-      blockId: binding.blockId,
-      type: block?.type,
-      body: typeof block?.data.body === 'string' ? block.data.body : undefined,
-      assetId: typeof block?.data.assetId === 'string' ? block.data.assetId : undefined,
-      sourceExecutionId: typeof block?.data.sourceExecutionId === 'string' ? block.data.sourceExecutionId : undefined,
-      documentKind: typeof block?.data.documentKind === 'string' ? block.data.documentKind : undefined,
-    };
-  }));
+      values: binding.values.map((bindingValue) => {
+        if (bindingValue.kind === 'inline') return { kind: 'inline', value: bindingValue.value };
+        const blockId = bindingValue.blockId;
+        const block = blockId ? blockById.get(blockId) : undefined;
+        return {
+          ...bindingValue,
+          type: block?.type,
+          body: typeof block?.data.body === 'string' ? block.data.body : undefined,
+          assetId: typeof block?.data.assetId === 'string' ? block.data.assetId : undefined,
+          sourceExecutionId: typeof block?.data.sourceExecutionId === 'string' ? block.data.sourceExecutionId : undefined,
+          documentKind: typeof block?.data.documentKind === 'string' ? block.data.documentKind : undefined,
+        };
+      }),
+    })),
+  });
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
     hash ^= value.charCodeAt(index);
     hash = Math.imul(hash, 16777619);
   }
   return `input_${(hash >>> 0).toString(16).padStart(8, '0')}`;
+}
+
+function projectedRunInputBindings(group: BlockRecord): WorkflowRunRecord['inputBindings'] {
+  const value = group.data.workflowInputBindings;
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const candidate = entry as { workflowInputSlotId?: unknown; values?: unknown };
+    if (typeof candidate.workflowInputSlotId !== 'string') return [];
+    return [{
+      workflowInputSlotId: candidate.workflowInputSlotId,
+      values: capabilityBindingValues(candidate.values),
+    }];
+  });
+}
+
+function projectedStepInputBindings(
+  operationBlock: BlockRecord,
+): WorkflowStepRunRecord['resolvedInputBindings'] {
+  const value = operationBlock.data.workflowInputBindings;
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const candidate = entry as {
+      inputSlotId?: unknown;
+      source?: unknown;
+      values?: unknown;
+    };
+    if (typeof candidate.inputSlotId !== 'string' || !isWorkflowBindingSource(candidate.source)) return [];
+    return [{
+      inputSlotId: candidate.inputSlotId,
+      source: candidate.source,
+      values: capabilityBindingValues(candidate.values),
+    }];
+  });
+}
+
+function capabilityBindingValues(value: unknown): CapabilityBindingValue[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry): CapabilityBindingValue[] => {
+    if (!entry || typeof entry !== 'object') return [];
+    const candidate = entry as Record<string, unknown>;
+    if (candidate.kind === 'inline') return [{ kind: 'inline', value: structuredClone(candidate.value) }];
+    if (candidate.kind === 'block' && typeof candidate.blockId === 'string') {
+      return [{ kind: 'block', blockId: candidate.blockId }];
+    }
+    if (candidate.kind === 'asset' && typeof candidate.assetId === 'string') {
+      return [{
+        kind: 'asset',
+        assetId: candidate.assetId,
+        ...(typeof candidate.blockId === 'string' ? { blockId: candidate.blockId } : {}),
+      }];
+    }
+    if (candidate.kind === 'artifact_revision' && typeof candidate.artifactRevisionId === 'string') {
+      return [{
+        kind: 'artifact_revision',
+        artifactRevisionId: candidate.artifactRevisionId,
+        ...(typeof candidate.blockId === 'string' ? { blockId: candidate.blockId } : {}),
+      }];
+    }
+    return [];
+  });
+}
+
+function isWorkflowBindingSource(value: unknown): value is WorkflowStepRunRecord['resolvedInputBindings'][number]['source'] {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return candidate.kind === 'workflow_input' && typeof candidate.slotId === 'string'
+    || candidate.kind === 'step_output'
+      && typeof candidate.stepId === 'string'
+      && typeof candidate.outputSlotId === 'string';
+}
+
+function objectRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? structuredClone(value as Record<string, unknown>)
+    : {};
 }
 
 function arraysEqual(left: string[], right: string[]): boolean {

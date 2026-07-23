@@ -11,6 +11,7 @@ import {
   type SwitchableOperationMode,
 } from '../core/imageOperations';
 import { nowIso } from '../core/id';
+import { capabilityDefinitionFor } from '../core/capabilityRegistry';
 
 export function absoluteFlowNodePositions(flowNodes: readonly RetakeNode[]): Map<string, { x: number; y: number }> {
   const nodeById = new Map(flowNodes.map((node) => [node.id, node]));
@@ -231,6 +232,13 @@ export function operationAllowsInputType(
 ): boolean {
   const capabilityId =
     typeof operationBlock.data.capabilityId === 'string' ? operationBlock.data.capabilityId : 'image.text_to_image';
+  try {
+    const definition = capabilityDefinitionFor(capabilityId);
+    const dataType = type === 'text' ? 'text' : type;
+    return definition.inputSlots.some((slot) => slot.bindingKinds.includes('block') && slot.dataTypes.includes(dataType));
+  } catch {
+    // Legacy schemas remain the fallback for older capabilities.
+  }
   return schemaForCapability(capabilityId).inputContracts.some(
     (contract) => contract.source === 'block' && contract.type === type,
   );

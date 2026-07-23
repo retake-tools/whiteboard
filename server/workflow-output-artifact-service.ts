@@ -11,6 +11,12 @@ import type {
 } from '../src/core/workflowRuntimeContracts';
 import { workflowRunViewForId } from '../src/core/workflowRuntime';
 import {
+  normalizeStoryboardSheetGenerationParameters,
+  normalizeStoryboardUnitId,
+  storyboardSheetArtifactMetadata,
+  type StoryboardSheetArtifactRevisionMetadata,
+} from '../src/core/storyboardSheetContracts';
+import {
   createOrAdvanceArtifact,
   readProjectArtifacts,
 } from './local-store/artifact-store';
@@ -47,6 +53,8 @@ interface MaterializationCandidate {
   executionIds: string[];
   outputSlotId: string;
   primaryAssetId: string;
+  metadata?: StoryboardSheetArtifactRevisionMetadata;
+  sourceArtifactRevisionIds: string[];
   stepRunId: string;
   workflowOutputSlotId: string;
   workflowRunId: string;
@@ -131,12 +139,13 @@ export async function materializeWorkflowOutputArtifacts(
             expectedCurrentRevisionId: currentArtifact?.currentRevisionId ?? null,
             idempotencyKey: materializationIdempotencyKey(candidate),
             libraryVisibility: 'hidden',
+            ...(candidate.metadata ? { metadata: candidate.metadata } : {}),
             primaryAssetId: candidate.primaryAssetId,
             projectId: input.projectId,
             schemaVersion: 1,
             scope: 'workflow_run',
             semanticKey,
-            sourceArtifactRevisionIds: [],
+            sourceArtifactRevisionIds: candidate.sourceArtifactRevisionIds,
             sourceAssetIds: unique(executions.flatMap((execution) => execution.inputAssetIds ?? [])),
             sourceContext: {
               boardId: input.boardId,
@@ -280,7 +289,7 @@ function resolveTriggerScope(
   if (
     trigger.kind === 'output_accepted'
     && (
-      step.outputAcceptancePolicy !== 'manual_selection'
+      step.outputAcceptancePolicy === 'automatic'
       || step.acceptedOutputAssetIds.length === 0
     )
   ) return undefined;
@@ -302,12 +311,25 @@ function materializationCandidates(
   return relevantOutputs.flatMap((output): MaterializationCandidate[] => {
     const resolved = outputAssets(snapshot, step, output.outputSlotId);
     if (resolved.assetIds.length === 0 || resolved.executionIds.length === 0) return [];
+    const executions = resolved.executionIds.flatMap((executionId) => {
+      const execution = snapshot.executions.find((candidate) => candidate.executionId === executionId);
+      return execution ? [execution] : [];
+    });
+    const metadata = output.artifactType === 'storyboard_sheet'
+      ? storyboardSheetMetadataForExecution(executions.at(-1))
+      : undefined;
     return [{
       artifactType: output.artifactType,
       assetIds: resolved.assetIds,
       executionIds: resolved.executionIds,
       outputSlotId: output.outputSlotId,
       primaryAssetId: resolved.assetIds[0],
+      ...(metadata ? { metadata } : {}),
+      sourceArtifactRevisionIds: unique(executions.flatMap((execution) =>
+        execution.inputBindingsSnapshot?.flatMap((binding) => binding.values.flatMap((value) =>
+          value.kind === 'artifact_revision' ? [value.artifactRevisionId] : []
+        )) ?? [],
+      )),
       stepRunId: step.stepRunId,
       workflowOutputSlotId: output.workflowOutputSlotId,
       workflowRunId: workflowRun.workflowRunId,
@@ -404,10 +426,12 @@ function materializationIdempotencyKey(candidate: MaterializationCandidate): str
   const payload = JSON.stringify({
     assetIds: candidate.assetIds,
     executionIds: candidate.executionIds,
+    metadata: candidate.metadata,
     outputSlotId: candidate.outputSlotId,
     stepRunId: candidate.stepRunId,
     workflowOutputSlotId: candidate.workflowOutputSlotId,
     workflowRunId: candidate.workflowRunId,
+    sourceArtifactRevisionIds: candidate.sourceArtifactRevisionIds,
   });
   return `workflow-output:${createHash('sha256').update(payload).digest('hex')}`;
 }
@@ -420,7 +444,9 @@ function sameCandidate(left: MaterializationCandidate, right: MaterializationCan
     && left.workflowOutputSlotId === right.workflowOutputSlotId
     && left.workflowRunId === right.workflowRunId
     && arraysEqual(left.assetIds, right.assetIds)
-    && arraysEqual(left.executionIds, right.executionIds);
+    && arraysEqual(left.executionIds, right.executionIds)
+    && arraysEqual(left.sourceArtifactRevisionIds, right.sourceArtifactRevisionIds)
+    && JSON.stringify(left.metadata) === JSON.stringify(right.metadata);
 }
 
 function revisionMatchesCandidate(
@@ -433,10 +459,35 @@ function revisionMatchesCandidate(
     && revision.sourceContext?.workflowOutputSlotId === candidate.workflowOutputSlotId
     && revision.sourceContext?.workflowRunId === candidate.workflowRunId
     && arraysEqual(revision.assetIds, candidate.assetIds)
+    && arraysEqual(revision.sourceArtifactRevisionIds, candidate.sourceArtifactRevisionIds)
+    && JSON.stringify(revision.metadata) === JSON.stringify(candidate.metadata)
     && (
       candidate.executionIds.length !== 1
       || revision.createdByExecutionId === candidate.executionIds[0]
     );
+}
+
+function storyboardSheetMetadataForExecution(
+  execution: ExecutionRecord | undefined,
+): StoryboardSheetArtifactRevisionMetadata {
+  if (!execution) throw new Error('Storyboard Sheet Artifact requires one source Execution.');
+  const unitBinding = execution.inputBindingsSnapshot?.find((binding) => binding.slotId === 'unit_id');
+  const inlineUnit = unitBinding?.values.find(
+    (value): value is Extract<typeof value, { kind: 'inline' }> => value.kind === 'inline',
+  );
+  const parameters = normalizeStoryboardSheetGenerationParameters(
+    objectRecord(execution.params?.storyboardSheet),
+  );
+  return storyboardSheetArtifactMetadata({
+    unitId: normalizeStoryboardUnitId(inlineUnit?.value),
+    parameters,
+  });
+}
+
+function objectRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
 }
 
 function arraysEqual(left: string[], right: string[]): boolean {

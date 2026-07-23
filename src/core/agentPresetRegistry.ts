@@ -36,8 +36,9 @@ export const storyProductionDirectorPreset: AgentPresetDefinition = {
     'design.character.define',
     'design.scene.define',
     'previs.storyboard.plan',
+    'previs.storyboard_sheet.generate',
   ],
-  definitionHash: 'sha256:retake-agent-story-production-director-catmeme-v1',
+  definitionHash: 'sha256:retake-agent-story-production-director-storyboard-sheet-v1',
   description: 'Advance the locked story-production target one ready step at a time and stop at missing facts or gates.',
   instructions: `Act as the bounded Story Production Director for the current Retake AgentRun.
 
@@ -74,6 +75,7 @@ When inputs are missing, a human Gate is waiting, output provenance is unclear, 
       'retake.character-bible.from-screenplay',
       'retake.scene-bible.from-screenplay',
       'retake.storyboard-plan.from-production-design',
+      'retake.storyboard-sheet.from-unit-plan',
     ],
     mode: 'allow_list',
   },
@@ -87,7 +89,7 @@ When inputs are missing, a human Gate is waiting, output provenance is unclear, 
   toolPolicy: {
     allowedToolPermissions: ['retake.read', 'retake.execute_capability'],
   },
-  version: '0.1.0',
+  version: '0.2.0',
 };
 
 export const builtInAgentPresetRegistry = createAgentPresetRegistry([

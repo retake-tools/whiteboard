@@ -1,9 +1,11 @@
 import { ArrowUp, AtSign, ChevronDown, Search, Sparkles, X } from 'lucide-react';
 import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactElement } from 'react';
 import {
+  listPackageComposerInlineInputOptions,
   listPackageComposerMentionOptions,
   packageComposerMentionId,
   type PackageComposerMention,
+  type PackageComposerInlineValue,
   type PackageComposerMentionOption,
 } from '../core/packageComposer';
 import { listPackageEntryPoints, type RegisteredPackageEntryPoint } from '../core/packageRegistry';
@@ -21,7 +23,12 @@ export function AgentWorkspaceComposer({
   snapshot,
 }: {
   disabled?: boolean;
-  onSubmit: (input: { content: string; entrypointId?: string; mentions: PackageComposerMention[] }) => void;
+  onSubmit: (input: {
+    content: string;
+    entrypointId?: string;
+    inlineValues: PackageComposerInlineValue[];
+    mentions: PackageComposerMention[];
+  }) => void;
   snapshot: BoardSnapshot;
 }): ReactElement {
   const { t } = useI18n();
@@ -30,9 +37,18 @@ export function AgentWorkspaceComposer({
   const [content, setContent] = useState('');
   const [entrypointId, setEntrypointId] = useState<string>();
   const [mentions, setMentions] = useState<PackageComposerMention[]>([]);
+  const [inlineValuesBySlot, setInlineValuesBySlot] = useState<Record<string, string>>({});
   const [picker, setPicker] = useState<PickerState>();
   const entrypoints = useMemo(() => listPackageEntryPoints().filter(isRunnableRegistration), []);
   const selectedEntryPoint = entrypoints.find((item) => item.entrypoint.entrypointId === entrypointId);
+  const inlineInputOptions = useMemo(
+    () => entrypointId ? listPackageComposerInlineInputOptions(entrypointId) : [],
+    [entrypointId],
+  );
+  const inlineValues = inlineInputOptions.flatMap((option): PackageComposerInlineValue[] => {
+    const value = inlineValuesBySlot[option.slotId]?.trim();
+    return value ? [{ kind: 'inline', slotId: option.slotId, value }] : [];
+  });
   const mentionOptions = useMemo(
     () => entrypointId ? listPackageComposerMentionOptions(snapshot, entrypointId) : [],
     [entrypointId, snapshot],
@@ -66,6 +82,7 @@ export function AgentWorkspaceComposer({
     setEntrypointId(item.entrypoint.entrypointId);
     setContent((current) => stripTrailingTrigger(current, '/'));
     setMentions([]);
+    setInlineValuesBySlot({});
     setPicker(undefined);
     inputRef.current?.focus();
   }
@@ -87,16 +104,22 @@ export function AgentWorkspaceComposer({
 
   function submit(event: FormEvent): void {
     event.preventDefault();
-    if (disabled || (!content.trim() && mentions.length === 0)) return;
-    onSubmit({ content: content.trim(), entrypointId, mentions });
+    if (disabled || (!content.trim() && mentions.length === 0 && inlineValues.length === 0)) return;
+    onSubmit({ content: content.trim(), entrypointId, inlineValues, mentions });
     setContent('');
     setEntrypointId(undefined);
     setMentions([]);
+    setInlineValuesBySlot({});
     setPicker(undefined);
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
-    if (event.key === 'Enter' && !event.shiftKey && (content.trim() || mentions.length > 0) && !disabled) {
+    if (
+      event.key === 'Enter'
+      && !event.shiftKey
+      && (content.trim() || mentions.length > 0 || inlineValues.length > 0)
+      && !disabled
+    ) {
       event.preventDefault();
       event.currentTarget.form?.requestSubmit();
     }
@@ -127,6 +150,21 @@ export function AgentWorkspaceComposer({
               <AtSign size={13} />{t('agentWorkspace.addMention')}
             </button>
           ) : null}
+          {inlineInputOptions.map((option) => (
+            <label key={option.slotId} className="agent-workspace-inline-input">
+              <span>{option.schemaRef === 'retake.storyboard-unit-id/v1' ? t('skill.storyboardSheet.unitInput') : option.slotId}</span>
+              <input
+                value={inlineValuesBySlot[option.slotId] ?? ''}
+                placeholder={option.schemaRef === 'retake.storyboard-unit-id/v1'
+                  ? t('skill.storyboardSheet.unitPlaceholder')
+                  : option.slotId}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setInlineValuesBySlot((current) => ({ ...current, [option.slotId]: value }));
+                }}
+              />
+            </label>
+          ))}
         </div>
         <div className="agent-workspace-input-row">
           <textarea
@@ -138,7 +176,11 @@ export function AgentWorkspaceComposer({
             onChange={(event) => updateContent(event.target.value)}
             onKeyDown={onKeyDown}
           />
-          <button type="submit" disabled={disabled || (!content.trim() && mentions.length === 0)} aria-label={t('agentWorkspace.send')}>
+          <button
+            type="submit"
+            disabled={disabled || (!content.trim() && mentions.length === 0 && inlineValues.length === 0)}
+            aria-label={t('agentWorkspace.send')}
+          >
             <ArrowUp size={17} />
           </button>
         </div>

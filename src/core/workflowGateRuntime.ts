@@ -310,7 +310,7 @@ function gateSubjectAssetIds(
       return execution ? [[executionId, execution] as const] : [];
     }),
   );
-  const candidates = step.outputAcceptancePolicy === 'manual_selection'
+  const candidates = step.outputAcceptancePolicy !== 'automatic'
     ? step.acceptedOutputAssetIds
     : outputAssetIdsForSlot(latestSucceededExecution(executionById, step), step, gate.subject.outputSlotId);
   return unique(candidates.filter((assetId) => {

@@ -95,6 +95,9 @@ export async function createOrAdvanceArtifact(
       ...(command.definitionLocks
         ? { definitionLocks: structuredClone(command.definitionLocks) }
         : {}),
+      ...(command.metadata
+        ? { metadata: structuredClone(command.metadata) }
+        : {}),
       primaryAssetId: command.primaryAssetId,
       projectId: command.projectId,
       revision: nextRevisionNumber(stored.revisions, artifactId),

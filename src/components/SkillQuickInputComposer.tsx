@@ -1,6 +1,7 @@
 import { ArrowUp, AtSign, ChevronDown, Search, Sparkles, X } from 'lucide-react';
 import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactElement } from 'react';
 import {
+  listPackageComposerInlineInputOptions,
   listPackageComposerMentionOptions,
   packageComposerMentionId,
   resolvePackageComposerInvocation,
@@ -14,6 +15,10 @@ import {
   type RegisteredPackageEntryPoint,
 } from '../core/packageRegistry';
 import { skillUiDefinitionFor } from '../core/skillRegistry';
+import type {
+  StoryboardSheetGenerationParameters,
+  StoryboardSheetPanelCount,
+} from '../core/storyboardSheetContracts';
 import type { BoardSnapshot } from '../core/types';
 import { workflowUiDefinitionFor } from '../core/workflowRegistry';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
@@ -35,12 +40,22 @@ export function SkillQuickInputComposer({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [entrypointId, setEntrypointId] = useState<string>();
   const [instruction, setInstruction] = useState('');
+  const [inlineValuesBySlot, setInlineValuesBySlot] = useState<Record<string, string>>({});
+  const [storyboardOutputCount, setStoryboardOutputCount] = useState<1 | 2 | 3 | 4>(1);
+  const [storyboardPanelCount, setStoryboardPanelCount] = useState<StoryboardSheetPanelCount>(6);
   const [mentions, setMentions] = useState<PackageComposerMention[]>([]);
   const [picker, setPicker] = useState<PickerState>();
   const [submitError, setSubmitError] = useState<string>();
   const entrypoints = useMemo(() => listPackageEntryPoints().filter(isRunnableRegistration), []);
   const recommended = useMemo(() => listRecommendedPackageEntryPoints().filter(isRunnableRegistration), []);
   const selectedEntryPoint = entrypoints.find((registration) => registration.entrypoint.entrypointId === entrypointId);
+  const inlineInputOptions = useMemo(
+    () => entrypointId ? listPackageComposerInlineInputOptions(entrypointId) : [],
+    [entrypointId],
+  );
+  const usesStoryboardSheet = inlineInputOptions.some(
+    (option) => option.schemaRef === 'retake.storyboard-unit-id/v1',
+  );
   const mentionOptions = useMemo(
     () => entrypointId ? listPackageComposerMentionOptions(snapshot, entrypointId) : [],
     [entrypointId, snapshot],
@@ -56,9 +71,25 @@ export function SkillQuickInputComposer({
   ), [mentionOptions, picker]);
   const invocation = useMemo((): PackageComposerInvocation | undefined => entrypointId ? ({
     entrypointId,
+    inlineValues: inlineInputOptions.flatMap((option) => {
+      const value = inlineValuesBySlot[option.slotId] ?? '';
+      return value.trim() ? [{ kind: 'inline' as const, slotId: option.slotId, value }] : [];
+    }),
     instruction,
     mentions,
-  }) : undefined, [entrypointId, instruction, mentions]);
+    ...(usesStoryboardSheet ? {
+      parameters: { ...storyboardSheetParameters(storyboardPanelCount, storyboardOutputCount) },
+    } : {}),
+  }) : undefined, [
+    entrypointId,
+    inlineInputOptions,
+    inlineValuesBySlot,
+    instruction,
+    mentions,
+    storyboardOutputCount,
+    storyboardPanelCount,
+    usesStoryboardSheet,
+  ]);
   const canSubmit = useMemo(() => {
     if (!invocation) return false;
     try {
@@ -78,6 +109,9 @@ export function SkillQuickInputComposer({
   function selectEntryPoint(registration: RegisteredPackageEntryPoint): void {
     setEntrypointId(registration.entrypoint.entrypointId);
     setInstruction((current) => stripTrailingTrigger(current, '/'));
+    setInlineValuesBySlot({});
+    setStoryboardOutputCount(1);
+    setStoryboardPanelCount(6);
     setMentions([]);
     setPicker(undefined);
     setSubmitError(undefined);
@@ -128,6 +162,9 @@ export function SkillQuickInputComposer({
       onInvokeEntryPoint(invocation);
       setEntrypointId(undefined);
       setInstruction('');
+      setInlineValuesBySlot({});
+      setStoryboardOutputCount(1);
+      setStoryboardPanelCount(6);
       setMentions([]);
       setPicker(undefined);
       setSubmitError(undefined);
@@ -177,6 +214,50 @@ export function SkillQuickInputComposer({
                   </span>
                 );
               })}
+            </div>
+          ) : null}
+          {inlineInputOptions.map((option) => (
+            <label key={option.slotId} className="skill-composer-inline-input">
+              <span>{option.schemaRef === 'retake.storyboard-unit-id/v1' ? t('skill.storyboardSheet.unitInput') : option.slotId}</span>
+              <input
+                value={inlineValuesBySlot[option.slotId] ?? ''}
+                placeholder={option.schemaRef === 'retake.storyboard-unit-id/v1'
+                  ? t('skill.storyboardSheet.unitPlaceholder')
+                  : option.slotId}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setInlineValuesBySlot((current) => ({ ...current, [option.slotId]: value }));
+                  setSubmitError(undefined);
+                }}
+              />
+            </label>
+          ))}
+          {usesStoryboardSheet ? (
+            <div className="skill-composer-storyboard-parameters" aria-label={t('skillComposer.storyboardParameters')}>
+              <label>
+                <span>{t('skillComposer.panelCount')}</span>
+                <select
+                  value={storyboardPanelCount}
+                  onChange={(event) => {
+                    setStoryboardPanelCount(Number(event.target.value) as StoryboardSheetPanelCount);
+                    setSubmitError(undefined);
+                  }}
+                >
+                  {[6, 8, 10, 12].map((count) => <option key={count} value={count}>{count}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>{t('skillComposer.candidateCount')}</span>
+                <select
+                  value={storyboardOutputCount}
+                  onChange={(event) => {
+                    setStoryboardOutputCount(Number(event.target.value) as 1 | 2 | 3 | 4);
+                    setSubmitError(undefined);
+                  }}
+                >
+                  {[1, 2, 3, 4].map((count) => <option key={count} value={count}>{count}</option>)}
+                </select>
+              </label>
             </div>
           ) : null}
           <textarea
@@ -255,6 +336,26 @@ export function SkillQuickInputComposer({
       ) : null}
     </section>
   );
+}
+
+function storyboardSheetParameters(
+  panelCount: StoryboardSheetPanelCount,
+  outputCount: 1 | 2 | 3 | 4,
+): StoryboardSheetGenerationParameters {
+  const gridLayout = panelCount === 6
+    ? '3x2'
+    : panelCount === 8
+      ? '4x2'
+      : panelCount === 10
+        ? '5x2'
+        : '4x3';
+  return {
+    gridLayout,
+    outputCount,
+    panelAspectRatio: '16:9',
+    panelCount,
+    renderMode: 'panel_grid',
+  };
 }
 
 function isRunnableRegistration(registration: RegisteredPackageEntryPoint): boolean {

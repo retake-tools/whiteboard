@@ -359,6 +359,7 @@ type TranslationKey =
   | 'operation.defineCharacter.title'
   | 'operation.defineScene.title'
   | 'operation.generateStoryboardPlan.title'
+  | 'operation.generateStoryboardSheet.title'
   | 'operation.annotationEdit.prompt'
   | 'operation.annotationEdit.title'
   | 'operation.quickEdit.prompt'
@@ -383,6 +384,8 @@ type TranslationKey =
   | 'operationToolbar.model'
   | 'operationToolbar.motion'
   | 'operationToolbar.params'
+  | 'operationToolbar.referenceCompleteness'
+  | 'operationToolbar.referenceCompletenessUnverified'
   | 'operationToolbar.parameterBestEffort'
   | 'operationToolbar.parameterSupported'
   | 'operationToolbar.prompt'
@@ -420,6 +423,9 @@ type TranslationKey =
   | 'skillComposer.noEntryPoints'
   | 'skillComposer.noMentions'
   | 'skillComposer.invalidInput'
+  | 'skillComposer.storyboardParameters'
+  | 'skillComposer.panelCount'
+  | 'skillComposer.candidateCount'
   | 'skill.common.referencesInput'
   | 'skill.common.referencesPlaceholder'
   | 'skill.screenplayFromBrief.name'
@@ -448,8 +454,18 @@ type TranslationKey =
   | 'skill.storyboardPlan.characterPlaceholder'
   | 'skill.storyboardPlan.sceneInput'
   | 'skill.storyboardPlan.scenePlaceholder'
+  | 'skill.storyboardSheet.name'
+  | 'skill.storyboardSheet.description'
+  | 'skill.storyboardSheet.planInput'
+  | 'skill.storyboardSheet.planPlaceholder'
+  | 'skill.storyboardSheet.unitInput'
+  | 'skill.storyboardSheet.unitPlaceholder'
+  | 'skill.storyboardSheet.referencesInput'
+  | 'skill.storyboardSheet.referencesPlaceholder'
   | 'workflow.storyToStoryboard.name'
   | 'workflow.storyToStoryboard.description'
+  | 'workflow.storyboardUnitToSheet.name'
+  | 'workflow.storyboardUnitToSheet.description'
   | 'workflowDraft.outputPending'
   | 'workflowRuntime.create'
   | 'workflowRuntime.createFailed'
@@ -594,6 +610,7 @@ type TranslationKey =
   | 'agentWorkspace.noSession'
   | 'agentWorkspace.open'
   | 'agentWorkspace.package'
+  | 'agentWorkspace.parameters'
   | 'agentWorkspace.rejectProposal'
   | 'agentWorkspace.run'
   | 'agentWorkspace.runEmpty'
@@ -1176,6 +1193,7 @@ const translations: Record<Locale, Translations> = {
     'operation.defineCharacter.title': 'Define characters',
     'operation.defineScene.title': 'Define scenes',
     'operation.generateStoryboardPlan.title': 'Generate storyboard plan',
+    'operation.generateStoryboardSheet.title': 'Generate storyboard sheet',
     'operation.annotationEdit.prompt': 'Edit image from annotation note',
     'operation.annotationEdit.title': 'Annotation Edit',
     'operation.quickEdit.prompt': 'Describe how to transform the source image...',
@@ -1200,6 +1218,8 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.model': 'Model',
     'operationToolbar.motion': 'Motion',
     'operationToolbar.params': 'Params',
+    'operationToolbar.referenceCompleteness': 'Reference completeness',
+    'operationToolbar.referenceCompletenessUnverified': 'Not verified',
     'operationToolbar.parameterBestEffort': 'Best effort',
     'operationToolbar.parameterSupported': 'Supported',
     'operationToolbar.prompt': 'Prompt',
@@ -1237,6 +1257,9 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.noEntryPoints': 'No matching skills or workflows.',
     'skillComposer.noMentions': 'No compatible blocks or document assets.',
     'skillComposer.invalidInput': 'This input combination is not compatible with the selected entry point.',
+    'skillComposer.storyboardParameters': 'Storyboard sheet parameters',
+    'skillComposer.panelCount': 'Panels',
+    'skillComposer.candidateCount': 'Candidates',
     'skill.common.referencesInput': 'Additional direction / references',
     'skill.common.referencesPlaceholder': 'Add optional direction or reference material...',
     'skill.screenplayFromBrief.name': 'Generate screenplay',
@@ -1265,8 +1288,18 @@ const translations: Record<Locale, Translations> = {
     'skill.storyboardPlan.characterPlaceholder': 'Connect or paste the approved character design and continuity constraints...',
     'skill.storyboardPlan.sceneInput': 'Scene Bible',
     'skill.storyboardPlan.scenePlaceholder': 'Connect or paste the approved scene, spatial, lighting, and continuity constraints...',
+    'skill.storyboardSheet.name': 'Generate storyboard sheet',
+    'skill.storyboardSheet.description': 'Generate visual panel-grid candidates for one explicitly selected storyboard unit.',
+    'skill.storyboardSheet.planInput': 'Storyboard Plan',
+    'skill.storyboardSheet.planPlaceholder': 'Connect the authoritative Storyboard Plan...',
+    'skill.storyboardSheet.unitInput': 'Unit ID',
+    'skill.storyboardSheet.unitPlaceholder': 'Enter the exact storyboard Unit ID...',
+    'skill.storyboardSheet.referencesInput': 'Image references',
+    'skill.storyboardSheet.referencesPlaceholder': 'Connect character, scene, prop, or storyboard references...',
     'workflow.storyToStoryboard.name': 'Story to storyboard plan',
     'workflow.storyToStoryboard.description': 'Create an editable draft graph from brief through screenplay and production design to storyboard planning.',
+    'workflow.storyboardUnitToSheet.name': 'Storyboard unit to sheet',
+    'workflow.storyboardUnitToSheet.description': 'Generate and review one accepted storyboard sheet for an explicitly selected Unit.',
     'workflowDraft.outputPending': 'Run the upstream operation to create this document.',
     'workflowRuntime.create': 'Create Workflow Run',
     'workflowRuntime.createFailed': 'Workflow Run could not be created',
@@ -1411,6 +1444,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.noSession': 'No active session',
     'agentWorkspace.open': 'Open Agent Workspace',
     'agentWorkspace.package': 'Package',
+    'agentWorkspace.parameters': 'Parameters',
     'agentWorkspace.rejectProposal': 'Reject proposal',
     'agentWorkspace.run': 'Run',
     'agentWorkspace.runEmpty': 'Attach an existing Agent Run. Chat does not create execution authority.',
@@ -1988,6 +2022,7 @@ const translations: Record<Locale, Translations> = {
     'operation.defineCharacter.title': '生成角色设定',
     'operation.defineScene.title': '生成场景设定',
     'operation.generateStoryboardPlan.title': '生成故事板计划',
+    'operation.generateStoryboardSheet.title': '生成分镜图',
     'operation.annotationEdit.prompt': '根据标注备注编辑图片',
     'operation.annotationEdit.title': '标注编辑',
     'operation.quickEdit.prompt': '描述要如何基于源图生成新图片...',
@@ -2012,6 +2047,8 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.model': '模型',
     'operationToolbar.motion': '运动',
     'operationToolbar.params': '参数',
+    'operationToolbar.referenceCompleteness': 'Reference 完整性',
+    'operationToolbar.referenceCompletenessUnverified': '未验证',
     'operationToolbar.parameterBestEffort': '尽力遵循',
     'operationToolbar.parameterSupported': '支持',
     'operationToolbar.prompt': '提示词',
@@ -2049,6 +2086,9 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.noEntryPoints': '没有匹配的 Skill 或 Workflow。',
     'skillComposer.noMentions': '当前没有兼容的 Block 或 Document Asset。',
     'skillComposer.invalidInput': '当前输入组合与所选 EntryPoint 不兼容。',
+    'skillComposer.storyboardParameters': '分镜图参数',
+    'skillComposer.panelCount': '格数',
+    'skillComposer.candidateCount': '候选数',
     'skill.common.referencesInput': '补充要求 / 参考资料',
     'skill.common.referencesPlaceholder': '补充可选要求或参考资料...',
     'skill.screenplayFromBrief.name': '生成剧本',
@@ -2077,8 +2117,18 @@ const translations: Record<Locale, Translations> = {
     'skill.storyboardPlan.characterPlaceholder': '连接或粘贴已确认的角色设计与连续性约束...',
     'skill.storyboardPlan.sceneInput': '场景设定',
     'skill.storyboardPlan.scenePlaceholder': '连接或粘贴已确认的场景、空间、灯光与连续性约束...',
+    'skill.storyboardSheet.name': '生成分镜图',
+    'skill.storyboardSheet.description': '为一个明确选择的分镜 Unit 生成可审核的视觉网格候选。',
+    'skill.storyboardSheet.planInput': '故事板计划',
+    'skill.storyboardSheet.planPlaceholder': '连接作为依据的故事板计划...',
+    'skill.storyboardSheet.unitInput': 'Unit ID',
+    'skill.storyboardSheet.unitPlaceholder': '输入故事板计划中的精确 Unit ID...',
+    'skill.storyboardSheet.referencesInput': '图片参考',
+    'skill.storyboardSheet.referencesPlaceholder': '连接角色、场景、道具或故事板图片参考...',
     'workflow.storyToStoryboard.name': '从 Brief 到故事板计划',
     'workflow.storyToStoryboard.description': '创建从 Brief、剧本、角色与场景设定到故事板计划的可编辑草稿图。',
+    'workflow.storyboardUnitToSheet.name': '单 Unit 分镜图',
+    'workflow.storyboardUnitToSheet.description': '为明确选择的一个 Unit 生成候选并审核一个权威分镜图。',
     'workflowDraft.outputPending': '执行上游 Operation 后将在这里生成文档。',
     'workflowRuntime.create': '创建 Workflow Run',
     'workflowRuntime.createFailed': '无法创建 Workflow Run',
@@ -2223,6 +2273,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.noSession': '没有活动会话',
     'agentWorkspace.open': '打开 Agent Workspace',
     'agentWorkspace.package': 'Package',
+    'agentWorkspace.parameters': '参数',
     'agentWorkspace.rejectProposal': '拒绝提案',
     'agentWorkspace.run': '运行',
     'agentWorkspace.runEmpty': '绑定已有 Agent Run；聊天本身不会创建执行授权。',

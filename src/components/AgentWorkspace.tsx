@@ -218,8 +218,16 @@ function ProposalCard({
         (block) =>
           block.blockId === proposal.appliedEffect?.primaryBlockId
           && block.type === 'operation',
-      )
+    )
     : undefined;
+  const launchOperation = skillOperation ?? proposal.appliedEffect?.createdBlockIds
+    .flatMap((blockId) => {
+      const block = snapshot.blocks.find(
+        (candidate) => candidate.blockId === blockId && candidate.type === 'operation',
+      );
+      return block ? [block] : [];
+    })
+    .find((block) => block.data.capabilityId === 'previs.storyboard_sheet.generate');
   const readiness = skillOperation
     ? operationReadinessFor(snapshot, skillOperation)
     : undefined;
@@ -276,6 +284,16 @@ function ProposalCard({
               </dd>
             </div>
           ))}
+          {typedInvocation.inlineValues.map((value) => (
+            <div key={`inline:${value.slotId}`}>
+              <dt>{value.slotId}</dt>
+              <dd>{value.value}</dd>
+            </div>
+          ))}
+          <div>
+            <dt>{t('agentWorkspace.parameters')}</dt>
+            <dd>{invocationParameterSummary(typedInvocation.parameters)}</dd>
+          </div>
           <div>
             <dt>{t('agentWorkspace.effect')}</dt>
             <dd>{typedInvocation.targetLock.entrypointKind === 'skill'
@@ -333,6 +351,28 @@ function ProposalCard({
                     ? t('agentWorkspace.launchReady')
                     : t('agentWorkspace.launchWaitingInput')}
                 </small>
+              ) : null}
+              {typedInvocation ? (
+                <div className="agent-workspace-preset-summary">
+                  {typedInvocation.inlineValues.map((value) => (
+                    <small key={`launch-inline:${value.slotId}`}>{value.slotId}: {value.value}</small>
+                  ))}
+                  <small>
+                    {t('agentWorkspace.sourceBinding')}: {typedInvocation.mentionLocks.map(
+                      (mention) => `${mention.slotId}=${mention.kind === 'block'
+                        ? `Block ${mention.blockId.slice(-8)}`
+                        : `Asset ${mention.assetId.slice(-8)}`}`,
+                    ).join(' · ') || '—'}
+                  </small>
+                  <small>{t('agentWorkspace.parameters')}: {invocationParameterSummary(typedInvocation.parameters)}</small>
+                  <small>
+                    {t('operationToolbar.generator')}: {
+                      typeof launchOperation?.data.connectionId === 'string'
+                        ? launchOperation.data.connectionId
+                        : '—'
+                    } · {typeof launchOperation?.data.adapter === 'string' ? launchOperation.data.adapter : '—'}
+                  </small>
+                </div>
               ) : null}
               {workflowDefinition ? (
                 <WorkflowAgentTargetPicker
@@ -487,6 +527,13 @@ function typedEntryPointName(
 function contextRefLabel(ref: NonNullable<ReturnType<typeof messagesForSession>[number]>['contextRefs'][number]): string {
   if (ref.kind === 'entrypoint') return `/${ref.entrypointId}`;
   if (ref.kind === 'agent_run') return `Run ${ref.agentRunId.slice(-8)}`;
+  if (ref.kind === 'inline') return `${ref.slotId}: ${String(ref.value)}`;
   if (ref.kind === 'block') return `@Block ${ref.blockId.slice(-8)}`;
   return `@Asset ${ref.assetId.slice(-8)}`;
+}
+
+function invocationParameterSummary(parameters: Record<string, unknown>): string {
+  const entries = Object.entries(parameters);
+  if (entries.length === 0) return '—';
+  return entries.map(([key, value]) => `${key}=${String(value)}`).join(' · ');
 }

@@ -357,7 +357,8 @@ function GroupSummary({
   );
   const selectableOutput = selectedItem
     && selectedAssetId
-    && outputSelectionStep?.outputAcceptancePolicy === 'manual_selection'
+    && outputSelectionStep
+    && outputSelectionStep.outputAcceptancePolicy !== 'automatic'
     && outputSelectionStep.outputAssetIds.includes(selectedAssetId)
     && (outputSelectionStep.status === 'waiting_selection' || outputSelectionStep.status === 'succeeded')
     ? { assetId: selectedAssetId, step: outputSelectionStep }

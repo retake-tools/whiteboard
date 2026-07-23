@@ -1,5 +1,9 @@
 import type { AdapterKind, BlockRecord, BoardSnapshot, ExecutionInputRole, OperationReadinessIssue } from './types';
 import { inputRoleDefinition } from './inputRoles';
+import {
+  normalizeStoryboardUnitId,
+  storyboardSheetCapabilityId,
+} from './storyboardSheetContracts';
 
 export type CapabilityInputRole = ExecutionInputRole;
 export type CapabilityInputSource = 'block' | 'generated_asset' | 'inline';
@@ -105,6 +109,17 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
     promptSource: 'block',
     requiredInputSlotIds: ['screenplay', 'character_bible', 'scene_bible'],
     supportedAdapters: ['direct_api', 'mcp_agent', 'cli_agent', 'manual_import'],
+  },
+  'previs.storyboard_sheet.generate': {
+    capabilityId: 'previs.storyboard_sheet.generate',
+    defaultAdapter: 'mcp_agent',
+    displayNameKey: 'operation.generateStoryboardSheet.title',
+    inputContracts: [],
+    outputContracts: [{ type: 'image' }],
+    paramsSchema: { count: true },
+    promptSource: 'inline',
+    requiredInputSlotIds: ['storyboard_plan', 'unit_id'],
+    supportedAdapters: ['mcp_agent', 'direct_api', 'manual_import'],
   },
   'image.text_to_image': {
     capabilityId: 'image.text_to_image',
@@ -279,6 +294,25 @@ export function operationReadinessFor(
     .filter((block): block is BlockRecord => Boolean(block));
   const issues = new Set<OperationReadinessIssue>();
 
+  if (capabilityId === storyboardSheetCapabilityId) {
+    const planEdge = inputEdges.find((edge) => edge.inputSlotId === 'storyboard_plan');
+    const planBlock = planEdge ? blockById.get(planEdge.sourceBlockId) : undefined;
+    if (planBlock?.type !== 'document') issues.add('text_input_missing');
+    else if (typeof planBlock.data.assetId !== 'string') issues.add('prompt_empty');
+    try {
+      normalizeStoryboardUnitId(operationBlock.data.storyboardUnitId);
+    } catch {
+      issues.add('prompt_empty');
+    }
+    const missingReferenceAsset = inputEdges.some((edge) => {
+      if (edge.inputSlotId !== 'references') return false;
+      const block = blockById.get(edge.sourceBlockId);
+      return block?.type !== 'image' || typeof block.data.assetId !== 'string';
+    });
+    if (missingReferenceAsset) issues.add('image_asset_missing');
+    return { canRun: issues.size === 0, issues: [...issues] };
+  }
+
   for (const slotId of schema.requiredInputSlotIds ?? []) {
     const edge = inputEdges.find((candidate) => candidate.inputSlotId === slotId);
     const block = edge ? blockById.get(edge.sourceBlockId) : undefined;
@@ -432,6 +466,7 @@ export function executionInputRoleOptionsFor(
 
   const capabilityId =
     typeof operationBlock.data.capabilityId === 'string' ? operationBlock.data.capabilityId : 'image.text_to_image';
+  if (capabilityId === storyboardSheetCapabilityId) return [];
   const schema = schemaForCapability(capabilityId);
   const roles = schema.inputContracts
     .filter((contract) => contract.source === 'block' && contract.type === sourceBlock.type)

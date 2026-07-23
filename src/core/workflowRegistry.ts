@@ -1,16 +1,19 @@
 import { capabilityDefinitionFor } from './capabilityRegistry';
+import type { CapabilityCardinality, CapabilityDataType } from './capabilityContracts';
 import { skillDefinitionFor } from './skillRegistry';
 
 export type WorkflowStepType = 'capability';
 export type WorkflowRunPolicy = 'manual';
 export type WorkflowDefaultRunMode = 'manual';
-export type WorkflowOutputAcceptancePolicy = 'automatic' | 'manual_selection';
+export type WorkflowOutputAcceptancePolicy = 'automatic' | 'manual_selection' | 'manual_single';
 export type WorkflowStageCompletionPolicy = 'all_required_steps';
 
 export interface WorkflowInputSlotDefinition {
   artifactTypes: string[];
-  dataTypes: Array<'document' | 'text'>;
+  cardinality: CapabilityCardinality;
+  dataTypes: CapabilityDataType[];
   required: boolean;
+  schemaRef?: string;
   slotId: string;
 }
 
@@ -97,8 +100,12 @@ export interface WorkflowDefinition {
 }
 
 export interface WorkflowUiDefinition {
-  descriptionKey: 'workflow.storyToStoryboard.description';
-  nameKey: 'workflow.storyToStoryboard.name';
+  descriptionKey:
+    | 'workflow.storyToStoryboard.description'
+    | 'workflow.storyboardUnitToSheet.description';
+  nameKey:
+    | 'workflow.storyToStoryboard.name'
+    | 'workflow.storyboardUnitToSheet.name';
 }
 
 function capabilityLock(capabilityId: string): WorkflowCapabilityStepDefinition['capabilityLock'] {
@@ -129,6 +136,7 @@ export const storyToStoryboardWorkflow: WorkflowDefinition = {
   inputSlots: [{
     slotId: 'brief',
     artifactTypes: ['creative_brief'],
+    cardinality: 'one',
     dataTypes: ['text', 'document'],
     required: true,
   }],
@@ -253,12 +261,116 @@ export const storyToStoryboardWorkflow: WorkflowDefinition = {
   defaultRunMode: 'manual',
 };
 
-const builtInWorkflows = [storyToStoryboardWorkflow] as const;
+export const storyboardUnitToSheetWorkflow: WorkflowDefinition = {
+  schemaVersion: 1,
+  workflowId: 'retake.workflow.storyboard-unit-to-sheet',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-workflow-storyboard-unit-to-sheet-v1',
+  name: 'Storyboard unit to sheet',
+  description: 'Generate image candidates for one explicitly selected storyboard unit and review one accepted sheet.',
+  inputSlots: [
+    {
+      slotId: 'storyboard_plan',
+      artifactTypes: ['storyboard_plan'],
+      cardinality: 'one',
+      dataTypes: ['document'],
+      required: true,
+    },
+    {
+      slotId: 'unit_id',
+      artifactTypes: [],
+      cardinality: 'one',
+      dataTypes: ['text'],
+      required: true,
+      schemaRef: 'retake.storyboard-unit-id/v1',
+    },
+    {
+      slotId: 'references',
+      artifactTypes: [
+        'character_reference',
+        'scene_reference',
+        'prop_reference',
+        'storyboard_reference',
+        'reference',
+      ],
+      cardinality: 'many',
+      dataTypes: ['image'],
+      required: false,
+    },
+  ],
+  outputSlots: [{
+    slotId: 'storyboard_sheet',
+    source: {
+      kind: 'step_output',
+      stepId: 'storyboard_sheet_generate',
+      outputSlotId: 'storyboard_sheet',
+    },
+    exposedAsIntermediate: false,
+  }],
+  stages: [{
+    stageId: 'storyboard_previsualization',
+    stageTypeId: 'retake.stage.storyboard_previsualization',
+    name: 'Storyboard & Previsualization',
+    completionPolicy: 'all_required_steps',
+    outputWorkflowSlotIds: ['storyboard_sheet'],
+  }],
+  steps: [{
+    stepId: 'storyboard_sheet_generate',
+    type: 'capability',
+    stageId: 'storyboard_previsualization',
+    capabilityLock: capabilityLock('previs.storyboard_sheet.generate'),
+    skillLock: skillLock('retake.storyboard-sheet.from-unit-plan'),
+    inputBindings: [
+      {
+        inputSlotId: 'storyboard_plan',
+        source: { kind: 'workflow_input', slotId: 'storyboard_plan' },
+      },
+      {
+        inputSlotId: 'unit_id',
+        source: { kind: 'workflow_input', slotId: 'unit_id' },
+      },
+      {
+        inputSlotId: 'references',
+        source: { kind: 'workflow_input', slotId: 'references' },
+      },
+    ],
+    outputSlots: ['storyboard_sheet'],
+    outputAcceptancePolicy: 'manual_single',
+    runPolicy: 'manual',
+    dependsOn: [],
+    optional: false,
+  }],
+  gates: [{
+    definitionHash: 'sha256:retake-workflow-gate-storyboard-sheet-review-v1',
+    gateId: 'storyboard_sheet_review',
+    kind: 'human_approval',
+    name: 'Storyboard sheet review',
+    required: true,
+    reviewChecklist: [
+      'geometry',
+      'content_readout',
+      'asset_fidelity',
+      'continuity',
+      'no_explanatory_overlay',
+    ],
+    subject: {
+      kind: 'artifact_revision',
+      workflowOutputSlotId: 'storyboard_sheet',
+    },
+  }],
+  defaultRunMode: 'manual',
+};
+
+const builtInWorkflows = [storyToStoryboardWorkflow, storyboardUnitToSheetWorkflow] as const;
 
 const workflowUiDefinitions: Record<string, WorkflowUiDefinition> = {
   [storyToStoryboardWorkflow.workflowId]: {
     nameKey: 'workflow.storyToStoryboard.name',
     descriptionKey: 'workflow.storyToStoryboard.description',
+  },
+  [storyboardUnitToSheetWorkflow.workflowId]: {
+    nameKey: 'workflow.storyboardUnitToSheet.name',
+    descriptionKey: 'workflow.storyboardUnitToSheet.description',
   },
 };
 
@@ -283,6 +395,9 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
   const workflowInputById = new Map<string, WorkflowInputSlotDefinition>();
   for (const slot of workflow.inputSlots) {
     if (workflowInputById.has(slot.slotId)) issues.push(`Duplicate Workflow input slot: ${slot.slotId}`);
+    if (slot.required && slot.cardinality === 'optional') {
+      issues.push(`Required Workflow input cannot be optional: ${slot.slotId}`);
+    }
     workflowInputById.set(slot.slotId, slot);
   }
   const stepById = new Map<string, WorkflowCapabilityStepDefinition>();
@@ -357,6 +472,9 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
         }
         if (!sourceSlot.dataTypes.some((dataType) => targetSlot.dataTypes.includes(dataType))) {
           issues.push(`Workflow input data type mismatch: ${step.stepId}.${binding.inputSlotId}`);
+        }
+        if (sourceSlot.cardinality === 'many' && targetSlot.cardinality !== 'many') {
+          issues.push(`Workflow input cardinality mismatch: ${step.stepId}.${binding.inputSlotId}`);
         }
         if (
           targetSlot.artifactTypes.length > 0

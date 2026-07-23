@@ -33,15 +33,17 @@ assert.match(controllerSource, /resolvePackageComposerInvocation/);
 
 assert.deepEqual(validatePackageManifest(storyProductionStarterPackage), []);
 assert.equal(listPackages().length, 2);
-assert.equal(storyProductionStarterPackage.components.skills.length, 5);
-assert.equal(storyProductionStarterPackage.components.workflows.length, 1);
+assert.equal(storyProductionStarterPackage.components.skills.length, 6);
+assert.equal(storyProductionStarterPackage.components.workflows.length, 2);
 assert.deepEqual(listPackageEntryPoints().map(({ entrypoint }) => entrypoint.entrypointId), [
   'skill:retake.screenplay.from-brief',
   'skill:retake.screenplay.normalize',
   'skill:retake.character-bible.from-screenplay',
   'skill:retake.scene-bible.from-screenplay',
   'skill:retake.storyboard-plan.from-production-design',
+  'skill:retake.storyboard-sheet.from-unit-plan',
   'workflow:retake.workflow.story-to-storyboard',
+  'workflow:retake.workflow.storyboard-unit-to-sheet',
   'agent:retake.agent.story-production-director',
 ]);
 

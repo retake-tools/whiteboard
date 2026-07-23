@@ -48,6 +48,11 @@ import {
   operationModeFromBlock,
   resizeEmptyOperationOutputSlot,
 } from './appHelpers';
+import { executeExistingStoryboardSheetOperation } from '../core/storyboardSheetOperations';
+import {
+  normalizeStoryboardSheetGenerationParameters,
+  storyboardSheetCapabilityId,
+} from '../core/storyboardSheetContracts';
 
 interface ImageOperationControllerOptions {
   centeredBlockPosition: (size: { width: number; height: number }) => { x: number; y: number };
@@ -489,11 +494,14 @@ export function useImageOperationController(options: ImageOperationControllerOpt
           ? currentOperationBlock.data.connectionId
           : 'codex-managed';
         const connection = executionConnection(selectedConnectionId, current.project.projectId);
+        const currentCapabilityId = currentOperationBlock.data.capabilityId === storyboardSheetCapabilityId
+          ? storyboardSheetCapabilityId
+          : capabilityIdForOperationMode(input.operation);
         if (
           !connection ||
           connection.status !== 'ready' ||
           !connection.enabledUseCases.includes('image') ||
-          !connection.supportedCapabilityIds.includes(capabilityIdForOperationMode(input.operation))
+          !connection.supportedCapabilityIds.includes(currentCapabilityId)
         ) {
           throw new Error(t('feedback.connectionUnavailable'));
         }
@@ -506,20 +514,25 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         }
         usesVolcengineArk = connection.connectorId === 'volcengine-ark';
         usesCodexAppServer = connection.connectorId === 'codex-app-server';
-        const hasPendingImageRole = current.edges.some((edge) => {
+        const hasPendingImageRole = currentCapabilityId !== storyboardSheetCapabilityId && current.edges.some((edge) => {
           if (edge.targetBlockId !== input.block.blockId || edge.kind !== 'execution_input' || edge.inputRole) return false;
           const sourceBlock = current.blocks.find((block) => block.blockId === edge.sourceBlockId);
           return sourceBlock?.type === 'image' && Boolean(sourceBlock.data.assetId);
         });
         if (hasPendingImageRole) throw new Error(t('operationInputRole.required'));
-        const result = executeExistingImageOperationBlock(current, {
-          operationBlockId: input.block.blockId,
-          operation: input.operation,
-          instruction: '',
-          generationParams: generationParamsFromBlock(currentOperationBlock),
-          connection,
-        });
-        operationPrompt = result.prompt;
+        const result = currentCapabilityId === storyboardSheetCapabilityId
+          ? executeExistingStoryboardSheetOperation(current, {
+              operationBlockId: input.block.blockId,
+              connection,
+            })
+          : executeExistingImageOperationBlock(current, {
+              operationBlockId: input.block.blockId,
+              operation: input.operation,
+              instruction: '',
+              generationParams: generationParamsFromBlock(currentOperationBlock),
+              connection,
+            });
+        operationPrompt = result.execution.prompt ?? '';
         resultBlockIds = result.resultBlocks.map((resultBlock) => resultBlock.blockId);
         inputBlockIds = result.execution.inputBlockIds;
         executionId = result.execution.executionId;
@@ -616,9 +629,33 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     updateSnapshot((current) => {
       const operationBlock = current.blocks.find((block) => block.blockId === blockId && block.type === 'operation');
       if (!operationBlock || blockLockedByGroup(current, blockId)) return current;
-      operationBlock.data = { ...operationBlock.data, generationParams };
+      if (operationBlock.data.capabilityId === storyboardSheetCapabilityId) {
+        const currentParameters = operationBlock.data.storyboardSheetParameters;
+        const parameters = normalizeStoryboardSheetGenerationParameters({
+          ...(currentParameters && typeof currentParameters === 'object' && !Array.isArray(currentParameters)
+            ? currentParameters as Record<string, unknown>
+            : {}),
+          outputCount: generationParams.variationCount,
+        });
+        operationBlock.data = {
+          ...operationBlock.data,
+          storyboardSheetParameters: parameters,
+          workflowParameters: parameters,
+          generationParams: {
+            aspectRatioPreset: '16:9',
+            variationCount: parameters.outputCount,
+            storyboardSheet: parameters,
+          },
+        };
+      } else {
+        operationBlock.data = { ...operationBlock.data, generationParams };
+      }
       operationBlock.updatedAt = nowIso();
-      resizeEmptyOperationOutputSlot(current, operationBlock, generationParams);
+      resizeEmptyOperationOutputSlot(
+        current,
+        operationBlock,
+        operationBlock.data.generationParams as ImageGenerationParams,
+      );
       return touchBoard(current);
     }, { persist: true });
   }

@@ -221,6 +221,67 @@ export const storyboardPlanCapabilityDefinition: CapabilityDefinition = {
   supportedAdapterClasses: ['text.document', 'agent_runtime.text'],
 };
 
+export const storyboardSheetGenerateCapabilityDefinition: CapabilityDefinition = {
+  schemaVersion: 1,
+  capabilityId: 'previs.storyboard_sheet.generate',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-previs-storyboard-sheet-generate-v1',
+  category: 'previsualization',
+  displayName: 'Generate storyboard sheet',
+  inputSlots: [
+    {
+      slotId: 'storyboard_plan',
+      semanticRole: 'storyboard_plan',
+      dataTypes: ['document'],
+      artifactTypes: ['storyboard_plan'],
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['block', 'asset', 'artifact_revision'],
+    },
+    {
+      slotId: 'unit_id',
+      semanticRole: 'storyboard_unit_id',
+      dataTypes: ['text'],
+      artifactTypes: [],
+      schemaRef: 'retake.storyboard-unit-id/v1',
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['inline', 'block'],
+    },
+    {
+      slotId: 'references',
+      semanticRole: 'reference',
+      dataTypes: ['image'],
+      artifactTypes: [
+        'character_reference',
+        'scene_reference',
+        'prop_reference',
+        'storyboard_reference',
+        'reference',
+      ],
+      cardinality: 'many',
+      required: false,
+      bindingKinds: ['block', 'asset', 'artifact_revision'],
+    },
+  ],
+  outputSlots: [{
+    slotId: 'storyboard_sheet',
+    semanticRole: 'storyboard_sheet',
+    dataType: 'image',
+    artifactType: 'storyboard_sheet',
+    schemaRef: 'retake.storyboard-sheet-image/v1',
+    cardinality: 'many',
+    projectionBlockTypes: ['image'],
+  }],
+  parametersSchemaRef: 'retake.params.previs.storyboard-sheet.generate/v1',
+  runtimeRequirements: [
+    'image_generation',
+    'multi_candidate_output',
+    'durable_asset_output',
+  ],
+  supportedAdapterClasses: ['image.generate', 'agent_runtime.media'],
+};
+
 const canonicalCapabilityDefinitions = [
   textGenerateCapabilityDefinition,
   screenplayGenerateCapabilityDefinition,
@@ -228,6 +289,7 @@ const canonicalCapabilityDefinitions = [
   characterBibleCapabilityDefinition,
   sceneBibleCapabilityDefinition,
   storyboardPlanCapabilityDefinition,
+  storyboardSheetGenerateCapabilityDefinition,
 ] as const;
 
 export const textDocumentCapabilityIds = canonicalCapabilityDefinitions
@@ -291,12 +353,17 @@ export const codexAppServerTextAdapterDefinition: AdapterDefinition = {
 export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.image.codex-app-server',
-  version: '0.1.0',
-  definitionHash: 'sha256:retake-image-codex-app-server-v0',
+  version: '0.2.0',
+  definitionHash: 'sha256:retake-image-codex-app-server-storyboard-sheet-v1',
   adapterClass: 'agent_runtime.media',
   routeKind: 'codex_app_server',
   provider: 'codex',
-  supportedCapabilityIds: ['image.text_to_image', 'image.image_to_image', 'image.annotation_edit'],
+  supportedCapabilityIds: [
+    'image.text_to_image',
+    'image.image_to_image',
+    'image.annotation_edit',
+    'previs.storyboard_sheet.generate',
+  ],
   inputProfiles: [
     {
       profileId: 'codex_image_generation',
@@ -311,6 +378,11 @@ export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
     {
       profileId: 'codex_annotation_edit',
       requiredSlots: ['prompt', 'source_image'],
+      optionalSlots: ['references'],
+    },
+    {
+      profileId: 'storyboard_sheet_from_unit',
+      requiredSlots: ['storyboard_plan', 'unit_id'],
       optionalSlots: ['references'],
     },
   ],

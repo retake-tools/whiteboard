@@ -1,11 +1,16 @@
 import { capabilityDefinitionFor } from './capabilityRegistry';
+import type { CapabilityBindingValue } from './capabilityContracts';
 import { createBlockRecord, touchBoard } from './blockFactory';
 import { createGroupAroundBlocks } from './grouping';
 import { createId } from './id';
 import type { PackageInvocationContext } from './packageContracts';
-import type { PackageComposerMention } from './packageComposer';
+import type {
+  PackageComposerInlineValue,
+  PackageComposerMention,
+} from './packageComposer';
 import { createDraftSkillOperation, type TextGenerationLabels } from './textOperations';
 import type { BlockRecord, BoardSnapshot } from './types';
+import { createDraftStoryboardSheetOperation } from './storyboardSheetOperations';
 import {
   validateWorkflowDefinition,
   workflowDefinitionFor,
@@ -32,8 +37,10 @@ export function projectWorkflowDraft(
   input: WorkflowDraftProjectionLabels & {
     connectionIdForCapability: (capabilityId: string) => string | undefined;
     composerInput?: {
+      inlineValues?: PackageComposerInlineValue[];
       instruction?: { body: string; slotId: string };
       mentions: PackageComposerMention[];
+      parameters?: Record<string, unknown>;
     };
     packageContext?: PackageInvocationContext;
     workflowId: string;
@@ -44,7 +51,8 @@ export function projectWorkflowDraft(
   if (validationIssues.length > 0) throw new Error(validationIssues.join('\n'));
   const projectionId = createId('workflow_projection');
   const metadata = workflowMetadata(workflow, projectionId, input.packageContext);
-  const workflowInputs = new Map<string, BlockRecord>();
+  const workflowInputs = new Map<string, BlockRecord[]>();
+  const workflowInputBindings = new Map<string, CapabilityBindingValue[]>();
   const stepOutputs = new Map<string, BlockRecord>();
   const operationBlocks = new Map<string, BlockRecord>();
   const createdBlocks: BlockRecord[] = [];
@@ -56,70 +64,125 @@ export function projectWorkflowDraft(
     if (!consumer) throw new Error(`Workflow input is not consumed: ${workflow.workflowId}.${slot.slotId}`);
     const labels = input.labelsForSkill(consumer.skillLock.skillId);
     const slotLabels = labels.inputSlots?.find((candidate) => candidate.slotId === slot.slotId);
-    const mention = input.composerInput?.mentions.find((candidate) => candidate.slotId === slot.slotId);
+    const mentions = input.composerInput?.mentions.filter((candidate) => candidate.slotId === slot.slotId) ?? [];
+    const inlineValues = input.composerInput?.inlineValues?.filter(
+      (candidate) => candidate.slotId === slot.slotId,
+    ) ?? [];
     const instruction = input.composerInput?.instruction?.slotId === slot.slotId
       ? input.composerInput.instruction.body.trim()
       : undefined;
-    const block = createWorkflowInputBlock(snapshot, {
-      artifactType: slot.artifactTypes[0],
-      instruction,
-      mention,
-      promptPlaceholder: slotLabels?.promptPlaceholder ?? labels.promptPlaceholder,
-      promptTitle: slotLabels?.promptTitle ?? labels.promptTitle,
-    });
-    block.data = {
-      ...block.data,
-      ...metadata,
-      workflowInputSlotId: slot.slotId,
-    };
-    snapshot.blocks.push(block);
-    workflowInputs.set(slot.slotId, block);
-    createdBlocks.push(block);
+    const blocks = [
+      ...mentions.map((mention) => createWorkflowInputBlock(snapshot, {
+        artifactType: slot.artifactTypes[0],
+        dataType: slot.dataTypes[0],
+        mention,
+        promptPlaceholder: slotLabels?.promptPlaceholder ?? labels.promptPlaceholder,
+        promptTitle: slotLabels?.promptTitle ?? labels.promptTitle,
+      })),
+      ...(instruction ? [createWorkflowInputBlock(snapshot, {
+        artifactType: slot.artifactTypes[0],
+        dataType: 'text',
+        instruction,
+        promptPlaceholder: slotLabels?.promptPlaceholder ?? labels.promptPlaceholder,
+        promptTitle: slotLabels?.promptTitle ?? labels.promptTitle,
+      })] : []),
+    ];
+    if (blocks.length === 0 && inlineValues.length === 0 && slot.required && slot.slotId !== 'unit_id') {
+      blocks.push(createWorkflowInputBlock(snapshot, {
+        artifactType: slot.artifactTypes[0],
+        dataType: slot.dataTypes[0],
+        promptPlaceholder: slotLabels?.promptPlaceholder ?? labels.promptPlaceholder,
+        promptTitle: slotLabels?.promptTitle ?? labels.promptTitle,
+      }));
+    }
+    for (const block of blocks) {
+      block.data = {
+        ...block.data,
+        ...metadata,
+        workflowInputSlotId: slot.slotId,
+      };
+      snapshot.blocks.push(block);
+      createdBlocks.push(block);
+    }
+    workflowInputs.set(slot.slotId, blocks);
+    workflowInputBindings.set(slot.slotId, [
+      ...blocks.map((block): CapabilityBindingValue => ({ kind: 'block', blockId: block.blockId })),
+      ...inlineValues.map((value): CapabilityBindingValue => ({ kind: 'inline', value: value.value })),
+    ]);
   }
 
   for (const step of topologicalSteps(workflow)) {
-    const selectedBlockIds = step.inputBindings.map((binding) => {
+    const selectedBlockIds = step.inputBindings.flatMap((binding) => {
       if (binding.source.kind === 'workflow_input') {
-        const block = workflowInputs.get(binding.source.slotId);
-        if (!block) throw new Error(`Workflow input projection not found: ${binding.source.slotId}`);
-        return block.blockId;
+        return (workflowInputs.get(binding.source.slotId) ?? []).map((block) => block.blockId);
       }
       const block = stepOutputs.get(stepOutputKey(binding.source.stepId, binding.source.outputSlotId));
       if (!block) {
         throw new Error(`Workflow step output projection not found: ${binding.source.stepId}.${binding.source.outputSlotId}`);
       }
-      return block.blockId;
+      return [block.blockId];
     });
     const labels = input.labelsForSkill(step.skillLock.skillId);
-    const draft = createDraftSkillOperation(snapshot, {
-      ...labels,
-      connectionId: input.connectionIdForCapability(step.capabilityLock.capabilityId),
-      selectedBlockIds,
-      skillId: step.skillLock.skillId,
-    });
+    const capability = capabilityDefinitionFor(step.capabilityLock.capabilityId);
+    const mediaOutput = capability.outputSlots.some((slot) => slot.dataType === 'image');
+    const unitValue = workflowInputBindings.get('unit_id')?.find(
+      (value): value is Extract<CapabilityBindingValue, { kind: 'inline' }> => value.kind === 'inline',
+    );
+    const draft = mediaOutput
+      ? createDraftStoryboardSheetOperation(snapshot, {
+          connectionId: input.connectionIdForCapability(step.capabilityLock.capabilityId),
+          labels,
+          parameters: input.composerInput?.parameters,
+          selectedBlockIds,
+          unitId: typeof unitValue?.value === 'string' ? unitValue.value : undefined,
+        })
+      : createDraftSkillOperation(snapshot, {
+          ...labels,
+          connectionId: input.connectionIdForCapability(step.capabilityLock.capabilityId),
+          selectedBlockIds,
+          skillId: step.skillLock.skillId,
+        });
     draft.operationBlock.data = {
       ...draft.operationBlock.data,
       ...metadata,
+      workflowInputBindings: structuredClone(
+        step.inputBindings.map((binding) => ({
+          inputSlotId: binding.inputSlotId,
+          source: binding.source,
+          values: binding.source.kind === 'workflow_input'
+            ? workflowInputBindings.get(binding.source.slotId) ?? []
+            : [{
+                kind: 'block',
+                blockId: stepOutputs.get(
+                  stepOutputKey(binding.source.stepId, binding.source.outputSlotId),
+                )?.blockId,
+              }].filter((value): value is Extract<CapabilityBindingValue, { kind: 'block' }> => Boolean(value.blockId)),
+        })),
+      ),
+      workflowParameters: structuredClone(input.composerInput?.parameters ?? {}),
       workflowStepId: step.stepId,
     };
     operationBlocks.set(step.stepId, draft.operationBlock);
     createdBlocks.push(...draft.inputBlocks.filter((block) => !createdBlocks.includes(block)), draft.operationBlock);
 
-    const capability = capabilityDefinitionFor(step.capabilityLock.capabilityId);
     for (const outputSlotId of step.outputSlots) {
       const outputSlot = capability.outputSlots.find((candidate) => candidate.slotId === outputSlotId);
       if (!outputSlot) throw new Error(`Capability output slot not found: ${capability.capabilityId}.${outputSlotId}`);
-      if (outputSlot.dataType !== 'document') {
-        throw new Error(`Workflow Draft Projection V0 only supports Document outputs: ${capability.capabilityId}.${outputSlotId}`);
+      if (outputSlot.dataType !== 'document' && outputSlot.dataType !== 'image') {
+        throw new Error(`Workflow Draft Projection does not support output: ${capability.capabilityId}.${outputSlotId}`);
       }
-      const resultBlock = createBlockRecord(snapshot, 'document');
+      const resultBlock = createBlockRecord(snapshot, outputSlot.dataType);
       resultBlock.data = {
         ...resultBlock.data,
         ...metadata,
         title: labels.resultTitle,
         placeholder: input.outputPlaceholder,
-        documentKind: outputSlot.artifactType ?? 'general',
-        managedDocumentResult: true,
+        ...(outputSlot.dataType === 'document' ? {
+          documentKind: outputSlot.artifactType ?? 'general',
+          managedDocumentResult: true,
+        } : {
+          storyboardUnitId: typeof unitValue?.value === 'string' ? unitValue.value : undefined,
+        }),
         operationBlockId: draft.operationBlock.blockId,
         workflowOutputSlotId: outputSlotId,
         workflowStepId: step.stepId,
@@ -143,14 +206,21 @@ export function projectWorkflowDraft(
     title: input.workflowTitle,
   });
   if (!groupBlock) throw new Error(`Workflow draft group could not be created: ${workflow.workflowId}`);
-  groupBlock.data = { ...groupBlock.data, ...metadata };
+  groupBlock.data = {
+    ...groupBlock.data,
+    ...metadata,
+    workflowInputBindings: [...workflowInputBindings].map(([workflowInputSlotId, values]) => ({
+      workflowInputSlotId,
+      values: structuredClone(values),
+    })),
+  };
   touchBoard(snapshot);
 
   return {
     projectionId,
     groupBlock,
     blockIds: [groupBlock.blockId, ...createdBlocks.map((block) => block.blockId)],
-    workflowInputBlockIds: [...workflowInputs.values()].map((block) => block.blockId),
+    workflowInputBlockIds: [...workflowInputs.values()].flat().map((block) => block.blockId),
     operationBlockIds: [...operationBlocks.values()].map((block) => block.blockId),
     resultBlockIds: [...stepOutputs.values()].map((block) => block.blockId),
   };
@@ -160,6 +230,7 @@ function createWorkflowInputBlock(
   snapshot: BoardSnapshot,
   input: {
     artifactType?: string;
+    dataType?: 'document' | 'image' | 'text' | 'structured_data' | 'video' | 'audio';
     instruction?: string;
     mention?: PackageComposerMention;
     promptPlaceholder: string;
@@ -168,29 +239,37 @@ function createWorkflowInputBlock(
 ): BlockRecord {
   const mention = input.mention;
   if (mention?.kind === 'asset') {
-    const asset = snapshot.assets.find((candidate) => candidate.assetId === mention.assetId && candidate.kind === 'document');
-    if (!asset) throw new Error(`Workflow Composer Document Asset not found: ${mention.assetId}`);
-    const block = createBlockRecord(snapshot, 'document');
+    const asset = snapshot.assets.find((candidate) => (
+      candidate.assetId === mention.assetId
+      && (candidate.kind === 'document' || candidate.kind === 'image')
+    ));
+    if (!asset) throw new Error(`Workflow Composer Asset not found: ${mention.assetId}`);
+    const block = createBlockRecord(snapshot, asset.kind === 'image' ? 'image' : 'document');
     block.data = {
       ...block.data,
       title: input.promptTitle,
       assetId: asset.assetId,
       composerSourceAssetId: asset.assetId,
-      documentKind: input.artifactType ?? 'markdown_document',
+      ...(asset.kind === 'document'
+        ? { documentKind: input.artifactType ?? 'markdown_document' }
+        : { previewUrl: asset.previewUrl }),
     };
     return block;
   }
   if (mention?.kind === 'block') {
     const source = snapshot.blocks.find((candidate) => candidate.blockId === mention.blockId);
-    if (!source || (source.type !== 'text' && source.type !== 'document')) {
+    if (!source || (source.type !== 'text' && source.type !== 'document' && source.type !== 'image')) {
       throw new Error(`Workflow Composer input Block not found: ${mention.blockId}`);
     }
     const assetId = typeof source.data.assetId === 'string' ? source.data.assetId : undefined;
-    const block = createBlockRecord(snapshot, assetId ? 'document' : 'text');
+    const block = createBlockRecord(snapshot, source.type === 'image' ? 'image' : assetId ? 'document' : 'text');
     block.data = {
       ...block.data,
       title: input.promptTitle,
-      ...(assetId ? {
+      ...(source.type === 'image' ? {
+        assetId,
+        previewUrl: source.data.previewUrl,
+      } : assetId ? {
         assetId,
         documentKind: typeof source.data.documentKind === 'string'
           ? source.data.documentKind
@@ -203,12 +282,15 @@ function createWorkflowInputBlock(
     };
     return block;
   }
-  const block = createBlockRecord(snapshot, 'text');
+  const block = createBlockRecord(snapshot, input.dataType === 'document' ? 'document' : 'text');
   block.data = {
     ...block.data,
     title: input.promptTitle,
     body: input.instruction ?? '',
     placeholder: input.promptPlaceholder,
+    ...(input.dataType === 'document'
+      ? { documentKind: input.artifactType ?? 'markdown_document' }
+      : {}),
   };
   return block;
 }
@@ -254,7 +336,7 @@ function topologicalSteps(workflow: WorkflowDefinition): WorkflowDefinition['ste
 
 function layoutWorkflowProjection(
   workflow: WorkflowDefinition,
-  workflowInputs: Map<string, BlockRecord>,
+  workflowInputs: Map<string, BlockRecord[]>,
   operationBlocks: Map<string, BlockRecord>,
   stepOutputs: Map<string, BlockRecord>,
 ): void {
@@ -283,7 +365,7 @@ function layoutWorkflowProjection(
       }
     });
   }
-  [...workflowInputs.values()].forEach((block, index) => {
+  [...workflowInputs.values()].flat().forEach((block, index) => {
     block.position = { x: 40, y: 270 + index * (block.size.height + 36) };
   });
 }

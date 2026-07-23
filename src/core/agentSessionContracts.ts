@@ -1,4 +1,7 @@
-import type { PackageComposerMention } from './packageComposer';
+import type {
+  PackageComposerInlineValue,
+  PackageComposerMention,
+} from './packageComposer';
 import type { AgentPresetSelectionLock } from './agentPresetContracts';
 
 export type AgentSessionStatus = 'active' | 'archived';
@@ -23,6 +26,7 @@ export type AgentMessageRole = 'assistant' | 'system' | 'tool' | 'user';
 export type AgentMessageContextRef =
   | { agentRunId: string; kind: 'agent_run' }
   | { entrypointId: string; kind: 'entrypoint' }
+  | PackageComposerInlineValue
   | PackageComposerMention;
 
 export interface AgentMessageRecord {
@@ -75,14 +79,14 @@ export type ChangeProposalKind =
 export type PackageEntryPointMentionLock =
   | {
       blockId: string;
-      expectedBlockType: 'document' | 'text';
+      expectedBlockType: 'document' | 'image' | 'text';
       expectedSourceFingerprint: string;
       kind: 'block';
       slotId: string;
     }
   | {
       assetId: string;
-      expectedAssetKind: 'document';
+      expectedAssetKind: 'document' | 'image';
       kind: 'asset';
       slotId: string;
     };
@@ -132,7 +136,9 @@ export type ChangeProposalCommand =
       invocation: {
         instruction: string;
         instructionSlotId?: string;
+        inlineValues: PackageComposerInlineValue[];
         mentionLocks: PackageEntryPointMentionLock[];
+        parameters: Record<string, unknown>;
         targetLock: PackageEntryPointInvocationLock;
       };
       kind: 'package_entrypoint.instantiate';
@@ -267,6 +273,7 @@ export interface AgentRuntimeTurnContext {
   boardId: string;
   entrypointId?: string;
   history: Array<{ content: string; role: AgentMessageRole }>;
+  inlineValues: PackageComposerInlineValue[];
   mentions: PackageComposerMention[];
   projectId: string;
   userMessage: string;

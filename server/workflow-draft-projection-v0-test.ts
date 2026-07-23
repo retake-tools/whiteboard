@@ -8,6 +8,7 @@ import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import {
   listWorkflows,
   storyToStoryboardWorkflow,
+  storyboardUnitToSheetWorkflow,
   validateWorkflowDefinition,
   type WorkflowDefinition,
 } from '../src/core/workflowRegistry';
@@ -39,13 +40,16 @@ const readyTextConnection: ExecutionConnectionSummary = {
 
 assert.deepEqual(listWorkflows().map((workflow) => workflow.workflowId), [
   'retake.workflow.story-to-storyboard',
+  'retake.workflow.storyboard-unit-to-sheet',
 ]);
 assert.deepEqual(listPackageEntryPoints()
   .map(({ entrypoint }) => entrypoint)
   .filter((entrypoint) => entrypoint.kind === 'workflow')
   .map((entrypoint) => [entrypoint.kind, entrypoint.entrypointId]), [
   ['workflow', 'workflow:retake.workflow.story-to-storyboard'],
+  ['workflow', 'workflow:retake.workflow.storyboard-unit-to-sheet'],
 ]);
+assert.deepEqual(validateWorkflowDefinition(storyboardUnitToSheetWorkflow), []);
 assert.deepEqual(storyToStoryboardWorkflow.steps.map((step) => [step.stepId, step.dependsOn]), [
   ['screenplay_generate', []],
   ['character_define', ['screenplay_generate']],

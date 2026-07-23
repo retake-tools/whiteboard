@@ -17,6 +17,10 @@ import {
 import type { ImageGenerationParams, SwitchableOperationMode } from '../core/imageOperations';
 import { operationDisplayState } from '../core/operationDisplay';
 import { skillUiDefinitionFor, skillsForCapability } from '../core/skillRegistry';
+import {
+  normalizeStoryboardSheetGenerationParameters,
+  storyboardSheetCapabilityId,
+} from '../core/storyboardSheetContracts';
 import type { BlockData } from '../core/types';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
@@ -95,6 +99,13 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
     sourceAspectRatio,
     operation === 'text_to_image' ? '9:16' : '1:1',
   );
+  const storyboardSheetParameters = capabilityId === storyboardSheetCapabilityId
+    ? normalizeStoryboardSheetGenerationParameters(
+        data.storyboardSheetParameters && typeof data.storyboardSheetParameters === 'object'
+          ? data.storyboardSheetParameters as Record<string, unknown>
+          : undefined,
+      )
+    : undefined;
   const availableAspectOptions = sourceAspectRatio
     ? [{ label: t('operationToolbar.sourceAspectRatio'), value: 'source' as const }, ...standardAspectOptions]
     : standardAspectOptions;
@@ -160,6 +171,22 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
             {data.workflowStepRunFreshness === 'outdated' ? ` · ${t('workflowRuntime.outdated')}` : ''}
           </strong>
         </div>
+      ) : null}
+      {storyboardSheetParameters ? (
+        <>
+          <div className="operation-option-row is-read-only">
+            <span>{t('skill.storyboardSheet.unitInput')}</span>
+            <strong>{typeof data.storyboardUnitId === 'string' ? data.storyboardUnitId : '—'}</strong>
+          </div>
+          <div className="operation-option-row is-read-only">
+            <span>{t('operationToolbar.referenceCompleteness')}</span>
+            <strong>
+              {t('operationToolbar.referenceCompletenessUnverified')} · {
+                typeof data.storyboardReferenceCount === 'number' ? data.storyboardReferenceCount : 0
+              }
+            </strong>
+          </div>
+        </>
       ) : null}
       {compatibleSkills.length > 0 ? (
         <div className="operation-option-popover-wrap">
@@ -257,7 +284,11 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
             }}
           >
             <span>{t('operationToolbar.params')}</span>
-            <strong>{operationParamsSummary(params, paramsSchema, parameterProfile, t('operationToolbar.sourceAspectRatio'))}</strong>
+            <strong>
+              {storyboardSheetParameters
+                ? `${storyboardSheetParameters.panelCount} · ${storyboardSheetParameters.gridLayout} · ${storyboardSheetParameters.panelAspectRatio} · ${storyboardSheetParameters.outputCount}`
+                : operationParamsSummary(params, paramsSchema, parameterProfile, t('operationToolbar.sourceAspectRatio'))}
+            </strong>
             <ChevronRight size={15} />
           </button>
           {isParamsOpen && !isLocked ? (

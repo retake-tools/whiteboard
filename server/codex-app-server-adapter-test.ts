@@ -14,6 +14,10 @@ import { retakeRoot } from './local-store/context';
 import { loadSnapshot, saveSnapshot } from './local-store/snapshot-store';
 import { startTextGeneration } from './text-generation-service';
 import { cliUpgradeMessage, cliVersionAtLeast } from './cli-runtime-diagnostic';
+import {
+  createDraftStoryboardSheetOperation,
+  executeExistingStoryboardSheetOperation,
+} from '../src/core/storyboardSheetOperations';
 
 assert.ok(retakeRoot.endsWith('.retake-test-codex-app-server'), 'Codex App Server tests must use a disposable workspace.');
 await rm(retakeRoot, { recursive: true, force: true });
@@ -62,6 +66,7 @@ assert.deepEqual(connection?.supportedCapabilityIds, [
   'image.annotation_edit',
   'image.image_to_image',
   'image.text_to_image',
+  'previs.storyboard_sheet.generate',
 ]);
 
 const snapshot = structuredClone(defaultSnapshot) as BoardSnapshot;
@@ -423,10 +428,130 @@ const completedAnnotationExecution = completed.executions.find(
 );
 assert.match(completedAnnotationExecution?.requestPrompts?.[0]?.prompt ?? '', /final attached annotated composite/);
 
+const storyboardPlanMarkdown = [
+  '# Storyboard Plan',
+  '',
+  '## Unit: U03',
+  '',
+  '- U03-P01: wide station setup.',
+  '- U03-P02: courier cat reaction.',
+  '- U03-P03: parcel insert.',
+  '- U03-P04: dog blocks the exit.',
+  '- U03-P05: cat jumps.',
+  '- U03-P06: landing bridge.',
+].join('\n');
+const storyboardPlanAsset = await createAssetFromDataUrl({
+  projectId: completed.project.projectId,
+  dataUrl: `data:text/markdown;base64,${Buffer.from(storyboardPlanMarkdown).toString('base64')}`,
+  fileName: 'storyboard-plan.md',
+  kind: 'document',
+});
+const storyboardReferenceAsset = await createAssetFromDataUrl({
+  projectId: completed.project.projectId,
+  dataUrl: `data:image/png;base64,${Buffer.from('storyboard-reference').toString('base64')}`,
+  fileName: 'storyboard-reference.png',
+  kind: 'image',
+});
+completed.assets.push(storyboardPlanAsset, storyboardReferenceAsset);
+const storyboardPlanBlock = {
+  ...structuredClone(completed.blocks[0]),
+  blockId: 'block_storyboard_plan_codex_test',
+  type: 'document' as const,
+  data: {
+    title: 'Storyboard Plan',
+    assetId: storyboardPlanAsset.assetId,
+    documentKind: 'storyboard_plan',
+  },
+};
+const storyboardReferenceBlock = {
+  ...structuredClone(completed.blocks[0]),
+  blockId: 'block_storyboard_reference_codex_test',
+  type: 'image' as const,
+  data: {
+    title: 'Courier Cat Reference',
+    assetId: storyboardReferenceAsset.assetId,
+    previewUrl: storyboardReferenceAsset.previewUrl,
+  },
+};
+completed.blocks.push(storyboardPlanBlock, storyboardReferenceBlock);
+const storyboardDraft = createDraftStoryboardSheetOperation(completed, {
+  connectionId: connection!.connectionId,
+  explicitInputBindings: [
+    { kind: 'block', blockId: storyboardPlanBlock.blockId, inputSlotId: 'storyboard_plan' },
+    { kind: 'block', blockId: storyboardReferenceBlock.blockId, inputSlotId: 'references' },
+  ],
+  labels: {
+    operationTitle: 'Generate storyboard sheet',
+    promptTitle: 'Storyboard Plan',
+    promptPlaceholder: 'Connect a Storyboard Plan.',
+    resultTitle: 'Storyboard sheet',
+    waitingBody: 'Waiting.',
+  },
+  parameters: {
+    panelCount: 6,
+    gridLayout: '3x2',
+    panelAspectRatio: '16:9',
+    renderMode: 'panel_grid',
+    outputCount: 2,
+  },
+  unitId: 'U03',
+});
+const storyboardRun = executeExistingStoryboardSheetOperation(completed, {
+  connection: connection!,
+  operationBlockId: storyboardDraft.operationBlock.blockId,
+});
+await saveSnapshot(completed);
+let storyboardImageCalls = 0;
+const storyboardStarted = await startCodexAppServerImageGeneration({
+  projectId: completed.project.projectId,
+  boardId: completed.board.boardId,
+  executionId: storyboardRun.execution.executionId,
+  connectionId: connection!.connectionId,
+}, {
+  runTurn: async (input) => {
+    storyboardImageCalls += 1;
+    assert.equal(input.localImagePaths?.length, 1, 'Only bound image references may become image attachments.');
+    assert.match(input.prompt, /^\$imagegen Generate exactly one image/);
+    assert.match(input.prompt, /Locked unit ID: U03/);
+    assert.match(input.prompt, /Authoritative Storyboard Plan/);
+    assert.match(input.prompt, /title="Courier Cat Reference"/);
+    assert.match(input.prompt, /type=bound_image_reference/);
+    assert.match(input.prompt, /U03-P06: landing bridge/);
+    assert.match(input.prompt, /Render only the exact Unit ID U03/);
+    assert.match(input.prompt, /Required output aspect ratio: 16:9/);
+    return {
+      threadId: `thread_storyboard_sheet_${storyboardImageCalls}`,
+      turnId: `turn_storyboard_sheet_${storyboardImageCalls}`,
+      text: '',
+      image: {
+        itemId: `storyboard_sheet_item_${storyboardImageCalls}`,
+        dataUrl: `data:image/png;base64,${Buffer.from(`storyboard-sheet-${storyboardImageCalls}`).toString('base64')}`,
+      },
+    };
+  },
+});
+await storyboardStarted.completion;
+completed = await loadSnapshot(completed.project.projectId, completed.board.boardId);
+const completedStoryboardExecution = completed.executions.find(
+  (candidate) => candidate.executionId === storyboardRun.execution.executionId,
+);
+assert.equal(storyboardImageCalls, 2);
+assert.equal(completedStoryboardExecution?.capabilityId, 'previs.storyboard_sheet.generate');
+assert.equal(completedStoryboardExecution?.requestPrompts?.length, 2);
+assert.deepEqual(completedStoryboardExecution?.outputSlotResults, [{
+  slotId: 'storyboard_sheet',
+  assetIds: completedStoryboardExecution.outputAssetIds,
+}]);
+assert.equal(
+  completed.blocks.find((block) => block.blockId === storyboardRun.resultBlocks[0]?.blockId)?.data.title,
+  'Storyboard sheet · U03 · same-unit candidate 1/2',
+);
+
 console.log(JSON.stringify({
   ok: true,
   capabilities: connection?.supportedCapabilityIds,
   concurrentImageCandidates: maxConcurrentImageCalls,
   retriedFailedCandidateCalls: appServerRetryCalls,
+  storyboardSheetCandidates: storyboardImageCalls,
   routes: [textExecution?.adapter, imageExecution?.adapter, annotationRun.execution.adapter],
 }));

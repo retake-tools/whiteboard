@@ -1,4 +1,8 @@
 import type { CapabilityDefinitionLock, SkillDefinitionLock } from './capabilityContracts';
+import {
+  isStoryboardSheetArtifactRevisionMetadata,
+  type StoryboardSheetArtifactRevisionMetadata,
+} from './storyboardSheetContracts';
 import type { AssetRecord } from './types';
 import type { WorkflowDefinitionLock } from './workflowRuntimeContracts';
 
@@ -51,6 +55,7 @@ export interface ArtifactRevision {
   createdByActor: ArtifactActorRef;
   createdByExecutionId?: string;
   definitionLocks?: ArtifactDefinitionLocks;
+  metadata?: StoryboardSheetArtifactRevisionMetadata;
   primaryAssetId: string;
   projectId: string;
   revision: number;
@@ -100,6 +105,7 @@ export interface CreateOrAdvanceArtifactCommand {
   expectedCurrentRevisionId: string | null;
   idempotencyKey: string;
   libraryVisibility: ArtifactLibraryVisibility;
+  metadata?: StoryboardSheetArtifactRevisionMetadata;
   primaryAssetId: string;
   projectId: string;
   schemaVersion: 1;
@@ -176,6 +182,13 @@ export function assertValidCreateOrAdvanceArtifactCommand(
     throw new Error('Only an agent actor can include agentRunId.');
   }
   validateDefinitionLocks(command.definitionLocks);
+  if (command.artifactType === 'storyboard_sheet') {
+    if (!isStoryboardSheetArtifactRevisionMetadata(command.metadata)) {
+      throw new Error('Storyboard Sheet Artifact requires valid typed metadata.');
+    }
+  } else if (command.metadata !== undefined) {
+    throw new Error(`Artifact metadata is not supported for type: ${command.artifactType}`);
+  }
   validateSourceContext(command.scope, command.sourceContext);
   artifactOwnerKey(command);
 }

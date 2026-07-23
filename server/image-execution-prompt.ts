@@ -3,24 +3,30 @@ import { inputRoleDefinition, isExecutionInputRole } from '../src/core/inputRole
 import type { ExecutionInputRole, ExecutionRecord } from '../src/core/types';
 
 export interface ImageExecutionInputAssignment {
+  artifactType?: string;
   assetId: string;
   inputRole: ExecutionInputRole;
+  order?: number;
+  title?: string;
 }
 
 export function imageExecutionInputAssignments(execution: ExecutionRecord): ImageExecutionInputAssignment[] {
   const explicitRoles = new Map<string, ExecutionInputRole>();
+  const explicitAssetIds: string[] = [];
   const rawBindings = Array.isArray(execution.params?.inputBindings) ? execution.params.inputBindings : [];
   for (const rawBinding of rawBindings) {
     if (!isRecord(rawBinding) || typeof rawBinding.assetId !== 'string' || !isExecutionInputRole(rawBinding.inputRole)) {
       continue;
     }
     explicitRoles.set(rawBinding.assetId, rawBinding.inputRole);
+    explicitAssetIds.push(rawBinding.assetId);
   }
 
   const snapshotRoles = new Map<string, ExecutionInputRole>();
   const snapshotAssetIds: string[] = [];
   for (const binding of execution.inputBindingsSnapshot ?? []) {
     const role = inputRoleForSlot(binding.slotId);
+    if (!role) continue;
     for (const value of binding.values) {
       if (value.kind !== 'asset') continue;
       snapshotAssetIds.push(value.assetId);
@@ -36,11 +42,20 @@ export function imageExecutionInputAssignments(execution: ExecutionRecord): Imag
     : undefined;
   const assetIds = [...new Set([
     ...snapshotAssetIds,
-    ...(execution.inputAssetIds ?? []),
+    ...explicitAssetIds,
+    ...((execution.inputBindingsSnapshot?.length ?? 0) > 0 ? [] : execution.inputAssetIds ?? []),
     ...referenceAssetIds,
     annotatedCompositeAssetId,
   ].filter((assetId): assetId is string => typeof assetId === 'string'))];
   const referenceSet = new Set(referenceAssetIds);
+  const storyboardReferenceByAssetId = new Map(
+    (Array.isArray(execution.params?.storyboardReferences)
+      ? execution.params.storyboardReferences
+      : []).flatMap((value) => {
+      if (!isRecord(value) || typeof value.assetId !== 'string') return [];
+      return [[value.assetId, value] as const];
+    }),
+  );
   let sourceAssigned = assetIds.some(
     (assetId) => (explicitRoles.get(assetId) ?? snapshotRoles.get(assetId)) === 'source',
   );
@@ -51,7 +66,16 @@ export function imageExecutionInputAssignments(execution: ExecutionRecord): Imag
     if (!inputRole && execution.capabilityId !== 'image.text_to_image' && !sourceAssigned) inputRole = 'source';
     inputRole ??= 'general_reference';
     if (inputRole === 'source') sourceAssigned = true;
-    return { assetId, inputRole };
+    const storyboardReference = storyboardReferenceByAssetId.get(assetId);
+    return {
+      assetId,
+      inputRole,
+      ...(typeof storyboardReference?.artifactType === 'string'
+        ? { artifactType: storyboardReference.artifactType }
+        : {}),
+      ...(typeof storyboardReference?.order === 'number' ? { order: storyboardReference.order } : {}),
+      ...(typeof storyboardReference?.title === 'string' ? { title: storyboardReference.title } : {}),
+    };
   });
 
   return assignments.sort((left, right) => inputRoleOrder(left.inputRole) - inputRoleOrder(right.inputRole));
@@ -105,8 +129,14 @@ function sentence(value: string): string {
 
 function imageInputContractInstruction(assignments: readonly ImageExecutionInputAssignment[]): string {
   if (!assignments.length) return '';
-  const descriptions = assignments.map((assignment, index) =>
-    `attachment ${index + 1} [${assignment.inputRole}]: ${inputRoleDefinition(assignment.inputRole).promptDirective}`);
+  const descriptions = assignments.map((assignment, index) => {
+    const identity = [
+      assignment.title ? `title=${JSON.stringify(assignment.title)}` : '',
+      assignment.artifactType ? `type=${assignment.artifactType}` : '',
+      assignment.order ? `bound-order=${assignment.order}` : '',
+    ].filter(Boolean).join(', ');
+    return `attachment ${index + 1} [${assignment.inputRole}]${identity ? ` (${identity})` : ''}: ${inputRoleDefinition(assignment.inputRole).promptDirective}`;
+  });
   return ` Authoritative image input contract: ${descriptions.join(' ')} Do not reassign these roles based on the user instruction.`;
 }
 

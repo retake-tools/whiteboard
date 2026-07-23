@@ -7,14 +7,16 @@ export type SkillNameKey =
   | 'skill.normalizeScreenplay.name'
   | 'skill.characterBible.name'
   | 'skill.sceneBible.name'
-  | 'skill.storyboardPlan.name';
+  | 'skill.storyboardPlan.name'
+  | 'skill.storyboardSheet.name';
 
 export type SkillDescriptionKey =
   | 'skill.screenplayFromBrief.description'
   | 'skill.normalizeScreenplay.description'
   | 'skill.characterBible.description'
   | 'skill.sceneBible.description'
-  | 'skill.storyboardPlan.description';
+  | 'skill.storyboardPlan.description'
+  | 'skill.storyboardSheet.description';
 
 export type SkillInputKey =
   | 'skill.common.referencesInput'
@@ -25,7 +27,10 @@ export type SkillInputKey =
   | 'skill.sceneBible.input'
   | 'skill.storyboardPlan.screenplayInput'
   | 'skill.storyboardPlan.characterInput'
-  | 'skill.storyboardPlan.sceneInput';
+  | 'skill.storyboardPlan.sceneInput'
+  | 'skill.storyboardSheet.planInput'
+  | 'skill.storyboardSheet.unitInput'
+  | 'skill.storyboardSheet.referencesInput';
 
 export type SkillPlaceholderKey =
   | 'skill.common.referencesPlaceholder'
@@ -36,14 +41,18 @@ export type SkillPlaceholderKey =
   | 'skill.sceneBible.placeholder'
   | 'skill.storyboardPlan.screenplayPlaceholder'
   | 'skill.storyboardPlan.characterPlaceholder'
-  | 'skill.storyboardPlan.scenePlaceholder';
+  | 'skill.storyboardPlan.scenePlaceholder'
+  | 'skill.storyboardSheet.planPlaceholder'
+  | 'skill.storyboardSheet.unitPlaceholder'
+  | 'skill.storyboardSheet.referencesPlaceholder';
 
 export type SkillOperationTitleKey =
   | 'operation.generateScreenplay.title'
   | 'operation.organizeScreenplay.title'
   | 'operation.defineCharacter.title'
   | 'operation.defineScene.title'
-  | 'operation.generateStoryboardPlan.title';
+  | 'operation.generateStoryboardPlan.title'
+  | 'operation.generateStoryboardSheet.title';
 
 export interface RetakeSkillUiInputSlot {
   inputKey: SkillInputKey;
@@ -258,12 +267,50 @@ Describe future storyboard sheets, keyframes, image references, or generation as
   source: storyboardSource,
 };
 
+export const storyboardSheetFromUnitPlanSkill: RetakeSkillDefinition = {
+  schemaVersion: 1,
+  skillId: 'retake.storyboard-sheet.from-unit-plan',
+  version: '0.1.0',
+  definitionHash: 'sha256:retake-storyboard-sheet-from-unit-plan-catmeme-v1',
+  name: 'Generate storyboard sheet',
+  description: 'Generate visual panel-grid candidates for one explicitly selected storyboard unit.',
+  category: 'previsualization',
+  capabilityBindings: [{
+    capabilityId: 'previs.storyboard_sheet.generate',
+    inputSlots: ['storyboard_plan', 'unit_id', 'references'],
+    outputSlots: ['storyboard_sheet'],
+  }],
+  instructionTemplate: `You are the Storyboard Image Generator for one locked generation unit.
+
+Use the supplied Storyboard Plan as the shot and continuity authority. Find exactly the supplied unit ID and render only that unit. Preserve the unit's ordered shot or panel responsibilities, camera intent, visible action, performance, state changes, transitions, and continuity. Do not select a similar unit, rewrite the plan, add or remove panels, change story facts, or expand the request to other units.
+
+Treat only the supplied images as visual references. Preserve their character, scene, prop, wardrobe, lighting, and state facts where applicable; do not claim an unbound reference was supplied or approved. Keep every candidate semantically equivalent and vary only the visual realization.
+
+Render one clean panel grid using the locked panel count, layout, and 16:9 panel aspect ratio. Do not add a director strip, subtitles, explanatory prose, arrows, diagrams, UI chrome, or labels that replace visible performance.`,
+  outputRequirements: [
+    'Return only the requested storyboard-sheet image candidates.',
+    'Every candidate must represent the same exact unit ID and the same ordered panel responsibilities.',
+    'Preserve the supplied visual references without inventing missing approved assets.',
+    'Use the locked panel count, grid layout, panel aspect ratio, render mode, and candidate count.',
+  ],
+  source: {
+    kind: 'catmeme_migration',
+    paths: [
+      'skills/production-workflow/registry.yaml',
+      'skills/stage-previsualization/SKILL.md',
+      'skills/storyboard-image-generation/SKILL.md',
+      'skills/role-storyboard-director/references/storyboard-structure.md',
+    ],
+  },
+};
+
 const builtInSkills = [
   screenplayFromBriefSkill,
   normalizeScreenplaySkill,
   characterBibleFromScreenplaySkill,
   sceneBibleFromScreenplaySkill,
   storyboardPlanFromProductionDesignSkill,
+  storyboardSheetFromUnitPlanSkill,
 ] as const;
 
 const skillUiDefinitions: Record<string, RetakeSkillUiDefinition> = {
@@ -369,6 +416,30 @@ const skillUiDefinitions: Record<string, RetakeSkillUiDefinition> = {
         slotId: 'references',
         inputKey: 'skill.common.referencesInput',
         placeholderKey: 'skill.common.referencesPlaceholder',
+      },
+    ],
+  },
+  [storyboardSheetFromUnitPlanSkill.skillId]: {
+    nameKey: 'skill.storyboardSheet.name',
+    descriptionKey: 'skill.storyboardSheet.description',
+    inputKey: 'skill.storyboardSheet.planInput',
+    placeholderKey: 'skill.storyboardSheet.planPlaceholder',
+    operationTitleKey: 'operation.generateStoryboardSheet.title',
+    inputSlots: [
+      {
+        slotId: 'storyboard_plan',
+        inputKey: 'skill.storyboardSheet.planInput',
+        placeholderKey: 'skill.storyboardSheet.planPlaceholder',
+      },
+      {
+        slotId: 'unit_id',
+        inputKey: 'skill.storyboardSheet.unitInput',
+        placeholderKey: 'skill.storyboardSheet.unitPlaceholder',
+      },
+      {
+        slotId: 'references',
+        inputKey: 'skill.storyboardSheet.referencesInput',
+        placeholderKey: 'skill.storyboardSheet.referencesPlaceholder',
       },
     ],
   },

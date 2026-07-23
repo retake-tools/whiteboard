@@ -7,6 +7,7 @@ import type {
 } from './agentSessionContracts';
 import {
   resolvePackageComposerInvocation,
+  type PackageComposerInlineValue,
   type PackageComposerMention,
 } from './packageComposer';
 import { resolvePackageEntryPoint, type ResolvedPackageEntryPointTarget } from './packageRegistry';
@@ -14,6 +15,8 @@ import { skillDefinitionFor } from './skillRegistry';
 import { createDraftSkillOperation, type TextGenerationLabels } from './textOperations';
 import type { BoardSnapshot } from './types';
 import { projectWorkflowDraft } from './workflowDraftProjection';
+import { createDraftStoryboardSheetOperation } from './storyboardSheetOperations';
+import { storyboardSheetCapabilityId } from './storyboardSheetContracts';
 
 type PackageEntrypointInstantiateCommand = Extract<
   ChangeProposalCommand,
@@ -46,8 +49,12 @@ export function buildPackageEntrypointInstantiationCommand(
   const mentions = source.contextRefs.filter(
     (ref): ref is PackageComposerMention => ref.kind === 'block' || ref.kind === 'asset',
   );
+  const inlineValues = source.contextRefs.filter(
+    (ref): ref is PackageComposerInlineValue => ref.kind === 'inline',
+  );
   const resolved = resolvePackageComposerInvocation(snapshot, {
     entrypointId: entrypoints[0].entrypointId,
+    inlineValues,
     instruction: source.content,
     mentions,
   });
@@ -56,7 +63,9 @@ export function buildPackageEntrypointInstantiationCommand(
     invocation: {
       instruction: resolved.invocation.instruction,
       ...(resolved.instructionSlotId ? { instructionSlotId: resolved.instructionSlotId } : {}),
+      inlineValues: structuredClone(resolved.invocation.inlineValues ?? []),
       mentionLocks: resolved.invocation.mentions.map((mention) => lockMention(snapshot, mention)),
+      parameters: structuredClone(resolved.invocation.parameters ?? {}),
       targetLock: invocationLock(resolved.target),
     },
     kind: 'package_entrypoint.instantiate',
@@ -92,29 +101,44 @@ export function stagePackageEntrypointDraft(
   if (resolved.target.kind === 'skill') {
     const labels = presentation.labelsForSkill?.(resolved.target.skillLock.skillId)
       ?? defaultLabelsForSkill(resolved.target.skillLock.skillId);
-    const draft = createDraftSkillOperation(stagedSnapshot, {
-      ...labels,
-      connectionId: presentation.connectionIdForCapability?.(
-        resolved.target.capabilityLock.capabilityId,
-        stagedSnapshot,
-      ),
-      explicitInputBindings: command.invocation.mentionLocks.map((mention) => mention.kind === 'block'
-        ? { blockId: mention.blockId, inputSlotId: mention.slotId, kind: 'block' as const }
-        : { assetId: mention.assetId, inputSlotId: mention.slotId, kind: 'asset' as const }),
-      initialText: command.invocation.instructionSlotId && command.invocation.instruction
-        ? {
-            body: command.invocation.instruction,
-            inputSlotId: command.invocation.instructionSlotId,
-          }
-        : undefined,
-      packageContext,
-      selectedBlockIds: [],
-      skillId: resolved.target.skillLock.skillId,
-    });
+    const explicitInputBindings = command.invocation.mentionLocks.map((mention) => mention.kind === 'block'
+      ? { blockId: mention.blockId, inputSlotId: mention.slotId, kind: 'block' as const }
+      : { assetId: mention.assetId, inputSlotId: mention.slotId, kind: 'asset' as const });
+    const draft = resolved.target.capabilityLock.capabilityId === storyboardSheetCapabilityId
+      ? createDraftStoryboardSheetOperation(stagedSnapshot, {
+          connectionId: presentation.connectionIdForCapability?.(
+            resolved.target.capabilityLock.capabilityId,
+            stagedSnapshot,
+          ),
+          explicitInputBindings,
+          labels,
+          packageContext,
+          parameters: command.invocation.parameters,
+          selectedBlockIds: [],
+          unitId: command.invocation.inlineValues.find((value) => value.slotId === 'unit_id')?.value,
+        })
+      : createDraftSkillOperation(stagedSnapshot, {
+          ...labels,
+          connectionId: presentation.connectionIdForCapability?.(
+            resolved.target.capabilityLock.capabilityId,
+            stagedSnapshot,
+          ),
+          explicitInputBindings,
+          initialText: command.invocation.instructionSlotId && command.invocation.instruction
+            ? {
+                body: command.invocation.instruction,
+                inputSlotId: command.invocation.instructionSlotId,
+              }
+            : undefined,
+          packageContext,
+          selectedBlockIds: [],
+          skillId: resolved.target.skillLock.skillId,
+        });
     primaryBlockId = draft.operationBlock.blockId;
   } else {
     const projection = projectWorkflowDraft(stagedSnapshot, {
       composerInput: {
+        inlineValues: command.invocation.inlineValues,
         instruction: command.invocation.instructionSlotId && command.invocation.instruction
           ? {
               body: command.invocation.instruction,
@@ -122,6 +146,7 @@ export function stagePackageEntrypointDraft(
             }
           : undefined,
         mentions: mentionLocksAsMentions(command.invocation.mentionLocks),
+        parameters: command.invocation.parameters,
       },
       connectionIdForCapability: (capabilityId) =>
         presentation.connectionIdForCapability?.(capabilityId, stagedSnapshot),
@@ -159,13 +184,14 @@ export function semanticSourceFingerprint(
   if (
     !block ||
     block.boardId !== snapshot.board.boardId ||
-    (block.type !== 'text' && block.type !== 'document')
+    (block.type !== 'text' && block.type !== 'document' && block.type !== 'image')
   ) throw new Error(`Typed EntryPoint source Block not found: ${mention.blockId}`);
   const semanticValue = block.type === 'text'
     ? JSON.stringify({ body: stringValue(block.data.body), type: block.type })
     : JSON.stringify({
         assetId: stringValue(block.data.assetId),
         documentKind: stringValue(block.data.documentKind),
+        previewUrl: stringValue(block.data.previewUrl),
         type: block.type,
       });
   return `fnv1a:${fnv1a(semanticValue)}`;
@@ -209,11 +235,25 @@ function validateCommand(
   }
   const resolved = resolvePackageComposerInvocation(snapshot, {
     entrypointId: command.invocation.targetLock.entrypointId,
+    inlineValues: command.invocation.inlineValues,
     instruction: command.invocation.instruction,
     mentions,
+    parameters: command.invocation.parameters,
   });
   if (resolved.instructionSlotId !== command.invocation.instructionSlotId) {
     throw new Error('Typed EntryPoint Proposal instruction Slot has changed.');
+  }
+  if (
+    JSON.stringify(resolved.invocation.inlineValues ?? [])
+    !== JSON.stringify(command.invocation.inlineValues)
+  ) {
+    throw new Error('Typed EntryPoint Proposal inline inputs are not canonical.');
+  }
+  if (
+    JSON.stringify(resolved.invocation.parameters ?? {})
+    !== JSON.stringify(command.invocation.parameters)
+  ) {
+    throw new Error('Typed EntryPoint Proposal parameters are not canonical.');
   }
   return resolved;
 }
@@ -224,11 +264,11 @@ function lockMention(snapshot: BoardSnapshot, mention: PackageComposerMention): 
     if (
       !asset ||
       asset.projectId !== snapshot.project.projectId ||
-      asset.kind !== 'document'
+      (asset.kind !== 'document' && asset.kind !== 'image')
     ) throw new Error(`Typed EntryPoint source Asset not found: ${mention.assetId}`);
     return {
       assetId: mention.assetId,
-      expectedAssetKind: 'document',
+      expectedAssetKind: asset.kind,
       kind: 'asset',
       slotId: mention.slotId,
     };
@@ -237,7 +277,7 @@ function lockMention(snapshot: BoardSnapshot, mention: PackageComposerMention): 
   if (
     !block ||
     block.boardId !== snapshot.board.boardId ||
-    (block.type !== 'text' && block.type !== 'document')
+    (block.type !== 'text' && block.type !== 'document' && block.type !== 'image')
   ) throw new Error(`Typed EntryPoint source Block not found: ${mention.blockId}`);
   return {
     blockId: mention.blockId,
