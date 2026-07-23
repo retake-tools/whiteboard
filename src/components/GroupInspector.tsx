@@ -1,8 +1,13 @@
-import { Bot, ChevronLeft, ChevronRight, CirclePause, Download, ImageIcon, Layers3, Play, Square, Video, X } from 'lucide-react';
+import { Bot, Check, ChevronLeft, ChevronRight, CirclePause, Download, ImageIcon, Layers3, Play, Square, Video, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { directGroupChildren, descendantBlockIds, groupMediaItems, type GroupMediaItem } from '../core/grouping';
 import type { BlockRecord, BoardSnapshot, GroupKind } from '../core/types';
-import { workflowRunViewForGroup, type WorkflowRunRuntimeView } from '../core/workflowRuntime';
+import type { WorkflowStepRunRecord } from '../core/workflowRuntimeContracts';
+import {
+  workflowRunViewForGroup,
+  workflowRunViewForId,
+  type WorkflowRunRuntimeView,
+} from '../core/workflowRuntime';
 import { latestAgentRunForWorkflowRun, type AgentRunRuntimeView } from '../core/agentRuntime';
 import { useI18n } from '../i18n';
 import {
@@ -31,6 +36,7 @@ interface GroupInspectorProps {
   onDownloadAll: (groupId: string) => void;
   onPauseAgentRun: (agentRunId: string) => void;
   onResumeAgentRun: (agentRunId: string) => void;
+  onSelectWorkflowOutput: (stepRunId: string, assetId: string, expectedStepRunVersion: number) => void;
 }
 
 export function GroupInspector({
@@ -44,6 +50,7 @@ export function GroupInspector({
   onDownloadAll,
   onPauseAgentRun,
   onResumeAgentRun,
+  onSelectWorkflowOutput,
 }: GroupInspectorProps): ReactElement | null {
   const { t } = useI18n();
   const [selectedBlockId, setSelectedBlockId] = useState<string | undefined>();
@@ -61,8 +68,14 @@ export function GroupInspector({
   const execution = executionId
     ? snapshot.executions.find((candidate) => candidate.executionId === executionId)
     : undefined;
+  const outputSelectionStep = execution?.stepRunId
+    ? (snapshot.workflowStepRuns ?? []).find((candidate) => candidate.stepRunId === execution.stepRunId)
+    : undefined;
   const executionContext = execution ? getExecutionDetailContextForExecution(snapshot, execution) : undefined;
-  const workflowRun = groupId ? workflowRunViewForGroup(snapshot, groupId) : undefined;
+  const workflowRun = groupId
+    ? workflowRunViewForGroup(snapshot, groupId)
+      ?? (execution?.workflowRunId ? workflowRunViewForId(snapshot, execution.workflowRunId) : undefined)
+    : undefined;
   const agentRun = workflowRun ? latestAgentRunForWorkflowRun(snapshot, workflowRun.record.workflowRunId) : undefined;
 
   useEffect(() => {
@@ -164,8 +177,16 @@ export function GroupInspector({
                   <button
                     key={item.block.blockId}
                     type="button"
-                    className={item.block.blockId === selectedItem?.block.blockId ? 'is-selected' : undefined}
-                    aria-label={`${item.block.data.title} ${index + 1}`}
+                    className={[
+                      item.block.blockId === selectedItem?.block.blockId ? 'is-selected' : '',
+                      outputSelectionStep?.acceptedOutputAssetIds.includes(item.asset.assetId) ? 'is-accepted' : '',
+                    ].filter(Boolean).join(' ') || undefined}
+                    aria-label={[
+                      `${item.block.data.title} ${index + 1}`,
+                      outputSelectionStep?.acceptedOutputAssetIds.includes(item.asset.assetId)
+                        ? t('workflowRuntime.selectedOutput')
+                        : '',
+                    ].filter(Boolean).join(', ')}
                     onClick={() => setSelectedBlockId(item.block.blockId)}
                   >
                     {item.asset.kind === 'video' ? (
@@ -174,6 +195,9 @@ export function GroupInspector({
                       <img src={item.asset.previewUrl} alt="" />
                     )}
                     <span>{index + 1}</span>
+                    {outputSelectionStep?.acceptedOutputAssetIds.includes(item.asset.assetId) ? (
+                      <span className="execution-result-selected-mark" aria-hidden="true"><Check size={11} /></span>
+                    ) : null}
                   </button>
                 ))}
               </div>
@@ -194,6 +218,8 @@ export function GroupInspector({
               onCreateWorkflowAgentRun={onCreateWorkflowAgentRun}
               onPauseAgentRun={onPauseAgentRun}
               onResumeAgentRun={onResumeAgentRun}
+              onSelectWorkflowOutput={onSelectWorkflowOutput}
+              outputSelectionStep={outputSelectionStep}
             />
             {executionContext ? (
               <ExecutionDetailContent
@@ -235,6 +261,8 @@ function GroupSummary({
   onCreateWorkflowAgentRun,
   onPauseAgentRun,
   onResumeAgentRun,
+  onSelectWorkflowOutput,
+  outputSelectionStep,
 }: {
   agentRun?: AgentRunRuntimeView;
   descendantCount: number;
@@ -248,11 +276,24 @@ function GroupSummary({
   onCreateWorkflowAgentRun: (workflowRunId: string) => void;
   onPauseAgentRun: (agentRunId: string) => void;
   onResumeAgentRun: (agentRunId: string) => void;
+  onSelectWorkflowOutput: (stepRunId: string, assetId: string, expectedStepRunVersion: number) => void;
+  outputSelectionStep?: WorkflowStepRunRecord;
 }): ReactElement {
   const { t } = useI18n();
   const kind = (group.data.groupKind ?? 'manual') as GroupKind;
   const dimensions = selectedItem
     ? mediaDimensions(selectedItem.asset.width, selectedItem.asset.height)
+    : undefined;
+  const selectedAssetId = selectedItem?.asset.assetId;
+  const isAcceptedOutput = Boolean(
+    selectedAssetId && outputSelectionStep?.acceptedOutputAssetIds.includes(selectedAssetId),
+  );
+  const selectableOutput = selectedItem
+    && selectedAssetId
+    && outputSelectionStep?.outputAcceptancePolicy === 'manual_selection'
+    && outputSelectionStep.outputAssetIds.includes(selectedAssetId)
+    && (outputSelectionStep.status === 'waiting_selection' || outputSelectionStep.status === 'succeeded')
+    ? { assetId: selectedAssetId, step: outputSelectionStep }
     : undefined;
 
   return (
@@ -344,6 +385,27 @@ function GroupSummary({
             <Meta label={t('group.assetId')} value={selectedItem.asset.assetId} mono />
             <Meta label={t('group.blockId')} value={selectedItem.block.blockId} mono />
           </dl>
+          {selectableOutput ? (
+            <button
+              type="button"
+              className={`workflow-output-selection${isAcceptedOutput ? ' is-accepted' : ''}`}
+              disabled={isAcceptedOutput}
+              onClick={() => onSelectWorkflowOutput(
+                selectableOutput.step.stepRunId,
+                selectableOutput.assetId,
+                selectableOutput.step.recordVersion,
+              )}
+            >
+              <Check size={15} />
+              <span>
+                {isAcceptedOutput
+                  ? t('workflowRuntime.selectedOutput')
+                  : selectableOutput.step.acceptedOutputAssetIds.length > 0
+                    ? t('workflowRuntime.changeSelectedOutput')
+                    : t('workflowRuntime.selectOutput')}
+              </span>
+            </button>
+          ) : null}
         </>
       ) : null}
     </section>

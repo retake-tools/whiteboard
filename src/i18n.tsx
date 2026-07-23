@@ -417,13 +417,19 @@ type TranslationKey =
   | 'workflowRuntime.created'
   | 'workflowRuntime.createdBody'
   | 'workflowRuntime.definition'
+  | 'workflowRuntime.changeSelectedOutput'
   | 'workflowRuntime.outdated'
+  | 'workflowRuntime.outputSelected'
+  | 'workflowRuntime.outputSelectedBody'
+  | 'workflowRuntime.outputSelectionFailed'
   | 'workflowRuntime.run'
   | 'workflowRuntime.runId'
   | 'workflowRuntime.step'
   | 'workflowRuntime.stepExecutions'
   | 'workflowRuntime.stepNotReady'
   | 'workflowRuntime.steps'
+  | 'workflowRuntime.selectOutput'
+  | 'workflowRuntime.selectedOutput'
   | 'workflowRuntime.view'
   | 'workflowRuntime.runStatus.canceled'
   | 'workflowRuntime.runStatus.draft'
@@ -1124,13 +1130,19 @@ const translations: Record<Locale, Translations> = {
     'workflowRuntime.created': 'Workflow Run created',
     'workflowRuntime.createdBody': 'Ready Steps can now be started manually.',
     'workflowRuntime.definition': 'Definition',
+    'workflowRuntime.changeSelectedOutput': 'Use this result instead',
     'workflowRuntime.outdated': 'Outdated',
+    'workflowRuntime.outputSelected': 'Workflow output selected',
+    'workflowRuntime.outputSelectedBody': 'The Workflow can now continue from this result.',
+    'workflowRuntime.outputSelectionFailed': 'Workflow output could not be selected',
     'workflowRuntime.run': 'Workflow Run',
     'workflowRuntime.runId': 'Run ID',
     'workflowRuntime.step': 'Workflow Step',
     'workflowRuntime.stepExecutions': 'Executions',
     'workflowRuntime.stepNotReady': 'This Workflow Step is waiting for its upstream dependencies.',
     'workflowRuntime.steps': 'Steps',
+    'workflowRuntime.selectOutput': 'Use this result',
+    'workflowRuntime.selectedOutput': 'Selected for Workflow',
     'workflowRuntime.view': 'View Workflow Run',
     'workflowRuntime.runStatus.canceled': 'Canceled',
     'workflowRuntime.runStatus.draft': 'Draft',
@@ -1826,13 +1838,19 @@ const translations: Record<Locale, Translations> = {
     'workflowRuntime.created': 'Workflow Run 已创建',
     'workflowRuntime.createdBody': '现在可以手动启动已就绪的 Step。',
     'workflowRuntime.definition': 'Definition',
+    'workflowRuntime.changeSelectedOutput': '改用这个结果',
     'workflowRuntime.outdated': '上游已变化',
+    'workflowRuntime.outputSelected': '已选用 Workflow 输出',
+    'workflowRuntime.outputSelectedBody': 'Workflow 现在可以从这个结果继续推进。',
+    'workflowRuntime.outputSelectionFailed': '无法选用 Workflow 输出',
     'workflowRuntime.run': 'Workflow Run',
     'workflowRuntime.runId': 'Run ID',
     'workflowRuntime.step': 'Workflow Step',
     'workflowRuntime.stepExecutions': '执行次数',
     'workflowRuntime.stepNotReady': '这个 Workflow Step 正在等待上游依赖。',
     'workflowRuntime.steps': 'Steps',
+    'workflowRuntime.selectOutput': '选用这个结果',
+    'workflowRuntime.selectedOutput': 'Workflow 已选用',
     'workflowRuntime.view': '查看 Workflow Run',
     'workflowRuntime.runStatus.canceled': '已取消',
     'workflowRuntime.runStatus.draft': '草稿',

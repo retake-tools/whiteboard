@@ -1,6 +1,7 @@
 import type { OperationToast } from '../components/OperationFeedback';
+import { reconcileAgentRuntime } from '../core/agentRuntime';
 import type { BoardSnapshot } from '../core/types';
-import { createWorkflowRunForGroup } from '../core/workflowRuntime';
+import { acceptWorkflowStepOutputs, createWorkflowRunForGroup } from '../core/workflowRuntime';
 import type { useI18n } from '../i18n';
 
 interface WorkflowRuntimeControllerOptions {
@@ -39,5 +40,36 @@ export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerO
     }
   }
 
-  return { createWorkflowRun };
+  function acceptWorkflowOutput(
+    stepRunId: string,
+    assetId: string,
+    expectedStepRunVersion: number,
+  ): void {
+    try {
+      updateSnapshot((current) => {
+        acceptWorkflowStepOutputs(current, {
+          acceptedOutputAssetIds: [assetId],
+          expectedStepRunVersion,
+          stepRunId,
+        });
+        reconcileAgentRuntime(current);
+        return current;
+      }, { history: true, persist: true });
+      setOperationToast({
+        id: `workflow-output:${stepRunId}:${assetId}`,
+        title: t('workflowRuntime.outputSelected'),
+        body: t('workflowRuntime.outputSelectedBody'),
+        tone: 'success',
+      });
+    } catch (error) {
+      setOperationToast({
+        id: `workflow-output:${stepRunId}:${assetId}`,
+        title: t('workflowRuntime.outputSelectionFailed'),
+        body: error instanceof Error ? error.message : undefined,
+        tone: 'error',
+      });
+    }
+  }
+
+  return { acceptWorkflowOutput, createWorkflowRun };
 }

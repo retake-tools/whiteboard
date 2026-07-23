@@ -347,7 +347,8 @@ function projectWorkflowAgentRun(
     step.status === 'queued'
     || step.status === 'running'
     || step.status === 'ready'
-    || step.status === 'waiting_input',
+    || step.status === 'waiting_input'
+    || step.status === 'waiting_selection',
   );
   const base = {
     executionIds,

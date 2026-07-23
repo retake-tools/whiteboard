@@ -6,6 +6,7 @@ import { executeExistingTextGenerationOperation, type TextGenerationLabels } fro
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import { storyToStoryboardWorkflow } from '../src/core/workflowRegistry';
 import {
+  acceptWorkflowStepOutputs,
   createWorkflowRunForGroup,
   reconcileWorkflowRuntime,
   workflowRunViewForGroup,
@@ -39,6 +40,8 @@ const [groupToolbarSource, groupInspectorSource, whiteboardCanvasSource] = await
 ]);
 assert.match(groupToolbarSource, /workflow-run-control/);
 assert.match(groupInspectorSource, /workflow-run-step-list/);
+assert.match(groupInspectorSource, /onSelectWorkflowOutput/);
+assert.match(groupInspectorSource, /workflow-output-selection/);
 assert.match(whiteboardCanvasSource, /workflowRuntime\.createWorkflowRun/);
 
 const snapshot = await emptySnapshot();
@@ -89,6 +92,11 @@ const storyboardExecution = queueStep(snapshot, operationForStep(snapshot, first
 completeStep(snapshot, storyboardExecution, '# Storyboard Plan\n\nShot 01: the cat enters frame.');
 assert.equal(workflowRunViewForGroup(snapshot, firstProjection.groupBlock.blockId)?.status, 'succeeded');
 assert.equal(snapshot.executions.filter((execution) => execution.workflowRunId === firstRun.record.workflowRunId).length, 4);
+assert.equal(
+  stepFor(snapshot, firstRun.record.workflowRunId, 'screenplay_generate').outputAcceptancePolicy,
+  'automatic',
+  'Existing document Steps must keep automatic output acceptance.',
+);
 
 brief.data.body = 'A cat and a dog must carry the last energy core across a flooded ruined city.';
 reconcileWorkflowRuntime(snapshot);
@@ -169,6 +177,108 @@ incompleteSnapshot.workflowStepRuns = (incompleteSnapshot.workflowStepRuns ?? []
 assert.equal(stepView(incompleteSnapshot, incompleteRun.record.workflowRunId, 'character_define').status, 'blocked');
 assert.equal(workflowRunViewForGroup(incompleteSnapshot, incompleteProjection.groupBlock.blockId)?.status, 'needs_attention');
 
+const selectionSnapshot = await emptySnapshot();
+const selectionProjection = projectWorkflowDraft(selectionSnapshot, projectionInput());
+blockFor(selectionSnapshot, selectionProjection.workflowInputBlockIds[0]).data.body = 'Choose one generated candidate.';
+const selectionDefinitionStep = storyToStoryboardWorkflow.steps.find(
+  (step) => step.stepId === 'screenplay_generate',
+);
+assert.ok(selectionDefinitionStep);
+selectionDefinitionStep.outputAcceptancePolicy = 'manual_selection';
+const selectionRun = createWorkflowRunForGroup(selectionSnapshot, selectionProjection.groupBlock.blockId);
+delete selectionDefinitionStep.outputAcceptancePolicy;
+const selectionStep = stepFor(selectionSnapshot, selectionRun.record.workflowRunId, 'screenplay_generate');
+assert.equal(selectionStep.outputAcceptancePolicy, 'manual_selection');
+const firstCandidateExecution = queueStep(
+  selectionSnapshot,
+  operationForStep(selectionSnapshot, selectionRun.record.workflowRunId, 'screenplay_generate'),
+);
+const firstCandidateAssetId = completeStep(
+  selectionSnapshot,
+  firstCandidateExecution,
+  '# Candidate one\n\nFirst selectable output.',
+);
+assert.equal(
+  stepView(selectionSnapshot, selectionRun.record.workflowRunId, 'screenplay_generate').status,
+  'waiting_selection',
+);
+assert.equal(
+  workflowRunViewForGroup(selectionSnapshot, selectionProjection.groupBlock.blockId)?.status,
+  'waiting_selection',
+);
+assert.deepEqual(selectionRun.record.currentStepIds, ['screenplay_generate']);
+const firstCandidateBlock = structuredClone(blockFor(selectionSnapshot, firstCandidateExecution.outputBlockIds[0]));
+firstCandidateBlock.blockId = 'block_selection_candidate_one';
+firstCandidateBlock.position.x += 420;
+selectionSnapshot.blocks.push(firstCandidateBlock);
+
+const secondCandidateExecution = queueStep(
+  selectionSnapshot,
+  operationForStep(selectionSnapshot, selectionRun.record.workflowRunId, 'screenplay_generate'),
+);
+const secondCandidateAssetId = completeStep(
+  selectionSnapshot,
+  secondCandidateExecution,
+  '# Candidate two\n\nSecond selectable output.',
+);
+assert.deepEqual(selectionStep.outputAssetIds, [firstCandidateAssetId, secondCandidateAssetId]);
+assert.equal(selectionSnapshot.assets.some((asset) => asset.assetId === firstCandidateAssetId), true);
+const selectionVersion = selectionStep.recordVersion;
+const acceptedView = acceptWorkflowStepOutputs(selectionSnapshot, {
+  stepRunId: selectionStep.stepRunId,
+  acceptedOutputAssetIds: [secondCandidateAssetId],
+  expectedStepRunVersion: selectionVersion,
+});
+assert.equal(acceptedView.status, 'succeeded');
+assert.deepEqual(selectionStep.acceptedOutputAssetIds, [secondCandidateAssetId]);
+assert.equal(selectionStep.acceptedBy, 'user');
+assert.ok(selectionStep.acceptedAt);
+assert.equal(blockFor(selectionSnapshot, secondCandidateExecution.outputBlockIds[0]).data.reviewStatus, 'selected');
+assert.equal(firstCandidateBlock.data.reviewStatus, undefined);
+assert.throws(
+  () => acceptWorkflowStepOutputs(selectionSnapshot, {
+    stepRunId: selectionStep.stepRunId,
+    acceptedOutputAssetIds: [firstCandidateAssetId],
+    expectedStepRunVersion: selectionVersion,
+  }),
+  /version conflict/,
+);
+const foreignAsset: AssetRecord = {
+  ...selectionSnapshot.assets.find((asset) => asset.assetId === firstCandidateAssetId)!,
+  assetId: 'asset_not_in_step_execution_outputs',
+};
+selectionSnapshot.assets.push(foreignAsset);
+assert.throws(
+  () => acceptWorkflowStepOutputs(selectionSnapshot, {
+    stepRunId: selectionStep.stepRunId,
+    acceptedOutputAssetIds: [foreignAsset.assetId],
+    expectedStepRunVersion: selectionStep.recordVersion,
+  }),
+  /not a selectable output/,
+);
+const reselectedView = acceptWorkflowStepOutputs(selectionSnapshot, {
+  stepRunId: selectionStep.stepRunId,
+  acceptedOutputAssetIds: [firstCandidateAssetId],
+  expectedStepRunVersion: selectionStep.recordVersion,
+});
+assert.equal(reselectedView.status, 'succeeded');
+assert.deepEqual(selectionStep.acceptedOutputAssetIds, [firstCandidateAssetId]);
+assert.equal(firstCandidateBlock.data.reviewStatus, 'selected');
+assert.equal(blockFor(selectionSnapshot, secondCandidateExecution.outputBlockIds[0]).data.reviewStatus, undefined);
+assert.equal(selectionSnapshot.assets.some((asset) => asset.assetId === secondCandidateAssetId), true);
+await saveSnapshot(selectionSnapshot);
+const recoveredSelection = await loadSnapshot(
+  selectionSnapshot.project.projectId,
+  selectionSnapshot.board.boardId,
+);
+const recoveredSelectionStep = stepFor(
+  recoveredSelection,
+  selectionRun.record.workflowRunId,
+  'screenplay_generate',
+);
+assert.deepEqual(recoveredSelectionStep.acceptedOutputAssetIds, [firstCandidateAssetId]);
+assert.equal(blockFor(recoveredSelection, firstCandidateBlock.blockId).data.reviewStatus, 'selected');
+
 console.log(JSON.stringify({
   ok: true,
   workflowRunRecovered: true,
@@ -181,6 +291,9 @@ console.log(JSON.stringify({
   failedStepRetryable: true,
   manualCanvasPathPreserved: true,
   missingDependencyBlocked: true,
+  manualOutputSelection: true,
+  outputReselectionPreservesAssets: true,
+  outputSelectionVersionAndLineageValidated: true,
 }));
 
 async function emptySnapshot(): Promise<BoardSnapshot> {

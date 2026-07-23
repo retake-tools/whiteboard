@@ -4,6 +4,7 @@ import { skillDefinitionFor } from './skillRegistry';
 export type WorkflowStepType = 'capability';
 export type WorkflowRunPolicy = 'manual';
 export type WorkflowDefaultRunMode = 'manual';
+export type WorkflowOutputAcceptancePolicy = 'automatic' | 'manual_selection';
 
 export interface WorkflowInputSlotDefinition {
   artifactTypes: string[];
@@ -30,6 +31,7 @@ export interface WorkflowCapabilityStepDefinition {
   dependsOn: string[];
   inputBindings: WorkflowStepInputBinding[];
   optional: boolean;
+  outputAcceptancePolicy?: WorkflowOutputAcceptancePolicy;
   outputSlots: string[];
   runPolicy: WorkflowRunPolicy;
   skillLock: {

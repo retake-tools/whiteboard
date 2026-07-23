@@ -506,6 +506,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         onCreateWorkflowAgentRun={agentRuntimeController.createWorkflowAgentRun}
         onPauseAgentRun={agentRuntimeController.pauseAgentRun}
         onResumeAgentRun={agentRuntimeController.resumeAgentRun}
+        onSelectWorkflowOutput={workflowRuntimeController.acceptWorkflowOutput}
       />
       {isHistoryOpen ? (
         <BoardHistoryPanel

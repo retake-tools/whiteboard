@@ -315,6 +315,7 @@ export interface BlockData {
   annotationMarkCount?: number;
   previewUrl?: string;
   resultRetryMode?: 'codex_prompt' | 'direct_retry';
+  reviewStatus?: 'selected';
   status?: ExecutionStatus;
   statusVisualDismissed?: boolean;
   capabilityId?: string;

@@ -29,6 +29,12 @@ export interface WorkflowRunRuntimeView {
   steps: WorkflowStepRuntimeView[];
 }
 
+export interface AcceptWorkflowStepOutputsInput {
+  acceptedOutputAssetIds: string[];
+  expectedStepRunVersion: number;
+  stepRunId: string;
+}
+
 export function createWorkflowRunForGroup(
   snapshot: BoardSnapshot,
   groupId: string,
@@ -103,6 +109,8 @@ export function createWorkflowRunForGroup(
       resolvedInputBindings,
       outputBlockIds,
       executionIds: [],
+      acceptedOutputAssetIds: [],
+      outputAcceptancePolicy: step.outputAcceptancePolicy ?? 'automatic',
       outputAssetIds: [],
       status: 'pending',
       freshness: 'current',
@@ -171,6 +179,12 @@ export function attachWorkflowExecution(
   execution.workflowRunId = run.workflowRunId;
   execution.stepRunId = view.record.stepRunId;
   view.record.executionIds = [...view.record.executionIds, execution.executionId];
+  if (view.record.outputAcceptancePolicy === 'manual_selection') {
+    view.record.acceptedOutputAssetIds = [];
+    view.record.acceptedAt = undefined;
+    view.record.acceptedBy = undefined;
+    clearSelectedOutputMarkers(snapshot, view.record);
+  }
   view.record.inputFingerprint = workflowStepInputFingerprint(snapshot, view.record);
   view.record.status = 'queued';
   view.record.freshness = 'current';
@@ -183,6 +197,77 @@ export function attachWorkflowExecution(
   run.recordVersion += 1;
 }
 
+export function acceptWorkflowStepOutputs(
+  snapshot: BoardSnapshot,
+  input: AcceptWorkflowStepOutputsInput,
+): WorkflowStepRuntimeView {
+  const record = (snapshot.workflowStepRuns ?? []).find(
+    (candidate) => candidate.stepRunId === input.stepRunId,
+  );
+  if (!record) throw new Error(`Workflow StepRun not found: ${input.stepRunId}`);
+  if (record.recordVersion !== input.expectedStepRunVersion) {
+    throw new Error(`Workflow StepRun version conflict: ${input.stepRunId}`);
+  }
+  if (record.outputAcceptancePolicy !== 'manual_selection') {
+    throw new Error(`Workflow Step output selection is not enabled: ${record.stepId}`);
+  }
+  const run = (snapshot.workflowRuns ?? []).find(
+    (candidate) => candidate.workflowRunId === record.workflowRunId,
+  );
+  if (
+    !run
+    || run.projectId !== snapshot.project.projectId
+    || run.boardId !== snapshot.board.boardId
+  ) throw new Error(`Workflow StepRun scope does not match the Board: ${input.stepRunId}`);
+  const view = workflowRunView(snapshot, run).steps.find(
+    (candidate) => candidate.record.stepRunId === record.stepRunId,
+  );
+  if (!view || (view.status !== 'waiting_selection' && view.status !== 'succeeded')) {
+    throw new Error(`Workflow Step output cannot be selected from status: ${view?.status ?? 'missing'}`);
+  }
+
+  const acceptedOutputAssetIds = unique(input.acceptedOutputAssetIds);
+  if (acceptedOutputAssetIds.length === 0) {
+    throw new Error('Workflow Step output selection requires at least one Asset.');
+  }
+  const executionById = new Map(
+    record.executionIds.flatMap((executionId) => {
+      const execution = snapshot.executions.find((candidate) => candidate.executionId === executionId);
+      return execution ? [[executionId, execution] as const] : [];
+    }),
+  );
+  for (const assetId of acceptedOutputAssetIds) {
+    const asset = snapshot.assets.find((candidate) => candidate.assetId === assetId);
+    const sourceExecution = asset?.sourceExecutionId
+      ? executionById.get(asset.sourceExecutionId)
+      : undefined;
+    if (
+      !asset
+      || asset.projectId !== snapshot.project.projectId
+      || !record.outputAssetIds.includes(assetId)
+      || !sourceExecution
+      || sourceExecution.workflowRunId !== record.workflowRunId
+      || sourceExecution.stepRunId !== record.stepRunId
+      || !sourceExecution.outputAssetIds.includes(assetId)
+    ) throw new Error(`Asset is not a selectable output of this Workflow Step: ${assetId}`);
+  }
+
+  const acceptedAt = nowIso();
+  record.acceptedOutputAssetIds = acceptedOutputAssetIds;
+  record.acceptedBy = 'user';
+  record.acceptedAt = acceptedAt;
+  record.updatedAt = acceptedAt;
+  record.recordVersion += 1;
+  updateSelectedOutputMarkers(snapshot, record);
+  reconcileWorkflowRuntime(snapshot);
+  touchBoard(snapshot);
+  const acceptedView = workflowRunView(snapshot, run).steps.find(
+    (candidate) => candidate.record.stepRunId === record.stepRunId,
+  );
+  if (!acceptedView) throw new Error(`Workflow StepRun projection not found: ${input.stepRunId}`);
+  return acceptedView;
+}
+
 export function reconcileWorkflowRuntime(snapshot: BoardSnapshot): BoardSnapshot {
   for (const run of snapshot.workflowRuns ?? []) {
     const stepRuns = stepRunsFor(snapshot, run);
@@ -190,6 +275,9 @@ export function reconcileWorkflowRuntime(snapshot: BoardSnapshot): BoardSnapshot
     const updatedAt = nowIso();
     for (const projected of view.steps) {
       const record = projected.record;
+      if (record.outputAcceptancePolicy === 'manual_selection') {
+        updateSelectedOutputMarkers(snapshot, record);
+      }
       const outputAssetIds = unique(record.executionIds.flatMap((executionId) =>
         snapshot.executions.find((execution) => execution.executionId === executionId)?.outputAssetIds ?? [],
       ));
@@ -288,7 +376,12 @@ function projectWorkflowRunView(
     record: run,
     status,
     currentStepIds: steps
-      .filter((step) => step.status === 'ready' || step.status === 'queued' || step.status === 'running' || step.status === 'waiting_input')
+      .filter((step) =>
+        step.status === 'ready'
+        || step.status === 'queued'
+        || step.status === 'running'
+        || step.status === 'waiting_input'
+        || step.status === 'waiting_selection')
       .map((step) => step.record.stepId),
     steps,
   };
@@ -306,7 +399,9 @@ function projectStepView(
   if (latest?.status === 'queued' || latest?.status === 'running' || latest?.status === 'failed' || latest?.status === 'canceled') {
     status = latest.status;
   } else if (latest?.status === 'succeeded') {
-    status = 'succeeded';
+    status = record.outputAcceptancePolicy === 'manual_selection' && !hasValidAcceptedOutputs(snapshot, record)
+      ? 'waiting_selection'
+      : 'succeeded';
     const operation = snapshot.blocks.find((block) => block.blockId === record.operationBlockId && block.type === 'operation');
     const configurationOutdated = Boolean(
       operation
@@ -331,7 +426,11 @@ function projectStepView(
   const dependencyReady = dependencies.every(
     (dependency) => dependency.status === 'succeeded' && dependency.freshness === 'current',
   );
-  const canRetry = status === 'failed' || status === 'canceled' || status === 'succeeded';
+  const canRetry =
+    status === 'failed'
+    || status === 'canceled'
+    || status === 'succeeded'
+    || status === 'waiting_selection';
   return {
     record,
     status,
@@ -357,6 +456,7 @@ function projectedRunStatus(run: WorkflowRunRecord, steps: WorkflowStepRuntimeVi
     return 'needs_attention';
   }
   if (steps.some((step) => step.status === 'queued' || step.status === 'running')) return 'running';
+  if (steps.some((step) => step.status === 'waiting_selection')) return 'waiting_selection';
   if (steps.some((step) => step.status === 'waiting_input')) return 'waiting_input';
   if (steps.some((step) => step.status === 'ready')) {
     return steps.some((step) => step.record.executionIds.length > 0) ? 'running' : 'ready';
@@ -382,6 +482,56 @@ function latestStepExecution(
     if (execution) return execution;
   }
   return undefined;
+}
+
+function hasValidAcceptedOutputs(snapshot: BoardSnapshot, step: WorkflowStepRunRecord): boolean {
+  if (step.acceptedOutputAssetIds.length === 0) return false;
+  const executionById = new Map(
+    step.executionIds.flatMap((executionId) => {
+      const execution = snapshot.executions.find((candidate) => candidate.executionId === executionId);
+      return execution ? [[executionId, execution] as const] : [];
+    }),
+  );
+  return step.acceptedOutputAssetIds.every((assetId) => {
+    const asset = snapshot.assets.find((candidate) => candidate.assetId === assetId);
+    const execution = asset?.sourceExecutionId ? executionById.get(asset.sourceExecutionId) : undefined;
+    return Boolean(
+      asset
+      && asset.projectId === snapshot.project.projectId
+      && execution
+      && execution.workflowRunId === step.workflowRunId
+      && execution.stepRunId === step.stepRunId
+      && execution.outputAssetIds.includes(assetId),
+    );
+  });
+}
+
+function clearSelectedOutputMarkers(snapshot: BoardSnapshot, step: WorkflowStepRunRecord): void {
+  for (const block of snapshot.blocks) {
+    if (
+      block.data.reviewStatus === 'selected'
+      && typeof block.data.sourceExecutionId === 'string'
+      && step.executionIds.includes(block.data.sourceExecutionId)
+    ) {
+      block.data = { ...block.data, reviewStatus: undefined };
+      block.updatedAt = nowIso();
+    }
+  }
+}
+
+function updateSelectedOutputMarkers(snapshot: BoardSnapshot, step: WorkflowStepRunRecord): void {
+  const acceptedIds = new Set(step.acceptedOutputAssetIds);
+  for (const block of snapshot.blocks) {
+    const assetId = typeof block.data.assetId === 'string' ? block.data.assetId : undefined;
+    const sourceExecutionId = typeof block.data.sourceExecutionId === 'string'
+      ? block.data.sourceExecutionId
+      : undefined;
+    if (!assetId || !sourceExecutionId || !step.executionIds.includes(sourceExecutionId)) continue;
+    const reviewStatus = acceptedIds.has(assetId) ? 'selected' as const : undefined;
+    if (block.data.reviewStatus === reviewStatus) continue;
+    block.data = { ...block.data, reviewStatus };
+    block.updatedAt = nowIso();
+  }
 }
 
 function operationBlockIdFor(execution: ExecutionRecord): string {

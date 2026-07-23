@@ -1,6 +1,6 @@
 import type { CapabilityDefinitionLock, SkillDefinitionLock } from './capabilityContracts';
 import type { PackageLock } from './packageContracts';
-import type { WorkflowBindingSource } from './workflowRegistry';
+import type { WorkflowBindingSource, WorkflowOutputAcceptancePolicy } from './workflowRegistry';
 
 export type WorkflowRunStatus =
   | 'draft'
@@ -65,6 +65,9 @@ export interface WorkflowRunRecord {
 }
 
 export interface WorkflowStepRunRecord {
+  acceptedAt?: string;
+  acceptedBy?: 'user';
+  acceptedOutputAssetIds: string[];
   capabilityLock: CapabilityDefinitionLock;
   createdAt: string;
   dependsOn: string[];
@@ -73,6 +76,7 @@ export interface WorkflowStepRunRecord {
   freshness: WorkflowStepRunFreshness;
   inputFingerprint?: string;
   operationBlockId: string;
+  outputAcceptancePolicy: WorkflowOutputAcceptancePolicy;
   outputAssetIds: string[];
   outputBlockIds: string[];
   recordVersion: number;

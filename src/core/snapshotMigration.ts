@@ -103,7 +103,11 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
     })),
     changeDecisions: legacy.changeDecisions ?? [],
     workflowRuns: legacy.workflowRuns ?? [],
-    workflowStepRuns: legacy.workflowStepRuns ?? [],
+    workflowStepRuns: (legacy.workflowStepRuns ?? []).map((step) => ({
+      ...step,
+      acceptedOutputAssetIds: step.acceptedOutputAssetIds ?? [],
+      outputAcceptancePolicy: step.outputAcceptancePolicy ?? 'automatic',
+    })),
   };
   repairGroupRelationships(migratedSnapshot);
   ensureExecutionResultGroups(migratedSnapshot);
