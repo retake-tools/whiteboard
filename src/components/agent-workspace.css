@@ -124,6 +124,12 @@
 .agent-workspace-changes article p,
 .agent-workspace-changes article small { margin: 0; color: var(--retake-text-secondary); font-size: 11px; line-height: 1.45; }
 .agent-workspace-changes article small { color: var(--retake-text-muted); }
+.agent-workspace-proposal-details { display: grid; gap: 6px; margin: 0; }
+.agent-workspace-proposal-details > div { display: grid; gap: 2px; }
+.agent-workspace-proposal-details dt { color: var(--retake-text-muted); font-size: 9px; font-weight: 750; text-transform: uppercase; }
+.agent-workspace-proposal-details dd { margin: 0; overflow-wrap: anywhere; color: var(--retake-text-secondary); font-size: 10px; line-height: 1.4; }
+.agent-workspace-changes article .agent-workspace-draft-only { padding: 7px; border-radius: 6px; background: color-mix(in srgb, var(--retake-warning) 10%, transparent); color: var(--retake-text-secondary); }
+.agent-workspace-view-effect { justify-self: start; }
 
 @media (max-width: 640px) {
   .agent-workspace { top: 58px; right: 8px; bottom: 10px; width: calc(100vw - 16px); }

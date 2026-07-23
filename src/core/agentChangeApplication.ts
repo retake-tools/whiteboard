@@ -3,10 +3,14 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeEventRecord,
   ChangeDecisionRecord,
-  ChangeProposalCommand,
   ChangeProposalRecord,
 } from './agentSessionContracts';
 import { createId, nowIso } from './id';
+import {
+  buildPackageEntrypointInstantiationCommand,
+  stagePackageEntrypointDraft,
+  type PackageEntrypointDraftPresentation,
+} from './packageEntrypointDraftApplication';
 import type { BoardSnapshot } from './types';
 
 export function appendAgentRuntimeEvent(
@@ -63,8 +67,24 @@ export function decideChangeProposal(
     expectedProposalVersion: number;
     proposalId: string;
   },
+  presentation: PackageEntrypointDraftPresentation = {},
 ): { decision: ChangeDecisionRecord; proposal: ChangeProposalRecord } {
   const proposal = requireChangeProposal(snapshot, input.proposalId);
+  if (
+    input.decision === 'approve' &&
+    proposal.status === 'applied' &&
+    proposal.appliedEffect?.idempotencyKey === (
+      proposal.proposedCommand.kind === 'package_entrypoint.instantiate'
+        ? proposal.proposedCommand.idempotencyKey
+        : undefined
+    )
+  ) {
+    const existingDecision = (snapshot.changeDecisions ?? []).find(
+      (decision) => decision.changeDecisionId === proposal.changeDecisionId,
+    );
+    if (!existingDecision) throw new Error('Applied Change Proposal is missing its decision record.');
+    return { decision: existingDecision, proposal };
+  }
   if (proposal.status !== 'awaiting_decision') throw new Error('Change Proposal is not awaiting a decision.');
   if (proposal.recordVersion !== input.expectedProposalVersion) {
     throw new Error(
@@ -101,7 +121,7 @@ export function decideChangeProposal(
   proposal.status = 'applying';
   touchProposal(proposal);
   try {
-    applyApprovedChangeProposal(snapshot, proposal);
+    applyApprovedChangeProposal(snapshot, proposal, presentation);
     proposal.status = 'applied';
     proposal.appliedAt = nowIso();
     delete proposal.applyError;
@@ -113,14 +133,15 @@ export function decideChangeProposal(
   return { decision, proposal };
 }
 
-const approvedChangeCommandHandlers: Record<
-  Exclude<ChangeProposalCommand['kind'], 'unsupported'>,
-  (snapshot: BoardSnapshot, proposal: ChangeProposalRecord) => void
-> = {
-  'agent_session.attach_run': (snapshot, proposal) => {
-    if (proposal.proposedCommand.kind !== 'agent_session.attach_run') {
-      throw new Error('Change Proposal command payload does not match its registered command.');
-    }
+function applyApprovedChangeProposal(
+  snapshot: BoardSnapshot,
+  proposal: ChangeProposalRecord,
+  presentation: PackageEntrypointDraftPresentation,
+): void {
+  if (proposal.proposedCommand.kind === 'unsupported') {
+    throw new Error('Unsupported Change Proposal commands cannot be applied.');
+  }
+  if (proposal.proposedCommand.kind === 'agent_session.attach_run') {
     const command = proposal.proposedCommand;
     const session = requireSession(snapshot, proposal.agentSessionId);
     if (session.status !== 'active') throw new Error('Change Proposal Session is archived.');
@@ -136,14 +157,29 @@ const approvedChangeCommandHandlers: Record<
       throw new Error('Change Proposal target Agent Run is already attached.');
     }
     setAgentSessionRun(snapshot, session.agentSessionId, targetRun.agentRunId);
-  },
-};
-
-function applyApprovedChangeProposal(snapshot: BoardSnapshot, proposal: ChangeProposalRecord): void {
-  if (proposal.proposedCommand.kind === 'unsupported') {
-    throw new Error('Unsupported Change Proposal commands cannot be applied.');
+    return;
   }
-  approvedChangeCommandHandlers[proposal.proposedCommand.kind](snapshot, proposal);
+
+  const session = requireSession(snapshot, proposal.agentSessionId);
+  if (session.status !== 'active') throw new Error('Change Proposal Session is archived.');
+  const source = (snapshot.agentMessages ?? []).find(
+    (message) => message.agentMessageId === proposal.sourceMessageId,
+  );
+  if (
+    !source ||
+    source.agentSessionId !== session.agentSessionId ||
+    source.projectId !== proposal.projectId ||
+    source.boardId !== proposal.boardId
+  ) throw new Error('Typed EntryPoint Proposal source message is outside the approved scope.');
+  const expectedCommand = buildPackageEntrypointInstantiationCommand(snapshot, source, proposal.proposalId);
+  if (JSON.stringify(expectedCommand) !== JSON.stringify(proposal.proposedCommand)) {
+    throw new Error('Typed EntryPoint Proposal command no longer matches its frozen source message.');
+  }
+  const staged = stagePackageEntrypointDraft(snapshot, proposal.proposedCommand, presentation);
+  snapshot.blocks = staged.stagedSnapshot.blocks;
+  snapshot.edges = staged.stagedSnapshot.edges;
+  snapshot.board = staged.stagedSnapshot.board;
+  proposal.appliedEffect = staged.effect;
 }
 
 function requireSession(snapshot: BoardSnapshot, agentSessionId: string) {

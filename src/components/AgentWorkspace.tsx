@@ -1,8 +1,15 @@
 import { Archive, Bot, ChevronDown, CircleStop, Pause, Play, Plus, X } from 'lucide-react';
 import { useState, type ReactElement } from 'react';
 import { messagesForSession, proposalsForSession, runtimeEventsForSession } from '../core/agentSession';
-import type { AgentRuntimeBindingRecord, AgentSessionRecord } from '../core/agentSessionContracts';
+import type {
+  AgentRuntimeBindingRecord,
+  AgentSessionRecord,
+  ChangeProposalRecord,
+} from '../core/agentSessionContracts';
+import { resolvePackageEntryPoint } from '../core/packageRegistry';
+import { skillUiDefinitionFor } from '../core/skillRegistry';
 import type { BoardSnapshot } from '../core/types';
+import { workflowUiDefinitionFor } from '../core/workflowRegistry';
 import { useI18n } from '../i18n';
 import { AgentWorkspaceComposer } from './AgentWorkspaceComposer';
 import { TooltipIconButton } from './Tooltip';
@@ -23,6 +30,7 @@ export function AgentWorkspace({
   onSelectAgentRun,
   onSelectSession,
   onSubmitMessage,
+  onViewProposalEffect,
   selectedSession,
   sessions,
   snapshot,
@@ -44,6 +52,7 @@ export function AgentWorkspace({
   onSelectAgentRun: (agentRunId?: string) => void;
   onSelectSession: (agentSessionId: string) => void;
   onSubmitMessage: (input: Parameters<typeof AgentWorkspaceComposer>[0]['onSubmit'] extends (value: infer T) => void ? T : never) => void;
+  onViewProposalEffect: (proposalId: string) => void;
   selectedSession?: AgentSessionRecord;
   sessions: AgentSessionRecord[];
   snapshot: BoardSnapshot;
@@ -111,12 +120,127 @@ export function AgentWorkspace({
           </div>
         ) : (
           <div className="agent-workspace-changes">
-            {proposals.length === 0 ? <p className="agent-workspace-placeholder">{t('agentWorkspace.changesEmpty')}</p> : proposals.map((proposal) => <article key={proposal.proposalId} className={`is-${proposal.status}`}><header><strong>{proposal.kind}</strong><span>{proposal.status}</span></header><p>{proposal.summary}</p><small>{proposal.instruction}</small><small>{proposal.proposedCommand.kind}</small>{proposal.applyError ? <p className="agent-workspace-error">{proposal.applyError}</p> : null}{proposal.status === 'awaiting_decision' ? <div className="agent-workspace-proposal-actions"><button type="button" disabled={proposal.proposedCommand.kind === 'unsupported'} onClick={() => onDecideProposal(proposal.proposalId, proposal.recordVersion, 'approve')}>{t('agentWorkspace.approveProposal')}</button><button type="button" onClick={() => onDecideProposal(proposal.proposalId, proposal.recordVersion, 'reject')}>{t('agentWorkspace.rejectProposal')}</button></div> : null}</article>)}
+            {proposals.length === 0
+              ? <p className="agent-workspace-placeholder">{t('agentWorkspace.changesEmpty')}</p>
+              : proposals.map((proposal) => (
+                  <ProposalCard
+                    key={proposal.proposalId}
+                    proposal={proposal}
+                    onDecide={onDecideProposal}
+                    onView={onViewProposalEffect}
+                  />
+                ))}
           </div>
         )}
       </div>
     </aside>
   );
+}
+
+function ProposalCard({
+  onDecide,
+  onView,
+  proposal,
+}: {
+  onDecide: (
+    proposalId: string,
+    expectedProposalVersion: number,
+    decision: 'approve' | 'reject',
+  ) => void;
+  onView: (proposalId: string) => void;
+  proposal: ChangeProposalRecord;
+}): ReactElement {
+  const { t } = useI18n();
+  const command = proposal.proposedCommand;
+  const typedInvocation = command.kind === 'package_entrypoint.instantiate' ? command.invocation : undefined;
+  const entrypointName = typedInvocation
+    ? typedEntryPointName(typedInvocation.targetLock.entrypointId, t)
+    : undefined;
+  return (
+    <article className={`is-${proposal.status}`}>
+      <header>
+        <strong>{typedInvocation
+          ? `${entrypointName} · ${typedInvocation.targetLock.entrypointKind}`
+          : proposal.kind}</strong>
+        <span>{proposal.status}</span>
+      </header>
+      <p>{proposal.summary}</p>
+      {typedInvocation ? (
+        <dl className="agent-workspace-proposal-details">
+          <div>
+            <dt>EntryPoint</dt>
+            <dd>{typedInvocation.targetLock.entrypointId}</dd>
+          </div>
+          <div>
+            <dt>{t('agentWorkspace.package')}</dt>
+            <dd>{typedInvocation.targetLock.packageLock.packageId} · {typedInvocation.targetLock.packageLock.version}</dd>
+          </div>
+          <div>
+            <dt>{t('agentWorkspace.instruction')}</dt>
+            <dd>{typedInvocation.instruction || '—'}</dd>
+          </div>
+          {typedInvocation.mentionLocks.map((mention) => (
+            <div key={`${mention.kind}:${mention.kind === 'block' ? mention.blockId : mention.assetId}:${mention.slotId}`}>
+              <dt>{t('agentWorkspace.sourceBinding')}</dt>
+              <dd>
+                @{mention.kind === 'block' ? `Block ${mention.blockId.slice(-8)}` : `Asset ${mention.assetId.slice(-8)}`}
+                {' → '}{mention.slotId} · {mention.kind === 'block' ? mention.expectedBlockType : mention.expectedAssetKind}
+              </dd>
+            </div>
+          ))}
+          <div>
+            <dt>{t('agentWorkspace.effect')}</dt>
+            <dd>{typedInvocation.targetLock.entrypointKind === 'skill'
+              ? t('agentWorkspace.skillDraftEffect')
+              : t('agentWorkspace.workflowDraftEffect')}</dd>
+          </div>
+        </dl>
+      ) : (
+        <>
+          <small>{proposal.instruction}</small>
+          <small>{command.kind}</small>
+        </>
+      )}
+      {typedInvocation ? <p className="agent-workspace-draft-only">{t('agentWorkspace.draftOnly')}</p> : null}
+      {proposal.applyError ? <p className="agent-workspace-error">{proposal.applyError}</p> : null}
+      {proposal.status === 'awaiting_decision' ? (
+        <div className="agent-workspace-proposal-actions">
+          <button
+            type="button"
+            disabled={command.kind === 'unsupported'}
+            onClick={() => onDecide(proposal.proposalId, proposal.recordVersion, 'approve')}
+          >
+            {t('agentWorkspace.approveProposal')}
+          </button>
+          <button
+            type="button"
+            onClick={() => onDecide(proposal.proposalId, proposal.recordVersion, 'reject')}
+          >
+            {t('agentWorkspace.rejectProposal')}
+          </button>
+        </div>
+      ) : null}
+      {proposal.status === 'applied' && proposal.appliedEffect ? (
+        <button className="agent-workspace-view-effect" type="button" onClick={() => onView(proposal.proposalId)}>
+          {t('agentWorkspace.viewOnCanvas')}
+        </button>
+      ) : null}
+    </article>
+  );
+}
+
+function typedEntryPointName(
+  entrypointId: string,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  const resolution = resolvePackageEntryPoint({ entrypointId });
+  if (resolution.status !== 'resolved') return entrypointId;
+  if (resolution.target.kind === 'skill') {
+    return t(skillUiDefinitionFor(resolution.target.skillLock.skillId).nameKey);
+  }
+  return t(workflowUiDefinitionFor(
+    resolution.target.workflowDefinitionLock.workflowDefinitionId,
+  ).nameKey);
 }
 
 function contextRefLabel(ref: NonNullable<ReturnType<typeof messagesForSession>[number]>['contextRefs'][number]): string {

@@ -112,17 +112,13 @@ assert.equal(activeBoardAgentSessions(snapshot)[0]?.agentSessionId, created.sess
 
 const userMessage = appendAgentUserMessage(snapshot, created.session.agentSessionId, {
   content: '暂停当前运行',
-  contextRefs: [
-    { kind: 'agent_run', agentRunId: run.record.agentRunId },
-    { kind: 'entrypoint', entrypointId: 'skill:retake.screenplay.from-brief' },
-    { kind: 'block', blockId: draft.inputBlocks[0].blockId, slotId: 'brief' },
-  ],
+  contextRefs: [{ kind: 'agent_run', agentRunId: run.record.agentRunId }],
 });
 const context = agentRuntimeTurnContext(snapshot, created.session.agentSessionId, userMessage.agentMessageId);
 assert.equal(context.agentRun?.agentRunId, run.record.agentRunId);
 assert.deepEqual(context.agentRun?.allowedActions, ['pause', 'cancel']);
-assert.equal(context.entrypointId, 'skill:retake.screenplay.from-brief');
-assert.equal(context.mentions.length, 1);
+assert.equal(context.entrypointId, undefined);
+assert.equal(context.mentions.length, 0);
 
 applyAgentRuntimeTurn(snapshot, {
   agentSessionId: created.session.agentSessionId,

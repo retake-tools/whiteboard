@@ -65,10 +65,61 @@ export type ChangeProposalStatus =
   | 'superseded';
 
 export type ChangeProposalKind =
+  | 'instantiate_entrypoint'
   | 'expand_permissions'
   | 'install_package'
   | 'modify_workflow'
   | 'out_of_scope';
+
+export type PackageEntryPointMentionLock =
+  | {
+      blockId: string;
+      expectedBlockType: 'document' | 'text';
+      expectedSourceFingerprint: string;
+      kind: 'block';
+      slotId: string;
+    }
+  | {
+      assetId: string;
+      expectedAssetKind: 'document';
+      kind: 'asset';
+      slotId: string;
+    };
+
+export type PackageEntryPointInvocationLock =
+  | {
+      capabilityLock: {
+        capabilityId: string;
+        definitionHash: string;
+        version: string;
+      };
+      entrypointId: string;
+      entrypointKind: 'skill';
+      packageLock: {
+        digest: string;
+        packageId: string;
+        version: string;
+      };
+      skillLock: {
+        definitionHash: string;
+        skillId: string;
+        version: string;
+      };
+    }
+  | {
+      entrypointId: string;
+      entrypointKind: 'workflow';
+      packageLock: {
+        digest: string;
+        packageId: string;
+        version: string;
+      };
+      workflowDefinitionLock: {
+        definitionHash: string;
+        version: string;
+        workflowDefinitionId: string;
+      };
+    };
 
 export type ChangeProposalCommand =
   | {
@@ -76,9 +127,29 @@ export type ChangeProposalCommand =
       targetAgentRunId: string;
     }
   | {
+      idempotencyKey: string;
+      invocation: {
+        instruction: string;
+        instructionSlotId?: string;
+        mentionLocks: PackageEntryPointMentionLock[];
+        targetLock: PackageEntryPointInvocationLock;
+      };
+      kind: 'package_entrypoint.instantiate';
+      schemaVersion: 1;
+    }
+  | {
       kind: 'unsupported';
       reason: string;
     };
+
+export interface PackageEntryPointDraftAppliedEffect {
+  createdBlockIds: string[];
+  entrypointKind: 'skill' | 'workflow';
+  idempotencyKey: string;
+  kind: 'package_entrypoint_draft';
+  primaryBlockId: string;
+  workflowGroupId?: string;
+}
 
 export interface ChangeProposalRecord {
   agentRunId?: string;
@@ -94,6 +165,7 @@ export interface ChangeProposalRecord {
   sourceMessageId: string;
   status: ChangeProposalStatus;
   summary: string;
+  appliedEffect?: PackageEntryPointDraftAppliedEffect;
   appliedAt?: string;
   applyError?: string;
   changeDecisionId?: string;

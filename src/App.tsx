@@ -303,9 +303,12 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     updateSnapshot,
   });
   const agentWorkspaceController = useAgentWorkspaceController({
+    focusWorkflowBlocks,
     persistSnapshot,
+    setSelectedBlocks,
     snapshot,
     snapshotRef,
+    t,
     updateSnapshot,
   });
   const {
@@ -595,6 +598,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
           onSelectAgentRun={agentWorkspaceController.selectAgentRun}
           onSelectSession={agentWorkspaceController.selectSession}
           onSubmitMessage={(input) => void agentWorkspaceController.submitMessage(input)}
+          onViewProposalEffect={agentWorkspaceController.focusProposalEffect}
         />
       ) : null}
       {reviewDocumentBlock ? (

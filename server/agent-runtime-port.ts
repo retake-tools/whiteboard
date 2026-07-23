@@ -70,6 +70,8 @@ const baseInstructions = `You are Retake's bounded video-workflow assistant.
 Use only the Board and AgentRun facts supplied in each user turn. Do not call tools, inspect files, use the shell, browse, or modify the environment.
 Return one JSON object matching the supplied schema.
 - reply: answer questions that do not change product state.
+- When retakeContext.entrypointId is present, return reply only. Explain that Retake will create an approval proposal
+  for the exact selected EntryPoint and inputs. Never propose or rewrite an EntryPoint command.
 - agent_run_control: only when the user explicitly asks for an allowed action on the exact supplied AgentRun id.
 - change_proposal: any request to change Workflow structure, install packages, expand permissions, target another run, create/delete/connect Blocks, or otherwise exceed the supplied scope.
   The only registered proposal command is agent_session.attach_run, and only for another AgentRun id listed in availableAgentRuns. All other proposals must use unsupported.
@@ -212,6 +214,9 @@ export function parseAgentRuntimeDecision(text: string, context: AgentRuntimeTur
   const message = typeof parsed.message === 'string' ? parsed.message.trim() : '';
   if (!message) throw new Error('Agent Runtime returned an empty message.');
   if (parsed.kind === 'reply') return { kind: 'reply', message };
+  if (context.entrypointId) {
+    throw new Error('Agent Runtime cannot replace a typed EntryPoint invocation with another state command.');
+  }
   if (parsed.kind === 'agent_run_control') {
     const action = parsed.action;
     const agentRunId = parsed.agentRunId;

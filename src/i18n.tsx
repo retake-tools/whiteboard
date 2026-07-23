@@ -569,14 +569,18 @@ type TranslationKey =
   | 'agentWorkspace.chat'
   | 'agentWorkspace.chatEmpty'
   | 'agentWorkspace.createSession'
+  | 'agentWorkspace.draftOnly'
+  | 'agentWorkspace.effect'
   | 'agentWorkspace.emptyBody'
   | 'agentWorkspace.emptyTitle'
   | 'agentWorkspace.eyebrow'
   | 'agentWorkspace.inputPlaceholder'
+  | 'agentWorkspace.instruction'
   | 'agentWorkspace.newSession'
   | 'agentWorkspace.noRun'
   | 'agentWorkspace.noSession'
   | 'agentWorkspace.open'
+  | 'agentWorkspace.package'
   | 'agentWorkspace.rejectProposal'
   | 'agentWorkspace.run'
   | 'agentWorkspace.runEmpty'
@@ -586,10 +590,14 @@ type TranslationKey =
   | 'agentWorkspace.send'
   | 'agentWorkspace.session'
   | 'agentWorkspace.status'
+  | 'agentWorkspace.sourceBinding'
+  | 'agentWorkspace.skillDraftEffect'
   | 'agentWorkspace.streaming'
   | 'agentWorkspace.targetRun'
   | 'agentWorkspace.thinking'
   | 'agentWorkspace.title'
+  | 'agentWorkspace.viewOnCanvas'
+  | 'agentWorkspace.workflowDraftEffect'
   | 'agentWorkspace.you'
   | 'operationInputQuickAdd.add'
   | 'operationInputQuickAdd.addImage'
@@ -1364,14 +1372,18 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.chat': 'Chat',
     'agentWorkspace.chatEmpty': 'Ask about this Board or control the currently attached Agent Run.',
     'agentWorkspace.createSession': 'Create session',
+    'agentWorkspace.draftOnly': 'Approval only creates a draft. It does not start generation or run an Agent.',
+    'agentWorkspace.effect': 'Effect',
     'agentWorkspace.emptyBody': 'Sessions keep Board-scoped conversation history and can attach to one existing Agent Run.',
     'agentWorkspace.emptyTitle': 'Start a Board Agent session',
     'agentWorkspace.eyebrow': 'Board Agent',
     'agentWorkspace.inputPlaceholder': 'Ask about this Board or request an allowed Run action…',
+    'agentWorkspace.instruction': 'Instruction',
     'agentWorkspace.newSession': 'New session',
     'agentWorkspace.noRun': 'No Agent Run attached',
     'agentWorkspace.noSession': 'No active session',
     'agentWorkspace.open': 'Open Agent Workspace',
+    'agentWorkspace.package': 'Package',
     'agentWorkspace.rejectProposal': 'Reject proposal',
     'agentWorkspace.run': 'Run',
     'agentWorkspace.runEmpty': 'Attach an existing Agent Run. Chat does not create execution authority.',
@@ -1381,10 +1393,14 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.send': 'Send message',
     'agentWorkspace.session': 'Session',
     'agentWorkspace.status': 'Status',
+    'agentWorkspace.sourceBinding': 'Source binding',
+    'agentWorkspace.skillDraftEffect': 'Create one Skill Operation Draft.',
     'agentWorkspace.streaming': 'Receiving structured decision…',
     'agentWorkspace.targetRun': 'Attached Agent Run',
     'agentWorkspace.thinking': 'Working within the attached scope…',
     'agentWorkspace.title': 'Agent Workspace',
+    'agentWorkspace.viewOnCanvas': 'View on canvas',
+    'agentWorkspace.workflowDraftEffect': 'Create a Workflow Group and its locked Step Projection.',
     'agentWorkspace.you': 'You',
     'operationInputQuickAdd.add': 'Add',
     'operationInputQuickAdd.addImage': 'Add image input',
@@ -2154,14 +2170,18 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.chat': '对话',
     'agentWorkspace.chatEmpty': '可以询问当前画板，或控制已绑定 Agent Run 的允许动作。',
     'agentWorkspace.createSession': '创建会话',
+    'agentWorkspace.draftOnly': '批准只会创建草稿，不会开始生成，也不会运行 Agent。',
+    'agentWorkspace.effect': '预期效果',
     'agentWorkspace.emptyBody': '会话保存当前画板范围内的对话，并且可以绑定一个已有 Agent Run。',
     'agentWorkspace.emptyTitle': '开始画板 Agent 会话',
     'agentWorkspace.eyebrow': '画板 Agent',
     'agentWorkspace.inputPlaceholder': '询问当前画板，或请求 Agent Run 范围内的动作…',
+    'agentWorkspace.instruction': '指令',
     'agentWorkspace.newSession': '新建会话',
     'agentWorkspace.noRun': '未绑定 Agent Run',
     'agentWorkspace.noSession': '没有活动会话',
     'agentWorkspace.open': '打开 Agent Workspace',
+    'agentWorkspace.package': 'Package',
     'agentWorkspace.rejectProposal': '拒绝提案',
     'agentWorkspace.run': '运行',
     'agentWorkspace.runEmpty': '绑定已有 Agent Run；聊天本身不会创建执行授权。',
@@ -2171,10 +2191,14 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.send': '发送消息',
     'agentWorkspace.session': '会话',
     'agentWorkspace.status': '状态',
+    'agentWorkspace.sourceBinding': '输入绑定',
+    'agentWorkspace.skillDraftEffect': '创建一个 Skill Operation 草稿。',
     'agentWorkspace.streaming': '正在接收结构化决策…',
     'agentWorkspace.targetRun': '已绑定 Agent Run',
     'agentWorkspace.thinking': '正在已授权范围内处理…',
     'agentWorkspace.title': 'Agent Workspace',
+    'agentWorkspace.viewOnCanvas': '在画布中查看',
+    'agentWorkspace.workflowDraftEffect': '创建 Workflow Group 与锁定版本的 Step Projection。',
     'agentWorkspace.you': '你',
     'operationInputQuickAdd.add': '添加',
     'operationInputQuickAdd.addImage': '添加图片输入',

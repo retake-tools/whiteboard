@@ -87,7 +87,7 @@ export function AgentWorkspaceComposer({
 
   function submit(event: FormEvent): void {
     event.preventDefault();
-    if (disabled || !content.trim()) return;
+    if (disabled || (!content.trim() && mentions.length === 0)) return;
     onSubmit({ content: content.trim(), entrypointId, mentions });
     setContent('');
     setEntrypointId(undefined);
@@ -96,7 +96,7 @@ export function AgentWorkspaceComposer({
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
-    if (event.key === 'Enter' && !event.shiftKey && content.trim() && !disabled) {
+    if (event.key === 'Enter' && !event.shiftKey && (content.trim() || mentions.length > 0) && !disabled) {
       event.preventDefault();
       event.currentTarget.form?.requestSubmit();
     }
@@ -138,7 +138,7 @@ export function AgentWorkspaceComposer({
             onChange={(event) => updateContent(event.target.value)}
             onKeyDown={onKeyDown}
           />
-          <button type="submit" disabled={disabled || !content.trim()} aria-label={t('agentWorkspace.send')}>
+          <button type="submit" disabled={disabled || (!content.trim() && mentions.length === 0)} aria-label={t('agentWorkspace.send')}>
             <ArrowUp size={17} />
           </button>
         </div>

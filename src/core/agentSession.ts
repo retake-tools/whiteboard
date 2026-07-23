@@ -12,6 +12,7 @@ import type {
 } from './agentSessionContracts';
 import { createId, nowIso } from './id';
 import { listPackageComposerMentionOptions, packageComposerMentionId } from './packageComposer';
+import { buildPackageEntrypointInstantiationCommand } from './packageEntrypointDraftApplication';
 import { resolvePackageEntryPoint } from './packageRegistry';
 import type { BoardSnapshot } from './types';
 
@@ -69,8 +70,10 @@ export function appendAgentUserMessage(
 ): AgentMessageRecord {
   const session = requireActiveSession(snapshot, agentSessionId);
   const content = input.content.trim();
-  if (!content) throw new Error('Agent message cannot be empty.');
   const contextRefs = structuredClone(input.contextRefs ?? []);
+  const hasTypedInput = contextRefs.some((ref) => ref.kind === 'entrypoint')
+    && contextRefs.some((ref) => ref.kind === 'block' || ref.kind === 'asset');
+  if (!content && !hasTypedInput) throw new Error('Agent message cannot be empty.');
   assertContextRefs(snapshot, session, contextRefs);
   const message: AgentMessageRecord = {
     agentMessageId: createId('agmsg'),
@@ -114,7 +117,13 @@ export function applyAgentRuntimeTurn(
   touchVersioned(binding);
 
   let proposal: ChangeProposalRecord | undefined;
-  if (input.decision.kind === 'agent_run_control') {
+  const explicitEntrypoint = source.contextRefs.find((ref) => ref.kind === 'entrypoint');
+  if (explicitEntrypoint) {
+    if (input.decision.kind !== 'reply') {
+      throw new Error('Agent Runtime cannot replace a typed EntryPoint invocation with another state command.');
+    }
+    proposal = createTypedEntrypointProposal(snapshot, session, source, input.decision.message);
+  } else if (input.decision.kind === 'agent_run_control') {
     applyAgentRunControl(snapshot, session, input.decision.action, input.decision.agentRunId);
   } else if (input.decision.kind === 'change_proposal') {
     proposal = createChangeProposal(snapshot, session, source, input.decision);
@@ -255,6 +264,35 @@ export function runtimeBindingForSession(
     (binding) => binding.agentRuntimeBindingId === session.activeRuntimeBindingId,
   );
   return binding?.agentSessionId === session.agentSessionId ? binding : undefined;
+}
+
+function createTypedEntrypointProposal(
+  snapshot: BoardSnapshot,
+  session: AgentSessionRecord,
+  source: AgentMessageRecord,
+  explanation: string,
+): ChangeProposalRecord {
+  const now = nowIso();
+  const proposalId = createId('proposal');
+  const proposedCommand = buildPackageEntrypointInstantiationCommand(snapshot, source, proposalId);
+  const proposal: ChangeProposalRecord = {
+    agentSessionId: session.agentSessionId,
+    boardId: snapshot.board.boardId,
+    createdAt: now,
+    instruction: proposedCommand.invocation.instruction,
+    kind: 'instantiate_entrypoint',
+    proposedCommand,
+    projectId: snapshot.project.projectId,
+    proposalId,
+    recordVersion: 1,
+    sourceMessageId: source.agentMessageId,
+    status: 'awaiting_decision',
+    summary: explanation.trim() || 'Create the selected EntryPoint as a draft.',
+    updatedAt: now,
+  };
+  snapshot.changeProposals ??= [];
+  snapshot.changeProposals.push(proposal);
+  return proposal;
 }
 
 function createChangeProposal(
