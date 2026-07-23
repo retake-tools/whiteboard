@@ -218,6 +218,45 @@ type TranslationKey =
   | 'history.promptCopiedSubtitle'
   | 'history.resultUpdated'
   | 'history.title'
+  | 'artifactLibrary.addToBoard'
+  | 'artifactLibrary.alreadyCurrent'
+  | 'artifactLibrary.allTypes'
+  | 'artifactLibrary.bindTarget'
+  | 'artifactLibrary.bindToSlot'
+  | 'artifactLibrary.boundBody'
+  | 'artifactLibrary.boundTitle'
+  | 'artifactLibrary.close'
+  | 'artifactLibrary.empty'
+  | 'artifactLibrary.eyebrow'
+  | 'artifactLibrary.filterType'
+  | 'artifactLibrary.insertedBody'
+  | 'artifactLibrary.insertedTitle'
+  | 'artifactLibrary.loading'
+  | 'artifactLibrary.name'
+  | 'artifactLibrary.namePlaceholder'
+  | 'artifactLibrary.noResults'
+  | 'artifactLibrary.open'
+  | 'artifactLibrary.promote'
+  | 'artifactLibrary.promoteEyebrow'
+  | 'artifactLibrary.promotedBody'
+  | 'artifactLibrary.promotedTitle'
+  | 'artifactLibrary.promotionSourceMissing'
+  | 'artifactLibrary.refresh'
+  | 'artifactLibrary.revisions'
+  | 'artifactLibrary.search'
+  | 'artifactLibrary.title'
+  | 'artifactLibrary.type'
+  | 'artifactLibrary.typeCharacterBible'
+  | 'artifactLibrary.typeCharacterReference'
+  | 'artifactLibrary.typeCreativeBrief'
+  | 'artifactLibrary.typePropReference'
+  | 'artifactLibrary.typeSceneBible'
+  | 'artifactLibrary.typeSceneReference'
+  | 'artifactLibrary.typeScreenplay'
+  | 'artifactLibrary.typeStoryboard'
+  | 'artifactLibrary.typeStyleReference'
+  | 'artifactLibrary.typeVideo'
+  | 'artifactLibrary.typeVoiceReference'
   | 'group.background'
   | 'group.assetId'
   | 'group.blockId'
@@ -950,6 +989,45 @@ const translations: Record<Locale, Translations> = {
     'history.promptCopiedSubtitle': 'Prompt copied for reuse',
     'history.resultUpdated': 'Result updated',
     'history.title': 'History',
+    'artifactLibrary.addToBoard': 'Add to board',
+    'artifactLibrary.alreadyCurrent': 'This asset is already the current revision for that project artifact.',
+    'artifactLibrary.allTypes': 'All types',
+    'artifactLibrary.bindTarget': 'Bind to selected operation',
+    'artifactLibrary.bindToSlot': 'Compatible inputs',
+    'artifactLibrary.boundBody': 'The pinned artifact revision was added and connected to the selected input.',
+    'artifactLibrary.boundTitle': 'Artifact input connected',
+    'artifactLibrary.close': 'Close project library',
+    'artifactLibrary.empty': 'No project artifacts yet. Select an asset-backed block to promote it.',
+    'artifactLibrary.eyebrow': 'Project scope',
+    'artifactLibrary.filterType': 'Filter project artifacts by type',
+    'artifactLibrary.insertedBody': 'A block pinned to this artifact revision was added to the board.',
+    'artifactLibrary.insertedTitle': 'Artifact added',
+    'artifactLibrary.loading': 'Loading project artifacts…',
+    'artifactLibrary.name': 'Name',
+    'artifactLibrary.namePlaceholder': 'Stable project asset name',
+    'artifactLibrary.noResults': 'No artifacts match the current filters.',
+    'artifactLibrary.open': 'Project asset library',
+    'artifactLibrary.promote': 'Promote to project',
+    'artifactLibrary.promoteEyebrow': 'Selected board asset',
+    'artifactLibrary.promotedBody': 'The selected asset is now a versioned project artifact.',
+    'artifactLibrary.promotedTitle': 'Promoted to project library',
+    'artifactLibrary.promotionSourceMissing': 'Select an image, video, document, or audio block with an asset first.',
+    'artifactLibrary.refresh': 'Refresh project library',
+    'artifactLibrary.revisions': 'Revisions',
+    'artifactLibrary.search': 'Search artifacts',
+    'artifactLibrary.title': 'Asset Library',
+    'artifactLibrary.type': 'Artifact type',
+    'artifactLibrary.typeCharacterBible': 'Character bible',
+    'artifactLibrary.typeCharacterReference': 'Character reference',
+    'artifactLibrary.typeCreativeBrief': 'Creative brief',
+    'artifactLibrary.typePropReference': 'Prop reference',
+    'artifactLibrary.typeSceneBible': 'Scene bible',
+    'artifactLibrary.typeSceneReference': 'Scene reference',
+    'artifactLibrary.typeScreenplay': 'Screenplay',
+    'artifactLibrary.typeStoryboard': 'Storyboard plan',
+    'artifactLibrary.typeStyleReference': 'Style reference',
+    'artifactLibrary.typeVideo': 'Video clip',
+    'artifactLibrary.typeVoiceReference': 'Voice reference',
     'group.background': 'Group background',
     'group.assetId': 'Asset ID',
     'group.blockId': 'Block ID',
@@ -1677,6 +1755,45 @@ const translations: Record<Locale, Translations> = {
     'history.promptCopiedSubtitle': '提示已复制，可用于再次执行',
     'history.resultUpdated': '结果已更新',
     'history.title': '历史记录',
+    'artifactLibrary.addToBoard': '添加到画板',
+    'artifactLibrary.alreadyCurrent': '这个素材已经是该项目资产的当前版本。',
+    'artifactLibrary.allTypes': '全部类型',
+    'artifactLibrary.bindTarget': '绑定到当前操作',
+    'artifactLibrary.bindToSlot': '可绑定输入',
+    'artifactLibrary.boundBody': '已添加固定版本的项目资产，并连接到所选输入。',
+    'artifactLibrary.boundTitle': '项目资产输入已连接',
+    'artifactLibrary.close': '关闭项目资产库',
+    'artifactLibrary.empty': '项目资产库还是空的。请选择带素材的块，将它提升为项目资产。',
+    'artifactLibrary.eyebrow': '项目范围',
+    'artifactLibrary.filterType': '按类型筛选项目资产',
+    'artifactLibrary.insertedBody': '已在画板中添加固定到当前版本的项目资产块。',
+    'artifactLibrary.insertedTitle': '项目资产已添加',
+    'artifactLibrary.loading': '正在加载项目资产…',
+    'artifactLibrary.name': '名称',
+    'artifactLibrary.namePlaceholder': '项目内稳定的资产名称',
+    'artifactLibrary.noResults': '没有符合当前筛选条件的项目资产。',
+    'artifactLibrary.open': '项目资产库',
+    'artifactLibrary.promote': '提升为项目资产',
+    'artifactLibrary.promoteEyebrow': '当前画板素材',
+    'artifactLibrary.promotedBody': '所选素材已成为带版本记录的项目资产。',
+    'artifactLibrary.promotedTitle': '已加入项目资产库',
+    'artifactLibrary.promotionSourceMissing': '请先选择一个带素材的图片、视频、文档或音频块。',
+    'artifactLibrary.refresh': '刷新项目资产库',
+    'artifactLibrary.revisions': '版本数',
+    'artifactLibrary.search': '搜索项目资产',
+    'artifactLibrary.title': '资产库',
+    'artifactLibrary.type': '资产类型',
+    'artifactLibrary.typeCharacterBible': '角色设定集',
+    'artifactLibrary.typeCharacterReference': '角色参考',
+    'artifactLibrary.typeCreativeBrief': '创意简报',
+    'artifactLibrary.typePropReference': '道具参考',
+    'artifactLibrary.typeSceneBible': '场景设定集',
+    'artifactLibrary.typeSceneReference': '场景参考',
+    'artifactLibrary.typeScreenplay': '剧本',
+    'artifactLibrary.typeStoryboard': '分镜方案',
+    'artifactLibrary.typeStyleReference': '风格参考',
+    'artifactLibrary.typeVideo': '视频片段',
+    'artifactLibrary.typeVoiceReference': '声音参考',
     'group.background': '分组背景',
     'group.assetId': '素材 ID',
     'group.blockId': '块 ID',

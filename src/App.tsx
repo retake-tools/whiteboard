@@ -31,10 +31,14 @@ import { useWorkflowRuntimeController } from './app/useWorkflowRuntimeController
 import { usePackageEntryPointController } from './app/usePackageEntryPointController';
 import { useAgentRuntimeController } from './app/useAgentRuntimeController';
 import { useAgentWorkspaceController } from './app/useAgentWorkspaceController';
+import { useArtifactLibraryController } from './app/useArtifactLibraryController';
 import { WhiteboardCanvas } from './app/WhiteboardCanvas';
 
 const DocumentReviewWorkspace = lazy(() => import('./components/DocumentReviewWorkspace').then((module) => ({
   default: module.DocumentReviewWorkspace,
+})));
+const ArtifactLibraryPanel = lazy(() => import('./components/ArtifactLibraryPanel').then((module) => ({
+  default: module.ArtifactLibraryPanel,
 })));
 
 export function App(): ReactElement {
@@ -83,6 +87,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
   const [showGrid, setShowGrid] = useState(() => initialUiPreferences.current.showGrid);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isAgentWorkspaceOpen, setIsAgentWorkspaceOpen] = useState(false);
+  const [isArtifactLibraryOpen, setIsArtifactLibraryOpen] = useState(false);
   const [reviewDocumentBlockId, setReviewDocumentBlockId] = useState<string | undefined>();
   useEffect(() => {
     void loadExecutionProviderSettings(snapshot.project.projectId).catch(() => undefined);
@@ -100,6 +105,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     setInspectorBlockId(undefined);
     setIsHistoryOpen(false);
     setIsAgentWorkspaceOpen(false);
+    setIsArtifactLibraryOpen(false);
   }, [snapshot.board.boardId, snapshot.project.projectId]);
   const canvasController = useCanvasController({
     connectSessionPorts: connectPorts,
@@ -188,6 +194,17 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     updateOperationGenerationParams,
     updateOperationGenerationProfile,
   } = imageOperationController;
+  const artifactLibraryController = useArtifactLibraryController({
+    centeredBlockPosition,
+    isOpen: isArtifactLibraryOpen,
+    projectId: snapshot.project.projectId,
+    selectedBlockId: selectedBlock?.blockId,
+    setOperationToast,
+    setSelectedBlock,
+    snapshotRef,
+    t,
+    updateSnapshot,
+  });
   const blockActions = useBlockActions({
     centeredBlockPosition,
     collapsedGroupIdsRef,
@@ -333,6 +350,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
       if (next) {
         setInspectorBlockId(undefined);
         setIsAgentWorkspaceOpen(false);
+        setIsArtifactLibraryOpen(false);
       }
       return next;
     });
@@ -344,13 +362,29 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
       if (next) {
         setInspectorBlockId(undefined);
         setIsHistoryOpen(false);
+        setIsArtifactLibraryOpen(false);
+      }
+      return next;
+    });
+  }
+
+  function toggleArtifactLibrary(): void {
+    setIsArtifactLibraryOpen((current) => {
+      const next = !current;
+      if (next) {
+        setInspectorBlockId(undefined);
+        setIsHistoryOpen(false);
+        setIsAgentWorkspaceOpen(false);
       }
       return next;
     });
   }
 
   useEffect(() => {
-    if (inspectorBlockId || isHistoryOpen) setIsAgentWorkspaceOpen(false);
+    if (inspectorBlockId || isHistoryOpen) {
+      setIsAgentWorkspaceOpen(false);
+      setIsArtifactLibraryOpen(false);
+    }
   }, [inspectorBlockId, isHistoryOpen]);
 
   const selectedImageUrl =
@@ -403,6 +437,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         canUndo={canUndo}
         canRedo={canRedo}
         hasSelection={selectedBlockIds.length > 0}
+        isArtifactLibraryOpen={isArtifactLibraryOpen}
         isHistoryOpen={isHistoryOpen}
         isAgentWorkspaceOpen={isAgentWorkspaceOpen}
         isProjectBoardDialogOpen={Boolean(projectBoardDialog)}
@@ -425,6 +460,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         onDuplicateSelection={duplicateSelection}
         onToggleHistory={toggleHistoryPanel}
         onToggleAgentWorkspace={toggleAgentWorkspace}
+        onToggleArtifactLibrary={toggleArtifactLibrary}
         onUndo={undo}
         onRedo={redo}
       />
@@ -510,6 +546,22 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         onResumeAgentRun={agentRuntimeController.resumeAgentRun}
         onSelectWorkflowOutput={workflowRuntimeController.acceptWorkflowOutput}
       />
+      {isArtifactLibraryOpen ? (
+        <Suspense fallback={null}>
+          <ArtifactLibraryPanel
+            error={artifactLibraryController.error}
+            isLoading={artifactLibraryController.isLoading}
+            isPromoting={artifactLibraryController.isPromoting}
+            library={artifactLibraryController.library}
+            selectedBlock={selectedBlock}
+            snapshot={snapshot}
+            onClose={() => setIsArtifactLibraryOpen(false)}
+            onInsertReference={artifactLibraryController.insertReference}
+            onPromoteSelectedAsset={artifactLibraryController.promoteSelectedAsset}
+            onRefresh={artifactLibraryController.refresh}
+          />
+        </Suspense>
+      ) : null}
       {isHistoryOpen ? (
         <BoardHistoryPanel
           copiedPromptKey={copiedPromptKey}

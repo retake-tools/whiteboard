@@ -12,6 +12,7 @@ import {
   Menu,
   MoreVertical,
   Languages,
+  Library,
   Loader2,
   Palette,
   Pin,
@@ -45,6 +46,7 @@ interface TopBarProps {
   canUndo: boolean;
   canRedo: boolean;
   hasSelection: boolean;
+  isArtifactLibraryOpen: boolean;
   isHistoryOpen: boolean;
   isAgentWorkspaceOpen: boolean;
   isProjectBoardDialogOpen?: boolean;
@@ -63,6 +65,7 @@ interface TopBarProps {
   onRetrySave: () => void;
   onSelectBoard: (projectId: string, boardId: string) => void;
   onToggleGrid: () => void;
+  onToggleArtifactLibrary: () => void;
   onToggleHistory: () => void;
   onToggleAgentWorkspace: () => void;
   onDeleteSelection: () => void;
@@ -77,6 +80,7 @@ export function TopBar({
   canUndo,
   canRedo,
   hasSelection,
+  isArtifactLibraryOpen,
   isProjectBoardDialogOpen,
   showGrid,
   workspace,
@@ -93,6 +97,7 @@ export function TopBar({
   onRetrySave,
   onSelectBoard,
   onToggleGrid,
+  onToggleArtifactLibrary,
   onDeleteSelection,
   onDuplicateSelection,
   onToggleHistory,
@@ -381,6 +386,14 @@ export function TopBar({
         </div>
 
         <div className="top-bar-actions">
+          <TooltipIconButton
+            className="icon-button"
+            isPressed={isArtifactLibraryOpen}
+            label={t('artifactLibrary.open')}
+            onClick={onToggleArtifactLibrary}
+          >
+            <Library size={16} />
+          </TooltipIconButton>
           <TooltipIconButton
             className="icon-button"
             isPressed={isAgentWorkspaceOpen}

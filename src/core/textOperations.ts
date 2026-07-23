@@ -5,6 +5,10 @@ import {
   isTextDocumentCapability,
 } from './capabilityRegistry';
 import type { CapabilityBindingValue, CapabilityInputBinding } from './capabilityContracts';
+import {
+  assetIdsForBindingValue,
+  capabilityBindingValueForBlock,
+} from './artifactLibrary';
 import { connectedInputBlocks, promptTextFromInputs } from './capabilities';
 import { createBlockRecord, maxZIndex, touchBoard } from './blockFactory';
 import { recordExecutionConfiguration } from './executionConfiguration';
@@ -301,10 +305,19 @@ export function executeExistingTextGenerationOperation(
     startedAt: createdAt,
   };
   recordExecutionConfiguration(snapshot, execution, operationBlock);
-  if (execution.skillId) {
-    const skill = skillDefinitionFor(execution.skillId);
-    const bindings = textDocumentInputBindings(snapshot, operationBlock.blockId, capabilityId, inputBlocks, skill);
-    execution.inputBindingsSnapshot = bindings;
+  const skill = execution.skillId ? skillDefinitionFor(execution.skillId) : undefined;
+  const bindings = textDocumentInputBindings(
+    snapshot,
+    operationBlock.blockId,
+    capabilityId,
+    inputBlocks,
+    skill,
+  );
+  execution.inputBindingsSnapshot = bindings;
+  execution.inputAssetIds = [...new Set(bindings.flatMap((binding) =>
+    binding.values.flatMap((value) => assetIdsForBindingValue(snapshot, value)),
+  ))];
+  if (skill) {
     execution.skillSnapshot = snapshotSkill(skill, bindings);
   }
   const adapterDefinition = usesCodexAppServer ? codexAppServerTextAdapterDefinition : aiSdkTextAdapterDefinition;
@@ -468,9 +481,7 @@ export function textDocumentInputBindings(
   const bindings = declaredSlots.flatMap((slot): CapabilityInputBinding[] => {
     const slotBlocks = blocks.filter((block) => assignedSlots.get(block.blockId) === slot.slotId);
     if (slotBlocks.length === 0) return [];
-    const values: CapabilityBindingValue[] = slotBlocks.map((block) => typeof block.data.assetId === 'string'
-      ? { kind: 'asset' as const, assetId: block.data.assetId, blockId: block.blockId }
-      : { kind: 'block' as const, blockId: block.blockId });
+    const values: CapabilityBindingValue[] = slotBlocks.map(capabilityBindingValueForBlock);
     return [{ slotId: slot.slotId, values }];
   });
   for (const slot of declaredSlots.filter((candidate) => candidate.required)) {

@@ -3,6 +3,7 @@ import type {
   CapabilityDefinition,
   CapabilityInputBinding,
 } from './capabilityContracts';
+import { capabilityBindingValueForBlock } from './artifactLibrary';
 import { capabilityDefinitionFor } from './capabilityRegistry';
 import { isExecutionInputRole } from './inputRoles';
 import type { BlockRecord, BoardSnapshot, ExecutionInputRole, ExecutionRecord } from './types';
@@ -104,7 +105,11 @@ function valuesForSlot(
     return role === semanticRole;
   });
   const blockValues = matchingBlocks.map(bindingValueForBlock);
-  const blockAssetIds = new Set(blockValues.flatMap((value) => value.kind === 'asset' ? [value.assetId] : []));
+  const blockAssetIds = new Set(
+    matchingBlocks.flatMap((block) =>
+      typeof block.data.assetId === 'string' ? [block.data.assetId] : [],
+    ),
+  );
   const parameterValues = parameterBindings
     .filter((binding) => {
       if (blockAssetIds.has(binding.assetId)) return false;
@@ -139,9 +144,7 @@ function executionParameterImageBindings(
 }
 
 function bindingValueForBlock(block: BlockRecord): CapabilityBindingValue {
-  return typeof block.data.assetId === 'string'
-    ? { kind: 'asset', assetId: block.data.assetId, blockId: block.blockId }
-    : { kind: 'block', blockId: block.blockId };
+  return capabilityBindingValueForBlock(block);
 }
 
 function outputAssetIdsForSlot(

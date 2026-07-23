@@ -308,6 +308,8 @@ export interface BlockData {
   title: string;
   body?: string;
   assetId?: string;
+  artifactId?: string;
+  artifactRevisionId?: string;
   contentFormat?: 'markdown';
   documentCharacterCount?: number;
   documentExcerpt?: string;

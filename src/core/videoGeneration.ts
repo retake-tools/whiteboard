@@ -5,6 +5,10 @@ import {
   type CapabilityInputBinding,
 } from './capabilityContracts';
 import {
+  assetIdsForBindingValue,
+  capabilityBindingValueForBlock,
+} from './artifactLibrary';
+import {
   dreaminaCliAdapterDefinition,
   mockVideoAdapterDefinition,
   seedanceModelArkAdapterDefinition,
@@ -160,7 +164,7 @@ export function createVideoGenerationExecution(
     binding.values.flatMap((value) => 'blockId' in value && value.blockId ? [value.blockId] : []),
   );
   const inputAssetIds = inputBindings.flatMap((binding) =>
-    binding.values.flatMap((value) => value.kind === 'asset' ? [value.assetId] : []),
+    binding.values.flatMap((value) => assetIdsForBindingValue(snapshot, value)),
   );
   const execution: ExecutionRecord = {
     executionId,
@@ -287,10 +291,14 @@ function videoInputBindings(
   );
   for (const edge of inputEdges) {
     const block = snapshot.blocks.find((candidate) => candidate.blockId === edge.sourceBlockId);
-    if (block?.type !== 'image' || typeof block.data.assetId !== 'string') continue;
+    if (
+      !block
+      || (block.type !== 'image' && block.type !== 'video')
+      || typeof block.data.assetId !== 'string'
+    ) continue;
     const slotId = videoSlotForRole(edge.inputRole);
     const values = slotValues.get(slotId) ?? [];
-    values.push({ kind: 'asset', assetId: block.data.assetId, blockId: block.blockId });
+    values.push(capabilityBindingValueForBlock(block));
     slotValues.set(slotId, values);
   }
   return [...slotValues].map(([slotId, values]) => ({ slotId, values }));

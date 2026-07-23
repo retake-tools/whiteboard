@@ -8,6 +8,7 @@ export {
   importAssetFromUrl,
 } from './local-store/asset-store';
 export {
+  ArtifactWriteConflictError,
   createOrAdvanceArtifact,
   getArtifactRevision,
   localArtifactStore,

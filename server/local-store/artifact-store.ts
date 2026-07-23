@@ -35,6 +35,13 @@ interface StoredProjectArtifacts extends ProjectArtifactSnapshot {
 
 const projectWriteTails = new Map<string, Promise<void>>();
 
+export class ArtifactWriteConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ArtifactWriteConflictError';
+  }
+}
+
 export const localArtifactStore: ArtifactStorePort = {
   createOrAdvance: createOrAdvanceArtifact,
   getRevision: getArtifactRevision,
@@ -54,7 +61,9 @@ export async function createOrAdvanceArtifact(
     );
     if (priorResult) {
       if (priorResult.commandHash !== commandHash) {
-        throw new Error(`Artifact idempotency key was reused with a different command: ${command.idempotencyKey}`);
+        throw new ArtifactWriteConflictError(
+          `Artifact idempotency key was reused with a different command: ${command.idempotencyKey}`,
+        );
       }
       return resultForStoredCommand(stored, priorResult, false);
     }
@@ -67,7 +76,7 @@ export async function createOrAdvanceArtifact(
     );
     assertExpectedCurrentRevision(existing, command);
     if (existing && existing.artifactType !== command.artifactType) {
-      throw new Error(
+      throw new ArtifactWriteConflictError(
         `Artifact identity ${identityKey} already uses type ${existing.artifactType}, not ${command.artifactType}.`,
       );
     }
@@ -215,7 +224,7 @@ async function validateAssetReferences(command: CreateOrAdvanceArtifactCommand):
     command.createdByExecutionId
     && !assets.some((asset) => asset.sourceExecutionId === command.createdByExecutionId)
   ) {
-    throw new Error(
+    throw new ArtifactWriteConflictError(
       `Artifact createdByExecutionId does not match any referenced Asset: ${command.createdByExecutionId}`,
     );
   }
@@ -241,7 +250,7 @@ function assertExpectedCurrentRevision(
 ): void {
   const currentRevisionId = existing?.currentRevisionId ?? null;
   if (command.expectedCurrentRevisionId !== currentRevisionId) {
-    throw new Error(
+    throw new ArtifactWriteConflictError(
       `Artifact current Revision conflict: expected ${command.expectedCurrentRevisionId ?? 'none'}, current ${currentRevisionId ?? 'none'}.`,
     );
   }

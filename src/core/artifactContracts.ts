@@ -1,4 +1,5 @@
 import type { CapabilityDefinitionLock, SkillDefinitionLock } from './capabilityContracts';
+import type { AssetRecord } from './types';
 import type { WorkflowDefinitionLock } from './workflowRuntimeContracts';
 
 export type ArtifactScope = 'project' | 'workflow_run' | 'step_run';
@@ -62,6 +63,31 @@ export interface ProjectArtifactSnapshot {
   projectId: string;
   revisions: ArtifactRevision[];
   schemaVersion: 1;
+}
+
+export interface ProjectArtifactLibraryItem {
+  artifact: ArtifactRecord;
+  currentRevision: ArtifactRevision;
+  primaryAsset: AssetRecord;
+  revisions: ArtifactRevision[];
+}
+
+export interface ProjectArtifactLibrarySnapshot {
+  items: ProjectArtifactLibraryItem[];
+  projectId: string;
+  schemaVersion: 1;
+}
+
+export interface PromoteProjectAssetCommand {
+  artifactType: string;
+  assetId: string;
+  boardId: string;
+  blockId: string;
+  expectedCurrentRevisionId: string | null;
+  idempotencyKey: string;
+  projectId: string;
+  semanticKey: string;
+  sourceArtifactRevisionId?: string;
 }
 
 export interface CreateOrAdvanceArtifactCommand {

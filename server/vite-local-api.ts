@@ -25,11 +25,16 @@ import {
   reorderProjects,
   resetWorkspace,
   saveSnapshot,
+  ArtifactWriteConflictError,
   SnapshotWriteConflictError,
   setCodexProjectBinding,
   updateImageResultBlock,
   validateCodexProjectBinding,
 } from './local-store';
+import {
+  promoteProjectAsset,
+  readProjectArtifactLibrary,
+} from './artifact-library-service';
 import type { BoardSnapshot } from '../src/core/types';
 import { seedanceModelArkAvailability } from './seedance-modelark-client';
 import { cancelSeedanceVideoGeneration, startSeedanceVideoGeneration } from './seedance-video-service';
@@ -79,6 +84,61 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
 
           if (method === 'GET' && url.pathname === '/health') {
             sendJson(res, { ok: true, service: 'retake-whiteboard' });
+            return;
+          }
+
+          if (method === 'GET' && url.pathname === '/artifacts') {
+            const projectId = url.searchParams.get('projectId');
+            if (!projectId) {
+              sendJson(res, { error: 'projectId is required' }, 400);
+              return;
+            }
+            sendJson(res, await readProjectArtifactLibrary(projectId));
+            return;
+          }
+
+          if (method === 'POST' && url.pathname === '/artifacts/promote') {
+            const body = (await readJson(req)) as {
+              artifactType?: string;
+              assetId?: string;
+              blockId?: string;
+              boardId?: string;
+              expectedCurrentRevisionId?: string | null;
+              idempotencyKey?: string;
+              projectId?: string;
+              semanticKey?: string;
+              sourceArtifactRevisionId?: string;
+            };
+            if (
+              !body.artifactType
+              || !body.assetId
+              || !body.blockId
+              || !body.boardId
+              || body.expectedCurrentRevisionId === undefined
+              || !body.idempotencyKey
+              || !body.projectId
+              || !body.semanticKey
+            ) {
+              sendJson(
+                res,
+                {
+                  error: 'artifactType, assetId, blockId, boardId, expectedCurrentRevisionId, idempotencyKey, projectId, and semanticKey are required',
+                },
+                400,
+              );
+              return;
+            }
+            sendJson(res, await promoteProjectAsset({
+              artifactType: body.artifactType,
+              assetId: body.assetId,
+              blockId: body.blockId,
+              boardId: body.boardId,
+              expectedCurrentRevisionId: body.expectedCurrentRevisionId,
+              idempotencyKey: body.idempotencyKey,
+              projectId: body.projectId,
+              semanticKey: body.semanticKey,
+              sourceArtifactRevisionId: body.sourceArtifactRevisionId,
+            }), 201);
             return;
           }
 
@@ -815,7 +875,11 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
             {
               error: error instanceof Error ? error.message : 'Unknown local API error',
             },
-            error instanceof SnapshotWriteConflictError ? 409 : isFileNotFoundError(error) ? 404 : 500,
+            error instanceof SnapshotWriteConflictError || error instanceof ArtifactWriteConflictError
+              ? 409
+              : isFileNotFoundError(error)
+                ? 404
+                : 500,
           );
         }
       });
