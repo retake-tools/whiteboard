@@ -1,5 +1,11 @@
 import { capabilityDefinitionFor } from './capabilityRegistry';
+import {
+  agentPresetDefinitionFor,
+  agentPresetDefinitionLock,
+  storyProductionDirectorPreset,
+} from './agentPresetRegistry';
 import type {
+  PackageAgentPresetEntryPoint,
   PackageLock,
   PackageSkillEntryPoint,
   PackageWorkflowEntryPoint,
@@ -45,8 +51,20 @@ export type ResolvedPackageEntryPointTarget =
       };
     };
 
+export interface ResolvedPackageAgentPresetEntryPointTarget {
+  agentPresetLock: {
+    agentPresetId: string;
+    definitionHash: string;
+    version: string;
+  };
+  entrypoint: PackageAgentPresetEntryPoint;
+  kind: 'agent_preset';
+  packageLock: PackageLock;
+}
+
 export type PackageEntryPointResolution =
   | { status: 'resolved'; target: ResolvedPackageEntryPointTarget }
+  | { status: 'needs_target'; target: ResolvedPackageAgentPresetEntryPointTarget }
   | { candidates: RegisteredPackageEntryPoint[]; status: 'needs_selection' }
   | { status: 'not_found' }
   | { entrypoint: RegisteredPackageEntryPoint; status: 'unsupported' };
@@ -160,7 +178,38 @@ export const storyProductionStarterPackage: RetakePackageManifest = {
   ],
 };
 
-export const builtInPackageRegistry = createPackageRegistry([storyProductionStarterPackage]);
+export const storyProductionAgentPackage: RetakePackageManifest = {
+  schemaVersion: 1,
+  packageId: 'retake.package.story-production-agent',
+  version: '0.1.0',
+  digest: 'sha256:retake-package-story-production-agent-catmeme-v1',
+  name: 'Retake Story Production Agent',
+  description: 'A bounded AgentPreset for coordinating the built-in story-production target.',
+  source: { kind: 'builtin' },
+  components: {
+    adapterPlugins: [],
+    agentPresets: [agentPresetDefinitionLock(storyProductionDirectorPreset)],
+    capabilityPlugins: [],
+    skills: [],
+    uiPlugins: [],
+    workflows: [],
+  },
+  entrypoints: [{
+    schemaVersion: 1,
+    entrypointId: 'agent:retake.agent.story-production-director',
+    kind: 'agent_preset',
+    name: storyProductionDirectorPreset.name,
+    description: storyProductionDirectorPreset.description,
+    ref: { agentPresetId: storyProductionDirectorPreset.agentPresetId },
+    compatibleStageIds: ['story_screenplay', 'production_design', 'storyboard_previsualization'],
+    requiredInputSlotIds: [],
+  }],
+};
+
+export const builtInPackageRegistry = createPackageRegistry([
+  storyProductionStarterPackage,
+  storyProductionAgentPackage,
+]);
 
 export function createPackageRegistry(manifests: RetakePackageManifest[]): RetakePackageRegistry {
   const packageIds = new Set<string>();
@@ -208,7 +257,16 @@ export function resolvePackageEntryPoint(
   if (candidates.length > 1) return { status: 'needs_selection', candidates };
   const candidate = candidates[0];
   if (candidate.entrypoint.kind === 'agent_preset') {
-    return { status: 'unsupported', entrypoint: candidate };
+    const definition = agentPresetDefinitionFor(candidate.entrypoint.ref.agentPresetId);
+    return {
+      status: 'needs_target',
+      target: {
+        agentPresetLock: agentPresetDefinitionLock(definition),
+        entrypoint: candidate.entrypoint,
+        kind: 'agent_preset',
+        packageLock: candidate.packageLock,
+      },
+    };
   }
   if (candidate.entrypoint.kind === 'skill') {
     const skill = skillDefinitionFor(candidate.entrypoint.ref.skillId);
@@ -258,6 +316,12 @@ export function validatePackageManifest(manifest: RetakePackageManifest): string
     'Package Workflow',
     issues,
   );
+  const agentPresetLocks = uniqueBy(
+    manifest.components.agentPresets,
+    (lock) => lock.agentPresetId,
+    'Package AgentPreset',
+    issues,
+  );
   const entrypointIds = new Set<string>();
   for (const lock of skillLocks.values()) {
     try {
@@ -279,12 +343,25 @@ export function validatePackageManifest(manifest: RetakePackageManifest): string
       issues.push(`Package Workflow is not registered: ${lock.workflowDefinitionId}`);
     }
   }
+  for (const lock of agentPresetLocks.values()) {
+    try {
+      const definition = agentPresetDefinitionFor(lock.agentPresetId);
+      if (definition.version !== lock.version || definition.definitionHash !== lock.definitionHash) {
+        issues.push(`Package AgentPreset lock mismatch: ${lock.agentPresetId}`);
+      }
+    } catch {
+      issues.push(`Package AgentPreset is not registered: ${lock.agentPresetId}`);
+    }
+  }
   for (const entrypoint of manifest.entrypoints) {
     if (entrypointIds.has(entrypoint.entrypointId)) issues.push(`Duplicate Package EntryPoint: ${entrypoint.entrypointId}`);
     entrypointIds.add(entrypoint.entrypointId);
     if (entrypoint.kind === 'agent_preset') {
-      if (!manifest.components.agentPresets.some((lock) => lock.componentId === entrypoint.ref.agentPresetId)) {
+      if (!agentPresetLocks.has(entrypoint.ref.agentPresetId)) {
         issues.push(`Package AgentPreset EntryPoint is not a component: ${entrypoint.entrypointId}`);
+      }
+      if (entrypoint.requiredInputSlotIds.length > 0) {
+        issues.push(`Package AgentPreset EntryPoint cannot declare input slots: ${entrypoint.entrypointId}`);
       }
       continue;
     }

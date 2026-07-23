@@ -173,18 +173,21 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     proposalId: string,
     expectedProposalVersion: number,
     target: PackageEntrypointAgentLaunchTarget,
+    agentPresetEntryPointId?: string,
   ): Promise<void> {
     if (!selectedSessionId || launchInFlightRef.current) return;
-    const command = buildPackageEntrypointDraftLaunchCommand({
-      agentSessionId: selectedSessionId,
-      expectedProposalVersion,
-      proposalId,
-      target,
-    });
+    let command: ReturnType<typeof buildPackageEntrypointDraftLaunchCommand> | undefined;
     launchInFlightRef.current = true;
     setLaunchingProposalId(proposalId);
     setError(undefined);
     try {
+      command = buildPackageEntrypointDraftLaunchCommand({
+        agentSessionId: selectedSessionId,
+        expectedProposalVersion,
+        proposalId,
+        target,
+        agentPresetEntryPointId,
+      });
       const result = stagePackageEntrypointAgentLaunch(snapshotRef.current, command);
       await persistSnapshot(result.stagedSnapshot, { requireLocalApi: true });
       const authoritative = await reconcileDraftLaunchTarget(
@@ -201,11 +204,12 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
           boardId: scope.board.boardId,
           projectId: scope.project.projectId,
         });
-        const recovered = authoritative.changeProposals?.find(
+        const idempotencyKey = command?.idempotencyKey;
+        const recovered = idempotencyKey ? authoritative.changeProposals?.find(
           (proposal) =>
             proposal.proposalId === proposalId
-            && proposal.draftLaunchEffect?.idempotencyKey === command.idempotencyKey,
-        )?.draftLaunchEffect;
+            && proposal.draftLaunchEffect?.idempotencyKey === idempotencyKey,
+        )?.draftLaunchEffect : undefined;
         if (recovered) {
           publishLaunch(authoritative, recovered.agentRunId, recovered.agentSessionId);
           return;

@@ -7,6 +7,7 @@ import {
   listPackageEntryPoints,
   listPackages,
   resolvePackageEntryPoint,
+  storyProductionAgentPackage,
   storyProductionStarterPackage,
   validatePackageManifest,
 } from '../src/core/packageRegistry';
@@ -31,7 +32,7 @@ assert.match(appSource, /packageEntryPointController\.invokeEntryPoint/);
 assert.match(controllerSource, /resolvePackageComposerInvocation/);
 
 assert.deepEqual(validatePackageManifest(storyProductionStarterPackage), []);
-assert.equal(listPackages().length, 1);
+assert.equal(listPackages().length, 2);
 assert.equal(storyProductionStarterPackage.components.skills.length, 5);
 assert.equal(storyProductionStarterPackage.components.workflows.length, 1);
 assert.deepEqual(listPackageEntryPoints().map(({ entrypoint }) => entrypoint.entrypointId), [
@@ -41,6 +42,7 @@ assert.deepEqual(listPackageEntryPoints().map(({ entrypoint }) => entrypoint.ent
   'skill:retake.scene-bible.from-screenplay',
   'skill:retake.storyboard-plan.from-production-design',
   'workflow:retake.workflow.story-to-storyboard',
+  'agent:retake.agent.story-production-director',
 ]);
 
 const resolvedSkill = resolvePackageEntryPoint({ entrypointId: 'skill:retake.screenplay.from-brief' });
@@ -93,36 +95,16 @@ assert.equal(resolvePackageEntryPoint({
   entrypointId: 'skill:retake.screenplay.from-brief',
 }, emptyRegistry).status, 'not_found');
 
-const agentPackage: RetakePackageManifest = {
-  schemaVersion: 1,
-  packageId: 'retake.package.agent-placeholder',
-  version: '0.1.0',
-  digest: 'sha256:retake-package-agent-placeholder-v1',
-  name: 'Agent placeholder',
-  description: 'Contract-only AgentPreset package.',
-  source: { kind: 'builtin' },
-  components: {
-    skills: [],
-    workflows: [],
-    agentPresets: [{ componentId: 'retake.agent.director', version: '0.1.0', definitionHash: 'sha256:agent' }],
-    capabilityPlugins: [],
-    adapterPlugins: [],
-    uiPlugins: [],
-  },
-  entrypoints: [{
-    schemaVersion: 1,
-    entrypointId: 'agent:retake.agent.director',
-    kind: 'agent_preset',
-    name: 'Director',
-    description: 'Not executable in Package V0.',
-    ref: { agentPresetId: 'retake.agent.director' },
-    compatibleStageIds: [],
-    requiredInputSlotIds: [],
-  }],
-};
-assert.equal(resolvePackageEntryPoint({
-  entrypointId: 'agent:retake.agent.director',
-}, createPackageRegistry([agentPackage])).status, 'unsupported');
+assert.deepEqual(validatePackageManifest(storyProductionAgentPackage), []);
+const resolvedAgentPreset = resolvePackageEntryPoint({
+  entrypointId: 'agent:retake.agent.story-production-director',
+});
+assert.equal(resolvedAgentPreset.status, 'needs_target');
+assert.ok(resolvedAgentPreset.status === 'needs_target');
+assert.equal(
+  resolvedAgentPreset.target.agentPresetLock.agentPresetId,
+  'retake.agent.story-production-director',
+);
 
 const invokedKinds: string[] = [];
 const controllerSnapshot = await emptySnapshot();
@@ -192,7 +174,7 @@ console.log(JSON.stringify({
   typedDispatch: invokedKinds,
   ambiguousSelectionReturned: true,
   missingPackageDoesNotBreakRun: true,
-  agentPresetExecutionDeferred: true,
+  agentPresetNeedsTarget: true,
 }));
 
 async function emptySnapshot(): Promise<BoardSnapshot> {

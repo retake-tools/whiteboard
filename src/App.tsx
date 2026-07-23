@@ -595,8 +595,13 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
           onClose={() => setIsAgentWorkspaceOpen(false)}
           onCreateSession={() => agentWorkspaceController.newSession()}
           onDecideProposal={agentWorkspaceController.decideProposal}
-          onLaunchProposal={(proposalId, expectedProposalVersion, target) =>
-            void agentWorkspaceController.launchProposal(proposalId, expectedProposalVersion, target)}
+          onLaunchProposal={(proposalId, expectedProposalVersion, target, agentPresetEntryPointId) =>
+            void agentWorkspaceController.launchProposal(
+              proposalId,
+              expectedProposalVersion,
+              target,
+              agentPresetEntryPointId,
+            )}
           onPauseAgentRun={agentRuntimeController.pauseAgentRun}
           onResumeAgentRun={agentRuntimeController.resumeAgentRun}
           onSelectAgentRun={agentWorkspaceController.selectAgentRun}

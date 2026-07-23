@@ -1,5 +1,6 @@
 import type { CapabilityDefinitionLock, SkillDefinitionLock } from './capabilityContracts';
 import type { PackageLock } from './packageContracts';
+import type { AgentPresetSnapshot } from './agentPresetContracts';
 import type {
   WorkflowDefinitionLock,
   WorkflowGateDefinitionLock,
@@ -103,6 +104,8 @@ export interface AgentRunPermissions {
 
 export interface AgentRunRecord {
   agentRunId: string;
+  agentPresetPackageLock?: PackageLock;
+  agentPresetSnapshot?: AgentPresetSnapshot;
   boardId: string;
   createdAt: string;
   createdBy: 'user';

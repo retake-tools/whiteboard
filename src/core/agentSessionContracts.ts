@@ -1,4 +1,5 @@
 import type { PackageComposerMention } from './packageComposer';
+import type { AgentPresetSelectionLock } from './agentPresetContracts';
 
 export type AgentSessionStatus = 'active' | 'archived';
 
@@ -168,6 +169,7 @@ export type PackageEntrypointAgentLaunchTarget =
     };
 
 export interface PackageEntrypointDraftLaunchCommand {
+  agentPresetSelection?: AgentPresetSelectionLock;
   agentSessionId: string;
   expectedProposalVersion: number;
   idempotencyKey: string;
@@ -244,6 +246,15 @@ export type AgentRuntimeTurnDecision =
 export interface AgentRuntimeTurnContext {
   agentRun?: {
     agentRunId: string;
+    agentPreset?: {
+      agentPresetId: string;
+      effectiveToolPermissions: string[];
+      instructions: string;
+      name: string;
+      reviewResponsibilities: string[];
+      roleLabel?: string;
+      version: string;
+    };
     allowedActions: AgentRunControlAction[];
     status: string;
     targetKind: string;

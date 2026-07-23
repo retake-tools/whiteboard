@@ -7,6 +7,12 @@ import {
   createAgentRunForWorkflowStageSlice,
   startAgentRun,
 } from './agentRuntime';
+import {
+  agentPresetSelectionMatchesRun,
+  applyAgentPresetToRun,
+  resolveAgentPresetSelection,
+} from './agentPresetApplication';
+import type { AgentPresetTargetRequirements } from './agentPresetApplication';
 import { setAgentSessionRun } from './agentSession';
 import type {
   ChangeProposalRecord,
@@ -22,6 +28,7 @@ import {
   createWorkflowRunForGroup,
   workflowRunViewForId,
 } from './workflowRuntime';
+import { workflowDefinitionFor, type WorkflowDefinition } from './workflowRegistry';
 
 export interface PackageEntrypointAgentLaunchResult {
   effect: PackageEntrypointAgentLaunchEffect;
@@ -29,6 +36,7 @@ export interface PackageEntrypointAgentLaunchResult {
 }
 
 export function buildPackageEntrypointDraftLaunchCommand(input: {
+  agentPresetEntryPointId?: string;
   agentSessionId: string;
   expectedProposalVersion: number;
   proposalId: string;
@@ -42,6 +50,9 @@ export function buildPackageEntrypointDraftLaunchCommand(input: {
     proposalId: input.proposalId,
     schemaVersion: 1,
     target: structuredClone(input.target),
+    ...(input.agentPresetEntryPointId
+      ? { agentPresetSelection: resolveAgentPresetSelection(input.agentPresetEntryPointId) }
+      : {}),
   };
 }
 
@@ -140,6 +151,13 @@ export function stagePackageEntrypointAgentLaunch(
   if (!agentRun) throw new Error(`Package EntryPoint AgentRun was not created: ${agentRunId}`);
   agentRun.sourceChangeProposalId = stagedProposal.proposalId;
   agentRun.sourceDraftLaunchIdempotencyKey = command.idempotencyKey;
+  if (command.agentPresetSelection) {
+    applyAgentPresetToRun(stagedSnapshot, {
+      agentRunId,
+      agentSessionId: session.agentSessionId,
+      selection: command.agentPresetSelection,
+    });
+  }
   startAgentRun(stagedSnapshot, agentRunId);
   setAgentSessionRun(stagedSnapshot, session.agentSessionId, agentRunId);
 
@@ -158,6 +176,38 @@ export function stagePackageEntrypointAgentLaunch(
   stagedProposal.updatedAt = launchedAt;
   stagedProposal.recordVersion += 1;
   return { effect: launchEffect, stagedSnapshot };
+}
+
+export function packageEntrypointDraftLaunchRequirements(
+  snapshot: BoardSnapshot,
+  proposalId: string,
+  target: PackageEntrypointAgentLaunchTarget,
+): AgentPresetTargetRequirements {
+  const proposal = requireProposal(snapshot, proposalId);
+  if (
+    proposal.status !== 'applied'
+    || !proposal.appliedEffect
+    || proposal.proposedCommand.kind !== 'package_entrypoint.instantiate'
+  ) throw new Error('AgentPreset compatibility requires an applied typed Draft Proposal.');
+  const lock = proposal.proposedCommand.invocation.targetLock;
+  if (lock.entrypointKind === 'skill') {
+    if (target.kind !== 'capability') {
+      throw new Error('Skill Draft AgentPreset compatibility requires a capability target.');
+    }
+    return {
+      capabilityIds: [lock.capabilityLock.capabilityId],
+      skillIds: [lock.skillLock.skillId],
+    };
+  }
+  if (target.kind === 'capability') {
+    throw new Error('Workflow Draft AgentPreset compatibility requires a Workflow target.');
+  }
+  const definition = workflowDefinitionFor(lock.workflowDefinitionLock.workflowDefinitionId);
+  const steps = workflowTargetSteps(definition, target);
+  return {
+    capabilityIds: unique(steps.map((step) => step.capabilityLock.capabilityId)),
+    skillIds: unique(steps.map((step) => step.skillLock.skillId)),
+  };
 }
 
 function createWorkflowAgentRun(
@@ -199,6 +249,63 @@ function createWorkflowAgentRun(
     workflowRunId,
     step.record.stepRunId,
   ).record.agentRunId;
+}
+
+function workflowTargetSteps(
+  definition: WorkflowDefinition,
+  target: Exclude<PackageEntrypointAgentLaunchTarget, { kind: 'capability' }>,
+): WorkflowDefinition['steps'] {
+  if (target.kind === 'workflow_run') return definition.steps;
+  const until = target.until;
+  let targetStepIds: string[];
+  if (until.kind === 'step') {
+    targetStepIds = [until.stepId];
+  } else if (until.kind === 'artifact') {
+    const output = definition.outputSlots.find(
+      (candidate) => candidate.slotId === until.workflowOutputSlotId,
+    );
+    if (!output) throw new Error(`Workflow AgentPreset target output is missing: ${until.workflowOutputSlotId}`);
+    targetStepIds = [output.source.stepId];
+  } else if (until.kind === 'stage') {
+    if (!definition.stages?.some((stage) => stage.stageId === until.stageId)) {
+      throw new Error(`Workflow AgentPreset target Stage is missing: ${until.stageId}`);
+    }
+    targetStepIds = definition.steps
+      .filter((step) => step.stageId === until.stageId && !step.optional)
+      .map((step) => step.stepId);
+  } else {
+    const gate = definition.gates.find((candidate) => candidate.gateId === until.gateId);
+    if (!gate) throw new Error(`Workflow AgentPreset target Gate is missing: ${until.gateId}`);
+    if (gate.subject.kind === 'step_output') {
+      targetStepIds = [gate.subject.stepId];
+    } else {
+      const workflowOutputSlotId = gate.subject.workflowOutputSlotId;
+      const output = definition.outputSlots.find(
+        (candidate) => candidate.slotId === workflowOutputSlotId,
+      );
+      if (!output) {
+        throw new Error(
+          `Workflow AgentPreset Gate Artifact output is missing: ${workflowOutputSlotId}`,
+        );
+      }
+      targetStepIds = [output.source.stepId];
+    }
+  }
+  const stepById = new Map(definition.steps.map((step) => [step.stepId, step]));
+  const included = new Set<string>();
+  const visiting = new Set<string>();
+  function include(stepId: string): void {
+    if (included.has(stepId)) return;
+    if (visiting.has(stepId)) throw new Error(`Workflow AgentPreset target has a dependency cycle: ${stepId}`);
+    const step = stepById.get(stepId);
+    if (!step) throw new Error(`Workflow AgentPreset target Step is missing: ${stepId}`);
+    visiting.add(stepId);
+    for (const dependencyId of step.dependsOn) include(dependencyId);
+    visiting.delete(stepId);
+    included.add(stepId);
+  }
+  for (const stepId of targetStepIds) include(stepId);
+  return definition.steps.filter((step) => included.has(step.stepId));
 }
 
 function requireProposal(snapshot: BoardSnapshot, proposalId: string): ChangeProposalRecord {
@@ -298,6 +405,9 @@ function assertIdempotentRetry(
   if (!run || !launchTargetMatches(run.target, command.target)) {
     throw new Error('Package EntryPoint Agent launch retry target conflicts with the existing effect.');
   }
+  if (!agentPresetSelectionMatchesRun(run, command.agentPresetSelection)) {
+    throw new Error('Package EntryPoint Agent launch retry AgentPreset conflicts with the existing effect.');
+  }
 }
 
 function launchTargetMatches(
@@ -327,4 +437,8 @@ function launchTargetMatches(
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values)];
 }

@@ -1,6 +1,10 @@
 import { Archive, Bot, ChevronDown, CircleStop, Pause, Play, Plus, X } from 'lucide-react';
 import { useEffect, useState, type ReactElement } from 'react';
 import { operationReadinessFor } from '../core/capabilities';
+import {
+  agentPresetCompatibilityForRequirements,
+} from '../core/agentPresetApplication';
+import { agentPresetDefinitionFor } from '../core/agentPresetRegistry';
 import { messagesForSession, proposalsForSession, runtimeEventsForSession } from '../core/agentSession';
 import type {
   AgentRuntimeBindingRecord,
@@ -8,9 +12,13 @@ import type {
   ChangeProposalRecord,
   PackageEntrypointAgentLaunchTarget,
 } from '../core/agentSessionContracts';
-import { resolvePackageEntryPoint } from '../core/packageRegistry';
+import {
+  listPackageEntryPoints,
+  resolvePackageEntryPoint,
+} from '../core/packageRegistry';
 import { skillUiDefinitionFor } from '../core/skillRegistry';
 import type { BoardSnapshot } from '../core/types';
+import { packageEntrypointDraftLaunchRequirements } from '../core/packageEntrypointAgentLaunchApplication';
 import { listWorkflows, workflowUiDefinitionFor } from '../core/workflowRegistry';
 import { useI18n } from '../i18n';
 import { AgentWorkspaceComposer } from './AgentWorkspaceComposer';
@@ -61,6 +69,7 @@ export function AgentWorkspace({
     proposalId: string,
     expectedProposalVersion: number,
     target: PackageEntrypointAgentLaunchTarget,
+    agentPresetEntryPointId?: string,
   ) => void;
   onResumeAgentRun: (agentRunId: string) => void;
   onSelectAgentRun: (agentRunId?: string) => void;
@@ -135,7 +144,7 @@ export function AgentWorkspace({
         ) : tab === 'run' ? (
           <div className="agent-workspace-run">
             <label><span>{t('agentWorkspace.targetRun')}</span><select value={selectedSession.activeAgentRunId ?? ''} onChange={(event) => onSelectAgentRun(event.target.value || undefined)}><option value="">{t('agentWorkspace.noRun')}</option>{agentRuns.map((run) => <option key={run.agentRunId} value={run.agentRunId}>{run.target.kind} · {run.status} · {run.agentRunId.slice(-8)}</option>)}</select></label>
-            {activeRun ? <><dl><div><dt>{t('agentWorkspace.runId')}</dt><dd>{activeRun.agentRunId}</dd></div><div><dt>{t('agentWorkspace.status')}</dt><dd>{activeRun.status}</dd></div><div><dt>{t('agentWorkspace.scope')}</dt><dd>{activeRun.scope.allowedOperationBlockIds.length} Operations · {activeRun.scope.allowedCapabilityIds.length} Capabilities</dd></div><div><dt>{t('agentWorkspace.runtime')}</dt><dd>{binding?.runtimeKind ?? '—'} · {binding?.model ?? '—'}</dd></div></dl><div className="agent-workspace-run-actions">{activeRun.status === 'paused' ? <button type="button" onClick={() => onResumeAgentRun(activeRun.agentRunId)}><Play size={14} />{t('agentRuntime.resume')}</button> : <button type="button" disabled={['succeeded', 'failed', 'canceled'].includes(activeRun.status)} onClick={() => onPauseAgentRun(activeRun.agentRunId)}><Pause size={14} />{t('agentRuntime.pause')}</button>}<button type="button" disabled={['succeeded', 'failed', 'canceled'].includes(activeRun.status)} onClick={() => onCancelAgentRun(activeRun.agentRunId)}><CircleStop size={14} />{t('agentRuntime.cancel')}</button></div></> : <p className="agent-workspace-placeholder">{t('agentWorkspace.runEmpty')}</p>}
+            {activeRun ? <><dl><div><dt>{t('agentWorkspace.runId')}</dt><dd>{activeRun.agentRunId}</dd></div><div><dt>{t('agentWorkspace.status')}</dt><dd>{activeRun.status}</dd></div><div><dt>{t('agentWorkspace.scope')}</dt><dd>{activeRun.scope.allowedOperationBlockIds.length} Operations · {activeRun.scope.allowedCapabilityIds.length} Capabilities</dd></div><div><dt>{t('agentWorkspace.runtime')}</dt><dd>{binding?.runtimeKind ?? '—'} · {binding?.model ?? '—'}</dd></div><div><dt>{t('agentWorkspace.agentPreset')}</dt><dd>{activeRun.agentPresetSnapshot ? `${activeRun.agentPresetSnapshot.name} · ${activeRun.agentPresetSnapshot.version}` : t('agentWorkspace.noAgentPreset')}</dd></div>{activeRun.agentPresetSnapshot ? <><div><dt>{t('agentWorkspace.package')}</dt><dd>{activeRun.agentPresetPackageLock?.packageId ?? '—'} · {activeRun.agentPresetPackageLock?.version ?? '—'}</dd></div><div><dt>{t('agentWorkspace.presetTools')}</dt><dd>{activeRun.permissions.allowedToolPermissions.join(' · ')}</dd></div></> : null}</dl><div className="agent-workspace-run-actions">{activeRun.status === 'paused' ? <button type="button" onClick={() => onResumeAgentRun(activeRun.agentRunId)}><Play size={14} />{t('agentRuntime.resume')}</button> : <button type="button" disabled={['succeeded', 'failed', 'canceled'].includes(activeRun.status)} onClick={() => onPauseAgentRun(activeRun.agentRunId)}><Pause size={14} />{t('agentRuntime.pause')}</button>}<button type="button" disabled={['succeeded', 'failed', 'canceled'].includes(activeRun.status)} onClick={() => onCancelAgentRun(activeRun.agentRunId)}><CircleStop size={14} />{t('agentRuntime.cancel')}</button></div></> : <p className="agent-workspace-placeholder">{t('agentWorkspace.runEmpty')}</p>}
           </div>
         ) : (
           <div className="agent-workspace-changes">
@@ -144,6 +153,7 @@ export function AgentWorkspace({
               ? <p className="agent-workspace-placeholder">{t('agentWorkspace.changesEmpty')}</p>
               : proposals.map((proposal) => (
                   <ProposalCard
+                    agentSessionId={selectedSession.agentSessionId}
                     key={proposal.proposalId}
                     isLaunching={launchingProposalId === proposal.proposalId}
                     proposal={proposal}
@@ -165,6 +175,7 @@ export function AgentWorkspace({
 }
 
 function ProposalCard({
+  agentSessionId,
   isLaunching,
   onDecide,
   onLaunch,
@@ -173,6 +184,7 @@ function ProposalCard({
   proposal,
   snapshot,
 }: {
+  agentSessionId: string;
   isLaunching: boolean;
   onDecide: (
     proposalId: string,
@@ -183,6 +195,7 @@ function ProposalCard({
     proposalId: string,
     expectedProposalVersion: number,
     target: PackageEntrypointAgentLaunchTarget,
+    agentPresetEntryPointId?: string,
   ) => void;
   onView: (proposalId: string) => void;
   onViewRun: (proposalId: string) => void;
@@ -194,6 +207,7 @@ function ProposalCard({
   const [workflowTarget, setWorkflowTarget] = useState<
     Exclude<PackageEntrypointAgentLaunchTarget, { kind: 'capability' }>
   >({ kind: 'workflow_run' });
+  const [agentPresetEntryPointId, setAgentPresetEntryPointId] = useState('');
   const command = proposal.proposedCommand;
   const typedInvocation = command.kind === 'package_entrypoint.instantiate' ? command.invocation : undefined;
   const entrypointName = typedInvocation
@@ -216,6 +230,20 @@ function ProposalCard({
   const workflowDefinition = workflowDefinitionId
     ? listWorkflows().find((definition) => definition.workflowId === workflowDefinitionId)
     : undefined;
+  const launchTarget: PackageEntrypointAgentLaunchTarget = isWorkflowEntrypoint
+    ? workflowTarget
+    : { kind: 'capability' };
+  const presetOptions = isLaunchReviewOpen
+    ? agentPresetOptionsForDraft(
+        snapshot,
+        proposal,
+        agentSessionId,
+        launchTarget,
+      )
+    : [];
+  const selectedPreset = presetOptions.find(
+    (option) => option.entrypointId === agentPresetEntryPointId,
+  );
   return (
     <article className={`is-${proposal.status}`}>
       <header>
@@ -318,14 +346,46 @@ function ProposalCard({
                   {t('agentWorkspace.launchDefinitionMissing')}
                 </small>
               ) : null}
+              <label>
+                <span>{t('agentWorkspace.agentPreset')}</span>
+                <select
+                  value={agentPresetEntryPointId}
+                  onChange={(event) => setAgentPresetEntryPointId(event.target.value)}
+                >
+                  <option value="">{t('agentWorkspace.noAgentPreset')}</option>
+                  {presetOptions.map((option) => (
+                    <option
+                      key={option.entrypointId}
+                      value={option.entrypointId}
+                      disabled={!option.compatible}
+                    >
+                      {option.name}{option.compatible ? '' : ` — ${option.issues.join('; ')}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {selectedPreset ? (
+                <div className="agent-workspace-preset-summary">
+                  <strong>{selectedPreset.roleLabel ?? selectedPreset.name}</strong>
+                  <small>{selectedPreset.packageId} · {selectedPreset.version}</small>
+                  <small>{t('agentWorkspace.presetTools')}: {selectedPreset.toolPermissions.join(' · ')}</small>
+                  <small>{t('agentWorkspace.presetRuntime')}: {selectedPreset.runtimeKinds.join(' · ')} · {selectedPreset.requiredFeatures.join(' · ')}</small>
+                  <small>{t('agentWorkspace.presetBoundary')}</small>
+                </div>
+              ) : null}
               <p>{t('agentWorkspace.launchWarning')}</p>
               <button
                 type="button"
-                disabled={isLaunching || (isWorkflowEntrypoint && !workflowDefinition)}
+                disabled={
+                  isLaunching
+                  || (isWorkflowEntrypoint && !workflowDefinition)
+                  || Boolean(agentPresetEntryPointId && !selectedPreset?.compatible)
+                }
                 onClick={() => onLaunch(
                   proposal.proposalId,
                   proposal.recordVersion,
-                  isWorkflowEntrypoint ? workflowTarget : { kind: 'capability' },
+                  launchTarget,
+                  agentPresetEntryPointId || undefined,
                 )}
               >
                 <Play size={13} />
@@ -339,6 +399,75 @@ function ProposalCard({
       ) : null}
     </article>
   );
+}
+
+function agentPresetOptionsForDraft(
+  snapshot: BoardSnapshot,
+  proposal: ChangeProposalRecord,
+  agentSessionId: string,
+  target: PackageEntrypointAgentLaunchTarget,
+): Array<{
+  compatible: boolean;
+  entrypointId: string;
+  issues: string[];
+  name: string;
+  packageId: string;
+  roleLabel?: string;
+  runtimeKinds: string[];
+  requiredFeatures: string[];
+  toolPermissions: string[];
+  version: string;
+}> {
+  let requirements;
+  try {
+    requirements = packageEntrypointDraftLaunchRequirements(
+      snapshot,
+      proposal.proposalId,
+      target,
+    );
+  } catch (error) {
+    return listPackageEntryPoints()
+      .filter((registration) => registration.entrypoint.kind === 'agent_preset')
+      .map((registration) => ({
+        compatible: false,
+        entrypointId: registration.entrypoint.entrypointId,
+        issues: [error instanceof Error ? error.message : String(error)],
+        name: registration.entrypoint.name,
+        packageId: registration.packageLock.packageId,
+        requiredFeatures: [],
+        runtimeKinds: [],
+        toolPermissions: [],
+        version: registration.packageLock.version,
+      }));
+  }
+  return listPackageEntryPoints().flatMap((registration) => {
+    if (registration.entrypoint.kind !== 'agent_preset') return [];
+    const resolution = resolvePackageEntryPoint({
+      entrypointId: registration.entrypoint.entrypointId,
+    });
+    if (resolution.status !== 'needs_target') return [];
+    const definition = agentPresetDefinitionFor(
+      resolution.target.agentPresetLock.agentPresetId,
+    );
+    const compatibility = agentPresetCompatibilityForRequirements(
+      snapshot,
+      agentSessionId,
+      definition,
+      requirements,
+    );
+    return [{
+      compatible: compatibility.compatible,
+      entrypointId: registration.entrypoint.entrypointId,
+      issues: compatibility.issues,
+      name: definition.name,
+      packageId: registration.packageLock.packageId,
+      ...(definition.roleLabel ? { roleLabel: definition.roleLabel } : {}),
+      requiredFeatures: definition.runtimePreference.requiredFeatures,
+      runtimeKinds: definition.runtimePreference.compatibleRuntimeKinds,
+      toolPermissions: definition.toolPolicy.allowedToolPermissions,
+      version: definition.version,
+    }];
+  });
 }
 
 function typedEntryPointName(

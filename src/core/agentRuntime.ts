@@ -1,4 +1,5 @@
 import { operationReadinessFor } from './capabilities';
+import { assertAgentPresetSnapshotForRun } from './agentPresetApplication';
 import { touchBoard } from './blockFactory';
 import { capabilityDefinitionFor } from './capabilityRegistry';
 import { createId, nowIso } from './id';
@@ -695,6 +696,7 @@ function assertAgentRunTarget(snapshot: BoardSnapshot, record: AgentRunRecord): 
     || record.permissions.canInstallPackages
     || record.permissions.canModifyWorkflow
   ) throw new Error('Agent Run permissions exceed the V0 execution boundary.');
+  assertAgentPresetSnapshotForRun(snapshot, record);
   if (record.target.kind === 'capability') {
     if (record.stopPolicy.kind !== 'capability_completed') {
       throw new Error('Agent Run Capability stop policy changed.');

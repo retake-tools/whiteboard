@@ -139,6 +139,9 @@
 .agent-workspace-launch-review > strong { font-size: 11px; }
 .agent-workspace-launch-review label { display: grid; gap: 4px; color: var(--retake-text-muted); font-size: 10px; }
 .agent-workspace-launch-review select { width: 100%; min-width: 0; padding: 6px; border: 1px solid var(--retake-border); border-radius: 6px; background: var(--retake-surface); color: var(--retake-text-secondary); font-size: 10px; }
+.agent-workspace-preset-summary { display: grid; gap: 3px; padding: 7px; border: 1px solid var(--retake-border-subtle); border-radius: 6px; background: var(--retake-surface-subtle); }
+.agent-workspace-preset-summary strong { font-size: 10px; }
+.agent-workspace-preset-summary small { color: var(--retake-text-muted); font-size: 10px; line-height: 1.4; }
 .agent-workspace-launch-review > button:disabled { opacity: .5; cursor: default; }
 
 @media (max-width: 640px) {

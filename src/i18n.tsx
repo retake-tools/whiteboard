@@ -584,6 +584,11 @@ type TranslationKey =
   | 'agentWorkspace.launchReview'
   | 'agentWorkspace.launchWaitingInput'
   | 'agentWorkspace.launchWarning'
+  | 'agentWorkspace.agentPreset'
+  | 'agentWorkspace.noAgentPreset'
+  | 'agentWorkspace.presetBoundary'
+  | 'agentWorkspace.presetTools'
+  | 'agentWorkspace.presetRuntime'
   | 'agentWorkspace.newSession'
   | 'agentWorkspace.noRun'
   | 'agentWorkspace.noSession'
@@ -1396,6 +1401,11 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.launchReview': 'Review execution authorization',
     'agentWorkspace.launchWaitingInput': 'Required input is incomplete. The Agent will wait without calling a Provider.',
     'agentWorkspace.launchWarning': 'Starting may call the configured Provider and consume credits or incur costs.',
+    'agentWorkspace.agentPreset': 'Agent preset',
+    'agentWorkspace.noAgentPreset': 'No preset (Retake default)',
+    'agentWorkspace.presetBoundary': 'The preset narrows this Run only. It cannot change the Workflow or approve Gates.',
+    'agentWorkspace.presetTools': 'Effective tools',
+    'agentWorkspace.presetRuntime': 'Runtime requirements',
     'agentWorkspace.newSession': 'New session',
     'agentWorkspace.noRun': 'No Agent Run attached',
     'agentWorkspace.noSession': 'No active session',
@@ -2203,6 +2213,11 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.launchReview': '审阅执行授权',
     'agentWorkspace.launchWaitingInput': '必填输入尚未完整；Agent 会等待输入，不会调用 Provider。',
     'agentWorkspace.launchWarning': '启动后可能调用当前配置的 Provider，并消耗额度或产生费用。',
+    'agentWorkspace.agentPreset': 'Agent 预设',
+    'agentWorkspace.noAgentPreset': '无预设（Retake 默认）',
+    'agentWorkspace.presetBoundary': '预设只收窄本次 Run，不能修改 Workflow 或批准 Gate。',
+    'agentWorkspace.presetTools': '有效工具',
+    'agentWorkspace.presetRuntime': 'Runtime 要求',
     'agentWorkspace.newSession': '新建会话',
     'agentWorkspace.noRun': '未绑定 Agent Run',
     'agentWorkspace.noSession': '没有活动会话',

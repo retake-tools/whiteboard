@@ -1,4 +1,5 @@
 import type { SkillDefinitionLock } from './capabilityContracts';
+import type { AgentPresetDefinitionLock } from './agentPresetContracts';
 
 export interface PackageLock {
   digest: string;
@@ -20,7 +21,7 @@ export interface PackageOpaqueComponentLock {
 
 export interface RetakePackageComponents {
   adapterPlugins: PackageOpaqueComponentLock[];
-  agentPresets: PackageOpaqueComponentLock[];
+  agentPresets: AgentPresetDefinitionLock[];
   capabilityPlugins: PackageOpaqueComponentLock[];
   skills: SkillDefinitionLock[];
   uiPlugins: PackageOpaqueComponentLock[];

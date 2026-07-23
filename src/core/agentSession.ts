@@ -199,6 +199,19 @@ export function agentRuntimeTurnContext(
     ...(run ? {
       agentRun: {
         agentRunId: run.agentRunId,
+        ...(run.agentPresetSnapshot ? {
+          agentPreset: {
+            agentPresetId: run.agentPresetSnapshot.agentPresetId,
+            effectiveToolPermissions: [...run.permissions.allowedToolPermissions],
+            instructions: run.agentPresetSnapshot.instructions,
+            name: run.agentPresetSnapshot.name,
+            reviewResponsibilities: [...run.agentPresetSnapshot.reviewResponsibilities],
+            ...(run.agentPresetSnapshot.roleLabel
+              ? { roleLabel: run.agentPresetSnapshot.roleLabel }
+              : {}),
+            version: run.agentPresetSnapshot.version,
+          },
+        } : {}),
         allowedActions: allowedAgentRunActions(run.status),
         status: run.status,
         targetKind: run.target.kind,
