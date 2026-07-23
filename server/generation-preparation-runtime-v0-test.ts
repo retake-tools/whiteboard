@@ -7,6 +7,7 @@ import {
   generationPreparationWorkflowId,
   GenerationPreparationContractError,
   normalizeGenerationReferenceManifest,
+  requireVideoGenerationPackageArtifactRevisionMetadataV2,
 } from '../src/core/generationPreparationContracts';
 import {
   executeExistingGenerationPreparationOperation,
@@ -331,15 +332,15 @@ const packageRevision = artifacts.revisions.find(
 );
 assert.ok(packageRevision);
 assert.equal(packageRevision.metadata?.kind, 'video_generation_package');
-if (packageRevision.metadata?.kind !== 'video_generation_package') {
-  throw new Error('Expected typed Video Generation Package metadata.');
-}
-assert.equal(packageRevision.metadata.unitId, 'U03');
-assert.equal(packageRevision.metadata.storyboardSheetArtifactRevisionId, sheetArtifact.revision.artifactRevisionId);
-assert.equal(packageRevision.metadata.storyboardSheetPanelCount, 6);
-assert.equal(packageRevision.metadata.referenceCount, 1);
-assert.equal(packageRevision.metadata.requiredReferenceCount, 1);
-assert.equal(packageRevision.metadata.providerNeutral, true);
+const packageMetadata = requireVideoGenerationPackageArtifactRevisionMetadataV2(packageRevision.metadata);
+assert.equal(packageMetadata.schemaRef, 'retake.video-generation-package-metadata/v2');
+assert.equal(packageMetadata.unitId, 'U03');
+assert.equal(packageMetadata.storyboardSheetArtifactRevisionId, sheetArtifact.revision.artifactRevisionId);
+assert.equal(packageMetadata.storyboardSheetPanelCount, 6);
+assert.equal(packageMetadata.referenceCount, 1);
+assert.equal(packageMetadata.requiredReferenceCount, 1);
+assert.equal(packageMetadata.providerNeutral, true);
+assert.deepEqual(packageMetadata.referenceManifest, manifest);
 assert.deepEqual(packageRevision.sourceArtifactRevisionIds, [sheetArtifact.revision.artifactRevisionId]);
 
 let packageGate = workflowGateViewsForRun(completed, run.record.workflowRunId)[0];
@@ -371,6 +372,7 @@ console.log(JSON.stringify({
   exactAgentCommand: true,
   approvedSheetRevisionRequired: true,
   typedReferenceManifest: true,
+  selfContainedGenerationPackageV2: true,
   multimodalTextRequest: true,
   providerNeutralOutputValidated: true,
   automaticArtifactMaterialization: true,

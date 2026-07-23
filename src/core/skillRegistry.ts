@@ -322,8 +322,8 @@ Render one clean panel grid using the locked panel count, layout, and 16:9 panel
 export const videoGenerationPackageFromApprovedStoryboardSkill: RetakeSkillDefinition = {
   schemaVersion: 1,
   skillId: 'retake.video-generation-package.from-approved-storyboard',
-  version: '0.1.0',
-  definitionHash: 'sha256:retake-video-generation-package-from-approved-storyboard-v1',
+  version: '0.2.0',
+  definitionHash: 'sha256:retake-video-generation-package-from-approved-storyboard-manifest-v2',
   name: 'Prepare video generation package',
   description: 'Turn one approved storyboard unit and its declared references into a provider-neutral generation package.',
   category: 'media_generation',

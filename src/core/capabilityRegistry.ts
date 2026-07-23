@@ -285,8 +285,8 @@ export const storyboardSheetGenerateCapabilityDefinition: CapabilityDefinition =
 export const generationPreparationCapabilityDefinition: CapabilityDefinition = {
   schemaVersion: 1,
   capabilityId: 'generation.video_package.prepare',
-  version: '0.1.0',
-  definitionHash: 'sha256:retake-generation-video-package-prepare-v1',
+  version: '0.2.0',
+  definitionHash: 'sha256:retake-generation-video-package-prepare-manifest-v2',
   category: 'media_generation',
   displayName: 'Prepare video generation package',
   inputSlots: [

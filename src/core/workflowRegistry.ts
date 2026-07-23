@@ -366,8 +366,8 @@ export const storyboardUnitToSheetWorkflow: WorkflowDefinition = {
 export const storyboardUnitToGenerationPackageWorkflow: WorkflowDefinition = {
   schemaVersion: 1,
   workflowId: 'retake.workflow.storyboard-unit-to-generation-package',
-  version: '0.1.0',
-  definitionHash: 'sha256:retake-workflow-storyboard-unit-to-generation-package-v1',
+  version: '0.2.0',
+  definitionHash: 'sha256:retake-workflow-storyboard-unit-to-generation-package-manifest-v2',
   name: 'Storyboard unit to generation package',
   description: 'Prepare and review one provider-neutral video generation package from an approved storyboard unit.',
   inputSlots: [

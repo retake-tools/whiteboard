@@ -74,7 +74,7 @@ export interface GenerationReferenceManifest {
   schemaRef: 'retake.generation-reference-manifest/v1';
 }
 
-export interface VideoGenerationPackageArtifactRevisionMetadata {
+interface VideoGenerationPackageArtifactRevisionMetadataBase {
   aspectRatio: GenerationPackageAspectRatio;
   durationSeconds: number;
   kind: 'video_generation_package';
@@ -85,10 +85,39 @@ export interface VideoGenerationPackageArtifactRevisionMetadata {
   referenceCount: number;
   referenceManifestDigest: string;
   requiredReferenceCount: number;
-  schemaRef: 'retake.video-generation-package-metadata/v1';
   storyboardSheetArtifactRevisionId: string;
   storyboardSheetPanelCount: StoryboardSheetArtifactRevisionMetadata['panelCount'];
   unitId: string;
+}
+
+export interface VideoGenerationPackageArtifactRevisionMetadataV1
+  extends VideoGenerationPackageArtifactRevisionMetadataBase {
+  schemaRef: 'retake.video-generation-package-metadata/v1';
+}
+
+export interface VideoGenerationPackageArtifactRevisionMetadataV2
+  extends VideoGenerationPackageArtifactRevisionMetadataBase {
+  referenceManifest: GenerationReferenceManifest;
+  schemaRef: 'retake.video-generation-package-metadata/v2';
+}
+
+export type VideoGenerationPackageArtifactRevisionMetadata =
+  | VideoGenerationPackageArtifactRevisionMetadataV1
+  | VideoGenerationPackageArtifactRevisionMetadataV2;
+
+export class GenerationPackageHandoffError extends Error {
+  readonly code:
+    | 'generation_video_package_invalid'
+    | 'generation_video_package_manifest_snapshot_required';
+
+  constructor(
+    code: GenerationPackageHandoffError['code'],
+    message: string,
+  ) {
+    super(message);
+    this.name = 'GenerationPackageHandoffError';
+    this.code = code;
+  }
 }
 
 export const generationReferenceRoles: readonly GenerationReferenceRole[] = [
@@ -238,8 +267,9 @@ export function generationPackageArtifactMetadata(input: {
   storyboardSheetArtifactRevisionId: string;
   storyboardSheetMetadata: StoryboardSheetArtifactRevisionMetadata;
   unitId: string;
-}): VideoGenerationPackageArtifactRevisionMetadata {
+}): VideoGenerationPackageArtifactRevisionMetadataV2 {
   const unitId = requiredText(input.unitId, 'unitId', 64);
+  const referenceManifest = normalizeGenerationReferenceManifest(input.referenceManifest);
   if (input.storyboardSheetMetadata.unitId !== unitId) {
     throw new GenerationPreparationContractError(
       'generation_package_unit_mismatch',
@@ -248,7 +278,7 @@ export function generationPackageArtifactMetadata(input: {
   }
   return {
     kind: 'video_generation_package',
-    schemaRef: 'retake.video-generation-package-metadata/v1',
+    schemaRef: 'retake.video-generation-package-metadata/v2',
     unitId,
     packageMode: input.parameters.packageMode,
     aspectRatio: input.parameters.aspectRatio,
@@ -261,9 +291,10 @@ export function generationPackageArtifactMetadata(input: {
       160,
     ),
     storyboardSheetPanelCount: input.storyboardSheetMetadata.panelCount,
-    referenceManifestDigest: referenceManifestDigest(input.referenceManifest),
-    referenceCount: input.referenceManifest.items.length,
-    requiredReferenceCount: input.referenceManifest.items.filter((item) => item.required).length,
+    referenceManifest,
+    referenceManifestDigest: referenceManifestDigest(referenceManifest),
+    referenceCount: referenceManifest.items.length,
+    requiredReferenceCount: referenceManifest.items.filter((item) => item.required).length,
     providerNeutral: true,
   };
 }
@@ -271,11 +302,56 @@ export function generationPackageArtifactMetadata(input: {
 export function isVideoGenerationPackageArtifactRevisionMetadata(
   value: unknown,
 ): value is VideoGenerationPackageArtifactRevisionMetadata {
+  return isVideoGenerationPackageArtifactRevisionMetadataV1(value)
+    || isVideoGenerationPackageArtifactRevisionMetadataV2(value);
+}
+
+export function isVideoGenerationPackageArtifactRevisionMetadataV1(
+  value: unknown,
+): value is VideoGenerationPackageArtifactRevisionMetadataV1 {
+  return commonVideoGenerationPackageMetadataIsValid(value)
+    && value.schemaRef === 'retake.video-generation-package-metadata/v1';
+}
+
+export function isVideoGenerationPackageArtifactRevisionMetadataV2(
+  value: unknown,
+): value is VideoGenerationPackageArtifactRevisionMetadataV2 {
+  if (!commonVideoGenerationPackageMetadataIsValid(value)) return false;
+  if (value.schemaRef !== 'retake.video-generation-package-metadata/v2') return false;
+  try {
+    const manifest = normalizeGenerationReferenceManifest(value.referenceManifest);
+    return stableStringify(value.referenceManifest) === stableStringify(manifest)
+      && value.referenceManifestDigest === referenceManifestDigest(manifest)
+      && value.referenceCount === manifest.items.length
+      && value.requiredReferenceCount === manifest.items.filter((item) => item.required).length;
+  } catch {
+    return false;
+  }
+}
+
+export function requireVideoGenerationPackageArtifactRevisionMetadataV2(
+  value: unknown,
+): VideoGenerationPackageArtifactRevisionMetadataV2 {
+  if (isVideoGenerationPackageArtifactRevisionMetadataV2(value)) return value;
+  if (isVideoGenerationPackageArtifactRevisionMetadataV1(value)) {
+    throw new GenerationPackageHandoffError(
+      'generation_video_package_manifest_snapshot_required',
+      'Generation Package V1 is reviewable but must be regenerated as V2 before video execution.',
+    );
+  }
+  throw new GenerationPackageHandoffError(
+    'generation_video_package_invalid',
+    'Video Generation Package metadata is invalid.',
+  );
+}
+
+function commonVideoGenerationPackageMetadataIsValid(
+  value: unknown,
+): value is Record<string, unknown> & VideoGenerationPackageArtifactRevisionMetadataBase {
   if (!isRecord(value)) return false;
   try {
     const parameters = normalizeGenerationPreparationParameters(value);
     return value.kind === 'video_generation_package'
-      && value.schemaRef === 'retake.video-generation-package-metadata/v1'
       && requiredText(value.unitId, 'unitId', 64) === value.unitId
       && requiredText(value.storyboardSheetArtifactRevisionId, 'storyboardSheetArtifactRevisionId', 160)
         === value.storyboardSheetArtifactRevisionId

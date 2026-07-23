@@ -6,7 +6,7 @@ import {
 import type { AssetRecord } from './types';
 import type { WorkflowDefinitionLock } from './workflowRuntimeContracts';
 import {
-  isVideoGenerationPackageArtifactRevisionMetadata,
+  isVideoGenerationPackageArtifactRevisionMetadataV2,
   type VideoGenerationPackageArtifactRevisionMetadata,
 } from './generationPreparationContracts';
 
@@ -195,8 +195,8 @@ export function assertValidCreateOrAdvanceArtifactCommand(
       throw new Error('Storyboard Sheet Artifact requires valid typed metadata.');
     }
   } else if (command.artifactType === 'video_generation_package') {
-    if (!isVideoGenerationPackageArtifactRevisionMetadata(command.metadata)) {
-      throw new Error('Video Generation Package Artifact requires valid typed metadata.');
+    if (!isVideoGenerationPackageArtifactRevisionMetadataV2(command.metadata)) {
+      throw new Error('Video Generation Package Artifact requires valid typed V2 metadata.');
     }
   } else if (command.metadata !== undefined) {
     throw new Error(`Artifact metadata is not supported for type: ${command.artifactType}`);
