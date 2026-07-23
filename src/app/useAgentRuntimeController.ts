@@ -3,6 +3,7 @@ import type { OperationToast } from '../components/OperationFeedback';
 import {
   attachAgentRunExecution,
   cancelAgentRun,
+  createAgentRunForWorkflowArtifactSlice,
   createAgentRunForWorkflowSlice,
   createAgentRunForWorkflowRun,
   nextAgentRunExecutionAction,
@@ -10,11 +11,16 @@ import {
   reconcileAgentRuntime,
   startAgentRun,
 } from '../core/agentRuntime';
+import { reconcileAgentArtifactTarget } from '../core/agentArtifactTargetClient';
 import type { BoardSnapshot } from '../core/types';
 import type { useI18n } from '../i18n';
 
 interface AgentRuntimeControllerOptions {
   runOperation: (blockId: string) => Promise<void>;
+  persistSnapshot: (
+    snapshot: BoardSnapshot,
+    options?: { requireLocalApi?: boolean },
+  ) => Promise<void>;
   setOperationToast: (toast: OperationToast | undefined) => void;
   snapshot: BoardSnapshot;
   snapshotRef: RefObject<BoardSnapshot>;
@@ -28,6 +34,7 @@ interface AgentRuntimeControllerOptions {
 export function useAgentRuntimeController(options: AgentRuntimeControllerOptions) {
   const {
     runOperation,
+    persistSnapshot,
     setOperationToast,
     snapshot,
     snapshotRef,
@@ -89,6 +96,44 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
     });
   }
 
+  async function createWorkflowArtifactSliceAgentRun(
+    workflowRunId: string,
+    workflowOutputSlotId: string,
+  ): Promise<void> {
+    let agentRunId = '';
+    try {
+      const createdSnapshot = updateSnapshot((current) => {
+        const created = createAgentRunForWorkflowArtifactSlice(
+          current,
+          workflowRunId,
+          workflowOutputSlotId,
+        );
+        startAgentRun(current, created.record.agentRunId);
+        agentRunId = created.record.agentRunId;
+        return current;
+      }, { history: true });
+      await persistSnapshot(createdSnapshot, { requireLocalApi: true });
+      const reconciled = await reconcileAgentArtifactTarget({
+        agentRunId,
+        boardId: createdSnapshot.board.boardId,
+        projectId: createdSnapshot.project.projectId,
+      });
+      updateSnapshot(() => reconciled, { history: false, persist: false });
+      setOperationToast({
+        id: agentRunId,
+        title: t('agentRuntime.created'),
+        tone: 'success',
+      });
+    } catch (error) {
+      setOperationToast({
+        id: agentRunId || 'agent-run:create-artifact-slice',
+        title: t('agentRuntime.actionFailed'),
+        body: error instanceof Error ? error.message : undefined,
+        tone: 'error',
+      });
+    }
+  }
+
   function pause(agentRunId: string): void {
     mutateAgentRun('pause', (current) => pauseAgentRun(current, agentRunId).record.agentRunId);
   }
@@ -129,6 +174,7 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
 
   return {
     cancelAgentRun: cancel,
+    createWorkflowArtifactSliceAgentRun,
     createWorkflowAgentRun,
     createWorkflowSliceAgentRun,
     pauseAgentRun: pause,

@@ -57,6 +57,7 @@ import { startCodexAppServerImageGeneration } from './codex-app-server-image-ser
 import { listCodexAppServerModels } from './codex-app-server-client';
 import { runAgentRuntimeTurn } from './agent-runtime-port';
 import { materializeWorkflowOutputArtifacts } from './workflow-output-artifact-service';
+import { reconcileAgentArtifactTargets } from './agent-artifact-target-service';
 
 type MiddlewareContainer = {
   use(
@@ -157,6 +158,26 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               boardId: body.boardId,
               projectId: body.projectId,
               trigger: { kind: 'output_accepted', stepRunId: body.stepRunId },
+            }));
+            return;
+          }
+
+          if (method === 'POST' && url.pathname === '/agent/artifact-targets/reconcile') {
+            const body = (await readJson(req)) as {
+              agentRunId?: string;
+              boardId?: string;
+              projectId?: string;
+              workflowRunId?: string;
+            };
+            if (!body.boardId || !body.projectId || (!body.agentRunId && !body.workflowRunId)) {
+              sendJson(res, { error: 'boardId, projectId, and agentRunId or workflowRunId are required' }, 400);
+              return;
+            }
+            sendJson(res, await reconcileAgentArtifactTargets({
+              agentRunId: body.agentRunId,
+              boardId: body.boardId,
+              projectId: body.projectId,
+              workflowRunId: body.workflowRunId,
             }));
             return;
           }

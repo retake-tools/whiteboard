@@ -13,6 +13,7 @@ import {
   assertWorkflowAgentTarget,
   nextWorkflowAgentExecutionAction,
   projectWorkflowAgentRun,
+  workflowArtifactTargetBinding,
   workflowAgentScope,
 } from './agentWorkflowRuntime';
 import type { BlockRecord, BoardSnapshot, ExecutionRecord } from './types';
@@ -102,6 +103,65 @@ export function createAgentRunForWorkflowSlice(
       kind: 'step' as const,
       stepId: step.record.stepId,
       stepRunId: step.record.stepRunId,
+    },
+  };
+  const createdAt = nowIso();
+  const record: AgentRunRecord = {
+    agentRunId: createId('agent_run'),
+    projectId: snapshot.project.projectId,
+    boardId: snapshot.board.boardId,
+    runtimeKind: 'retake_orchestrator',
+    target,
+    scope: {
+      projectId: snapshot.project.projectId,
+      boardId: snapshot.board.boardId,
+      workflowRunId,
+      ...workflowAgentScope(workflow, target),
+    },
+    stopPolicy: { kind: 'workflow_slice_target' },
+    permissions: defaultPermissions(),
+    status: 'queued',
+    executionIds: [],
+    ...(workflow.record.entrypointId ? { entrypointId: workflow.record.entrypointId } : {}),
+    ...(workflow.record.sourcePackageLock ? { sourcePackageLock: structuredClone(workflow.record.sourcePackageLock) } : {}),
+    createdBy: 'user',
+    createdAt,
+    updatedAt: createdAt,
+    recordVersion: 1,
+  };
+  snapshot.agentRuns = [...(snapshot.agentRuns ?? []), record];
+  touchBoard(snapshot);
+  return agentRunView(record);
+}
+
+export function createAgentRunForWorkflowArtifactSlice(
+  snapshot: BoardSnapshot,
+  workflowRunId: string,
+  workflowOutputSlotId: string,
+): AgentRunRuntimeView {
+  reconcileWorkflowRuntime(snapshot);
+  assertNoActiveAgentRun(snapshot);
+  const workflow = workflowRunViewForId(snapshot, workflowRunId);
+  if (!workflow) throw new Error(`Workflow Run not found: ${workflowRunId}`);
+  const output = workflow.record.outputSlotLocks.find(
+    (candidate) => candidate.workflowOutputSlotId === workflowOutputSlotId,
+  );
+  if (!output) throw new Error(`Workflow output Slot lock not found: ${workflowOutputSlotId}`);
+  const step = workflow.steps.find((candidate) => candidate.record.stepId === output.stepId);
+  if (!step) throw new Error(`Workflow Artifact target StepRun not found: ${output.stepId}`);
+  const target = {
+    kind: 'workflow_slice' as const,
+    workflowRunId,
+    workflowDefinitionLock: structuredClone(workflow.record.workflowDefinitionLock),
+    until: {
+      artifactScope: 'workflow_run' as const,
+      artifactType: output.artifactType,
+      kind: 'artifact' as const,
+      outputSlotId: output.outputSlotId,
+      semanticKey: `workflow_output:${output.workflowOutputSlotId}`,
+      stepId: output.stepId,
+      stepRunId: step.record.stepRunId,
+      workflowOutputSlotId: output.workflowOutputSlotId,
     },
   };
   const createdAt = nowIso();
@@ -245,6 +305,7 @@ export function reconcileAgentRuntime(snapshot: BoardSnapshot): boolean {
       && record.stopReason === projection.stopReason
       && record.error === projection.error
       && record.currentOperationBlockId === projection.currentOperationBlockId
+      && record.satisfiedArtifactRevisionId === projection.satisfiedArtifactRevisionId
       && arraysEqual(record.executionIds, projection.executionIds)
     ) continue;
     updateAgentRun(record, projection);
@@ -324,7 +385,7 @@ export function agentRunViewForId(snapshot: BoardSnapshot, agentRunId: string): 
 function projectAgentRun(
   snapshot: BoardSnapshot,
   record: AgentRunRecord,
-): Pick<AgentRunRecord, 'currentOperationBlockId' | 'error' | 'executionIds' | 'status' | 'stopReason'> | undefined {
+): Pick<AgentRunRecord, 'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId' | 'status' | 'stopReason'> | undefined {
   try {
     assertAgentRunTarget(snapshot, record);
   } catch (error) {
@@ -333,6 +394,7 @@ function projectAgentRun(
       stopReason: 'target_invalid',
       error: error instanceof Error ? error.message : 'Agent Run target is invalid.',
       executionIds: record.executionIds,
+      satisfiedArtifactRevisionId: record.satisfiedArtifactRevisionId,
       currentOperationBlockId: undefined,
     };
   }
@@ -343,7 +405,7 @@ function projectAgentRun(
 function projectCapabilityAgentRun(
   snapshot: BoardSnapshot,
   record: AgentRunRecord,
-): Pick<AgentRunRecord, 'currentOperationBlockId' | 'error' | 'executionIds' | 'status' | 'stopReason'> {
+): Pick<AgentRunRecord, 'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId' | 'status' | 'stopReason'> {
   if (record.target.kind !== 'capability') throw new Error('Capability Agent Run target required.');
   const operation = operationBlock(snapshot, record.target.operationBlockId);
   const executions = executionsForOperation(snapshot, operation.blockId);
@@ -383,6 +445,34 @@ function projectCapabilityAgentRun(
     executionIds: executions.map((execution) => execution.executionId),
     currentOperationBlockId: operation.blockId,
   };
+}
+
+export function acceptVerifiedAgentArtifactRevision(
+  snapshot: BoardSnapshot,
+  input: {
+    agentRunId: string;
+    artifactRevisionId: string;
+    expectedAgentRunVersion: number;
+  },
+): AgentRunRuntimeView {
+  const record = agentRunRecord(snapshot, input.agentRunId);
+  if (
+    record.target.kind !== 'workflow_slice'
+    || record.target.until.kind !== 'artifact'
+  ) throw new Error('Agent Run Artifact Slice target required.');
+  if (record.recordVersion !== input.expectedAgentRunVersion) {
+    throw new Error(`Agent Run version conflict: ${record.agentRunId}`);
+  }
+  const binding = workflowArtifactTargetBinding(snapshot, record);
+  if (!binding || binding.artifactRevisionId !== input.artifactRevisionId) {
+    throw new Error('Verified Artifact Revision does not match the current Workflow output binding.');
+  }
+  updateAgentRun(record, {
+    satisfiedArtifactRevisionId: input.artifactRevisionId,
+  });
+  reconcileAgentRuntime(snapshot);
+  touchBoard(snapshot);
+  return agentRunView(record);
 }
 
 function assertAgentRunTarget(snapshot: BoardSnapshot, record: AgentRunRecord): void {
@@ -486,12 +576,13 @@ function packageContextFromBlock(block: BlockRecord): {
 function updateAgentRun(
   record: AgentRunRecord,
   values: Partial<Pick<AgentRunRecord,
-    'currentOperationBlockId' | 'error' | 'executionIds' | 'status' | 'stopReason'>>,
+    'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId' | 'status' | 'stopReason'>>,
 ): void {
   Object.assign(record, values, { updatedAt: nowIso(), recordVersion: record.recordVersion + 1 });
   if (values.error === undefined) delete record.error;
   if (values.stopReason === undefined) delete record.stopReason;
   if (values.currentOperationBlockId === undefined) delete record.currentOperationBlockId;
+  if (values.satisfiedArtifactRevisionId === undefined) delete record.satisfiedArtifactRevisionId;
 }
 
 function arraysEqual(left: string[], right: string[]): boolean {

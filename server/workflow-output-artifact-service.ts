@@ -16,6 +16,7 @@ import {
 } from './local-store/artifact-store';
 import { touchSnapshot } from './local-store/context';
 import { loadSnapshot, saveSnapshot } from './local-store/snapshot-store';
+import { reconcileAgentArtifactTargets } from './agent-artifact-target-service';
 
 export type WorkflowOutputMaterializationTrigger =
   | { kind: 'execution_succeeded'; executionId: string }
@@ -209,9 +210,14 @@ export async function materializeWorkflowOutputArtifacts(
     latestScope.step.updatedAt = replacements[replacements.length - 1].boundAt;
     touchSnapshot(latest);
     await saveSnapshot(latest);
+    const reconciled = await reconcileAgentArtifactTargets({
+      boardId: input.boardId,
+      projectId: input.projectId,
+      workflowRunId: latestScope.workflowRun.workflowRunId,
+    });
     return {
       bindings: nextBindings,
-      snapshot: await loadSnapshot(input.projectId, input.boardId),
+      snapshot: reconciled.snapshot,
     };
   });
 }

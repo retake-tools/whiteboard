@@ -4,6 +4,7 @@ import type { BoardSnapshot } from '../core/types';
 import type { WorkflowApprovalDecisionValue } from '../core/workflowGateContracts';
 import { decideWorkflowApproval } from '../core/workflowGateRuntime';
 import { materializeAcceptedWorkflowOutput } from '../core/workflowOutputArtifactClient';
+import { reconcileAgentArtifactTarget } from '../core/agentArtifactTargetClient';
 import { acceptWorkflowStepOutputs, createWorkflowRunForGroup } from '../core/workflowRuntime';
 import type { useI18n } from '../i18n';
 
@@ -85,13 +86,17 @@ export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerO
     }
   }
 
-  function decideWorkflowGate(
+  async function decideWorkflowGate(
     approvalRequestId: string,
     expectedApprovalRequestVersion: number,
     decision: WorkflowApprovalDecisionValue,
-  ): void {
+  ): Promise<void> {
     try {
-      updateSnapshot((current) => {
+      let workflowRunId = '';
+      const decidedSnapshot = updateSnapshot((current) => {
+        workflowRunId = (current.workflowApprovalRequests ?? []).find(
+          (request) => request.approvalRequestId === approvalRequestId,
+        )?.workflowRunId ?? '';
         decideWorkflowApproval(current, {
           approvalRequestId,
           decision,
@@ -99,7 +104,16 @@ export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerO
         });
         reconcileAgentRuntime(current);
         return current;
-      }, { history: true, persist: true });
+      }, { history: true });
+      await persistSnapshot(decidedSnapshot, { requireLocalApi: true });
+      if (workflowRunId) {
+        const reconciled = await reconcileAgentArtifactTarget({
+          boardId: decidedSnapshot.board.boardId,
+          projectId: decidedSnapshot.project.projectId,
+          workflowRunId,
+        });
+        updateSnapshot(() => reconciled, { history: false, persist: false });
+      }
       setOperationToast({
         id: `workflow-approval:${approvalRequestId}`,
         title: t(decision === 'approve'

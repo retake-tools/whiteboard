@@ -38,11 +38,22 @@ export type AgentRunTarget =
   }
   | {
     kind: 'workflow_slice';
-    until: {
-      kind: 'step';
-      stepId: string;
-      stepRunId: string;
-    };
+    until:
+      | {
+        kind: 'step';
+        stepId: string;
+        stepRunId: string;
+      }
+      | {
+        artifactScope: 'workflow_run';
+        artifactType: string;
+        kind: 'artifact';
+        outputSlotId: string;
+        semanticKey: string;
+        stepId: string;
+        stepRunId: string;
+        workflowOutputSlotId: string;
+      };
     workflowDefinitionLock: WorkflowDefinitionLock;
     workflowRunId: string;
   };
@@ -82,6 +93,7 @@ export interface AgentRunRecord {
   projectId: string;
   recordVersion: number;
   runtimeKind: 'retake_orchestrator';
+  satisfiedArtifactRevisionId?: string;
   scope: AgentRunScope;
   sourcePackageLock?: PackageLock;
   status: AgentRunStatus;

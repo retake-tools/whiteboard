@@ -525,6 +525,7 @@ type TranslationKey =
   | 'agentRuntime.stopPolicy'
   | 'agentRuntime.target'
   | 'agentRuntime.untilStep'
+  | 'agentRuntime.untilArtifact'
   | 'agentRuntime.status.canceled'
   | 'agentRuntime.status.failed'
   | 'agentRuntime.status.needs_attention'
@@ -1296,6 +1297,7 @@ const translations: Record<Locale, Translations> = {
     'agentRuntime.stopPolicy': 'Stop policy',
     'agentRuntime.target': 'Typed target',
     'agentRuntime.untilStep': 'Run until',
+    'agentRuntime.untilArtifact': 'Run until Artifact',
     'agentRuntime.status.canceled': 'Canceled',
     'agentRuntime.status.failed': 'Failed',
     'agentRuntime.status.needs_attention': 'Needs attention',
@@ -2062,6 +2064,7 @@ const translations: Record<Locale, Translations> = {
     'agentRuntime.stopPolicy': '停止条件',
     'agentRuntime.target': '类型化目标',
     'agentRuntime.untilStep': '运行到',
+    'agentRuntime.untilArtifact': '运行到 Artifact',
     'agentRuntime.status.canceled': '已停止',
     'agentRuntime.status.failed': '失败',
     'agentRuntime.status.needs_attention': '需要处理',
