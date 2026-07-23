@@ -50,6 +50,8 @@ const [groupToolbarSource, groupInspectorSource, whiteboardCanvasSource] = await
 ]);
 assert.match(groupToolbarSource, /workflow-run-control/);
 assert.match(groupInspectorSource, /workflow-run-step-list/);
+assert.match(groupInspectorSource, /workflow-stage-list/);
+assert.match(groupInspectorSource, /workflowRuntime\.stageOutputs/);
 assert.match(groupInspectorSource, /onSelectWorkflowOutput/);
 assert.match(groupInspectorSource, /workflow-output-selection/);
 assert.match(groupInspectorSource, /workflow-gate-list/);
@@ -74,9 +76,69 @@ assert.deepEqual(firstRun.steps.map((step) => [step.record.stepId, step.status])
   ['scene_define', 'pending'],
   ['storyboard_plan', 'pending'],
 ]);
+assert.deepEqual(firstRun.record.stageDefinitionLocks?.map((stage) => ({
+  stageId: stage.stageId,
+  stageTypeId: stage.stageTypeId,
+  requiredStepIds: stage.requiredStepIds,
+  optionalStepIds: stage.optionalStepIds,
+  outputWorkflowSlotIds: stage.outputSlotLocks.map((output) => output.workflowOutputSlotId),
+})), [
+  {
+    stageId: 'story_screenplay',
+    stageTypeId: 'retake.stage.story_screenplay',
+    requiredStepIds: ['screenplay_generate'],
+    optionalStepIds: [],
+    outputWorkflowSlotIds: ['screenplay'],
+  },
+  {
+    stageId: 'production_design',
+    stageTypeId: 'retake.stage.production_design',
+    requiredStepIds: ['character_define', 'scene_define'],
+    optionalStepIds: [],
+    outputWorkflowSlotIds: ['character_bible', 'scene_bible'],
+  },
+  {
+    stageId: 'storyboard_previsualization',
+    stageTypeId: 'retake.stage.storyboard_previsualization',
+    requiredStepIds: ['storyboard_plan'],
+    optionalStepIds: [],
+    outputWorkflowSlotIds: ['storyboard_plan'],
+  },
+]);
+assert.deepEqual(firstRun.steps.map((step) => [step.record.stepId, step.record.stageId, step.record.optional]), [
+  ['screenplay_generate', 'story_screenplay', false],
+  ['character_define', 'production_design', false],
+  ['scene_define', 'production_design', false],
+  ['storyboard_plan', 'storyboard_previsualization', false],
+]);
+assert.deepEqual(firstRun.stages.map((stage) => [
+  stage.stageDefinitionLock.stageId,
+  stage.status,
+  stage.outputReadiness,
+]), [
+  ['story_screenplay', 'ready', 'pending'],
+  ['production_design', 'pending', 'pending'],
+  ['storyboard_previsualization', 'pending', 'pending'],
+]);
 assert.equal(firstRun.steps.every((step) => step.record.capabilityLock.definitionHash.startsWith('sha256:')), true);
 assert.equal(firstRun.steps.every((step) => step.record.skillLock.definitionHash.startsWith('sha256:')), true);
 assert.equal(firstProjection.groupBlock.data.workflowRunId, firstRun.record.workflowRunId);
+const legacyRunSnapshot = structuredClone(snapshot);
+const legacyRun = (legacyRunSnapshot.workflowRuns ?? []).find(
+  (run) => run.workflowRunId === firstRun.record.workflowRunId,
+);
+assert.ok(legacyRun);
+delete legacyRun.stageDefinitionLocks;
+for (const step of legacyRunSnapshot.workflowStepRuns ?? []) {
+  if (step.workflowRunId !== firstRun.record.workflowRunId) continue;
+  delete step.stageId;
+  delete step.optional;
+}
+assert.deepEqual(
+  workflowRunViewForGroup(legacyRunSnapshot, firstProjection.groupBlock.blockId)?.stages,
+  [],
+  'Historical Runs without Stage locks must keep the existing Step Runtime without inferred Stage state.',
+);
 
 const screenplayOperation = operationForStep(snapshot, firstRun.record.workflowRunId, 'screenplay_generate');
 const screenplayExecution = queueStep(snapshot, screenplayOperation);
@@ -87,6 +149,33 @@ screenplayExecution.status = 'running';
 reconcileWorkflowRuntime(snapshot);
 assert.equal(workflowStepRuntimeForOperation(snapshot, screenplayOperation.blockId)?.status, 'running');
 const firstScreenplayAssetId = completeStep(snapshot, screenplayExecution, '# Screenplay v1\n\nThe cat reaches the tower.');
+const screenplayStageAfterExecution = workflowRunViewForGroup(
+  snapshot,
+  firstProjection.groupBlock.blockId,
+)?.stages.find((stage) => stage.stageDefinitionLock.stageId === 'story_screenplay');
+assert.equal(screenplayStageAfterExecution?.status, 'succeeded');
+assert.equal(screenplayStageAfterExecution?.outputReadiness, 'pending');
+const screenplayStep = stepFor(snapshot, firstRun.record.workflowRunId, 'screenplay_generate');
+screenplayStep.outputArtifactBindings = [{
+  artifactId: 'artifact_screenplay_test',
+  artifactRevisionId: 'artifact_revision_screenplay_test',
+  artifactType: 'screenplay_master',
+  assetIds: [firstScreenplayAssetId],
+  boundAt: new Date().toISOString(),
+  executionIds: [screenplayExecution.executionId],
+  outputSlotId: 'screenplay',
+  primaryAssetId: firstScreenplayAssetId,
+  workflowOutputSlotId: 'screenplay',
+}];
+const screenplayStageWithBinding = workflowRunViewForGroup(
+  snapshot,
+  firstProjection.groupBlock.blockId,
+)?.stages.find((stage) => stage.stageDefinitionLock.stageId === 'story_screenplay');
+assert.equal(screenplayStageWithBinding?.outputReadiness, 'current');
+assert.deepEqual(
+  screenplayStageWithBinding?.outputArtifactBindings.map((binding) => binding.artifactRevisionId),
+  ['artifact_revision_screenplay_test'],
+);
 assert.deepEqual(stepStatuses(snapshot, firstRun.record.workflowRunId), [
   ['screenplay_generate', 'succeeded', 'current'],
   ['character_define', 'ready', 'current'],
@@ -115,6 +204,11 @@ reconcileWorkflowRuntime(snapshot);
 const outdatedRun = workflowRunViewForGroup(snapshot, firstProjection.groupBlock.blockId);
 assert.equal(outdatedRun?.status, 'needs_attention');
 assert.deepEqual(outdatedRun?.steps.map((step) => step.freshness), ['outdated', 'outdated', 'outdated', 'outdated']);
+assert.deepEqual(outdatedRun?.stages.map((stage) => [stage.status, stage.freshness]), [
+  ['needs_attention', 'outdated'],
+  ['needs_attention', 'outdated'],
+  ['needs_attention', 'outdated'],
+]);
 assert.equal(snapshot.assets.some((asset) => asset.assetId === firstScreenplayAssetId), true, 'Upstream edits must not delete old assets.');
 
 const screenplayRetry = queueStep(snapshot, screenplayOperation);
@@ -328,6 +422,11 @@ assert.equal(
   'waiting_approval',
 );
 assert.equal(
+  workflowRunViewForGroup(gateSnapshot, gateProjection.groupBlock.blockId)
+    ?.stages.find((stage) => stage.stageDefinitionLock.stageId === 'story_screenplay')?.status,
+  'waiting_approval',
+);
+assert.equal(
   (gateSnapshot.agentRuns ?? []).find((run) => run.agentRunId === gateAgent.record.agentRunId)?.status,
   'waiting_approval',
 );
@@ -346,6 +445,11 @@ const approvedDecision = decideWorkflowApproval(gateSnapshot, {
 reconcileAgentRuntime(gateSnapshot);
 assert.equal(approvedDecision.decision, 'approve');
 assert.equal(workflowGateViewsForRun(gateSnapshot, gateRun.record.workflowRunId)[0]?.evaluation?.status, 'passed');
+assert.equal(
+  workflowRunViewForGroup(gateSnapshot, gateProjection.groupBlock.blockId)
+    ?.stages.find((stage) => stage.stageDefinitionLock.stageId === 'story_screenplay')?.status,
+  'succeeded',
+);
 assert.equal(stepView(gateSnapshot, gateRun.record.workflowRunId, 'character_define').status, 'ready');
 assert.equal(
   (gateSnapshot.agentRuns ?? []).find((run) => run.agentRunId === gateAgent.record.agentRunId)?.status,

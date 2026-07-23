@@ -5,6 +5,7 @@ export type WorkflowStepType = 'capability';
 export type WorkflowRunPolicy = 'manual';
 export type WorkflowDefaultRunMode = 'manual';
 export type WorkflowOutputAcceptancePolicy = 'automatic' | 'manual_selection';
+export type WorkflowStageCompletionPolicy = 'all_required_steps';
 
 export interface WorkflowInputSlotDefinition {
   artifactTypes: string[];
@@ -50,6 +51,15 @@ export interface WorkflowOutputSlotDefinition {
   source: Extract<WorkflowBindingSource, { kind: 'step_output' }>;
 }
 
+export interface WorkflowStageDefinition {
+  completionPolicy: WorkflowStageCompletionPolicy;
+  description?: string;
+  name: string;
+  outputWorkflowSlotIds: string[];
+  stageId: string;
+  stageTypeId: string;
+}
+
 export interface WorkflowHumanApprovalGateDefinition {
   definitionHash: string;
   gateId: string;
@@ -79,6 +89,7 @@ export interface WorkflowDefinition {
   name: string;
   outputSlots: WorkflowOutputSlotDefinition[];
   schemaVersion: 1;
+  stages?: WorkflowStageDefinition[];
   steps: WorkflowCapabilityStepDefinition[];
   version: string;
   workflowId: string;
@@ -110,8 +121,8 @@ function skillLock(skillId: string): WorkflowCapabilityStepDefinition['skillLock
 export const storyToStoryboardWorkflow: WorkflowDefinition = {
   schemaVersion: 1,
   workflowId: 'retake.workflow.story-to-storyboard',
-  version: '0.1.0',
-  definitionHash: 'sha256:retake-workflow-story-to-storyboard-v1',
+  version: '0.2.0',
+  definitionHash: 'sha256:retake-workflow-story-to-storyboard-stage-runtime-v2',
   name: 'Story to storyboard plan',
   description: 'Project a manual draft from creative brief through screenplay and production design to storyboard planning.',
   inputSlots: [{
@@ -140,6 +151,29 @@ export const storyToStoryboardWorkflow: WorkflowDefinition = {
       slotId: 'storyboard_plan',
       source: { kind: 'step_output', stepId: 'storyboard_plan', outputSlotId: 'storyboard_plan' },
       exposedAsIntermediate: false,
+    },
+  ],
+  stages: [
+    {
+      stageId: 'story_screenplay',
+      stageTypeId: 'retake.stage.story_screenplay',
+      name: 'Story & Screenplay',
+      completionPolicy: 'all_required_steps',
+      outputWorkflowSlotIds: ['screenplay'],
+    },
+    {
+      stageId: 'production_design',
+      stageTypeId: 'retake.stage.production_design',
+      name: 'Production Design',
+      completionPolicy: 'all_required_steps',
+      outputWorkflowSlotIds: ['character_bible', 'scene_bible'],
+    },
+    {
+      stageId: 'storyboard_previsualization',
+      stageTypeId: 'retake.stage.storyboard_previsualization',
+      name: 'Storyboard & Previsualization',
+      completionPolicy: 'all_required_steps',
+      outputWorkflowSlotIds: ['storyboard_plan'],
     },
   ],
   steps: [
@@ -258,6 +292,7 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
   const workflowOutputById = new Map(
     workflow.outputSlots.map((slot) => [slot.slotId, slot]),
   );
+  validateWorkflowStages(workflow, stepById, workflowOutputById, issues);
 
   const gateIds = new Set<string>();
   for (const gate of workflow.gates) {
@@ -374,6 +409,96 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
     }
   }
   return issues;
+}
+
+function validateWorkflowStages(
+  workflow: WorkflowDefinition,
+  stepById: Map<string, WorkflowCapabilityStepDefinition>,
+  workflowOutputById: Map<string, WorkflowOutputSlotDefinition>,
+  issues: string[],
+): void {
+  if (!workflow.stages) return;
+  const stageById = new Map<string, WorkflowStageDefinition>();
+  for (const stage of workflow.stages) {
+    if (stageById.has(stage.stageId)) issues.push(`Duplicate Workflow stageId: ${stage.stageId}`);
+    stageById.set(stage.stageId, stage);
+  }
+  const stepsByStageId = new Map<string, WorkflowCapabilityStepDefinition[]>();
+  for (const step of workflow.steps) {
+    if (!stageById.has(step.stageId)) {
+      issues.push(`Workflow Step references unknown Stage: ${step.stepId}.${step.stageId}`);
+      continue;
+    }
+    stepsByStageId.set(step.stageId, [...(stepsByStageId.get(step.stageId) ?? []), step]);
+  }
+  const claimedOutputIds = new Set<string>();
+  for (const stage of workflow.stages) {
+    const members = stepsByStageId.get(stage.stageId) ?? [];
+    if (!members.some((step) => !step.optional)) {
+      issues.push(`Workflow Stage requires at least one required Step: ${stage.stageId}`);
+    }
+    for (const workflowOutputSlotId of stage.outputWorkflowSlotIds) {
+      if (claimedOutputIds.has(workflowOutputSlotId)) {
+        issues.push(`Workflow Stage output is declared more than once: ${workflowOutputSlotId}`);
+      }
+      claimedOutputIds.add(workflowOutputSlotId);
+      const output = workflowOutputById.get(workflowOutputSlotId);
+      if (!output) {
+        issues.push(`Workflow Stage output is missing: ${stage.stageId}.${workflowOutputSlotId}`);
+        continue;
+      }
+      const producer = stepById.get(output.source.stepId);
+      if (producer?.stageId !== stage.stageId) {
+        issues.push(`Workflow Stage output producer belongs to another Stage: ${stage.stageId}.${workflowOutputSlotId}`);
+      } else if (producer.optional) {
+        issues.push(`Workflow Stage output producer cannot be optional: ${stage.stageId}.${workflowOutputSlotId}`);
+      }
+    }
+  }
+  for (const step of workflow.steps.filter((candidate) => !candidate.optional)) {
+    for (const dependencyId of step.dependsOn) {
+      if (stepById.get(dependencyId)?.optional) {
+        issues.push(`Required Workflow Step depends on optional Step: ${step.stepId}.${dependencyId}`);
+      }
+    }
+  }
+  if (!isStageGraphAcyclic(workflow.steps, stageById)) {
+    issues.push(`Workflow Stage graph must be acyclic: ${workflow.workflowId}`);
+  }
+}
+
+function isStageGraphAcyclic(
+  steps: WorkflowCapabilityStepDefinition[],
+  stageById: Map<string, WorkflowStageDefinition>,
+): boolean {
+  const dependencyIdsByStage = new Map<string, Set<string>>(
+    [...stageById.keys()].map((stageId) => [stageId, new Set<string>()]),
+  );
+  const stepById = new Map(steps.map((step) => [step.stepId, step]));
+  for (const step of steps) {
+    const stageDependencies = dependencyIdsByStage.get(step.stageId);
+    if (!stageDependencies) continue;
+    for (const dependencyId of step.dependsOn) {
+      const dependencyStageId = stepById.get(dependencyId)?.stageId;
+      if (dependencyStageId && dependencyStageId !== step.stageId) {
+        stageDependencies.add(dependencyStageId);
+      }
+    }
+  }
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (stageId: string): boolean => {
+    if (visiting.has(stageId)) return false;
+    if (visited.has(stageId)) return true;
+    visiting.add(stageId);
+    for (const dependencyId of dependencyIdsByStage.get(stageId) ?? []) {
+      if (!visit(dependencyId)) return false;
+    }
+    visiting.delete(stageId);
+    visited.add(stageId);
+    return true;
+  };
+  return [...stageById.keys()].every(visit);
 }
 
 function workflowDependencyClosure(

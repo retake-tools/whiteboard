@@ -60,8 +60,8 @@ export interface PackageEntryPointQuery {
 export const storyProductionStarterPackage: RetakePackageManifest = {
   schemaVersion: 1,
   packageId: 'retake.package.story-production-starter',
-  version: '0.1.0',
-  digest: 'sha256:retake-package-story-production-starter-v1',
+  version: '0.2.0',
+  digest: 'sha256:retake-package-story-production-starter-stage-runtime-v2',
   name: 'Retake Story Production Starter',
   description: 'Built-in screenplay, production-design, and storyboard planning methods with one manual workflow.',
   source: { kind: 'builtin' },
@@ -95,8 +95,8 @@ export const storyProductionStarterPackage: RetakePackageManifest = {
     ],
     workflows: [{
       workflowDefinitionId: 'retake.workflow.story-to-storyboard',
-      version: '0.1.0',
-      definitionHash: 'sha256:retake-workflow-story-to-storyboard-v1',
+      version: '0.2.0',
+      definitionHash: 'sha256:retake-workflow-story-to-storyboard-stage-runtime-v2',
     }],
     agentPresets: [],
     capabilityPlugins: [],

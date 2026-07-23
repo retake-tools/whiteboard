@@ -52,6 +52,15 @@ assert.deepEqual(storyToStoryboardWorkflow.steps.map((step) => [step.stepId, ste
   ['scene_define', ['screenplay_generate']],
   ['storyboard_plan', ['character_define', 'scene_define']],
 ]);
+assert.deepEqual(storyToStoryboardWorkflow.stages?.map((stage) => [
+  stage.stageId,
+  stage.stageTypeId,
+  stage.outputWorkflowSlotIds,
+]), [
+  ['story_screenplay', 'retake.stage.story_screenplay', ['screenplay']],
+  ['production_design', 'retake.stage.production_design', ['character_bible', 'scene_bible']],
+  ['storyboard_previsualization', 'retake.stage.storyboard_previsualization', ['storyboard_plan']],
+]);
 assert.equal(storyToStoryboardWorkflow.gates.length, 0);
 assert.equal(storyToStoryboardWorkflow.defaultRunMode, 'manual');
 assert.deepEqual(validateWorkflowDefinition(storyToStoryboardWorkflow), []);
@@ -81,6 +90,22 @@ invalidGateOutput.gates.push({
   subject: { kind: 'step_output', stepId: 'screenplay_generate', outputSlotId: 'missing_output' },
 });
 assert.match(validateWorkflowDefinition(invalidGateOutput).join('\n'), /subject output is missing/);
+const unknownStage = structuredClone(storyToStoryboardWorkflow) as WorkflowDefinition;
+unknownStage.steps[0].stageId = 'missing_stage';
+assert.match(validateWorkflowDefinition(unknownStage).join('\n'), /references unknown Stage/);
+const optionalDependency = structuredClone(storyToStoryboardWorkflow) as WorkflowDefinition;
+optionalDependency.steps.find((step) => step.stepId === 'screenplay_generate')!.optional = true;
+assert.match(validateWorkflowDefinition(optionalDependency).join('\n'), /depends on optional Step/);
+assert.match(validateWorkflowDefinition(optionalDependency).join('\n'), /requires at least one required Step/);
+const crossStageCycle = structuredClone(storyToStoryboardWorkflow) as WorkflowDefinition;
+crossStageCycle.steps.find((step) => step.stepId === 'storyboard_plan')!.stageId = 'story_screenplay';
+assert.match(validateWorkflowDefinition(crossStageCycle).join('\n'), /Stage graph must be acyclic/);
+const crossStageOutput = structuredClone(storyToStoryboardWorkflow) as WorkflowDefinition;
+crossStageOutput.stages![0].outputWorkflowSlotIds = ['character_bible'];
+assert.match(validateWorkflowDefinition(crossStageOutput).join('\n'), /output producer belongs to another Stage/);
+const duplicateStageOutput = structuredClone(storyToStoryboardWorkflow) as WorkflowDefinition;
+duplicateStageOutput.stages![1].outputWorkflowSlotIds.push('screenplay');
+assert.match(validateWorkflowDefinition(duplicateStageOutput).join('\n'), /output is declared more than once/);
 
 const firstProjection = projectWorkflowDraft(snapshot, {
   workflowId: storyToStoryboardWorkflow.workflowId,

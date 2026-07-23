@@ -4,6 +4,7 @@ import type {
   WorkflowBindingSource,
   WorkflowGateDefinition,
   WorkflowOutputAcceptancePolicy,
+  WorkflowStageCompletionPolicy,
 } from './workflowRegistry';
 
 export type WorkflowRunStatus =
@@ -70,6 +71,20 @@ export interface WorkflowOutputSlotLock {
   workflowOutputSlotId: string;
 }
 
+export interface WorkflowStageDefinitionLock {
+  completionPolicy: WorkflowStageCompletionPolicy;
+  description?: string;
+  name: string;
+  optionalStepIds: string[];
+  outputSlotLocks: Array<WorkflowOutputSlotLock & {
+    artifactScope: 'workflow_run';
+    semanticKey: string;
+  }>;
+  requiredStepIds: string[];
+  stageId: string;
+  stageTypeId: string;
+}
+
 export type WorkflowGateDefinitionLock = Omit<WorkflowGateDefinition, 'subject'> & {
   subject:
     | Extract<WorkflowGateDefinition['subject'], { kind: 'step_output' }>
@@ -98,6 +113,7 @@ export interface WorkflowRunRecord {
   recordVersion: number;
   status: WorkflowRunStatus;
   sourcePackageLock?: PackageLock;
+  stageDefinitionLocks?: WorkflowStageDefinitionLock[];
   stepRunIds: string[];
   updatedAt: string;
   workflowDefinitionLock: WorkflowDefinitionLock;
@@ -122,10 +138,12 @@ export interface WorkflowStepRunRecord {
   outputArtifactBindings: WorkflowStepOutputArtifactBinding[];
   outputAssetIds: string[];
   outputBlockIds: string[];
+  optional?: boolean;
   recordVersion: number;
   resolvedInputBindings: WorkflowStepResolvedInputBinding[];
   skillLock: SkillDefinitionLock;
   status: WorkflowStepRunStatus;
+  stageId?: string;
   stepId: string;
   stepRunId: string;
   updatedAt: string;

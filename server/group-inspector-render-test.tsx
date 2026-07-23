@@ -106,6 +106,124 @@ assert.match(markup, /Collapse group/);
 assert.match(markup, /Group locks/);
 assert.match(markup, /Arrange group/);
 
+const workflowSnapshot = structuredClone(defaultSnapshot);
+const workflowGroup: BlockRecord = {
+  ...structuredClone(group),
+  blockId: 'group_stage_render',
+  data: {
+    title: 'Stage render workflow',
+    groupKind: 'workflow',
+    workflowRunId: 'workflow_run_stage_render',
+  },
+};
+const workflowOperation: BlockRecord = {
+  blockId: 'operation_stage_render',
+  boardId: workflowSnapshot.board.boardId,
+  type: 'operation',
+  layerId: 'layer_default',
+  parentGroupId: workflowGroup.blockId,
+  position: { x: 40, y: 60 },
+  size: { width: 320, height: 190 },
+  zIndex: 2,
+  data: {
+    title: 'Generate screenplay',
+    capabilityId: 'story.screenplay.generate',
+    skillId: 'retake.screenplay.from-brief',
+  },
+  createdAt,
+  updatedAt: createdAt,
+};
+workflowSnapshot.blocks = [workflowGroup, workflowOperation];
+workflowSnapshot.edges = [];
+workflowSnapshot.assets = [];
+workflowSnapshot.executions = [];
+workflowSnapshot.workflowRuns = [{
+  workflowRunId: 'workflow_run_stage_render',
+  projectId: workflowSnapshot.project.projectId,
+  boardId: workflowSnapshot.board.boardId,
+  workflowDefinitionLock: {
+    workflowId: 'retake.workflow.stage-render',
+    version: '0.1.0',
+    definitionHash: 'sha256:stage-render-workflow',
+  },
+  workflowProjectionId: 'projection_stage_render',
+  status: 'draft',
+  inputBindings: [],
+  gateDefinitionLocks: [],
+  gateEvaluationIds: [],
+  outputSlotLocks: [],
+  stageDefinitionLocks: [{
+    stageId: 'story_screenplay',
+    stageTypeId: 'retake.stage.story_screenplay',
+    name: 'Story & Screenplay',
+    completionPolicy: 'all_required_steps',
+    requiredStepIds: ['screenplay_generate'],
+    optionalStepIds: [],
+    outputSlotLocks: [],
+  }],
+  stepRunIds: ['step_run_stage_render'],
+  currentStepIds: [],
+  createdBy: 'user',
+  createdAt,
+  updatedAt: createdAt,
+  recordVersion: 1,
+}];
+workflowSnapshot.workflowStepRuns = [{
+  stepRunId: 'step_run_stage_render',
+  workflowRunId: 'workflow_run_stage_render',
+  stepId: 'screenplay_generate',
+  stageId: 'story_screenplay',
+  optional: false,
+  capabilityLock: {
+    capabilityId: 'story.screenplay.generate',
+    version: '0.1.0',
+    definitionHash: 'sha256:story-screenplay-generate-v1',
+  },
+  skillLock: {
+    skillId: 'retake.screenplay.from-brief',
+    version: '0.1.0',
+    definitionHash: 'sha256:retake-screenplay-from-brief-catmeme-v1',
+  },
+  dependsOn: [],
+  operationBlockId: workflowOperation.blockId,
+  resolvedInputBindings: [],
+  outputSlotIds: ['screenplay'],
+  outputBlockIds: [],
+  executionIds: [],
+  acceptedOutputAssetIds: [],
+  outputAcceptancePolicy: 'automatic',
+  outputArtifactBindings: [],
+  outputAssetIds: [],
+  status: 'pending',
+  freshness: 'current',
+  recordVersion: 1,
+  createdAt,
+  updatedAt: createdAt,
+}];
+const workflowMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <GroupInspector
+      group={workflowGroup}
+      snapshot={workflowSnapshot}
+      onCancelAgentRun={() => undefined}
+      onClose={() => undefined}
+      onCopyPrompt={() => undefined}
+      onCreateWorkflowAgentRun={() => undefined}
+      onCreateWorkflowArtifactSliceAgentRun={() => undefined}
+      onCreateWorkflowSliceAgentRun={() => undefined}
+      onDecideWorkflowApproval={() => undefined}
+      onDownloadAll={() => undefined}
+      onPauseAgentRun={() => undefined}
+      onResumeAgentRun={() => undefined}
+      onSelectWorkflowOutput={() => undefined}
+    />
+  </I18nProvider>,
+);
+assert.match(workflowMarkup, /Stages/);
+assert.match(workflowMarkup, /Story &amp; Screenplay/);
+assert.match(workflowMarkup, /Required steps.*1/);
+assert.match(workflowMarkup, /Outputs.*0\/0.*No required output/);
+
 const drawOverlayMarkup = renderToStaticMarkup(
   <I18nProvider>
     <GroupDrawOverlay getCandidateCount={() => 2} onCancel={() => undefined} onComplete={() => undefined} />

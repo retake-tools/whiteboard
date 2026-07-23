@@ -368,6 +368,38 @@ function GroupSummary({
               mono
             />
           </dl>
+          {workflowRun.stages.length > 0 ? (
+            <>
+              <h3>{t('workflowRuntime.stages')}</h3>
+              <div className="workflow-stage-list">
+                {workflowRun.stages.map((stage) => (
+                  <div
+                    key={stage.stageDefinitionLock.stageId}
+                    className={`workflow-stage is-${stage.status}`}
+                  >
+                    <div className="workflow-stage-heading">
+                      <span>{stage.stageDefinitionLock.name}</span>
+                      <strong>
+                        {t(workflowStageStatusKey(stage.status))}
+                        {stage.freshness === 'outdated' ? ` · ${t('workflowRuntime.outdated')}` : ''}
+                      </strong>
+                    </div>
+                    <small>
+                      {t('workflowRuntime.stageSteps')}: {stage.requiredStepRunIds.length}
+                      {stage.optionalStepRunIds.length > 0
+                        ? ` · ${t('workflowRuntime.stageOptionalSteps')}: ${stage.optionalStepRunIds.length}`
+                        : ''}
+                    </small>
+                    <small>
+                      {t('workflowRuntime.stageOutputs')}: {stage.outputArtifactBindings.length}
+                      /{stage.stageDefinitionLock.outputSlotLocks.length}
+                      {' · '}{t(workflowStageOutputReadinessKey(stage.outputReadiness))}
+                    </small>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
           <h3>{t('workflowRuntime.steps')}</h3>
           <div className="workflow-run-step-list">
             {workflowRun.steps.map((step) => {
@@ -591,6 +623,16 @@ function workflowRunStatusKey(status: WorkflowRunRuntimeView['status']) {
 
 function workflowStepStatusKey(status: WorkflowRunRuntimeView['steps'][number]['status']) {
   return `workflowRuntime.stepStatus.${status}` as const;
+}
+
+function workflowStageStatusKey(status: WorkflowRunRuntimeView['stages'][number]['status']) {
+  return `workflowRuntime.stageStatus.${status}` as const;
+}
+
+function workflowStageOutputReadinessKey(
+  readiness: WorkflowRunRuntimeView['stages'][number]['outputReadiness'],
+) {
+  return `workflowRuntime.stageOutputReadiness.${readiness}` as const;
 }
 
 function agentRunStatusKey(status: AgentRunRuntimeView['status']) {

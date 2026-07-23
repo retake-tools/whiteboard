@@ -13,10 +13,15 @@ import {
   workflowGatesAllowStep,
 } from './workflowGateRuntime';
 import { workflowDefinitionFor } from './workflowRegistry';
+import {
+  projectWorkflowStageViews,
+  type WorkflowStageRuntimeView,
+} from './workflowStageRuntime';
 import type {
   WorkflowGateDefinitionLock,
   WorkflowRunRecord,
   WorkflowRunStatus,
+  WorkflowStageDefinitionLock,
   WorkflowStepRunFreshness,
   WorkflowStepRunRecord,
   WorkflowStepRunStatus,
@@ -32,9 +37,16 @@ export interface WorkflowStepRuntimeView {
 export interface WorkflowRunRuntimeView {
   currentStepIds: string[];
   record: WorkflowRunRecord;
+  stages: WorkflowStageRuntimeView[];
   status: WorkflowRunStatus;
   steps: WorkflowStepRuntimeView[];
 }
+
+export type {
+  WorkflowStageOutputReadiness,
+  WorkflowStageRuntimeStatus,
+  WorkflowStageRuntimeView,
+} from './workflowStageRuntime';
 
 export interface AcceptWorkflowStepOutputsInput {
   acceptedOutputAssetIds: string[];
@@ -121,7 +133,9 @@ export function createWorkflowRunForGroup(
       outputAcceptancePolicy: step.outputAcceptancePolicy ?? 'automatic',
       outputArtifactBindings: [],
       outputAssetIds: [],
+      optional: step.optional,
       status: 'pending',
+      stageId: step.stageId,
       freshness: 'current',
       recordVersion: 1,
       createdAt,
@@ -176,6 +190,31 @@ export function createWorkflowRunForGroup(
       },
     };
   });
+  const stageDefinitionLocks = definition.stages?.map((stage): WorkflowStageDefinitionLock => {
+    const members = definition.steps.filter((step) => step.stageId === stage.stageId);
+    return {
+      stageId: stage.stageId,
+      stageTypeId: stage.stageTypeId,
+      name: stage.name,
+      ...(stage.description ? { description: stage.description } : {}),
+      completionPolicy: stage.completionPolicy,
+      requiredStepIds: members.filter((step) => !step.optional).map((step) => step.stepId),
+      optionalStepIds: members.filter((step) => step.optional).map((step) => step.stepId),
+      outputSlotLocks: stage.outputWorkflowSlotIds.map((workflowOutputSlotId) => {
+        const output = outputSlotLocks.find(
+          (candidate) => candidate.workflowOutputSlotId === workflowOutputSlotId,
+        );
+        if (!output) {
+          throw new Error(`Workflow Stage output lock is incomplete: ${stage.stageId}.${workflowOutputSlotId}`);
+        }
+        return {
+          ...structuredClone(output),
+          artifactScope: 'workflow_run',
+          semanticKey: `workflow_output:${workflowOutputSlotId}`,
+        };
+      }),
+    };
+  });
   const run: WorkflowRunRecord = {
     workflowRunId,
     projectId: snapshot.project.projectId,
@@ -195,6 +234,7 @@ export function createWorkflowRunForGroup(
     gateDefinitionLocks,
     gateEvaluationIds: [],
     outputSlotLocks,
+    ...(stageDefinitionLocks ? { stageDefinitionLocks } : {}),
     stepRunIds: stepRuns.map((step) => step.stepRunId),
     currentStepIds: [],
     createdBy: 'user',
@@ -360,6 +400,13 @@ export function workflowRunViewForId(
   return run ? workflowRunView(snapshot, run) : undefined;
 }
 
+export function workflowStageViewsForRun(
+  snapshot: BoardSnapshot,
+  workflowRunId: string,
+): WorkflowStageRuntimeView[] {
+  return workflowRunViewForId(snapshot, workflowRunId)?.stages ?? [];
+}
+
 export function workflowStepRuntimeForOperation(
   snapshot: BoardSnapshot,
   operationBlockId: string,
@@ -415,6 +462,7 @@ function projectWorkflowRunView(
   return {
     record: run,
     status,
+    stages: projectWorkflowStageViews(snapshot, run, steps),
     currentStepIds: steps
       .filter((step) =>
         step.status === 'ready'

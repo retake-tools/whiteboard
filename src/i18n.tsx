@@ -477,6 +477,21 @@ type TranslationKey =
   | 'workflowRuntime.outputSelectionFailed'
   | 'workflowRuntime.run'
   | 'workflowRuntime.runId'
+  | 'workflowRuntime.stages'
+  | 'workflowRuntime.stageOptionalSteps'
+  | 'workflowRuntime.stageOutputs'
+  | 'workflowRuntime.stageOutputReadiness.current'
+  | 'workflowRuntime.stageOutputReadiness.not_required'
+  | 'workflowRuntime.stageOutputReadiness.pending'
+  | 'workflowRuntime.stageStatus.needs_attention'
+  | 'workflowRuntime.stageStatus.pending'
+  | 'workflowRuntime.stageStatus.ready'
+  | 'workflowRuntime.stageStatus.running'
+  | 'workflowRuntime.stageStatus.succeeded'
+  | 'workflowRuntime.stageStatus.waiting_approval'
+  | 'workflowRuntime.stageStatus.waiting_input'
+  | 'workflowRuntime.stageStatus.waiting_selection'
+  | 'workflowRuntime.stageSteps'
   | 'workflowRuntime.step'
   | 'workflowRuntime.stepExecutions'
   | 'workflowRuntime.stepNotReady'
@@ -1250,6 +1265,21 @@ const translations: Record<Locale, Translations> = {
     'workflowRuntime.outputSelectionFailed': 'Workflow output could not be selected',
     'workflowRuntime.run': 'Workflow Run',
     'workflowRuntime.runId': 'Run ID',
+    'workflowRuntime.stages': 'Stages',
+    'workflowRuntime.stageOptionalSteps': 'Optional steps',
+    'workflowRuntime.stageOutputs': 'Outputs',
+    'workflowRuntime.stageOutputReadiness.current': 'Artifact bindings current',
+    'workflowRuntime.stageOutputReadiness.not_required': 'No required output',
+    'workflowRuntime.stageOutputReadiness.pending': 'Waiting for Artifact bindings',
+    'workflowRuntime.stageStatus.needs_attention': 'Needs attention',
+    'workflowRuntime.stageStatus.pending': 'Pending',
+    'workflowRuntime.stageStatus.ready': 'Ready',
+    'workflowRuntime.stageStatus.running': 'Running',
+    'workflowRuntime.stageStatus.succeeded': 'Steps and Gates complete',
+    'workflowRuntime.stageStatus.waiting_approval': 'Waiting for approval',
+    'workflowRuntime.stageStatus.waiting_input': 'Waiting for input',
+    'workflowRuntime.stageStatus.waiting_selection': 'Waiting for selection',
+    'workflowRuntime.stageSteps': 'Required steps',
     'workflowRuntime.step': 'Workflow Step',
     'workflowRuntime.stepExecutions': 'Executions',
     'workflowRuntime.stepNotReady': 'This Workflow Step is waiting for its upstream dependencies.',
@@ -2018,6 +2048,21 @@ const translations: Record<Locale, Translations> = {
     'workflowRuntime.outputSelectionFailed': '无法选用 Workflow 输出',
     'workflowRuntime.run': 'Workflow Run',
     'workflowRuntime.runId': 'Run ID',
+    'workflowRuntime.stages': '阶段',
+    'workflowRuntime.stageOptionalSteps': '可选 Step',
+    'workflowRuntime.stageOutputs': '阶段输出',
+    'workflowRuntime.stageOutputReadiness.current': 'Artifact binding 当前有效',
+    'workflowRuntime.stageOutputReadiness.not_required': '不要求阶段输出',
+    'workflowRuntime.stageOutputReadiness.pending': '等待 Artifact binding',
+    'workflowRuntime.stageStatus.needs_attention': '需要处理',
+    'workflowRuntime.stageStatus.pending': '等待上游',
+    'workflowRuntime.stageStatus.ready': '已就绪',
+    'workflowRuntime.stageStatus.running': '运行中',
+    'workflowRuntime.stageStatus.succeeded': 'Step 与 Gate 已完成',
+    'workflowRuntime.stageStatus.waiting_approval': '等待批准',
+    'workflowRuntime.stageStatus.waiting_input': '等待输入',
+    'workflowRuntime.stageStatus.waiting_selection': '等待选择',
+    'workflowRuntime.stageSteps': '必需 Step',
     'workflowRuntime.step': 'Workflow Step',
     'workflowRuntime.stepExecutions': '执行次数',
     'workflowRuntime.stepNotReady': '这个 Workflow Step 正在等待上游依赖。',
