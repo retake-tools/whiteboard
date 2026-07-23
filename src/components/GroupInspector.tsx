@@ -43,6 +43,7 @@ interface GroupInspectorProps {
   ) => void;
   onCreateWorkflowAgentRun: (workflowRunId: string) => void;
   onCreateWorkflowSliceAgentRun: (workflowRunId: string, stepRunId: string) => void;
+  onCreateWorkflowStageSliceAgentRun: (workflowRunId: string, stageId: string) => void;
   onDecideWorkflowApproval: (
     approvalRequestId: string,
     expectedApprovalRequestVersion: number,
@@ -64,6 +65,7 @@ export function GroupInspector({
   onCreateWorkflowArtifactSliceAgentRun,
   onCreateWorkflowAgentRun,
   onCreateWorkflowSliceAgentRun,
+  onCreateWorkflowStageSliceAgentRun,
   onDecideWorkflowApproval,
   onDownloadAll,
   onPauseAgentRun,
@@ -240,6 +242,7 @@ export function GroupInspector({
               onCreateWorkflowArtifactSliceAgentRun={onCreateWorkflowArtifactSliceAgentRun}
               onCreateWorkflowAgentRun={onCreateWorkflowAgentRun}
               onCreateWorkflowSliceAgentRun={onCreateWorkflowSliceAgentRun}
+              onCreateWorkflowStageSliceAgentRun={onCreateWorkflowStageSliceAgentRun}
               onDecideWorkflowApproval={onDecideWorkflowApproval}
               onPauseAgentRun={onPauseAgentRun}
               onResumeAgentRun={onResumeAgentRun}
@@ -287,6 +290,7 @@ function GroupSummary({
   onCreateWorkflowArtifactSliceAgentRun,
   onCreateWorkflowAgentRun,
   onCreateWorkflowSliceAgentRun,
+  onCreateWorkflowStageSliceAgentRun,
   onDecideWorkflowApproval,
   onPauseAgentRun,
   onResumeAgentRun,
@@ -309,6 +313,7 @@ function GroupSummary({
   ) => void;
   onCreateWorkflowAgentRun: (workflowRunId: string) => void;
   onCreateWorkflowSliceAgentRun: (workflowRunId: string, stepRunId: string) => void;
+  onCreateWorkflowStageSliceAgentRun: (workflowRunId: string, stageId: string) => void;
   onDecideWorkflowApproval: (
     approvalRequestId: string,
     expectedApprovalRequestVersion: number,
@@ -341,6 +346,9 @@ function GroupSummary({
     : undefined;
   const selectedSliceArtifactSlotId = agentTarget.startsWith('artifact:')
     ? agentTarget.slice('artifact:'.length)
+    : undefined;
+  const selectedSliceStageId = agentTarget.startsWith('stage:')
+    ? agentTarget.slice('stage:'.length)
     : undefined;
 
   useEffect(() => {
@@ -523,6 +531,14 @@ function GroupSummary({
                 <span>{t('agentRuntime.executionRange')}</span>
                 <select value={agentTarget} onChange={(event) => setAgentTarget(event.target.value)}>
                   <option value="workflow_run">{t('agentRuntime.fullWorkflow')}</option>
+                  {workflowRun.stages.map((stage) => (
+                    <option
+                      key={`stage:${stage.stageDefinitionLock.stageId}`}
+                      value={`stage:${stage.stageDefinitionLock.stageId}`}
+                    >
+                      {t('agentRuntime.untilStage')}: {stage.stageDefinitionLock.name}
+                    </option>
+                  ))}
                   {workflowRun.steps.map((step) => {
                     const operation = snapshot.blocks.find(
                       (block) => block.blockId === step.record.operationBlockId,
@@ -556,6 +572,13 @@ function GroupSummary({
                 type="button"
                 className="agent-run-start"
                 onClick={() => {
+                  if (selectedSliceStageId) {
+                    onCreateWorkflowStageSliceAgentRun(
+                      workflowRun.record.workflowRunId,
+                      selectedSliceStageId,
+                    );
+                    return;
+                  }
                   if (selectedSliceArtifactSlotId) {
                     onCreateWorkflowArtifactSliceAgentRun(
                       workflowRun.record.workflowRunId,
@@ -642,13 +665,21 @@ function agentRunStatusKey(status: AgentRunRuntimeView['status']) {
 function agentRunTargetLabel(agentRun: AgentRunRuntimeView, snapshot: BoardSnapshot): string {
   const target = agentRun.record.target;
   if (target.kind !== 'workflow_slice') return target.kind;
+  const until = target.until;
+  if (until.kind === 'stage') {
+    const stageId = until.stageId;
+    const stage = workflowRunViewForId(snapshot, target.workflowRunId)?.stages.find(
+      (candidate) => candidate.stageDefinitionLock.stageId === stageId,
+    );
+    return `${target.kind} · ${stage?.stageDefinitionLock.name ?? stageId}`;
+  }
   const operationBlockId = (snapshot.workflowStepRuns ?? []).find(
-    (step) => step.stepRunId === target.until.stepRunId,
+    (step) => step.stepRunId === until.stepRunId,
   )?.operationBlockId;
   const operation = snapshot.blocks.find((block) => block.blockId === operationBlockId);
-  return target.until.kind === 'artifact'
-    ? `${target.kind} · ${operation?.data.title ?? target.until.stepId} · ${target.until.workflowOutputSlotId}`
-    : `${target.kind} · ${operation?.data.title ?? target.until.stepId}`;
+  return until.kind === 'artifact'
+    ? `${target.kind} · ${operation?.data.title ?? until.stepId} · ${until.workflowOutputSlotId}`
+    : `${target.kind} · ${operation?.data.title ?? until.stepId}`;
 }
 
 function workflowGateStatusKey(gate: WorkflowGateRuntimeView) {

@@ -5,6 +5,7 @@ import {
   cancelAgentRun,
   createAgentRunForWorkflowArtifactSlice,
   createAgentRunForWorkflowSlice,
+  createAgentRunForWorkflowStageSlice,
   createAgentRunForWorkflowRun,
   nextAgentRunExecutionAction,
   pauseAgentRun,
@@ -134,6 +135,44 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
     }
   }
 
+  async function createWorkflowStageSliceAgentRun(
+    workflowRunId: string,
+    stageId: string,
+  ): Promise<void> {
+    let agentRunId = '';
+    try {
+      const createdSnapshot = updateSnapshot((current) => {
+        const created = createAgentRunForWorkflowStageSlice(
+          current,
+          workflowRunId,
+          stageId,
+        );
+        startAgentRun(current, created.record.agentRunId);
+        agentRunId = created.record.agentRunId;
+        return current;
+      }, { history: true });
+      await persistSnapshot(createdSnapshot, { requireLocalApi: true });
+      const reconciled = await reconcileAgentArtifactTarget({
+        agentRunId,
+        boardId: createdSnapshot.board.boardId,
+        projectId: createdSnapshot.project.projectId,
+      });
+      updateSnapshot(() => reconciled, { history: false, persist: false });
+      setOperationToast({
+        id: agentRunId,
+        title: t('agentRuntime.created'),
+        tone: 'success',
+      });
+    } catch (error) {
+      setOperationToast({
+        id: agentRunId || 'agent-run:create-stage-slice',
+        title: t('agentRuntime.actionFailed'),
+        body: error instanceof Error ? error.message : undefined,
+        tone: 'error',
+      });
+    }
+  }
+
   function pause(agentRunId: string): void {
     mutateAgentRun('pause', (current) => pauseAgentRun(current, agentRunId).record.agentRunId);
   }
@@ -177,6 +216,7 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
     createWorkflowArtifactSliceAgentRun,
     createWorkflowAgentRun,
     createWorkflowSliceAgentRun,
+    createWorkflowStageSliceAgentRun,
     pauseAgentRun: pause,
     resumeAgentRun: resume,
   };

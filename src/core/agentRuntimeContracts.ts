@@ -24,6 +24,16 @@ export type AgentRunStopReason =
   | 'user_paused'
   | 'user_canceled';
 
+export interface AgentWorkflowArtifactTarget {
+  artifactScope: 'workflow_run';
+  artifactType: string;
+  outputSlotId: string;
+  semanticKey: string;
+  stepId: string;
+  stepRunId: string;
+  workflowOutputSlotId: string;
+}
+
 export type AgentRunTarget =
   | {
     capabilityLock: CapabilityDefinitionLock;
@@ -45,14 +55,14 @@ export type AgentRunTarget =
         stepRunId: string;
       }
       | {
-        artifactScope: 'workflow_run';
-        artifactType: string;
         kind: 'artifact';
-        outputSlotId: string;
-        semanticKey: string;
-        stepId: string;
-        stepRunId: string;
-        workflowOutputSlotId: string;
+      } & AgentWorkflowArtifactTarget
+      | {
+        kind: 'stage';
+        outputTargets: AgentWorkflowArtifactTarget[];
+        requiredStepRunIds: string[];
+        stageId: string;
+        stageTypeId: string;
       };
     workflowDefinitionLock: WorkflowDefinitionLock;
     workflowRunId: string;
@@ -94,6 +104,7 @@ export interface AgentRunRecord {
   recordVersion: number;
   runtimeKind: 'retake_orchestrator';
   satisfiedArtifactRevisionId?: string;
+  satisfiedArtifactRevisionIds?: string[];
   scope: AgentRunScope;
   sourcePackageLock?: PackageLock;
   status: AgentRunStatus;

@@ -211,6 +211,7 @@ const workflowMarkup = renderToStaticMarkup(
       onCreateWorkflowAgentRun={() => undefined}
       onCreateWorkflowArtifactSliceAgentRun={() => undefined}
       onCreateWorkflowSliceAgentRun={() => undefined}
+      onCreateWorkflowStageSliceAgentRun={() => undefined}
       onDecideWorkflowApproval={() => undefined}
       onDownloadAll={() => undefined}
       onPauseAgentRun={() => undefined}
@@ -223,6 +224,7 @@ assert.match(workflowMarkup, /Stages/);
 assert.match(workflowMarkup, /Story &amp; Screenplay/);
 assert.match(workflowMarkup, /Required steps.*1/);
 assert.match(workflowMarkup, /Outputs.*0\/0.*No required output/);
+assert.match(workflowMarkup, /Run until Stage/);
 
 const drawOverlayMarkup = renderToStaticMarkup(
   <I18nProvider>

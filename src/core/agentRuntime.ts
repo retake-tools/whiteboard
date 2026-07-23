@@ -15,6 +15,7 @@ import {
   projectWorkflowAgentRun,
   workflowArtifactTargetBinding,
   workflowAgentScope,
+  workflowOutputArtifactBinding,
 } from './agentWorkflowRuntime';
 import type { BlockRecord, BoardSnapshot, ExecutionRecord } from './types';
 import {
@@ -193,6 +194,81 @@ export function createAgentRunForWorkflowArtifactSlice(
   return agentRunView(record);
 }
 
+export function createAgentRunForWorkflowStageSlice(
+  snapshot: BoardSnapshot,
+  workflowRunId: string,
+  stageId: string,
+): AgentRunRuntimeView {
+  reconcileWorkflowRuntime(snapshot);
+  assertNoActiveAgentRun(snapshot);
+  const workflow = workflowRunViewForId(snapshot, workflowRunId);
+  if (!workflow) throw new Error(`Workflow Run not found: ${workflowRunId}`);
+  const stage = workflow.stages.find(
+    (candidate) => candidate.stageDefinitionLock.stageId === stageId,
+  );
+  if (!stage) throw new Error(`Workflow Stage lock not found: ${stageId}`);
+  const stepRunByStepId = new Map(
+    workflow.steps.map((step) => [step.record.stepId, step.record.stepRunId]),
+  );
+  const outputTargets = [...stage.stageDefinitionLock.outputSlotLocks]
+    .sort((left, right) => left.workflowOutputSlotId.localeCompare(right.workflowOutputSlotId))
+    .map((output) => {
+      const stepRunId = stepRunByStepId.get(output.stepId);
+      if (!stepRunId) {
+        throw new Error(`Workflow Stage output StepRun not found: ${stageId}.${output.stepId}`);
+      }
+      return {
+        artifactScope: output.artifactScope,
+        artifactType: output.artifactType,
+        outputSlotId: output.outputSlotId,
+        semanticKey: output.semanticKey,
+        stepId: output.stepId,
+        stepRunId,
+        workflowOutputSlotId: output.workflowOutputSlotId,
+      };
+    });
+  const target = {
+    kind: 'workflow_slice' as const,
+    workflowRunId,
+    workflowDefinitionLock: structuredClone(workflow.record.workflowDefinitionLock),
+    until: {
+      kind: 'stage' as const,
+      stageId: stage.stageDefinitionLock.stageId,
+      stageTypeId: stage.stageDefinitionLock.stageTypeId,
+      requiredStepRunIds: [...stage.requiredStepRunIds],
+      outputTargets,
+    },
+  };
+  const createdAt = nowIso();
+  const record: AgentRunRecord = {
+    agentRunId: createId('agent_run'),
+    projectId: snapshot.project.projectId,
+    boardId: snapshot.board.boardId,
+    runtimeKind: 'retake_orchestrator',
+    target,
+    scope: {
+      projectId: snapshot.project.projectId,
+      boardId: snapshot.board.boardId,
+      workflowRunId,
+      ...workflowAgentScope(workflow, target),
+    },
+    stopPolicy: { kind: 'workflow_slice_target' },
+    permissions: defaultPermissions(),
+    status: 'queued',
+    executionIds: [],
+    satisfiedArtifactRevisionIds: [],
+    ...(workflow.record.entrypointId ? { entrypointId: workflow.record.entrypointId } : {}),
+    ...(workflow.record.sourcePackageLock ? { sourcePackageLock: structuredClone(workflow.record.sourcePackageLock) } : {}),
+    createdBy: 'user',
+    createdAt,
+    updatedAt: createdAt,
+    recordVersion: 1,
+  };
+  snapshot.agentRuns = [...(snapshot.agentRuns ?? []), record];
+  touchBoard(snapshot);
+  return agentRunView(record);
+}
+
 export function createAgentRunForOperation(
   snapshot: BoardSnapshot,
   operationBlockId: string,
@@ -306,6 +382,7 @@ export function reconcileAgentRuntime(snapshot: BoardSnapshot): boolean {
       && record.error === projection.error
       && record.currentOperationBlockId === projection.currentOperationBlockId
       && record.satisfiedArtifactRevisionId === projection.satisfiedArtifactRevisionId
+      && optionalArraysEqual(record.satisfiedArtifactRevisionIds, projection.satisfiedArtifactRevisionIds)
       && arraysEqual(record.executionIds, projection.executionIds)
     ) continue;
     updateAgentRun(record, projection);
@@ -385,7 +462,10 @@ export function agentRunViewForId(snapshot: BoardSnapshot, agentRunId: string): 
 function projectAgentRun(
   snapshot: BoardSnapshot,
   record: AgentRunRecord,
-): Pick<AgentRunRecord, 'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId' | 'status' | 'stopReason'> | undefined {
+): Pick<AgentRunRecord,
+  'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId'
+  | 'satisfiedArtifactRevisionIds' | 'status' | 'stopReason'
+> | undefined {
   try {
     assertAgentRunTarget(snapshot, record);
   } catch (error) {
@@ -395,6 +475,7 @@ function projectAgentRun(
       error: error instanceof Error ? error.message : 'Agent Run target is invalid.',
       executionIds: record.executionIds,
       satisfiedArtifactRevisionId: record.satisfiedArtifactRevisionId,
+      satisfiedArtifactRevisionIds: record.satisfiedArtifactRevisionIds,
       currentOperationBlockId: undefined,
     };
   }
@@ -405,7 +486,10 @@ function projectAgentRun(
 function projectCapabilityAgentRun(
   snapshot: BoardSnapshot,
   record: AgentRunRecord,
-): Pick<AgentRunRecord, 'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId' | 'status' | 'stopReason'> {
+): Pick<AgentRunRecord,
+  'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId'
+  | 'satisfiedArtifactRevisionIds' | 'status' | 'stopReason'
+> {
   if (record.target.kind !== 'capability') throw new Error('Capability Agent Run target required.');
   const operation = operationBlock(snapshot, record.target.operationBlockId);
   const executions = executionsForOperation(snapshot, operation.blockId);
@@ -469,6 +553,47 @@ export function acceptVerifiedAgentArtifactRevision(
   }
   updateAgentRun(record, {
     satisfiedArtifactRevisionId: input.artifactRevisionId,
+  });
+  reconcileAgentRuntime(snapshot);
+  touchBoard(snapshot);
+  return agentRunView(record);
+}
+
+export function acceptVerifiedAgentStageArtifactRevisions(
+  snapshot: BoardSnapshot,
+  input: {
+    agentRunId: string;
+    artifactRevisionIds: string[];
+    expectedAgentRunVersion: number;
+  },
+): AgentRunRuntimeView {
+  const record = agentRunRecord(snapshot, input.agentRunId);
+  if (
+    record.target.kind !== 'workflow_slice'
+    || record.target.until.kind !== 'stage'
+  ) throw new Error('Agent Run Stage Slice target required.');
+  if (record.recordVersion !== input.expectedAgentRunVersion) {
+    throw new Error(`Agent Run version conflict: ${record.agentRunId}`);
+  }
+  const workflowRunId = record.target.workflowRunId;
+  const bindings = record.target.until.outputTargets.map((target) =>
+    workflowOutputArtifactBinding(snapshot, {
+      artifactType: target.artifactType,
+      outputSlotId: target.outputSlotId,
+      stepRunId: target.stepRunId,
+      workflowOutputSlotId: target.workflowOutputSlotId,
+      workflowRunId,
+    }),
+  );
+  if (
+    bindings.some((binding) => !binding)
+    || !arraysEqual(
+      bindings.map((binding) => binding?.artifactRevisionId ?? ''),
+      input.artifactRevisionIds,
+    )
+  ) throw new Error('Verified Stage Artifact Revisions do not match the current Workflow output bindings.');
+  updateAgentRun(record, {
+    satisfiedArtifactRevisionIds: [...input.artifactRevisionIds],
   });
   reconcileAgentRuntime(snapshot);
   touchBoard(snapshot);
@@ -576,17 +701,30 @@ function packageContextFromBlock(block: BlockRecord): {
 function updateAgentRun(
   record: AgentRunRecord,
   values: Partial<Pick<AgentRunRecord,
-    'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId' | 'status' | 'stopReason'>>,
+    'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId'
+    | 'satisfiedArtifactRevisionIds' | 'status' | 'stopReason'>>,
 ): void {
   Object.assign(record, values, { updatedAt: nowIso(), recordVersion: record.recordVersion + 1 });
-  if (values.error === undefined) delete record.error;
-  if (values.stopReason === undefined) delete record.stopReason;
-  if (values.currentOperationBlockId === undefined) delete record.currentOperationBlockId;
-  if (values.satisfiedArtifactRevisionId === undefined) delete record.satisfiedArtifactRevisionId;
+  if ('error' in values && values.error === undefined) delete record.error;
+  if ('stopReason' in values && values.stopReason === undefined) delete record.stopReason;
+  if ('currentOperationBlockId' in values && values.currentOperationBlockId === undefined) {
+    delete record.currentOperationBlockId;
+  }
+  if ('satisfiedArtifactRevisionId' in values && values.satisfiedArtifactRevisionId === undefined) {
+    delete record.satisfiedArtifactRevisionId;
+  }
+  if ('satisfiedArtifactRevisionIds' in values && values.satisfiedArtifactRevisionIds === undefined) {
+    delete record.satisfiedArtifactRevisionIds;
+  }
 }
 
 function arraysEqual(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function optionalArraysEqual(left: string[] | undefined, right: string[] | undefined): boolean {
+  if (!left || !right) return left === right;
+  return arraysEqual(left, right);
 }
 
 function defaultPermissions(): AgentRunRecord['permissions'] {

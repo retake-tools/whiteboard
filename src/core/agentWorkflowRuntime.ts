@@ -15,7 +15,8 @@ import {
 type WorkflowAgentTarget = Extract<AgentRunRecord['target'], { kind: 'workflow_run' | 'workflow_slice' }>;
 type AgentRunProjection = Pick<
   AgentRunRecord,
-  'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId' | 'status' | 'stopReason'
+  'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId'
+  | 'satisfiedArtifactRevisionIds' | 'status' | 'stopReason'
 >;
 
 export interface WorkflowOutputArtifactTarget {
@@ -71,6 +72,34 @@ export function assertWorkflowAgentTarget(
       || until.artifactScope !== 'workflow_run'
       || until.semanticKey !== `workflow_output:${output.workflowOutputSlotId}`
     ) throw new Error('Agent Run Workflow Artifact target lock changed.');
+  }
+  if (record.target.kind === 'workflow_slice' && record.target.until.kind === 'stage') {
+    const until = record.target.until;
+    const stage = workflow.stages.find(
+      (candidate) => candidate.stageDefinitionLock.stageId === until.stageId,
+    );
+    const expectedOutputs = [...(stage?.stageDefinitionLock.outputSlotLocks ?? [])]
+      .sort((left, right) => left.workflowOutputSlotId.localeCompare(right.workflowOutputSlotId));
+    if (
+      !stage
+      || stage.stageDefinitionLock.stageTypeId !== until.stageTypeId
+      || !arraysEqual(stage.requiredStepRunIds, until.requiredStepRunIds)
+      || expectedOutputs.length !== until.outputTargets.length
+      || expectedOutputs.some((output, index) => {
+        const target = until.outputTargets[index];
+        const stepRunId = workflow.steps.find(
+          (step) => step.record.stepId === output.stepId,
+        )?.record.stepRunId;
+        return !target
+          || target.artifactScope !== output.artifactScope
+          || target.artifactType !== output.artifactType
+          || target.outputSlotId !== output.outputSlotId
+          || target.semanticKey !== output.semanticKey
+          || target.stepId !== output.stepId
+          || target.stepRunId !== stepRunId
+          || target.workflowOutputSlotId !== output.workflowOutputSlotId;
+      })
+    ) throw new Error('Agent Run Workflow Stage target lock changed.');
   }
 
   const expectedScope = workflowAgentScope(workflow, record.target);
@@ -140,11 +169,18 @@ function projectWorkflowSliceAgentRun(
   record: AgentRunRecord,
 ): AgentRunProjection {
   if (record.target.kind !== 'workflow_slice') throw new Error('Workflow Slice target required.');
-  const targetStepRunId = record.target.until.stepRunId;
+  const targetStepRunIds = record.target.until.kind === 'stage'
+    ? record.target.until.requiredStepRunIds
+    : [record.target.until.stepRunId];
   const allowedStepRunIds = new Set(record.scope.allowedStepRunIds);
   const steps = workflow.steps.filter((step) => allowedStepRunIds.has(step.record.stepRunId));
-  const target = steps.find((step) => step.record.stepRunId === targetStepRunId);
-  if (!target) throw new Error('Workflow Slice target StepRun is outside its frozen scope.');
+  const targets = targetStepRunIds.flatMap((stepRunId) => {
+    const step = steps.find((candidate) => candidate.record.stepRunId === stepRunId);
+    return step ? [step] : [];
+  });
+  if (targets.length !== targetStepRunIds.length) {
+    throw new Error('Workflow Slice target StepRun is outside its frozen scope.');
+  }
   const current = currentWorkflowStep(steps);
   const executionIds = steps.flatMap((step) => step.record.executionIds);
   const failedStep = steps.find((step) =>
@@ -158,6 +194,7 @@ function projectWorkflowSliceAgentRun(
     currentOperationBlockId: current?.record.operationBlockId,
     error: failedStep?.record.error,
     satisfiedArtifactRevisionId: record.satisfiedArtifactRevisionId,
+    satisfiedArtifactRevisionIds: record.satisfiedArtifactRevisionIds,
   };
 
   if (workflow.status === 'canceled') return { ...base, status: 'canceled', stopReason: 'target_canceled' };
@@ -178,7 +215,7 @@ function projectWorkflowSliceAgentRun(
   if (steps.some((step) => step.status === 'waiting_input')) {
     return { ...base, status: 'waiting_input', stopReason: undefined };
   }
-  if (target.status === 'succeeded' && target.freshness === 'current') {
+  if (targets.every((target) => target.status === 'succeeded' && target.freshness === 'current')) {
     if (record.target.until.kind === 'artifact') {
       const binding = workflowArtifactTargetBinding(snapshot, record);
       if (!binding) {
@@ -209,6 +246,41 @@ function projectWorkflowSliceAgentRun(
         };
       }
     }
+    if (record.target.until.kind === 'stage') {
+      const bindings = workflowStageTargetBindings(snapshot, record);
+      if (!bindings) {
+        return {
+          ...base,
+          currentOperationBlockId: undefined,
+          status: 'running',
+          stopReason: undefined,
+        };
+      }
+      const currentRevisionIds = bindings.map((binding) => binding.artifactRevisionId);
+      const verifiedRevisionIds = record.satisfiedArtifactRevisionIds ?? [];
+      if (
+        verifiedRevisionIds.length > 0
+        && !arraysEqual(verifiedRevisionIds, currentRevisionIds)
+      ) {
+        return {
+          ...base,
+          status: 'needs_attention',
+          stopReason: undefined,
+          error: 'The verified Stage Artifact Revisions no longer match the current Workflow output bindings.',
+        };
+      }
+      if (
+        record.target.until.outputTargets.length > 0
+        && verifiedRevisionIds.length === 0
+      ) {
+        return {
+          ...base,
+          currentOperationBlockId: undefined,
+          status: 'running',
+          stopReason: undefined,
+        };
+      }
+    }
     return gateState === 'passed'
       ? { ...base, currentOperationBlockId: undefined, status: 'succeeded', stopReason: 'slice_target_satisfied' }
       : {
@@ -226,11 +298,18 @@ function scopedWorkflowSteps(
   target: WorkflowAgentTarget,
 ): WorkflowStepRuntimeView[] {
   if (target.kind === 'workflow_run') return workflow.steps;
-  const targetStep = workflow.steps.find((step) => step.record.stepRunId === target.until.stepRunId);
+  const until = target.until;
+  const targetSteps = until.kind === 'stage'
+    ? until.requiredStepRunIds.map((stepRunId) =>
+        workflow.steps.find((step) => step.record.stepRunId === stepRunId))
+    : [workflow.steps.find((step) => step.record.stepRunId === until.stepRunId)];
   if (
-    !targetStep
-    || targetStep.record.stepId !== target.until.stepId
-    || targetStep.record.workflowRunId !== target.workflowRunId
+    targetSteps.some((step) => !step)
+    || targetSteps.some((step) => step?.record.workflowRunId !== target.workflowRunId)
+    || (
+      until.kind !== 'stage'
+      && targetSteps[0]?.record.stepId !== until.stepId
+    )
   ) throw new Error('Workflow Slice target StepRun changed.');
 
   const stepById = new Map(workflow.steps.map((step) => [step.record.stepId, step]));
@@ -246,7 +325,9 @@ function scopedWorkflowSteps(
     visiting.delete(stepId);
     includedStepIds.add(stepId);
   }
-  include(targetStep.record.stepId);
+  for (const targetStep of targetSteps) {
+    if (targetStep) include(targetStep.record.stepId);
+  }
   return workflow.steps.filter((step) => includedStepIds.has(step.record.stepId));
 }
 
@@ -266,6 +347,29 @@ export function workflowArtifactTargetBinding(
     workflowOutputSlotId: until.workflowOutputSlotId,
     workflowRunId: record.target.workflowRunId,
   });
+}
+
+export function workflowStageTargetBindings(
+  snapshot: BoardSnapshot,
+  record: AgentRunRecord,
+): WorkflowStepOutputArtifactBinding[] | undefined {
+  if (
+    record.target.kind !== 'workflow_slice'
+    || record.target.until.kind !== 'stage'
+  ) throw new Error('Workflow Stage Slice target required.');
+  const workflowRunId = record.target.workflowRunId;
+  const bindings = record.target.until.outputTargets.map((target) =>
+    workflowOutputArtifactBinding(snapshot, {
+      artifactType: target.artifactType,
+      outputSlotId: target.outputSlotId,
+      stepRunId: target.stepRunId,
+      workflowOutputSlotId: target.workflowOutputSlotId,
+      workflowRunId,
+    }),
+  );
+  return bindings.some((binding) => !binding)
+    ? undefined
+    : bindings as WorkflowStepOutputArtifactBinding[];
 }
 
 export function workflowOutputArtifactBinding(

@@ -545,6 +545,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         onCreateWorkflowAgentRun={agentRuntimeController.createWorkflowAgentRun}
         onCreateWorkflowArtifactSliceAgentRun={agentRuntimeController.createWorkflowArtifactSliceAgentRun}
         onCreateWorkflowSliceAgentRun={agentRuntimeController.createWorkflowSliceAgentRun}
+        onCreateWorkflowStageSliceAgentRun={agentRuntimeController.createWorkflowStageSliceAgentRun}
         onPauseAgentRun={agentRuntimeController.pauseAgentRun}
         onResumeAgentRun={agentRuntimeController.resumeAgentRun}
         onSelectWorkflowOutput={workflowRuntimeController.acceptWorkflowOutput}
