@@ -17,8 +17,12 @@ import {
 } from './snapshot-store';
 
 export async function listWorkspace(): Promise<WorkspaceSummary> {
-  await getBoardSnapshot();
-  const projectDirs = await readdir(projectsRoot, { withFileTypes: true });
+  await ensureWorkspace();
+  let projectDirs = await readdir(projectsRoot, { withFileTypes: true });
+  if (!projectDirs.some((entry) => entry.isDirectory())) {
+    await getBoardSnapshot();
+    projectDirs = await readdir(projectsRoot, { withFileTypes: true });
+  }
   const projects = await Promise.all(
     projectDirs.filter((entry) => entry.isDirectory()).map(async (entry) => {
       const project = await readProject(entry.name);

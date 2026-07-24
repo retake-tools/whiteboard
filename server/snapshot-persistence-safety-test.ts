@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createAgentSession } from '../src/core/agentSession';
 import { createId, nowIso } from '../src/core/id';
 import { loadBoardSnapshot, saveBoardSnapshot } from '../src/core/boardStore';
 import { defaultSnapshot } from '../src/core/sampleBoard';
@@ -6,10 +7,23 @@ import { migrateBoardSnapshot } from '../src/core/snapshotMigration';
 import type { AssetRecord, BoardHistoryEvent, ExecutionRecord } from '../src/core/types';
 import {
   getBoardSnapshot,
+  listWorkspace,
   resetWorkspace,
   saveSnapshot,
   SnapshotWriteConflictError,
 } from './local-store';
+
+const sessionOnly = await resetWorkspace();
+const session = createAgentSession(sessionOnly, {
+  model: 'test-model',
+  title: 'Default conversation',
+}).session;
+await saveSnapshot(sessionOnly);
+const reloadedSessionOnly = await getBoardSnapshot();
+assert.equal(reloadedSessionOnly.agentSessions?.[0]?.agentSessionId, session.agentSessionId);
+const workspaceWithSession = await listWorkspace();
+assert.equal(workspaceWithSession.projects.length, 1);
+assert.equal(workspaceWithSession.projects[0]?.projectId, sessionOnly.project.projectId);
 
 const populated = await resetWorkspace();
 const createdAt = nowIso();
@@ -168,6 +182,7 @@ globalThis.fetch = originalFetch;
 delete (globalThis as { localStorage?: Storage }).localStorage;
 
 console.log({
+  agentSessionDoesNotLookLikeBootstrap: true,
   apiConflictSurfaced: true,
   bootstrapOverwriteRejected: true,
   durableHistoryPreserved: true,

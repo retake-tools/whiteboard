@@ -28,16 +28,17 @@ export async function ensureDefaultSnapshot(): Promise<BoardSnapshot> {
   const defaultBoardDir = path.join(defaultProjectDir, 'boards', defaultSnapshot.board.boardId);
   const snapshotPath = path.join(defaultBoardDir, 'snapshot.json');
 
-  try {
-    const snapshot = migrateBoardSnapshot(JSON.parse(await readFile(snapshotPath, 'utf8')) as BoardSnapshot);
+  const storedSnapshot = await readStoredSnapshot(snapshotPath);
+  if (storedSnapshot) {
+    const snapshot = storedSnapshot;
     ensureSnapshotCodexProjectPath(snapshot);
     await saveSnapshot(snapshot);
     return snapshot;
-  } catch {
-    const snapshot = createDefaultWorkspaceSnapshot();
-    await saveSnapshot(snapshot);
-    return snapshot;
   }
+
+  const snapshot = createDefaultWorkspaceSnapshot();
+  await saveSnapshot(snapshot);
+  return snapshot;
 }
 
 export async function getBoardSnapshot(input?: { projectId?: string; boardId?: string }): Promise<BoardSnapshot> {
@@ -204,26 +205,8 @@ function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSna
   const isEmptyFallbackWrite =
     incoming.blocks.length === fallbackBlockIds.size &&
     incoming.blocks.every((block) => fallbackBlockIds.has(block.blockId)) &&
-    incoming.executions.length === 0 &&
-    incoming.assets.length === 0 &&
-    (incoming.historyEvents?.length ?? 0) === 0;
-  const previousHasUserData =
-    previous.blocks.some((block) => !fallbackBlockIds.has(block.blockId)) ||
-    previous.executions.length > 0 ||
-    previous.assets.length > 0 ||
-    (previous.agentRuns?.length ?? 0) > 0 ||
-    (previous.agentSessions?.length ?? 0) > 0 ||
-    (previous.agentMessages?.length ?? 0) > 0 ||
-    (previous.agentRuntimeBindings?.length ?? 0) > 0 ||
-    (previous.agentRuntimeEvents?.length ?? 0) > 0 ||
-    (previous.changeProposals?.length ?? 0) > 0 ||
-    (previous.changeDecisions?.length ?? 0) > 0 ||
-    (previous.workflowRuns?.length ?? 0) > 0 ||
-    (previous.workflowStepRuns?.length ?? 0) > 0 ||
-    (previous.workflowGateEvaluations?.length ?? 0) > 0 ||
-    (previous.workflowApprovalRequests?.length ?? 0) > 0 ||
-    (previous.workflowApprovalDecisions?.length ?? 0) > 0 ||
-    (previous.historyEvents?.length ?? 0) > 0;
+    !snapshotHasDurableUserData(incoming, fallbackBlockIds);
+  const previousHasUserData = snapshotHasDurableUserData(previous, fallbackBlockIds);
   if (isEmptyFallbackWrite && previousHasUserData) {
     throw new SnapshotWriteConflictError(
       'Refusing to replace a populated board with the empty bootstrap snapshot.',
@@ -303,6 +286,28 @@ function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSna
     previous.workflowApprovalDecisions ?? [],
     (decision) => decision.approvalDecisionId,
   );
+}
+
+function snapshotHasDurableUserData(
+  snapshot: BoardSnapshot,
+  fallbackBlockIds: ReadonlySet<string>,
+): boolean {
+  return snapshot.blocks.some((block) => !fallbackBlockIds.has(block.blockId)) ||
+    snapshot.executions.length > 0 ||
+    snapshot.assets.length > 0 ||
+    (snapshot.agentRuns?.length ?? 0) > 0 ||
+    (snapshot.agentSessions?.length ?? 0) > 0 ||
+    (snapshot.agentMessages?.length ?? 0) > 0 ||
+    (snapshot.agentRuntimeBindings?.length ?? 0) > 0 ||
+    (snapshot.agentRuntimeEvents?.length ?? 0) > 0 ||
+    (snapshot.changeProposals?.length ?? 0) > 0 ||
+    (snapshot.changeDecisions?.length ?? 0) > 0 ||
+    (snapshot.workflowRuns?.length ?? 0) > 0 ||
+    (snapshot.workflowStepRuns?.length ?? 0) > 0 ||
+    (snapshot.workflowGateEvaluations?.length ?? 0) > 0 ||
+    (snapshot.workflowApprovalRequests?.length ?? 0) > 0 ||
+    (snapshot.workflowApprovalDecisions?.length ?? 0) > 0 ||
+    (snapshot.historyEvents?.length ?? 0) > 0;
 }
 
 function mergeRecords<T>(incoming: T[], previous: T[], idFor: (record: T) => string): T[] {
