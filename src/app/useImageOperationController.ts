@@ -20,6 +20,10 @@ import {
   type ImageGenerationParams,
   type SwitchableOperationMode,
 } from '../core/imageOperations';
+import {
+  createImageComposerDraft,
+  type ImageComposerReference,
+} from '../core/imageComposer';
 import { renderAdjustedImage, type LocalImageAdjustments } from '../core/localImageTransforms';
 import { imageOperationDefaultPrompt, imageOperationTitle } from '../core/imageOperationText';
 import { nowIso } from '../core/id';
@@ -407,25 +411,58 @@ export function useImageOperationController(options: ImageOperationControllerOpt
   }
 
   function createTextToImageDraftOperation(input: {
+    connectionId?: string;
     generationParams?: ImageGenerationParams;
     instruction?: string;
+    references?: ImageComposerReference[];
+    reuseSelectedImageSlot?: boolean;
     slotBlock?: BlockRecord;
   } = {}): void {
     let selectedWorkflowIds: string[] = [];
     const nextSnapshot = updateSnapshot((current) => {
-      const result = createDraftTextToImageOperation(current, {
-        generationParams: input.generationParams,
-        operationTitle: imageOperationTitle('generate_image', t),
-        slotBlockId: input.slotBlock?.blockId,
-        textBlockTitle: t('operationToolbar.prompt'),
-        textBlockBody: input.instruction?.trim() || '',
-        textBlockPlaceholder: imageOperationDefaultPrompt('generate_image', t),
-      });
-      result.operationBlock.data.connectionId = preferredImageConnection(current, 'image.text_to_image');
-      selectedWorkflowIds = input.slotBlock
-        ? [input.slotBlock.blockId, result.textBlock.blockId, result.operationBlock.blockId]
-        : [result.textBlock.blockId, result.operationBlock.blockId];
-      if (!input.slotBlock) centerWorkflowBlocks(current, selectedWorkflowIds);
+      const selectedSlot = input.slotBlock ?? (
+        input.reuseSelectedImageSlot
+        && selectedBlock?.type === 'image'
+        && !selectedBlock.data.assetId
+        && !selectedBlock.data.operationBlockId
+        && !selectedBlock.data.sourceExecutionId
+          ? selectedBlock
+          : undefined
+      );
+      const connectionId = input.connectionId
+        ?? preferredImageConnection(current, 'image.text_to_image');
+      const result = input.instruction === undefined
+        ? {
+            ...createDraftTextToImageOperation(current, {
+              generationParams: input.generationParams,
+              operationTitle: imageOperationTitle('generate_image', t),
+              slotBlockId: selectedSlot?.blockId,
+              textBlockTitle: t('operationToolbar.prompt'),
+              textBlockBody: '',
+              textBlockPlaceholder: imageOperationDefaultPrompt('generate_image', t),
+            }),
+            referenceBlockIds: [],
+          }
+        : createImageComposerDraft(current, {
+            connectionId,
+            generationParams: input.generationParams,
+            instruction: input.instruction,
+            operationTitle: imageOperationTitle('generate_image', t),
+            references: input.references ?? [],
+            slotBlockId: selectedSlot?.blockId,
+            textBlockTitle: t('operationToolbar.prompt'),
+            textBlockPlaceholder: imageOperationDefaultPrompt('generate_image', t),
+          });
+      result.operationBlock.data.connectionId = connectionId;
+      selectedWorkflowIds = selectedSlot
+        ? [
+            selectedSlot.blockId,
+            result.textBlock.blockId,
+            result.operationBlock.blockId,
+            ...result.referenceBlockIds,
+          ]
+        : [result.textBlock.blockId, result.operationBlock.blockId, ...result.referenceBlockIds];
+      if (!selectedSlot) centerWorkflowBlocks(current, selectedWorkflowIds);
       return current;
     }, { persist: true, history: true });
     if (selectedWorkflowIds.length > 0) {

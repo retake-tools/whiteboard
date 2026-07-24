@@ -168,7 +168,9 @@ await saveSnapshot(snapshot);
 assert.equal(snapshot.executions.length, 0);
 assert.equal(messagesForSession(snapshot, primarySession.agentSessionId).length, 6);
 assert.deepEqual(
-  proposalsForSession(snapshot, primarySession.agentSessionId).map((proposal) => proposal.status),
+  proposalsForSession(snapshot, primarySession.agentSessionId)
+    .map((proposal) => proposal.status)
+    .sort(),
   ['awaiting_decision', 'failed'],
 );
 

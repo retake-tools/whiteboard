@@ -49,7 +49,7 @@ assert.match(canvasComposerSource, /rows=\{3\}/);
 assert.match(canvasComposerSource, /skill-composer-input-shell[\s\S]*skill-composer-controls/);
 assert.match(canvasComposerSource, /skillComposer\.creationMode/);
 assert.match(canvasComposerSource, /<option value="agent">/);
-assert.match(canvasComposerSource, /<option value="image" disabled>/);
+assert.match(canvasComposerSource, /<option value="image">/);
 assert.match(canvasComposerSource, /<option value="video" disabled>/);
 assert.match(toolbarStylesSource, /\.skill-composer-form \{ display: grid/);
 assert.match(toolbarStylesSource, /\.skill-composer-mode \{/);

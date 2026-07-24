@@ -87,6 +87,22 @@
 }
 
 @media (max-width: 640px) {
+  .image-composer-controls {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .image-composer-connection {
+    grid-column: 1 / -1;
+  }
+
+  .skill-composer-controls {
+    flex-wrap: wrap;
+  }
+
+  .skill-composer-mention-trigger {
+    margin-left: auto;
+  }
+
   .skill-composer-entrypoint { max-width: 150px; }
   .skill-composer-entrypoint-main { padding-left: 8px; }
   .skill-composer-recommended { overflow-x: auto; }

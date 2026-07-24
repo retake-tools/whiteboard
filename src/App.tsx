@@ -555,6 +555,10 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         agentDisabled={agentWorkspaceController.isSending}
         composerVisible={!isAgentWorkspaceOpen}
         onAddBlock={addBlock}
+        onCreateImageDraft={(input) => createTextToImageDraftOperation({
+          ...input,
+          reuseSelectedImageSlot: true,
+        })}
         onCreateImageToImage={createImageToImageDraftFromMenu}
         onCreateTextToImage={() => createTextToImageDraftOperation()}
         onInvokeEntryPoint={packageEntryPointController.invokeEntryPoint}
@@ -642,6 +646,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
             )}
           onPauseAgentRun={agentRuntimeController.pauseAgentRun}
           onResumeAgentRun={agentRuntimeController.resumeAgentRun}
+          onRequestCanvasMode={closeAgentWorkspace}
           onSelectAgentRun={agentWorkspaceController.selectAgentRun}
           onSelectSession={agentWorkspaceController.selectSession}
           onSubmitMessage={(input) => void agentWorkspaceController.submitMessage(input)}

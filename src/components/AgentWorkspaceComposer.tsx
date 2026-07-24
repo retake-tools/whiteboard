@@ -5,10 +5,12 @@ import type { UnifiedComposerAgentInput } from './UnifiedComposerProvider';
 
 export function AgentWorkspaceComposer({
   disabled,
+  onRequestCanvasMode,
   onSubmit,
   snapshot,
 }: {
   disabled?: boolean;
+  onRequestCanvasMode: () => void;
   onSubmit: (input: UnifiedComposerAgentInput) => void;
   snapshot: BoardSnapshot;
 }): ReactElement {
@@ -17,6 +19,7 @@ export function AgentWorkspaceComposer({
       agentDisabled={disabled}
       autoFocus
       mode="agent"
+      onRequestCanvasMode={onRequestCanvasMode}
       onSubmitAgentMessage={onSubmit}
       showRecommendations={false}
       snapshot={snapshot}

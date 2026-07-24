@@ -51,6 +51,7 @@ export function AgentWorkspace({
   onDecideProposal,
   onLaunchProposal,
   onResumeAgentRun,
+  onRequestCanvasMode,
   onSelectAgentRun,
   onSelectSession,
   onSubmitMessage,
@@ -82,6 +83,7 @@ export function AgentWorkspace({
     agentPresetEntryPointId?: string,
   ) => void;
   onResumeAgentRun: (agentRunId: string) => void;
+  onRequestCanvasMode: () => void;
   onSelectAgentRun: (agentRunId?: string) => void;
   onSelectSession: (agentSessionId: string) => void;
   onSubmitMessage: (input: Parameters<typeof AgentWorkspaceComposer>[0]['onSubmit'] extends (value: infer T) => void ? T : never) => void;
@@ -255,7 +257,12 @@ export function AgentWorkspace({
               <div ref={timelineEndRef} aria-hidden="true" />
             </div>
             {error ? <p className="agent-workspace-error" role="alert">{error}</p> : null}
-            <AgentWorkspaceComposer disabled={isSending} snapshot={snapshot} onSubmit={onSubmitMessage} />
+            <AgentWorkspaceComposer
+              disabled={isSending}
+              snapshot={snapshot}
+              onRequestCanvasMode={onRequestCanvasMode}
+              onSubmit={onSubmitMessage}
+            />
           </div>
         )}
       </div>

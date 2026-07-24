@@ -19,6 +19,13 @@ import type {
   PackageComposerMention,
 } from '../core/packageComposer';
 import type { StoryboardSheetPanelCount } from '../core/storyboardSheetContracts';
+import {
+  defaultImageComposerGenerationParams,
+  type ComposerMode,
+  type ImageComposerReference,
+  type ImageComposerReferenceRole,
+} from '../core/imageComposer';
+import type { ImageGenerationParams } from '../core/imageOperations';
 
 export interface ComposerReferenceSetting {
   purpose: string;
@@ -34,17 +41,33 @@ export interface UnifiedComposerAgentInput {
   parameters: Record<string, unknown>;
 }
 
+export interface UnifiedComposerImageDraftInput {
+  connectionId: string;
+  generationParams: ImageGenerationParams;
+  instruction: string;
+  references: ImageComposerReference[];
+}
+
 export interface UnifiedComposerDraftController {
   clearEntryPoint: () => void;
+  composerMode: ComposerMode;
   entrypointId?: string;
   generationParameters: GenerationPreparationParameters;
+  imageConnectionId?: string;
+  imageGenerationParams: ImageGenerationParams;
+  imageReferenceRoles: Record<string, ImageComposerReferenceRole>;
   inlineValuesBySlot: Record<string, string>;
   instruction: string;
   mentions: PackageComposerMention[];
   referenceSettings: Record<string, ComposerReferenceSetting>;
   reset: () => void;
+  resetImageSubmission: () => void;
   selectEntryPoint: (entrypointId: string) => void;
+  setComposerMode: (mode: ComposerMode) => void;
   setGenerationParameters: Dispatch<SetStateAction<GenerationPreparationParameters>>;
+  setImageConnectionId: Dispatch<SetStateAction<string | undefined>>;
+  setImageGenerationParams: Dispatch<SetStateAction<ImageGenerationParams>>;
+  setImageReferenceRoles: Dispatch<SetStateAction<Record<string, ImageComposerReferenceRole>>>;
   setInlineValuesBySlot: Dispatch<SetStateAction<Record<string, string>>>;
   setInstruction: Dispatch<SetStateAction<string>>;
   setMentions: Dispatch<SetStateAction<PackageComposerMention[]>>;
@@ -58,6 +81,7 @@ export interface UnifiedComposerDraftController {
 const UnifiedComposerContext = createContext<UnifiedComposerDraftController | undefined>(undefined);
 
 export function UnifiedComposerProvider({ children }: { children: ReactNode }): ReactElement {
+  const [composerMode, setComposerModeState] = useState<ComposerMode>('agent');
   const [entrypointId, setEntrypointId] = useState<string>();
   const [instruction, setInstruction] = useState('');
   const [inlineValuesBySlot, setInlineValuesBySlot] = useState<Record<string, string>>({});
@@ -68,6 +92,11 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
   );
   const [referenceSettings, setReferenceSettings] = useState<Record<string, ComposerReferenceSetting>>({});
   const [mentions, setMentions] = useState<PackageComposerMention[]>([]);
+  const [imageConnectionId, setImageConnectionId] = useState<string>();
+  const [imageGenerationParams, setImageGenerationParams] = useState<ImageGenerationParams>(
+    defaultImageComposerGenerationParams,
+  );
+  const [imageReferenceRoles, setImageReferenceRoles] = useState<Record<string, ImageComposerReferenceRole>>({});
 
   const reset = useCallback((): void => {
     setEntrypointId(undefined);
@@ -78,6 +107,13 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     setGenerationParameters(defaultGenerationPreparationParameters);
     setReferenceSettings({});
     setMentions([]);
+    setImageReferenceRoles({});
+  }, []);
+
+  const resetImageSubmission = useCallback((): void => {
+    setInstruction('');
+    setMentions([]);
+    setImageReferenceRoles({});
   }, []);
 
   const clearEntryPoint = useCallback((): void => {
@@ -100,17 +136,38 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     setMentions([]);
   }, []);
 
+  const setComposerMode = useCallback((mode: ComposerMode): void => {
+    setComposerModeState(mode);
+    setEntrypointId(undefined);
+    setInlineValuesBySlot({});
+    setStoryboardOutputCount(1);
+    setStoryboardPanelCount(6);
+    setGenerationParameters(defaultGenerationPreparationParameters);
+    setReferenceSettings({});
+    setMentions([]);
+    setImageReferenceRoles({});
+  }, []);
+
   const value = useMemo<UnifiedComposerDraftController>(() => ({
     clearEntryPoint,
+    composerMode,
     entrypointId,
     generationParameters,
+    imageConnectionId,
+    imageGenerationParams,
+    imageReferenceRoles,
     inlineValuesBySlot,
     instruction,
     mentions,
     referenceSettings,
     reset,
+    resetImageSubmission,
     selectEntryPoint,
+    setComposerMode,
     setGenerationParameters,
+    setImageConnectionId,
+    setImageGenerationParams,
+    setImageReferenceRoles,
     setInlineValuesBySlot,
     setInstruction,
     setMentions,
@@ -121,14 +178,20 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     storyboardPanelCount,
   }), [
     clearEntryPoint,
+    composerMode,
     entrypointId,
     generationParameters,
+    imageConnectionId,
+    imageGenerationParams,
+    imageReferenceRoles,
     inlineValuesBySlot,
     instruction,
     mentions,
     referenceSettings,
     reset,
+    resetImageSubmission,
     selectEntryPoint,
+    setComposerMode,
     storyboardOutputCount,
     storyboardPanelCount,
   ]);

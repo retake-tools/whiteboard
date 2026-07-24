@@ -1,4 +1,4 @@
-import { ArrowUp, AtSign, Bot, ChevronDown, Search, Sparkles, X } from 'lucide-react';
+import { ArrowUp, AtSign, Bot, ChevronDown, ImageIcon, Search, Sparkles, X } from 'lucide-react';
 import {
   useMemo,
   useId,
@@ -10,6 +10,12 @@ import {
   type ReactElement,
   type SetStateAction,
 } from 'react';
+import {
+  imageComposerReferenceRoles,
+  listImageComposerReferenceOptions,
+  type ComposerMode,
+  type ImageComposerReferenceRole,
+} from '../core/imageComposer';
 import {
   listPackageComposerInlineInputOptions,
   listGoalComposerMentionOptions,
@@ -45,13 +51,17 @@ import {
   useUnifiedComposerDraft,
   type ComposerReferenceSetting,
   type UnifiedComposerAgentInput,
+  type UnifiedComposerImageDraftInput,
 } from './UnifiedComposerProvider';
+import { ImageComposerControls } from './ImageComposerControls';
 
 interface SkillQuickInputComposerProps {
   agentDisabled?: boolean;
   autoFocus?: boolean;
   mode?: 'agent' | 'canvas';
+  onCreateImageDraft?: (input: UnifiedComposerImageDraftInput) => void;
   onInvokeEntryPoint?: (invocation: PackageComposerInvocation) => void;
+  onRequestCanvasMode?: () => void;
   onSubmitAgentMessage: (input: UnifiedComposerAgentInput) => void;
   showRecommendations?: boolean;
   snapshot: BoardSnapshot;
@@ -63,7 +73,9 @@ export function SkillQuickInputComposer({
   agentDisabled,
   autoFocus,
   mode = 'canvas',
+  onCreateImageDraft,
   onInvokeEntryPoint,
+  onRequestCanvasMode,
   onSubmitAgentMessage,
   showRecommendations = mode === 'canvas',
   snapshot,
@@ -74,17 +86,24 @@ export function SkillQuickInputComposer({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const {
     clearEntryPoint,
+    composerMode,
     entrypointId,
     generationParameters,
+    imageConnectionId,
+    imageGenerationParams,
+    imageReferenceRoles,
     inlineValuesBySlot,
     instruction,
     mentions,
     referenceSettings,
     reset,
+    resetImageSubmission,
     selectEntryPoint: selectDraftEntryPoint,
+    setComposerMode,
     setGenerationParameters,
     setInlineValuesBySlot,
     setInstruction,
+    setImageReferenceRoles,
     setMentions,
     setReferenceSettings,
     setStoryboardOutputCount,
@@ -108,10 +127,12 @@ export function SkillQuickInputComposer({
     (option) => option.schemaRef === 'retake.generation-reference-manifest/v1',
   );
   const mentionOptions = useMemo(
-    () => entrypointId
+    () => composerMode === 'image'
+      ? listImageComposerReferenceOptions(snapshot)
+      : entrypointId
       ? listPackageComposerMentionOptions(snapshot, entrypointId)
       : listGoalComposerMentionOptions(snapshot),
-    [entrypointId, snapshot],
+    [composerMode, entrypointId, snapshot],
   );
   const mentionOptionsById = useMemo(
     () => new Map(mentionOptions.map((option) => [option.mentionId, option])),
@@ -178,6 +199,10 @@ export function SkillQuickInputComposer({
     usesStoryboardSheet,
   ]);
   const canSubmit = useMemo(() => {
+    if (composerMode === 'video') return false;
+    if (composerMode === 'image') {
+      return Boolean(instruction.trim() && imageConnectionId && onCreateImageDraft);
+    }
     if (!invocation) return Boolean(instruction.trim()) && !agentDisabled;
     try {
       resolvePackageComposerInvocation(snapshot, invocation);
@@ -185,7 +210,15 @@ export function SkillQuickInputComposer({
     } catch {
       return false;
     }
-  }, [agentDisabled, instruction, invocation, snapshot]);
+  }, [
+    agentDisabled,
+    composerMode,
+    imageConnectionId,
+    instruction,
+    invocation,
+    onCreateImageDraft,
+    snapshot,
+  ]);
 
   useDismissiblePopover({
     active: Boolean(picker),
@@ -227,7 +260,7 @@ export function SkillQuickInputComposer({
       setPicker({ mode: 'mention', query: mentionQuery });
       return;
     }
-    const entrypointQuery = trailingTriggerQuery(value, '/');
+    const entrypointQuery = composerMode === 'agent' ? trailingTriggerQuery(value, '/') : undefined;
     if (entrypointQuery !== undefined) {
       setPicker({ mode: 'entrypoint', query: entrypointQuery });
       return;
@@ -237,6 +270,29 @@ export function SkillQuickInputComposer({
 
   function submit(event: FormEvent): void {
     event.preventDefault();
+    if (composerMode === 'image') {
+      if (!canSubmit || !imageConnectionId || !onCreateImageDraft) return;
+      try {
+        onCreateImageDraft({
+          connectionId: imageConnectionId,
+          generationParams: imageGenerationParams,
+          instruction: instruction.trim(),
+          references: mentions.map((mention) => {
+            const mentionId = packageComposerMentionId(mention);
+            return {
+              mention,
+              role: imageReferenceRoles[mentionId] ?? 'general_reference',
+            };
+          }),
+        });
+        resetImageSubmission();
+        setPicker(undefined);
+        setSubmitError(undefined);
+      } catch {
+        setSubmitError(t('skillComposer.invalidInput'));
+      }
+      return;
+    }
     if (mode === 'agent') {
       if (!canSubmit) return;
       onSubmitAgentMessage({
@@ -290,6 +346,15 @@ export function SkillQuickInputComposer({
     inputRef.current?.focus();
   }
 
+  function changeComposerMode(nextMode: ComposerMode): void {
+    if (nextMode === 'video') return;
+    setComposerMode(nextMode);
+    setPicker(undefined);
+    setSubmitError(undefined);
+    if (nextMode === 'image' && mode === 'agent') onRequestCanvasMode?.();
+    inputRef.current?.focus();
+  }
+
   function focusPickerOption(current: HTMLElement, direction: 1 | -1): void {
     const options = [...(rootRef.current?.querySelectorAll<HTMLButtonElement>('.skill-composer-picker-option') ?? [])];
     if (options.length === 0) return;
@@ -314,7 +379,20 @@ export function SkillQuickInputComposer({
                   <span key={mentionId} className="skill-composer-mention-chip">
                     <AtSign size={11} />
                     {option?.label ?? mentionId}
-                    <small>{mention.slotId}</small>
+                    {composerMode === 'image' ? (
+                      <select
+                        aria-label={t('skillComposer.referenceRole')}
+                        value={imageReferenceRoles[mentionId] ?? 'general_reference'}
+                        onChange={(event) => setImageReferenceRoles((current) => ({
+                          ...current,
+                          [mentionId]: event.target.value as ImageComposerReferenceRole,
+                        }))}
+                      >
+                        {imageComposerReferenceRoles.map((role) => (
+                          <option key={role} value={role}>{imageReferenceRoleLabel(role, t)}</option>
+                        ))}
+                      </select>
+                    ) : <small>{mention.slotId}</small>}
                     <button
                       type="button"
                       aria-label={t('skillComposer.removeMention')}
@@ -481,7 +559,9 @@ export function SkillQuickInputComposer({
             ref={inputRef}
             rows={3}
             value={instruction}
-            placeholder={mode === 'agent'
+            placeholder={composerMode === 'image'
+              ? t('skillComposer.imagePlaceholder')
+              : mode === 'agent'
               ? t('agentWorkspace.inputPlaceholder')
               : entrypointId
                 ? t('skillComposer.inputPlaceholder')
@@ -490,24 +570,27 @@ export function SkillQuickInputComposer({
             onKeyDown={handleInputKeyDown}
           />
         </div>
+        {composerMode === 'image' ? (
+          <ImageComposerControls projectId={snapshot.project.projectId} />
+        ) : null}
         <small className="skill-composer-keyboard-hint" id={keyboardHintId}>
           {t('skillComposer.keyboardHint')}
         </small>
         <div className="skill-composer-controls">
           <label className="skill-composer-mode">
-            <Bot size={15} />
+            {composerMode === 'image' ? <ImageIcon size={15} /> : <Bot size={15} />}
             <select
               aria-label={t('skillComposer.creationMode')}
-              value="agent"
-              onChange={() => undefined}
+              value={composerMode}
+              onChange={(event) => changeComposerMode(event.target.value as ComposerMode)}
             >
               <option value="agent">{t('skillComposer.modeAgent')}</option>
-              <option value="image" disabled>{t('skillComposer.modeImage')} · {t('skillComposer.modeComingSoon')}</option>
+              <option value="image">{t('skillComposer.modeImage')}</option>
               <option value="video" disabled>{t('skillComposer.modeVideo')} · {t('skillComposer.modeComingSoon')}</option>
             </select>
             <ChevronDown size={13} />
           </label>
-          {selectedEntryPoint ? (
+          {composerMode === 'agent' && selectedEntryPoint ? (
             <div className="skill-composer-entrypoint is-selected">
               <button
                 type="button"
@@ -528,7 +611,7 @@ export function SkillQuickInputComposer({
                 <X size={12} />
               </button>
             </div>
-          ) : (
+          ) : composerMode === 'agent' ? (
             <button
               type="button"
               className="skill-composer-entrypoint"
@@ -539,7 +622,7 @@ export function SkillQuickInputComposer({
               <span>{t('skillComposer.chooseEntryPoint')}</span>
               <ChevronDown size={13} />
             </button>
-          )}
+          ) : null}
           <button
             type="button"
             className="skill-composer-mention-trigger"
@@ -553,17 +636,20 @@ export function SkillQuickInputComposer({
             className="skill-composer-submit"
             disabled={!canSubmit}
             aria-label={t(mode === 'agent'
+              && composerMode === 'agent'
               ? 'agentWorkspace.send'
-              : entrypointId
-                ? 'skillComposer.create'
-                : 'skillComposer.planWithAgent')}
+              : composerMode === 'image'
+                ? 'skillComposer.createImageDraft'
+                : entrypointId
+                  ? 'skillComposer.create'
+                  : 'skillComposer.planWithAgent')}
           >
             <ArrowUp size={17} />
           </button>
         </div>
       </form>
       {submitError ? <p className="skill-composer-error" role="status">{submitError}</p> : null}
-      {showRecommendations ? <div className="skill-composer-recommended">
+      {showRecommendations && composerMode === 'agent' ? <div className="skill-composer-recommended">
         <span><Sparkles size={12} />{t('skillDock.recommended')}</span>
         {recommended.map((registration) => (
           <button
@@ -644,7 +730,9 @@ export function SkillQuickInputComposer({
                         }
                       }}
                     >
-                      <strong>{t('skillComposer.inputSlot')} · {option.slotId}</strong>
+                      <strong>{composerMode === 'image'
+                        ? t('skillComposer.imageReference')
+                        : `${t('skillComposer.inputSlot')} · ${option.slotId}`}</strong>
                       <span>{option.description}{option.artifactType ? ` · ${option.artifactType}` : ''}</span>
                     </button>
                   ))}
@@ -760,6 +848,22 @@ function mentionForOption(option: PackageComposerMentionOption): PackageComposer
   return option.kind === 'block'
     ? { kind: 'block', blockId: option.blockId, slotId: option.slotId }
     : { kind: 'asset', assetId: option.assetId, slotId: option.slotId };
+}
+
+function imageReferenceRoleLabel(
+  role: ImageComposerReferenceRole,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  const keys: Record<ImageComposerReferenceRole, Parameters<typeof t>[0]> = {
+    character_reference: 'skillComposer.referenceRoleCharacter',
+    composition_reference: 'skillComposer.referenceRoleComposition',
+    environment_reference: 'skillComposer.referenceRoleEnvironment',
+    general_reference: 'skillComposer.referenceRoleGeneral',
+    object_reference: 'skillComposer.referenceRoleObject',
+    pose_reference: 'skillComposer.referenceRolePose',
+    style_reference: 'skillComposer.referenceRoleStyle',
+  };
+  return t(keys[role]);
 }
 
 function trailingTriggerQuery(value: string, trigger: '/' | '@'): string | undefined {

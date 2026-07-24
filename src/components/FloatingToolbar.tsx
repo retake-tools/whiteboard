@@ -16,7 +16,10 @@ import { shouldShowSkillDock } from '../core/releaseFeatures';
 import type { BlockType, BoardSnapshot } from '../core/types';
 import { useI18n } from '../i18n';
 import { SkillQuickInputComposer } from './SkillQuickInputComposer';
-import type { UnifiedComposerAgentInput } from './UnifiedComposerProvider';
+import type {
+  UnifiedComposerAgentInput,
+  UnifiedComposerImageDraftInput,
+} from './UnifiedComposerProvider';
 import { TooltipIconButton } from './Tooltip';
 
 const skillDockVisible = shouldShowSkillDock({ DEV: import.meta.env?.DEV === true });
@@ -29,6 +32,7 @@ interface FloatingToolbarProps {
   composerVisible?: boolean;
   onAddBlock: (type: Extract<BlockType, 'group' | 'image' | 'operation' | 'text' | 'video'>) => void;
   onCreateImageToImage: () => void;
+  onCreateImageDraft: (input: UnifiedComposerImageDraftInput) => void;
   onCreateTextToImage: () => void;
   onInvokeEntryPoint: (invocation: PackageComposerInvocation) => void;
   onSubmitAgentMessage: (input: UnifiedComposerAgentInput) => void;
@@ -42,6 +46,7 @@ export function FloatingToolbar({
   composerVisible = true,
   onAddBlock,
   onCreateImageToImage,
+  onCreateImageDraft,
   onCreateTextToImage,
   onInvokeEntryPoint,
   onSubmitAgentMessage,
@@ -56,6 +61,7 @@ export function FloatingToolbar({
         <SkillQuickInputComposer
           agentDisabled={agentDisabled}
           snapshot={snapshot}
+          onCreateImageDraft={onCreateImageDraft}
           onInvokeEntryPoint={onInvokeEntryPoint}
           onSubmitAgentMessage={onSubmitAgentMessage}
         />

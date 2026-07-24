@@ -15,6 +15,15 @@ import {
   type GenerationProfile,
 } from '../core/generationProfiles';
 import type { ImageGenerationParams, SwitchableOperationMode } from '../core/imageOperations';
+import {
+  imageComposerAspectRatioForPreset,
+  imageComposerAspectRatios,
+  imageComposerDimensionsForAspectRatio,
+  imageComposerResolutionMaxSide,
+  imageComposerResolutions,
+  type ImageComposerAspectRatio,
+  type ImageComposerResolution,
+} from '../core/imageComposer';
 import { operationDisplayState } from '../core/operationDisplay';
 import { skillUiDefinitionFor, skillsForCapability } from '../core/skillRegistry';
 import {
@@ -34,8 +43,8 @@ import {
   normalizeDomainVideoGenerationParameters,
 } from '../core/domainVideoGenerationContracts';
 
-type AspectPreset = 'source' | '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '3:2' | '2:3';
-type ResolutionPreset = '1K' | '2K' | '4K';
+type AspectPreset = 'source' | ImageComposerAspectRatio;
+type ResolutionPreset = ImageComposerResolution;
 type MotionPreset = 'auto' | 'balanced' | 'dynamic' | 'subtle';
 
 const parameterKeys: GenerationParameterKey[] = [
@@ -724,15 +733,8 @@ function capabilityIdForOperationMode(operation: SwitchableOperationMode, data: 
   return 'image.image_to_image';
 }
 
-const standardAspectOptions: Array<{ label: string; value: Exclude<AspectPreset, 'source'> }> = [
-  { label: '1:1', value: '1:1' },
-  { label: '16:9', value: '16:9' },
-  { label: '9:16', value: '9:16' },
-  { label: '4:3', value: '4:3' },
-  { label: '3:4', value: '3:4' },
-  { label: '3:2', value: '3:2' },
-  { label: '2:3', value: '2:3' },
-];
+const standardAspectOptions: Array<{ label: string; value: Exclude<AspectPreset, 'source'> }> =
+  imageComposerAspectRatios.map((value) => ({ label: value, value }));
 
 function aspectOptionClassName(value: AspectPreset, sourceAspectRatio?: number): string {
   if (value === 'source') {
@@ -742,7 +744,7 @@ function aspectOptionClassName(value: AspectPreset, sourceAspectRatio?: number):
   return `aspect-${value.replace(':', '-')}`;
 }
 
-const resolutionOptions: ResolutionPreset[] = ['1K', '2K', '4K'];
+const resolutionOptions: ResolutionPreset[] = [...imageComposerResolutions];
 const durationOptions = [4, 6, 8, 10];
 const motionOptions: Array<{ label: string; value: MotionPreset }> = [
   { label: 'Auto', value: 'auto' },
@@ -820,9 +822,8 @@ function paramsForPreset(
   sourceAspectRatio?: number,
 ): ImageGenerationParams {
   const targetAspectRatio = aspectRatioForPreset(aspectRatioPreset, sourceAspectRatio) ?? 1;
-  const maxSide = resolutionMaxSide(targetResolution);
-  const targetWidth = targetAspectRatio >= 1 ? maxSide : Math.round(maxSide * targetAspectRatio);
-  const targetHeight = targetAspectRatio >= 1 ? Math.round(maxSide / targetAspectRatio) : maxSide;
+  const maxSide = imageComposerResolutionMaxSide(targetResolution);
+  const { targetHeight, targetWidth } = imageComposerDimensionsForAspectRatio(targetAspectRatio, maxSide);
   return {
     aspectRatioPreset,
     targetAspectRatio,
@@ -858,8 +859,7 @@ function operationParamsSummary(
 
 function aspectRatioForPreset(preset: AspectPreset, sourceAspectRatio?: number): number | undefined {
   if (preset === 'source') return sourceAspectRatio;
-  const [width, height] = preset.split(':').map(Number);
-  return safeRatio(width, height);
+  return imageComposerAspectRatioForPreset(preset);
 }
 
 function presetForRatio(ratio?: number): AspectPreset | undefined {
@@ -877,12 +877,6 @@ function finiteNumber(value: unknown): number | undefined {
 function safeRatio(width?: number, height?: number): number | undefined {
   if (!width || !height || !Number.isFinite(width) || !Number.isFinite(height) || height <= 0) return undefined;
   return width / height;
-}
-
-function resolutionMaxSide(resolution: ResolutionPreset): number {
-  if (resolution === '1K') return 1024;
-  if (resolution === '4K') return 4096;
-  return 2048;
 }
 
 function clampVariationCount(count: unknown): number {
@@ -906,7 +900,7 @@ function isAspectPreset(value: unknown): value is AspectPreset {
 }
 
 function isResolutionPreset(value: unknown): value is ResolutionPreset {
-  return value === '1K' || value === '2K' || value === '4K';
+  return typeof value === 'string' && imageComposerResolutions.includes(value as ImageComposerResolution);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

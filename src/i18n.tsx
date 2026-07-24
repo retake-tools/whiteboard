@@ -436,6 +436,21 @@ type TranslationKey =
   | 'skillComposer.modeComingSoon'
   | 'skillComposer.modeImage'
   | 'skillComposer.modeVideo'
+  | 'skillComposer.imagePlaceholder'
+  | 'skillComposer.createImageDraft'
+  | 'skillComposer.imageParameters'
+  | 'skillComposer.connection'
+  | 'skillComposer.noImageConnections'
+  | 'skillComposer.resolution'
+  | 'skillComposer.imageCount'
+  | 'skillComposer.imageReference'
+  | 'skillComposer.referenceRoleGeneral'
+  | 'skillComposer.referenceRoleCharacter'
+  | 'skillComposer.referenceRoleStyle'
+  | 'skillComposer.referenceRoleComposition'
+  | 'skillComposer.referenceRolePose'
+  | 'skillComposer.referenceRoleObject'
+  | 'skillComposer.referenceRoleEnvironment'
   | 'skillComposer.storyboardParameters'
   | 'skillComposer.panelCount'
   | 'skillComposer.candidateCount'
@@ -1329,12 +1344,27 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.assetMention': 'Asset',
     'skillComposer.inputSlot': 'Input slot',
     'skillComposer.noEntryPoints': 'No matching skills or workflows.',
-    'skillComposer.noMentions': 'No compatible blocks or document assets.',
+    'skillComposer.noMentions': 'No compatible blocks or assets.',
     'skillComposer.invalidInput': 'This input combination is not compatible with the selected entry point.',
     'skillComposer.modeAgent': 'Agent',
     'skillComposer.modeComingSoon': 'Coming soon',
     'skillComposer.modeImage': 'Image',
     'skillComposer.modeVideo': 'Video',
+    'skillComposer.imagePlaceholder': 'Describe the image to generate. Use @ to add image references...',
+    'skillComposer.createImageDraft': 'Create image operation draft',
+    'skillComposer.imageParameters': 'Image generation parameters',
+    'skillComposer.connection': 'Connection',
+    'skillComposer.noImageConnections': 'No ready image Connection',
+    'skillComposer.resolution': 'Resolution',
+    'skillComposer.imageCount': 'Count',
+    'skillComposer.imageReference': 'Image reference',
+    'skillComposer.referenceRoleGeneral': 'General',
+    'skillComposer.referenceRoleCharacter': 'Character',
+    'skillComposer.referenceRoleStyle': 'Style',
+    'skillComposer.referenceRoleComposition': 'Composition',
+    'skillComposer.referenceRolePose': 'Pose',
+    'skillComposer.referenceRoleObject': 'Object',
+    'skillComposer.referenceRoleEnvironment': 'Environment',
     'skillComposer.storyboardParameters': 'Storyboard sheet parameters',
     'skillComposer.panelCount': 'Panels',
     'skillComposer.candidateCount': 'Candidates',
@@ -2223,12 +2253,27 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.assetMention': 'Asset',
     'skillComposer.inputSlot': '输入 Slot',
     'skillComposer.noEntryPoints': '没有匹配的 Skill 或 Workflow。',
-    'skillComposer.noMentions': '当前没有兼容的 Block 或 Document Asset。',
+    'skillComposer.noMentions': '当前没有兼容的 Block 或 Asset。',
     'skillComposer.invalidInput': '当前输入组合与所选 EntryPoint 不兼容。',
     'skillComposer.modeAgent': 'Agent',
     'skillComposer.modeComingSoon': '稍后开放',
     'skillComposer.modeImage': '图片',
     'skillComposer.modeVideo': '视频',
+    'skillComposer.imagePlaceholder': '描述要生成的图片，可用 @ 添加图片参考...',
+    'skillComposer.createImageDraft': '创建图片 Operation 草稿',
+    'skillComposer.imageParameters': '图片生成参数',
+    'skillComposer.connection': 'Connection',
+    'skillComposer.noImageConnections': '没有可用的图片 Connection',
+    'skillComposer.resolution': '分辨率',
+    'skillComposer.imageCount': '数量',
+    'skillComposer.imageReference': '图片参考',
+    'skillComposer.referenceRoleGeneral': '通用',
+    'skillComposer.referenceRoleCharacter': '角色',
+    'skillComposer.referenceRoleStyle': '风格',
+    'skillComposer.referenceRoleComposition': '构图',
+    'skillComposer.referenceRolePose': '姿势',
+    'skillComposer.referenceRoleObject': '物体',
+    'skillComposer.referenceRoleEnvironment': '环境',
     'skillComposer.storyboardParameters': '分镜图参数',
     'skillComposer.panelCount': '格数',
     'skillComposer.candidateCount': '候选数',
