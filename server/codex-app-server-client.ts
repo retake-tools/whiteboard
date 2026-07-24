@@ -220,7 +220,6 @@ export async function runCodexAppServerTurn(
           approvalPolicy: 'never',
           sandbox: input.sandbox ?? 'read-only',
           ...(input.baseInstructions ? { baseInstructions: input.baseInstructions } : {}),
-          excludeTurns: true,
         })
       : await session.request('thread/start', {
           model: input.model,

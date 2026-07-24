@@ -11,88 +11,77 @@ import { getBoardSnapshot } from './local-store';
 import { listExecutionProviderSettings } from './local-store/execution-provider-store';
 import { runCodexAppServerTurn } from './codex-app-server-client';
 
-const decisionSchema = {
-  anyOf: [
-    {
-      type: 'object',
-      additionalProperties: false,
-      required: ['kind', 'message'],
-      properties: { kind: { const: 'reply' }, message: { type: 'string' } },
-    },
-    {
-      type: 'object',
-      additionalProperties: false,
-      required: ['kind', 'message', 'action', 'agentRunId'],
-      properties: {
-        kind: { const: 'agent_run_control' },
-        message: { type: 'string' },
-        action: { enum: ['pause', 'resume', 'cancel'] },
-        agentRunId: { type: 'string' },
-      },
-    },
-    {
-      type: 'object',
-      additionalProperties: false,
-      required: ['kind', 'message', 'proposalKind', 'proposedCommand', 'summary'],
-      properties: {
-        kind: { const: 'change_proposal' },
-        message: { type: 'string' },
-        proposalKind: { enum: ['modify_workflow', 'install_package', 'expand_permissions', 'out_of_scope'] },
-        proposedCommand: {
-          anyOf: [
-            {
-              type: 'object',
-              additionalProperties: false,
-              required: ['kind', 'targetAgentRunId'],
-              properties: {
-                kind: { const: 'agent_session.attach_run' },
-                targetAgentRunId: { type: 'string' },
-              },
-            },
-            {
-              type: 'object',
-              additionalProperties: false,
-              required: ['kind', 'reason'],
-              properties: {
-                kind: { const: 'unsupported' },
-                reason: { type: 'string' },
-              },
-            },
-          ],
-        },
-        summary: { type: 'string' },
-      },
-    },
-    {
-      type: 'object',
-      additionalProperties: false,
-      required: [
-        'kind',
-        'message',
-        'summary',
-        'workflowEntryPointId',
-        'coverage',
-        'limitations',
-      ],
-      properties: {
-        kind: { const: 'goal_plan_proposal' },
-        message: { type: 'string' },
-        summary: { type: 'string' },
-        workflowEntryPointId: { type: 'string' },
-        coverage: { enum: ['full', 'partial'] },
-        limitations: {
-          type: 'array',
-          maxItems: 8,
-          items: { type: 'string' },
-        },
-      },
-    },
+export const agentRuntimeDecisionSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'kind',
+    'message',
+    'action',
+    'agentRunId',
+    'proposalKind',
+    'proposedCommand',
+    'summary',
+    'workflowEntryPointId',
+    'coverage',
+    'limitations',
   ],
+  properties: {
+    kind: {
+      type: 'string',
+      enum: ['reply', 'agent_run_control', 'change_proposal', 'goal_plan_proposal'],
+    },
+    message: { type: 'string' },
+    action: {
+      type: ['string', 'null'],
+      enum: ['pause', 'resume', 'cancel', null],
+    },
+    agentRunId: { type: ['string', 'null'] },
+    proposalKind: {
+      type: ['string', 'null'],
+      enum: ['modify_workflow', 'install_package', 'expand_permissions', 'out_of_scope', null],
+    },
+    proposedCommand: {
+      anyOf: [
+        {
+          type: 'object',
+          additionalProperties: false,
+          required: ['kind', 'targetAgentRunId'],
+          properties: {
+            kind: { type: 'string', const: 'agent_session.attach_run' },
+            targetAgentRunId: { type: 'string' },
+          },
+        },
+        {
+          type: 'object',
+          additionalProperties: false,
+          required: ['kind', 'reason'],
+          properties: {
+            kind: { type: 'string', const: 'unsupported' },
+            reason: { type: 'string' },
+          },
+        },
+        { type: 'null' },
+      ],
+    },
+    summary: { type: ['string', 'null'] },
+    workflowEntryPointId: { type: ['string', 'null'] },
+    coverage: {
+      type: ['string', 'null'],
+      enum: ['full', 'partial', null],
+    },
+    limitations: {
+      type: 'array',
+      maxItems: 8,
+      items: { type: 'string' },
+    },
+  },
 } satisfies Record<string, unknown>;
 
 const baseInstructions = `You are Retake's bounded video-workflow assistant.
 Use only the Board and AgentRun facts supplied in each user turn. Do not call tools, inspect files, use the shell, browse, or modify the environment.
 Return one JSON object matching the supplied schema.
+- Set fields that do not apply to the selected kind to null, and set limitations to [] when no limitations apply.
 - reply: answer questions that do not change product state.
 - When retakeContext.entrypointId is present, return reply only. Explain that Retake will create an approval proposal
   for the exact selected EntryPoint and inputs. Never propose or rewrite an EntryPoint command.
@@ -148,7 +137,7 @@ class CodexAppServerAgentRuntimePort implements AgentRuntimePort {
         cwd: process.cwd(),
         ephemeral: false,
         model: input.binding.model,
-        outputSchema: decisionSchema,
+        outputSchema: agentRuntimeDecisionSchema,
         prompt: runtimePrompt(input.context),
         sandbox: 'read-only',
         onTextDelta: (delta) => {

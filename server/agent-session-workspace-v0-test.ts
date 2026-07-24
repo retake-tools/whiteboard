@@ -18,7 +18,7 @@ import { cancelAgentRun, createAgentRunForOperation, startAgentRun } from '../sr
 import { createDraftSkillOperation } from '../src/core/textOperations';
 import type { BoardSnapshot } from '../src/core/types';
 import { loadSnapshot, resetWorkspace, saveSnapshot } from './local-store/snapshot-store';
-import { parseAgentRuntimeDecision } from './agent-runtime-port';
+import { agentRuntimeDecisionSchema, parseAgentRuntimeDecision } from './agent-runtime-port';
 
 const [portSource, workspaceSource, composerSource, sharedComposerSource, controllerSource, appServerSource, apiSource, runtimeClientSource] = await Promise.all([
   readFile(new URL('./agent-runtime-port.ts', import.meta.url), 'utf8'),
@@ -32,12 +32,13 @@ const [portSource, workspaceSource, composerSource, sharedComposerSource, contro
 ]);
 
 assert.match(portSource, /implements AgentRuntimePort/);
-assert.match(portSource, /outputSchema: decisionSchema/);
+assert.match(portSource, /outputSchema: agentRuntimeDecisionSchema/);
 assert.match(portSource, /publishedDecisionDelta/);
 assert.match(portSource, /sandbox: 'read-only'/);
 assert.match(portSource, /Do not call tools/);
 assert.doesNotMatch(portSource, /saveSnapshot|createBlock|projectWorkflowDraft/);
 assert.match(appServerSource, /thread\/resume/);
+assert.doesNotMatch(appServerSource, /excludeTurns/);
 assert.doesNotMatch(appServerSource, /dynamicTools:/);
 assert.doesNotMatch(workspaceSource, /\['chat', 'run', 'changes'\]/);
 assert.doesNotMatch(workspaceSource, /agentWorkspace\.createSession/);
@@ -54,6 +55,12 @@ assert.match(controllerSource, /ensureDefaultAgentSession/);
 assert.match(controllerSource, /const agentSessionId = selectedSessionId \?\? ensureDefaultSession\(\)/);
 assert.match(apiSource, /application\/x-ndjson/);
 assert.match(runtimeClientSource, /response\.body\.getReader/);
+assert.equal(agentRuntimeDecisionSchema.type, 'object');
+assert.deepEqual(
+  new Set(agentRuntimeDecisionSchema.required),
+  new Set(Object.keys(agentRuntimeDecisionSchema.properties)),
+);
+assertSchemaDiscriminatorsDeclareStringType(agentRuntimeDecisionSchema);
 
 const parserContext = {
   agentRun: {
@@ -351,4 +358,21 @@ async function emptySnapshot(): Promise<BoardSnapshot> {
   snapshot.workflowStepRuns = [];
   snapshot.historyEvents = [];
   return snapshot;
+}
+
+function assertSchemaDiscriminatorsDeclareStringType(value: unknown): void {
+  if (Array.isArray(value)) {
+    value.forEach(assertSchemaDiscriminatorsDeclareStringType);
+    return;
+  }
+  if (!value || typeof value !== 'object') return;
+  const schema = value as Record<string, unknown>;
+  if ('const' in schema || 'enum' in schema) {
+    assert.ok(
+      schema.type === 'string'
+        || (Array.isArray(schema.type) && schema.type.includes('string')),
+      'Codex structured-output const/enum schemas must declare a string type.',
+    );
+  }
+  Object.values(schema).forEach(assertSchemaDiscriminatorsDeclareStringType);
 }
