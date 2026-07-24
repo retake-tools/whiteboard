@@ -300,39 +300,6 @@ export function SkillQuickInputComposer({
       aria-label={t('skillComposer.title')}
     >
       <form className="skill-composer-form" onSubmit={submit}>
-        {selectedEntryPoint ? (
-          <div className="skill-composer-entrypoint is-selected">
-            <button
-              type="button"
-              className="skill-composer-entrypoint-main"
-              aria-expanded={picker?.mode === 'entrypoint'}
-              onClick={() => setPicker({ mode: 'entrypoint', query: '' })}
-            >
-              <Sparkles size={15} />
-              <span>{entryPointDisplayName(selectedEntryPoint, t)}</span>
-              <ChevronDown size={13} />
-            </button>
-            <button
-              type="button"
-              className="skill-composer-entrypoint-remove"
-              aria-label={t('skillComposer.clearEntryPoint')}
-              onClick={clearSelectedEntryPoint}
-            >
-              <X size={12} />
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className="skill-composer-entrypoint"
-            aria-expanded={picker?.mode === 'entrypoint'}
-            onClick={() => setPicker({ mode: 'entrypoint', query: '' })}
-          >
-            <Sparkles size={15} />
-            <span>{t('skillComposer.chooseEntryPoint')}</span>
-            <ChevronDown size={13} />
-          </button>
-        )}
         <div className="skill-composer-input-shell">
           {mentions.length > 0 ? (
             <div className="skill-composer-mentions" aria-label={t('skillComposer.selectedMentions')}>
@@ -506,7 +473,7 @@ export function SkillQuickInputComposer({
           ) : null}
           <textarea
             ref={inputRef}
-            rows={1}
+            rows={3}
             value={instruction}
             placeholder={mode === 'agent'
               ? t('agentWorkspace.inputPlaceholder')
@@ -517,26 +484,61 @@ export function SkillQuickInputComposer({
             onKeyDown={handleInputKeyDown}
           />
         </div>
-        <button
-          type="button"
-          className="skill-composer-mention-trigger"
-          aria-label={t('skillComposer.addMention')}
-          onClick={() => setPicker({ mode: 'mention', query: '' })}
-        >
-          <AtSign size={16} />
-        </button>
-        <button
-          type="submit"
-          className="skill-composer-submit"
-          disabled={!canSubmit}
-          aria-label={t(mode === 'agent'
-            ? 'agentWorkspace.send'
-            : entrypointId
-              ? 'skillComposer.create'
-              : 'skillComposer.planWithAgent')}
-        >
-          <ArrowUp size={17} />
-        </button>
+        <div className="skill-composer-controls">
+          {selectedEntryPoint ? (
+            <div className="skill-composer-entrypoint is-selected">
+              <button
+                type="button"
+                className="skill-composer-entrypoint-main"
+                aria-expanded={picker?.mode === 'entrypoint'}
+                onClick={() => setPicker({ mode: 'entrypoint', query: '' })}
+              >
+                <Sparkles size={15} />
+                <span>{entryPointDisplayName(selectedEntryPoint, t)}</span>
+                <ChevronDown size={13} />
+              </button>
+              <button
+                type="button"
+                className="skill-composer-entrypoint-remove"
+                aria-label={t('skillComposer.clearEntryPoint')}
+                onClick={clearSelectedEntryPoint}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="skill-composer-entrypoint"
+              aria-expanded={picker?.mode === 'entrypoint'}
+              onClick={() => setPicker({ mode: 'entrypoint', query: '' })}
+            >
+              <Sparkles size={15} />
+              <span>{t('skillComposer.chooseEntryPoint')}</span>
+              <ChevronDown size={13} />
+            </button>
+          )}
+          <button
+            type="button"
+            className="skill-composer-mention-trigger"
+            aria-label={t('skillComposer.addMention')}
+            onClick={() => setPicker({ mode: 'mention', query: '' })}
+          >
+            <AtSign size={16} />
+          </button>
+          <button
+            type="submit"
+            className="skill-composer-submit"
+            disabled={!canSubmit}
+            aria-label={t(mode === 'agent'
+              ? 'agentWorkspace.send'
+              : entrypointId
+                ? 'skillComposer.create'
+                : 'skillComposer.planWithAgent')}
+          >
+            <ArrowUp size={17} />
+          </button>
+        </div>
       </form>
       {submitError ? <p className="skill-composer-error" role="status">{submitError}</p> : null}
       {showRecommendations ? <div className="skill-composer-recommended">

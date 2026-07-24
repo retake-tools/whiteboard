@@ -34,7 +34,14 @@
   backdrop-filter: blur(14px);
 }
 
-.skill-composer-form { display: flex; gap: 7px; align-items: center; }
+.skill-composer-form { display: grid; gap: 8px; }
+
+.skill-composer-controls {
+  display: flex;
+  min-width: 0;
+  gap: 7px;
+  align-items: center;
+}
 
 .skill-composer-entrypoint,
 .skill-composer-mention-trigger,
@@ -93,12 +100,11 @@
 .skill-composer-input-shell {
   display: flex;
   min-width: 0;
-  min-height: 38px;
-  flex: 1;
+  min-height: 82px;
   flex-wrap: wrap;
   gap: 5px;
-  align-items: center;
-  padding: 5px 8px;
+  align-items: flex-start;
+  padding: 9px 10px;
   border: 1px solid #cbd5e1;
   border-radius: 9px;
   background: #fff;
@@ -107,10 +113,11 @@
 .skill-composer-input-shell:focus-within { border-color: #14b8a6; box-shadow: 0 0 0 3px rgb(20 184 166 / 12%); }
 
 .skill-composer-input-shell textarea {
-  min-width: 150px;
-  min-height: 22px;
-  max-height: 72px;
-  flex: 1;
+  width: 100%;
+  min-width: 100%;
+  min-height: 62px;
+  max-height: 144px;
+  flex: 1 0 100%;
   resize: none;
   border: 0;
   outline: 0;
@@ -209,6 +216,7 @@
 .skill-composer-mention-chip button { display: grid; padding: 2px; border: 0; background: transparent; color: #64748b; }
 .skill-composer-mention-trigger,
 .skill-composer-submit { width: 38px; flex: 0 0 38px; padding: 0; }
+.skill-composer-mention-trigger { margin-left: auto; }
 .skill-composer-submit { border-color: #0f766e; background: #0f766e; color: #fff; }
 .skill-composer-submit:disabled { border-color: #e2e8f0; background: #f1f5f9; color: #94a3b8; }
 .skill-composer-mention-trigger:disabled { color: #cbd5e1; }
@@ -312,10 +320,8 @@
   transform: none;
   backdrop-filter: none;
 }
-.skill-composer.is-agent-workspace .skill-composer-form { align-items: flex-end; flex-wrap: wrap; }
 .skill-composer.is-agent-workspace .skill-composer-entrypoint { max-width: 170px; }
-.skill-composer.is-agent-workspace .skill-composer-input-shell { flex-basis: 210px; }
-.skill-composer.is-agent-workspace .skill-composer-input-shell textarea { min-height: 42px; }
+.skill-composer.is-agent-workspace .skill-composer-input-shell textarea { min-height: 72px; }
 .skill-composer.is-agent-workspace .skill-composer-picker {
   right: 12px;
   bottom: calc(100% + 4px);

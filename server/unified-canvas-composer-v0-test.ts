@@ -20,6 +20,7 @@ const [
   agentComposerSource,
   responsiveSource,
   dismissiblePopoverSource,
+  toolbarStylesSource,
 ] = await Promise.all([
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/UnifiedComposerProvider.tsx', import.meta.url), 'utf8'),
@@ -27,6 +28,7 @@ const [
   readFile(new URL('../src/components/AgentWorkspaceComposer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/styles/responsive.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/hooks/useDismissiblePopover.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/styles/toolbars.css', import.meta.url), 'utf8'),
 ]);
 
 assert.match(appSource, /<UnifiedComposerProvider key=/);
@@ -43,6 +45,10 @@ assert.match(canvasComposerSource, /skill-composer-picker-source/);
 assert.match(appSource, /composerVisible=\{!isAgentWorkspaceOpen\}/);
 assert.match(canvasComposerSource, /skill-composer-entrypoint-remove/);
 assert.match(canvasComposerSource, /skill-composer-picker-option/);
+assert.match(canvasComposerSource, /rows=\{3\}/);
+assert.match(canvasComposerSource, /skill-composer-input-shell[\s\S]*skill-composer-controls/);
+assert.match(toolbarStylesSource, /\.skill-composer-form \{ display: grid/);
+assert.match(toolbarStylesSource, /\.skill-composer-input-shell textarea \{[\s\S]*min-height: 62px/);
 assert.match(dismissiblePopoverSource, /focusOnEscapeRef/);
 assert.doesNotMatch(responsiveSource, /\.skill-composer-entrypoint span,[\s\S]*display: none/);
 
@@ -96,6 +102,8 @@ console.log(JSON.stringify({
   unifiedPickerPresentation: true,
   groupedMentionSources: true,
   removableEntrypointChip: true,
+  multilineInput: true,
+  controlsBelowInput: true,
   escapeFocusReturn: true,
   canvasGoalSubmission: true,
   goalMentionPicker: true,
