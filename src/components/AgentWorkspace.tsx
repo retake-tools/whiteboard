@@ -1,5 +1,5 @@
-import { Archive, Bot, ChevronDown, CircleStop, Pause, Play, Plus, X } from 'lucide-react';
-import { useEffect, useState, type ReactElement } from 'react';
+import { Activity, Bot, CircleAlert, CircleStop, Pause, Play, Plus, X } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactElement, type Ref } from 'react';
 import { operationReadinessFor } from '../core/capabilities';
 import {
   agentPresetCompatibilityForRequirements,
@@ -13,6 +13,7 @@ import type {
   ChangeProposalRecord,
   PackageEntrypointAgentLaunchTarget,
 } from '../core/agentSessionContracts';
+import type { AgentRunRecord } from '../core/agentRuntimeContracts';
 import {
   listPackageEntryPoints,
   resolvePackageEntryPoint,
@@ -24,10 +25,9 @@ import { goalPlanDraftLaunchRequirements } from '../core/goalPlanAgentLaunchAppl
 import { listWorkflows, workflowUiDefinitionFor } from '../core/workflowRegistry';
 import { useI18n } from '../i18n';
 import { AgentWorkspaceComposer } from './AgentWorkspaceComposer';
+import { AgentSessionHistoryMenu } from './AgentSessionHistoryMenu';
 import { TooltipIconButton } from './Tooltip';
 import { WorkflowAgentTargetPicker } from './WorkflowAgentTargetPicker';
-
-type AgentWorkspaceTab = 'chat' | 'run' | 'changes';
 
 export function AgentWorkspace({
   binding,
@@ -84,96 +84,219 @@ export function AgentWorkspace({
   snapshot: BoardSnapshot;
 }): ReactElement {
   const { t } = useI18n();
-  const [tab, setTab] = useState<AgentWorkspaceTab>('chat');
+  const runCardRef = useRef<HTMLElement>(null);
   const messages = selectedSession ? messagesForSession(snapshot, selectedSession.agentSessionId) : [];
-  const proposals = selectedSession ? proposalsForSession(snapshot, selectedSession.agentSessionId) : [];
+  const proposals = selectedSession
+    ? [...proposalsForSession(snapshot, selectedSession.agentSessionId)]
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+    : [];
   const runtimeEvents = selectedSession ? runtimeEventsForSession(snapshot, selectedSession.agentSessionId) : [];
   const latestRuntimeEvent = runtimeEvents.at(-1);
   const agentRuns = [...(snapshot.agentRuns ?? [])].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   const activeRun = selectedSession?.activeAgentRunId
     ? agentRuns.find((run) => run.agentRunId === selectedSession.activeAgentRunId)
     : undefined;
+  const pendingProposalCount = proposals.filter(
+    (proposal) => proposal.status === 'awaiting_decision',
+  ).length;
+  const sourceMessageIdsWithReply = new Set(
+    messages.flatMap((message) => message.sourceMessageId ? [message.sourceMessageId] : []),
+  );
+  const orphanProposals = proposals.filter(
+    (proposal) => !sourceMessageIdsWithReply.has(proposal.sourceMessageId),
+  );
 
   useEffect(() => {
-    if (focusedAgentRunId) setTab('run');
+    if (focusedAgentRunId) runCardRef.current?.scrollIntoView({ block: 'nearest' });
   }, [focusedAgentRunId]);
 
   return (
     <aside className="agent-workspace" aria-label={t('agentWorkspace.title')}>
       <header>
-        <div><span><Bot size={15} />{t('agentWorkspace.eyebrow')}</span><strong>{t('agentWorkspace.title')}</strong></div>
-        <div>
+        <div className="agent-workspace-heading">
+          <span><Bot size={15} />{t('agentWorkspace.eyebrow')}</span>
+          <strong>{selectedSession?.title ?? t('agentWorkspace.defaultSession')}</strong>
+        </div>
+        <div className="agent-workspace-header-actions">
+          <AgentSessionHistoryMenu
+            selectedSession={selectedSession}
+            sessions={sessions}
+            onArchiveSession={onArchiveSession}
+            onSelectSession={onSelectSession}
+          />
           <TooltipIconButton className="icon-button" label={t('agentWorkspace.newSession')} onClick={onCreateSession}><Plus size={15} /></TooltipIconButton>
-          <TooltipIconButton className="icon-button" label={t('agentWorkspace.archiveSession')} disabled={!selectedSession} onClick={onArchiveSession}><Archive size={15} /></TooltipIconButton>
           <TooltipIconButton className="icon-button" label={t('context.close')} onClick={onClose}><X size={15} /></TooltipIconButton>
         </div>
       </header>
-      <label className="agent-workspace-session-select">
-        <span>{t('agentWorkspace.session')}</span>
-        <div>
-          <select value={selectedSession?.agentSessionId ?? ''} disabled={sessions.length === 0} onChange={(event) => onSelectSession(event.target.value)}>
-            {sessions.length === 0 ? <option value="">{t('agentWorkspace.noSession')}</option> : null}
-            {sessions.map((session) => <option key={session.agentSessionId} value={session.agentSessionId}>{session.title}</option>)}
-          </select>
-          <ChevronDown size={13} />
+      {selectedSession ? (
+        <div className="agent-workspace-context-bar">
+          <span><Activity size={13} />{activeRun
+            ? `${t('agentWorkspace.run')} · ${t(agentRunStatusKey(activeRun.status))}`
+            : t('agentWorkspace.noRun')}</span>
+          {pendingProposalCount > 0 ? (
+            <span className="is-attention">
+              <CircleAlert size={13} />
+              {t('agentWorkspace.pendingChanges')} · {pendingProposalCount}
+            </span>
+          ) : null}
         </div>
-      </label>
-      <nav>
-        {(['chat', 'run', 'changes'] as AgentWorkspaceTab[]).map((item) => (
-          <button key={item} type="button" className={tab === item ? 'is-active' : ''} onClick={() => setTab(item)}>
-            {t(`agentWorkspace.${item}`)}{item === 'changes' && proposals.some((proposal) => proposal.status === 'awaiting_decision') ? <span /> : null}
-          </button>
-        ))}
-      </nav>
+      ) : null}
       <div className="agent-workspace-body">
         {!selectedSession ? (
-          <div className="agent-workspace-empty"><Bot size={24} /><strong>{t('agentWorkspace.emptyTitle')}</strong><p>{t('agentWorkspace.emptyBody')}</p><button type="button" onClick={onCreateSession}>{t('agentWorkspace.createSession')}</button></div>
-        ) : tab === 'chat' ? (
+          <div className="agent-workspace-empty">
+            <Bot size={24} />
+            <strong>{t('agentWorkspace.preparingSession')}</strong>
+          </div>
+        ) : (
           <div className="agent-workspace-chat">
-            <div className="agent-workspace-messages">
-              {messages.length === 0 ? <p className="agent-workspace-placeholder">{t('agentWorkspace.chatEmpty')}</p> : messages.map((message) => (
-                <article key={message.agentMessageId} className={`is-${message.role}`}>
-                  <span>{message.role === 'user' ? t('agentWorkspace.you') : t('agentWorkspace.agent')}</span>
-                  <p>{message.content}</p>
-                  {message.contextRefs.length > 0 ? <small>{message.contextRefs.map(contextRefLabel).join(' · ')}</small> : null}
-                </article>
+            <div className="agent-workspace-messages" role="log" aria-live="polite">
+              {messages.length === 0 && proposals.length === 0 && !activeRun
+                ? <div className="agent-workspace-welcome"><Bot size={20} /><strong>{t('agentWorkspace.chatEmptyTitle')}</strong><p>{t('agentWorkspace.chatEmpty')}</p></div>
+                : null}
+              {messages.map((message) => {
+                const messageProposals = message.role === 'assistant' && message.sourceMessageId
+                  ? proposals.filter((proposal) => proposal.sourceMessageId === message.sourceMessageId)
+                  : [];
+                return (
+                  <div key={message.agentMessageId} className="agent-workspace-timeline-item">
+                    <article className={`agent-workspace-message is-${message.role}`}>
+                      <span>{message.role === 'user' ? t('agentWorkspace.you') : t('agentWorkspace.agent')}</span>
+                      <p>{message.content}</p>
+                      {message.contextRefs.length > 0 ? <small>{message.contextRefs.map(contextRefLabel).join(' · ')}</small> : null}
+                    </article>
+                    {messageProposals.map((proposal) => (
+                      <ProposalCard
+                        agentSessionId={selectedSession.agentSessionId}
+                        key={proposal.proposalId}
+                        isLaunching={launchingProposalId === proposal.proposalId}
+                        proposal={proposal}
+                        snapshot={snapshot}
+                        onDecide={onDecideProposal}
+                        onLaunch={onLaunchProposal}
+                        onView={onViewProposalEffect}
+                        onViewRun={onViewProposalRun}
+                      />
+                    ))}
+                  </div>
+                );
+              })}
+              {orphanProposals.map((proposal) => (
+                <ProposalCard
+                  agentSessionId={selectedSession.agentSessionId}
+                  key={proposal.proposalId}
+                  isLaunching={launchingProposalId === proposal.proposalId}
+                  proposal={proposal}
+                  snapshot={snapshot}
+                  onDecide={onDecideProposal}
+                  onLaunch={onLaunchProposal}
+                  onView={onViewProposalEffect}
+                  onViewRun={onViewProposalRun}
+                />
               ))}
+              {agentRuns.length > 0 ? (
+                <AgentRunSummaryCard
+                  cardRef={runCardRef}
+                  activeRun={activeRun}
+                  agentRuns={agentRuns}
+                  binding={binding}
+                  selectedSession={selectedSession}
+                  onCancelAgentRun={onCancelAgentRun}
+                  onPauseAgentRun={onPauseAgentRun}
+                  onResumeAgentRun={onResumeAgentRun}
+                  onSelectAgentRun={onSelectAgentRun}
+                />
+              ) : null}
               {isSending ? <article className="is-assistant is-pending"><span>{t('agentWorkspace.agent')}</span><p>{latestRuntimeEvent?.kind === 'decision_delta' ? t('agentWorkspace.streaming') : t('agentWorkspace.thinking')}</p></article> : null}
             </div>
             {error ? <p className="agent-workspace-error" role="alert">{error}</p> : null}
             <AgentWorkspaceComposer disabled={isSending} snapshot={snapshot} onSubmit={onSubmitMessage} />
           </div>
-        ) : tab === 'run' ? (
-          <div className="agent-workspace-run">
-            <label><span>{t('agentWorkspace.targetRun')}</span><select value={selectedSession.activeAgentRunId ?? ''} onChange={(event) => onSelectAgentRun(event.target.value || undefined)}><option value="">{t('agentWorkspace.noRun')}</option>{agentRuns.map((run) => <option key={run.agentRunId} value={run.agentRunId}>{run.target.kind} · {run.status} · {run.agentRunId.slice(-8)}</option>)}</select></label>
-            {activeRun ? <><dl><div><dt>{t('agentWorkspace.runId')}</dt><dd>{activeRun.agentRunId}</dd></div><div><dt>{t('agentWorkspace.status')}</dt><dd>{activeRun.status}</dd></div>{activeRun.target.kind === 'goal' ? <><div><dt>{t('agentWorkspace.goalPlan')}</dt><dd>{activeRun.target.goalPlanSnapshot.goalPlanId}</dd></div><div><dt>{t('agentWorkspace.coverage')}</dt><dd>{activeRun.target.goalPlanSnapshot.coverage} · {activeRun.target.workflowRunId}</dd></div></> : null}<div><dt>{t('agentWorkspace.scope')}</dt><dd>{activeRun.scope.allowedOperationBlockIds.length} Operations · {activeRun.scope.allowedCapabilityIds.length} Capabilities</dd></div><div><dt>{t('agentWorkspace.runtime')}</dt><dd>{binding?.runtimeKind ?? '—'} · {binding?.model ?? '—'}</dd></div><div><dt>{t('agentWorkspace.agentPreset')}</dt><dd>{activeRun.agentPresetSnapshot ? `${activeRun.agentPresetSnapshot.name} · ${activeRun.agentPresetSnapshot.version}` : t('agentWorkspace.noAgentPreset')}</dd></div>{activeRun.agentPresetSnapshot ? <><div><dt>{t('agentWorkspace.package')}</dt><dd>{activeRun.agentPresetPackageLock?.packageId ?? '—'} · {activeRun.agentPresetPackageLock?.version ?? '—'}</dd></div><div><dt>{t('agentWorkspace.presetTools')}</dt><dd>{activeRun.permissions.allowedToolPermissions.join(' · ')}</dd></div></> : null}</dl><div className="agent-workspace-run-actions">{activeRun.status === 'paused' ? <button type="button" onClick={() => onResumeAgentRun(activeRun.agentRunId)}><Play size={14} />{t('agentRuntime.resume')}</button> : <button type="button" disabled={['succeeded', 'failed', 'canceled'].includes(activeRun.status)} onClick={() => onPauseAgentRun(activeRun.agentRunId)}><Pause size={14} />{t('agentRuntime.pause')}</button>}<button type="button" disabled={['succeeded', 'failed', 'canceled'].includes(activeRun.status)} onClick={() => onCancelAgentRun(activeRun.agentRunId)}><CircleStop size={14} />{t('agentRuntime.cancel')}</button></div></> : <p className="agent-workspace-placeholder">{t('agentWorkspace.runEmpty')}</p>}
-          </div>
-        ) : (
-          <div className="agent-workspace-changes">
-            {error ? <p className="agent-workspace-error" role="alert">{error}</p> : null}
-            {proposals.length === 0
-              ? <p className="agent-workspace-placeholder">{t('agentWorkspace.changesEmpty')}</p>
-              : proposals.map((proposal) => (
-                  <ProposalCard
-                    agentSessionId={selectedSession.agentSessionId}
-                    key={proposal.proposalId}
-                    isLaunching={launchingProposalId === proposal.proposalId}
-                    proposal={proposal}
-                    snapshot={snapshot}
-                    onDecide={onDecideProposal}
-                    onLaunch={onLaunchProposal}
-                    onView={onViewProposalEffect}
-                    onViewRun={(proposalId) => {
-                      onViewProposalRun(proposalId);
-                      setTab('run');
-                    }}
-                  />
-                ))}
-          </div>
         )}
       </div>
     </aside>
   );
+}
+
+const AgentRunSummaryCard = function AgentRunSummaryCard({
+  activeRun,
+  agentRuns,
+  binding,
+  cardRef,
+  onCancelAgentRun,
+  onPauseAgentRun,
+  onResumeAgentRun,
+  onSelectAgentRun,
+  selectedSession,
+}: {
+  activeRun?: AgentRunRecord;
+  agentRuns: AgentRunRecord[];
+  binding?: AgentRuntimeBindingRecord;
+  cardRef: Ref<HTMLElement>;
+  onCancelAgentRun: (agentRunId: string) => void;
+  onPauseAgentRun: (agentRunId: string) => void;
+  onResumeAgentRun: (agentRunId: string) => void;
+  onSelectAgentRun: (agentRunId?: string) => void;
+  selectedSession: AgentSessionRecord;
+}): ReactElement {
+  const { t } = useI18n();
+  const isTerminal = activeRun
+    ? ['succeeded', 'failed', 'canceled'].includes(activeRun.status)
+    : false;
+  return (
+    <article ref={cardRef} className={`agent-workspace-run-card${activeRun ? ` is-${activeRun.status}` : ''}`}>
+      <header>
+        <span><Activity size={14} />{t('agentWorkspace.run')}</span>
+        <strong>{activeRun ? t(agentRunStatusKey(activeRun.status)) : t('agentWorkspace.noRun')}</strong>
+      </header>
+      {activeRun ? (
+        <>
+          <p>{agentRunTargetLabel(activeRun)}</p>
+          <div className="agent-workspace-run-actions">
+            {activeRun.status === 'paused'
+              ? <button type="button" onClick={() => onResumeAgentRun(activeRun.agentRunId)}><Play size={14} />{t('agentRuntime.resume')}</button>
+              : <button type="button" disabled={isTerminal} onClick={() => onPauseAgentRun(activeRun.agentRunId)}><Pause size={14} />{t('agentRuntime.pause')}</button>}
+            <button type="button" disabled={isTerminal} onClick={() => onCancelAgentRun(activeRun.agentRunId)}><CircleStop size={14} />{t('agentRuntime.cancel')}</button>
+          </div>
+        </>
+      ) : <p>{t('agentWorkspace.runEmpty')}</p>}
+      <details>
+        <summary>{t('agentWorkspace.runDetails')}</summary>
+        <label>
+          <span>{t('agentWorkspace.targetRun')}</span>
+          <select
+            value={selectedSession.activeAgentRunId ?? ''}
+            onChange={(event) => onSelectAgentRun(event.target.value || undefined)}
+          >
+            <option value="">{t('agentWorkspace.noRun')}</option>
+            {agentRuns.map((run) => (
+              <option key={run.agentRunId} value={run.agentRunId}>
+                {agentRunTargetLabel(run)} · {t(agentRunStatusKey(run.status))}
+              </option>
+            ))}
+          </select>
+        </label>
+        {activeRun ? (
+          <dl>
+            <div><dt>{t('agentWorkspace.runId')}</dt><dd>{activeRun.agentRunId}</dd></div>
+            <div><dt>{t('agentWorkspace.scope')}</dt><dd>{activeRun.scope.allowedOperationBlockIds.length} Operations · {activeRun.scope.allowedCapabilityIds.length} Capabilities</dd></div>
+            <div><dt>{t('agentWorkspace.runtime')}</dt><dd>{binding?.runtimeKind ?? '—'} · {binding?.model ?? '—'}</dd></div>
+            <div><dt>{t('agentWorkspace.agentPreset')}</dt><dd>{activeRun.agentPresetSnapshot ? `${activeRun.agentPresetSnapshot.name} · ${activeRun.agentPresetSnapshot.version}` : t('agentWorkspace.noAgentPreset')}</dd></div>
+          </dl>
+        ) : null}
+      </details>
+    </article>
+  );
+};
+
+function agentRunStatusKey(status: AgentRunRecord['status']) {
+  return `agentRuntime.status.${status}` as const;
+}
+
+function agentRunTargetLabel(run: AgentRunRecord): string {
+  if (run.target.kind === 'goal') return run.target.goalPlanSnapshot.goal;
+  if (run.target.kind === 'capability') return 'Capability';
+  if (run.target.kind === 'workflow_run') return 'Workflow';
+  return `Workflow · ${run.target.until.kind}`;
 }
 
 function ProposalCard({
@@ -265,7 +388,7 @@ function ProposalCard({
     (option) => option.entrypointId === agentPresetEntryPointId,
   );
   return (
-    <article className={`is-${proposal.status}`}>
+    <article className={`agent-workspace-proposal is-${proposal.status}`}>
       <header>
         <strong>{goalPlan
           ? `${t('agentWorkspace.goalPlan')} · ${entrypointName}`

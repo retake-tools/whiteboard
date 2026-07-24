@@ -47,7 +47,12 @@ assert.match(canvasComposerSource, /skill-composer-entrypoint-remove/);
 assert.match(canvasComposerSource, /skill-composer-picker-option/);
 assert.match(canvasComposerSource, /rows=\{3\}/);
 assert.match(canvasComposerSource, /skill-composer-input-shell[\s\S]*skill-composer-controls/);
+assert.match(canvasComposerSource, /skillComposer\.creationMode/);
+assert.match(canvasComposerSource, /<option value="agent">/);
+assert.match(canvasComposerSource, /<option value="image" disabled>/);
+assert.match(canvasComposerSource, /<option value="video" disabled>/);
 assert.match(toolbarStylesSource, /\.skill-composer-form \{ display: grid/);
+assert.match(toolbarStylesSource, /\.skill-composer-mode \{/);
 assert.match(toolbarStylesSource, /\.skill-composer-input-shell textarea \{[\s\S]*min-height: 62px/);
 assert.match(dismissiblePopoverSource, /focusOnEscapeRef/);
 assert.doesNotMatch(responsiveSource, /\.skill-composer-entrypoint span,[\s\S]*display: none/);
@@ -104,6 +109,7 @@ console.log(JSON.stringify({
   removableEntrypointChip: true,
   multilineInput: true,
   controlsBelowInput: true,
+  creationModeShell: true,
   escapeFocusReturn: true,
   canvasGoalSubmission: true,
   goalMentionPicker: true,

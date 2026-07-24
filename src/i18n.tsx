@@ -417,6 +417,7 @@ type TranslationKey =
   | 'skillComposer.goalPlaceholder'
   | 'skillComposer.inputPlaceholder'
   | 'skillComposer.create'
+  | 'skillComposer.creationMode'
   | 'skillComposer.planWithAgent'
   | 'skillComposer.clearEntryPoint'
   | 'skillComposer.addMention'
@@ -430,6 +431,10 @@ type TranslationKey =
   | 'skillComposer.noEntryPoints'
   | 'skillComposer.noMentions'
   | 'skillComposer.invalidInput'
+  | 'skillComposer.modeAgent'
+  | 'skillComposer.modeComingSoon'
+  | 'skillComposer.modeImage'
+  | 'skillComposer.modeVideo'
   | 'skillComposer.storyboardParameters'
   | 'skillComposer.panelCount'
   | 'skillComposer.candidateCount'
@@ -623,6 +628,7 @@ type TranslationKey =
   | 'agentWorkspace.chat'
   | 'agentWorkspace.chatEmpty'
   | 'agentWorkspace.createSession'
+  | 'agentWorkspace.defaultSession'
   | 'agentWorkspace.draftOnly'
   | 'agentWorkspace.effect'
   | 'agentWorkspace.goal'
@@ -632,6 +638,7 @@ type TranslationKey =
   | 'agentWorkspace.budget'
   | 'agentWorkspace.limitation'
   | 'agentWorkspace.goalLaunchWarning'
+  | 'agentWorkspace.history'
   | 'agentWorkspace.emptyBody'
   | 'agentWorkspace.emptyTitle'
   | 'agentWorkspace.eyebrow'
@@ -650,15 +657,19 @@ type TranslationKey =
   | 'agentWorkspace.presetTools'
   | 'agentWorkspace.presetRuntime'
   | 'agentWorkspace.newSession'
+  | 'agentWorkspace.noMatchingSessions'
   | 'agentWorkspace.noRun'
   | 'agentWorkspace.noSession'
   | 'agentWorkspace.open'
   | 'agentWorkspace.package'
   | 'agentWorkspace.parameters'
+  | 'agentWorkspace.pendingChanges'
+  | 'agentWorkspace.preparingSession'
   | 'agentWorkspace.rejectProposal'
   | 'agentWorkspace.run'
   | 'agentWorkspace.runEmpty'
   | 'agentWorkspace.runId'
+  | 'agentWorkspace.runDetails'
   | 'agentWorkspace.runtime'
   | 'agentWorkspace.scope'
   | 'agentWorkspace.send'
@@ -667,6 +678,7 @@ type TranslationKey =
   | 'agentWorkspace.sourceBinding'
   | 'agentWorkspace.skillDraftEffect'
   | 'agentWorkspace.streaming'
+  | 'agentWorkspace.searchSessions'
   | 'agentWorkspace.targetRun'
   | 'agentWorkspace.thinking'
   | 'agentWorkspace.title'
@@ -674,6 +686,7 @@ type TranslationKey =
   | 'agentWorkspace.viewRun'
   | 'agentWorkspace.workflowDraftEffect'
   | 'agentWorkspace.you'
+  | 'agentWorkspace.chatEmptyTitle'
   | 'operationInputQuickAdd.add'
   | 'operationInputQuickAdd.addImage'
   | 'operationInputQuickAdd.addText'
@@ -1295,6 +1308,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.goalPlaceholder': 'Describe what you want to create, or use @ to reference Board context...',
     'skillComposer.inputPlaceholder': 'Describe the input, or type @ to reference a block or asset...',
     'skillComposer.create': 'Create draft',
+    'skillComposer.creationMode': 'Creation mode',
     'skillComposer.planWithAgent': 'Plan with Agent',
     'skillComposer.clearEntryPoint': 'Clear selected skill or workflow',
     'skillComposer.addMention': 'Reference block or asset',
@@ -1308,6 +1322,10 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.noEntryPoints': 'No matching skills or workflows.',
     'skillComposer.noMentions': 'No compatible blocks or document assets.',
     'skillComposer.invalidInput': 'This input combination is not compatible with the selected entry point.',
+    'skillComposer.modeAgent': 'Agent',
+    'skillComposer.modeComingSoon': 'Coming soon',
+    'skillComposer.modeImage': 'Image',
+    'skillComposer.modeVideo': 'Video',
     'skillComposer.storyboardParameters': 'Storyboard sheet parameters',
     'skillComposer.panelCount': 'Panels',
     'skillComposer.candidateCount': 'Candidates',
@@ -1501,6 +1519,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.chat': 'Chat',
     'agentWorkspace.chatEmpty': 'Ask about this Board or control the currently attached Agent Run.',
     'agentWorkspace.createSession': 'Create session',
+    'agentWorkspace.defaultSession': 'Default conversation',
     'agentWorkspace.draftOnly': 'Approval only creates a draft. It does not start generation or run an Agent.',
     'agentWorkspace.effect': 'Effect',
     'agentWorkspace.goal': 'Goal',
@@ -1510,6 +1529,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.budget': 'Budget boundary',
     'agentWorkspace.limitation': 'Limitation',
     'agentWorkspace.goalLaunchWarning': 'Starting only authorizes the locked Workflow orchestration. Gates, candidate selection, and external Provider actions still require their own explicit decisions.',
+    'agentWorkspace.history': 'Conversation history',
     'agentWorkspace.emptyBody': 'Sessions keep Board-scoped conversation history and can attach to one existing Agent Run.',
     'agentWorkspace.emptyTitle': 'Start a Board Agent session',
     'agentWorkspace.eyebrow': 'Board Agent',
@@ -1528,15 +1548,19 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.presetTools': 'Effective tools',
     'agentWorkspace.presetRuntime': 'Runtime requirements',
     'agentWorkspace.newSession': 'New session',
+    'agentWorkspace.noMatchingSessions': 'No matching conversations.',
     'agentWorkspace.noRun': 'No Agent Run attached',
     'agentWorkspace.noSession': 'No active session',
     'agentWorkspace.open': 'Open Agent Workspace',
     'agentWorkspace.package': 'Package',
     'agentWorkspace.parameters': 'Parameters',
+    'agentWorkspace.pendingChanges': 'Waiting for review',
+    'agentWorkspace.preparingSession': 'Preparing the default conversation…',
     'agentWorkspace.rejectProposal': 'Reject proposal',
     'agentWorkspace.run': 'Run',
     'agentWorkspace.runEmpty': 'Attach an existing Agent Run. Chat does not create execution authority.',
     'agentWorkspace.runId': 'Agent Run ID',
+    'agentWorkspace.runDetails': 'Run details',
     'agentWorkspace.runtime': 'Runtime binding',
     'agentWorkspace.scope': 'Authorized scope',
     'agentWorkspace.send': 'Send message',
@@ -1545,6 +1569,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.sourceBinding': 'Source binding',
     'agentWorkspace.skillDraftEffect': 'Create one Skill Operation Draft.',
     'agentWorkspace.streaming': 'Receiving structured decision…',
+    'agentWorkspace.searchSessions': 'Search conversations',
     'agentWorkspace.targetRun': 'Attached Agent Run',
     'agentWorkspace.thinking': 'Working within the attached scope…',
     'agentWorkspace.title': 'Agent Workspace',
@@ -1552,6 +1577,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.viewRun': 'View Run',
     'agentWorkspace.workflowDraftEffect': 'Create a Workflow Group and its locked Step Projection.',
     'agentWorkspace.you': 'You',
+    'agentWorkspace.chatEmptyTitle': 'What would you like to create?',
     'operationInputQuickAdd.add': 'Add',
     'operationInputQuickAdd.addImage': 'Add image input',
     'operationInputQuickAdd.addText': 'Add text input',
@@ -2168,6 +2194,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.goalPlaceholder': '描述你想创作的内容，或用 @ 引用画板素材...',
     'skillComposer.inputPlaceholder': '描述输入，或输入 @ 引用 Block / Asset...',
     'skillComposer.create': '创建草稿',
+    'skillComposer.creationMode': '创作模式',
     'skillComposer.planWithAgent': '交给 Agent 规划',
     'skillComposer.clearEntryPoint': '清除已选 Skill 或 Workflow',
     'skillComposer.addMention': '引用 Block 或 Asset',
@@ -2181,6 +2208,10 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.noEntryPoints': '没有匹配的 Skill 或 Workflow。',
     'skillComposer.noMentions': '当前没有兼容的 Block 或 Document Asset。',
     'skillComposer.invalidInput': '当前输入组合与所选 EntryPoint 不兼容。',
+    'skillComposer.modeAgent': 'Agent',
+    'skillComposer.modeComingSoon': '稍后开放',
+    'skillComposer.modeImage': '图片',
+    'skillComposer.modeVideo': '视频',
     'skillComposer.storyboardParameters': '分镜图参数',
     'skillComposer.panelCount': '格数',
     'skillComposer.candidateCount': '候选数',
@@ -2374,6 +2405,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.chat': '对话',
     'agentWorkspace.chatEmpty': '可以询问当前画板，或控制已绑定 Agent Run 的允许动作。',
     'agentWorkspace.createSession': '创建会话',
+    'agentWorkspace.defaultSession': '默认会话',
     'agentWorkspace.draftOnly': '批准只会创建草稿，不会开始生成，也不会运行 Agent。',
     'agentWorkspace.effect': '预期效果',
     'agentWorkspace.goal': '目标',
@@ -2383,6 +2415,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.budget': '预算边界',
     'agentWorkspace.limitation': '未覆盖范围',
     'agentWorkspace.goalLaunchWarning': '本次只授权已锁定 Workflow 的编排；Gate、候选选择与 Provider 外部动作仍需各自明确确认。',
+    'agentWorkspace.history': '会话历史',
     'agentWorkspace.emptyBody': '会话保存当前画板范围内的对话，并且可以绑定一个已有 Agent Run。',
     'agentWorkspace.emptyTitle': '开始画板 Agent 会话',
     'agentWorkspace.eyebrow': '画板 Agent',
@@ -2401,15 +2434,19 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.presetTools': '有效工具',
     'agentWorkspace.presetRuntime': 'Runtime 要求',
     'agentWorkspace.newSession': '新建会话',
+    'agentWorkspace.noMatchingSessions': '没有匹配的会话。',
     'agentWorkspace.noRun': '未绑定 Agent Run',
     'agentWorkspace.noSession': '没有活动会话',
     'agentWorkspace.open': '打开 Agent Workspace',
     'agentWorkspace.package': 'Package',
     'agentWorkspace.parameters': '参数',
+    'agentWorkspace.pendingChanges': '等待审阅',
+    'agentWorkspace.preparingSession': '正在准备默认会话…',
     'agentWorkspace.rejectProposal': '拒绝提案',
     'agentWorkspace.run': '运行',
     'agentWorkspace.runEmpty': '绑定已有 Agent Run；聊天本身不会创建执行授权。',
     'agentWorkspace.runId': 'Agent Run ID',
+    'agentWorkspace.runDetails': '运行详情',
     'agentWorkspace.runtime': 'Runtime 绑定',
     'agentWorkspace.scope': '授权范围',
     'agentWorkspace.send': '发送消息',
@@ -2418,6 +2455,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.sourceBinding': '输入绑定',
     'agentWorkspace.skillDraftEffect': '创建一个 Skill Operation 草稿。',
     'agentWorkspace.streaming': '正在接收结构化决策…',
+    'agentWorkspace.searchSessions': '搜索会话',
     'agentWorkspace.targetRun': '已绑定 Agent Run',
     'agentWorkspace.thinking': '正在已授权范围内处理…',
     'agentWorkspace.title': 'Agent Workspace',
@@ -2425,6 +2463,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.viewRun': '查看 Run',
     'agentWorkspace.workflowDraftEffect': '创建 Workflow Group 与锁定版本的 Step Projection。',
     'agentWorkspace.you': '你',
+    'agentWorkspace.chatEmptyTitle': '这次想创作什么？',
     'operationInputQuickAdd.add': '添加',
     'operationInputQuickAdd.addImage': '添加图片输入',
     'operationInputQuickAdd.addText': '添加文本输入',

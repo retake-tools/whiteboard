@@ -1,4 +1,4 @@
-import { ArrowUp, AtSign, ChevronDown, Search, Sparkles, X } from 'lucide-react';
+import { ArrowUp, AtSign, Bot, ChevronDown, Search, Sparkles, X } from 'lucide-react';
 import {
   useMemo,
   useRef,
@@ -485,6 +485,19 @@ export function SkillQuickInputComposer({
           />
         </div>
         <div className="skill-composer-controls">
+          <label className="skill-composer-mode">
+            <Bot size={15} />
+            <select
+              aria-label={t('skillComposer.creationMode')}
+              value="agent"
+              onChange={() => undefined}
+            >
+              <option value="agent">{t('skillComposer.modeAgent')}</option>
+              <option value="image" disabled>{t('skillComposer.modeImage')} · {t('skillComposer.modeComingSoon')}</option>
+              <option value="video" disabled>{t('skillComposer.modeVideo')} · {t('skillComposer.modeComingSoon')}</option>
+            </select>
+            <ChevronDown size={13} />
+          </label>
           {selectedEntryPoint ? (
             <div className="skill-composer-entrypoint is-selected">
               <button

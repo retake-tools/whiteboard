@@ -44,6 +44,7 @@
 }
 
 .skill-composer-entrypoint,
+.skill-composer-mode,
 .skill-composer-mention-trigger,
 .skill-composer-submit {
   display: flex;
@@ -55,6 +56,41 @@
   border-radius: 9px;
   background: #fff;
   color: #1e293b;
+}
+
+.skill-composer-mode {
+  position: relative;
+  display: flex;
+  height: 38px;
+  flex: 0 0 auto;
+  gap: 5px;
+  align-items: center;
+  padding-left: 10px;
+  overflow: hidden;
+  border: 1px solid #99f6e4;
+  border-radius: 9px;
+  background: #f0fdfa;
+  color: #0f766e;
+}
+
+.skill-composer-mode select {
+  height: 100%;
+  appearance: none;
+  padding: 0 26px 0 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.skill-composer-mode > svg:last-child {
+  position: absolute;
+  right: 8px;
+  pointer-events: none;
 }
 
 .skill-composer-entrypoint {

@@ -71,6 +71,20 @@ export function createAgentSession(
   return { binding, session };
 }
 
+export function ensureDefaultAgentSession(
+  snapshot: BoardSnapshot,
+  input: {
+    connectionId?: string;
+    model?: string;
+    title?: string;
+  } = {},
+): { created: boolean; session: AgentSessionRecord } {
+  const existing = activeBoardAgentSessions(snapshot)[0];
+  if (existing) return { created: false, session: existing };
+  const created = createAgentSession(snapshot, input);
+  return { created: true, session: created.session };
+}
+
 export function appendAgentUserMessage(
   snapshot: BoardSnapshot,
   agentSessionId: string,

@@ -6,6 +6,7 @@ import {
   appendAgentUserMessage,
   applyAgentRuntimeTurn,
   createAgentSession,
+  ensureDefaultAgentSession,
   messagesForSession,
   proposalsForSession,
   runtimeEventsForSession,
@@ -38,7 +39,10 @@ assert.match(portSource, /Do not call tools/);
 assert.doesNotMatch(portSource, /saveSnapshot|createBlock|projectWorkflowDraft/);
 assert.match(appServerSource, /thread\/resume/);
 assert.doesNotMatch(appServerSource, /dynamicTools:/);
-assert.match(workspaceSource, /'chat', 'run', 'changes'/);
+assert.doesNotMatch(workspaceSource, /\['chat', 'run', 'changes'\]/);
+assert.doesNotMatch(workspaceSource, /agentWorkspace\.createSession/);
+assert.match(workspaceSource, /AgentSessionHistoryMenu/);
+assert.match(workspaceSource, /AgentRunSummaryCard/);
 assert.match(composerSource, /<SkillQuickInputComposer/);
 assert.match(composerSource, /mode="agent"/);
 assert.doesNotMatch(composerSource, /onInvokeEntryPoint/);
@@ -46,6 +50,8 @@ assert.match(sharedComposerSource, /listPackageEntryPoints/);
 assert.match(sharedComposerSource, /listPackageComposerMentionOptions/);
 assert.match(controllerSource, /persistSnapshot\(withUserMessage, \{ requireLocalApi: true \}\)/);
 assert.match(controllerSource, /applyAgentRuntimeTurn/);
+assert.match(controllerSource, /ensureDefaultAgentSession/);
+assert.match(controllerSource, /const agentSessionId = selectedSessionId \?\? ensureDefaultSession\(\)/);
 assert.match(apiSource, /application\/x-ndjson/);
 assert.match(runtimeClientSource, /response\.body\.getReader/);
 
@@ -93,6 +99,21 @@ assert.throws(
 );
 
 const snapshot = await emptySnapshot();
+const defaultSession = ensureDefaultAgentSession(snapshot, {
+  model: 'test-model',
+  title: 'Default conversation',
+});
+assert.equal(defaultSession.created, true);
+assert.equal(defaultSession.session.title, 'Default conversation');
+const sameDefaultSession = ensureDefaultAgentSession(snapshot, {
+  model: 'other-model',
+  title: 'Should not replace',
+});
+assert.equal(sameDefaultSession.created, false);
+assert.equal(sameDefaultSession.session.agentSessionId, defaultSession.session.agentSessionId);
+assert.equal(activeBoardAgentSessions(snapshot).length, 1);
+snapshot.agentSessions = [];
+snapshot.agentRuntimeBindings = [];
 const draft = createDraftSkillOperation(snapshot, {
   bodyPlaceholder: 'Brief',
   inputTitle: 'Brief',

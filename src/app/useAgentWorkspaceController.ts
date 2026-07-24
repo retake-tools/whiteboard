@@ -5,6 +5,7 @@ import {
   applyAgentRuntimeTurn,
   archiveAgentSession,
   createAgentSession,
+  ensureDefaultAgentSession,
   markAgentRuntimeFailure,
   runtimeBindingForSession,
   setAgentSessionRun,
@@ -88,8 +89,7 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
 
   function newSession(agentRunId?: string): string {
     let createdId = '';
-    const settings = currentExecutionProviderSettings();
-    const connection = settings?.connections.find((candidate) => candidate.connectionId === 'codex-app-server');
+    const connection = currentAgentConnection();
     updateSnapshot((current) => {
       const created = createAgentSession(current, {
         agentRunId,
@@ -102,6 +102,29 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     setSelectedSessionId(createdId);
     setError(undefined);
     return createdId;
+  }
+
+  function ensureDefaultSession(): string {
+    const existing = sessions[0];
+    if (existing) {
+      setSelectedSessionId(existing.agentSessionId);
+      setError(undefined);
+      return existing.agentSessionId;
+    }
+    let resolvedId = '';
+    const connection = currentAgentConnection();
+    updateSnapshot((current) => {
+      const resolved = ensureDefaultAgentSession(current, {
+        connectionId: connection?.connectionId,
+        model: connection?.modelId,
+        title: t('agentWorkspace.defaultSession'),
+      });
+      resolvedId = resolved.session.agentSessionId;
+      return current;
+    }, { history: false, persist: true, syncFlow: false });
+    setSelectedSessionId(resolvedId);
+    setError(undefined);
+    return resolvedId;
   }
 
   function selectSession(agentSessionId: string): void {
@@ -119,11 +142,20 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
 
   function archiveSession(): void {
     if (!selectedSessionId) return;
+    let nextSelectedSessionId = '';
+    const connection = currentAgentConnection();
     updateSnapshot((current) => {
       archiveAgentSession(current, selectedSessionId);
+      const next = ensureDefaultAgentSession(current, {
+        connectionId: connection?.connectionId,
+        model: connection?.modelId,
+        title: t('agentWorkspace.defaultSession'),
+      });
+      nextSelectedSessionId = next.session.agentSessionId;
       return current;
     }, { history: true, persist: true, syncFlow: false });
-    setSelectedSessionId(undefined);
+    setSelectedSessionId(nextSelectedSessionId);
+    setError(undefined);
   }
 
   function decideProposal(
@@ -277,7 +309,7 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     parameters: Record<string, unknown>;
   }): Promise<void> {
     if (inFlightRef.current) return;
-    const agentSessionId = selectedSessionId ?? newSession();
+    const agentSessionId = selectedSessionId ?? ensureDefaultSession();
     inFlightRef.current = true;
     setIsSending(true);
     setError(undefined);
@@ -352,6 +384,7 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     focusedAgentRunId,
     focusProposalEffect,
     focusProposalRun,
+    ensureDefaultSession,
     isSending,
     launchProposal,
     launchingProposalId,
@@ -364,6 +397,13 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     sessions,
     submitMessage,
   };
+
+  function currentAgentConnection() {
+    const settings = currentExecutionProviderSettings();
+    return settings?.connections.find(
+      (candidate) => candidate.connectionId === 'codex-app-server',
+    );
+  }
 }
 
 async function reconcileDraftLaunchTarget(

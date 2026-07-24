@@ -379,15 +379,14 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
   }
 
   function toggleAgentWorkspace(): void {
-    setIsAgentWorkspaceOpen((current) => {
-      const next = !current;
-      if (next) {
-        setInspectorBlockId(undefined);
-        setIsHistoryOpen(false);
-        setIsArtifactLibraryOpen(false);
-      }
-      return next;
-    });
+    const next = !isAgentWorkspaceOpen;
+    if (next) {
+      agentWorkspaceController.ensureDefaultSession();
+      setInspectorBlockId(undefined);
+      setIsHistoryOpen(false);
+      setIsArtifactLibraryOpen(false);
+    }
+    setIsAgentWorkspaceOpen(next);
   }
 
   function toggleArtifactLibrary(): void {
