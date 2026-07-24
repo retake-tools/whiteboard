@@ -16,6 +16,7 @@ import { shouldShowSkillDock } from '../core/releaseFeatures';
 import type { BlockType, BoardSnapshot } from '../core/types';
 import { useI18n } from '../i18n';
 import { SkillQuickInputComposer } from './SkillQuickInputComposer';
+import type { UnifiedComposerAgentInput } from './UnifiedComposerProvider';
 import { TooltipIconButton } from './Tooltip';
 
 const skillDockVisible = shouldShowSkillDock({ DEV: import.meta.env?.DEV === true });
@@ -24,20 +25,24 @@ export type CanvasTool = 'group' | 'select' | 'pan';
 
 interface FloatingToolbarProps {
   activeTool: CanvasTool;
+  agentDisabled?: boolean;
   onAddBlock: (type: Extract<BlockType, 'group' | 'image' | 'operation' | 'text' | 'video'>) => void;
   onCreateImageToImage: () => void;
   onCreateTextToImage: () => void;
   onInvokeEntryPoint: (invocation: PackageComposerInvocation) => void;
+  onSubmitAgentMessage: (input: UnifiedComposerAgentInput) => void;
   onSetActiveTool: (tool: CanvasTool) => void;
   snapshot: BoardSnapshot;
 }
 
 export function FloatingToolbar({
   activeTool,
+  agentDisabled,
   onAddBlock,
   onCreateImageToImage,
   onCreateTextToImage,
   onInvokeEntryPoint,
+  onSubmitAgentMessage,
   onSetActiveTool,
   snapshot,
 }: FloatingToolbarProps): ReactElement {
@@ -46,7 +51,12 @@ export function FloatingToolbar({
   return (
     <>
       {skillDockVisible ? (
-        <SkillQuickInputComposer snapshot={snapshot} onInvokeEntryPoint={onInvokeEntryPoint} />
+        <SkillQuickInputComposer
+          agentDisabled={agentDisabled}
+          snapshot={snapshot}
+          onInvokeEntryPoint={onInvokeEntryPoint}
+          onSubmitAgentMessage={onSubmitAgentMessage}
+        />
       ) : null}
       <nav className="floating-toolbar" aria-label={t('canvas.tools')}>
       <ToolButton

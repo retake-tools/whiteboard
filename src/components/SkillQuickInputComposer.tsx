@@ -11,6 +11,7 @@ import {
 } from 'react';
 import {
   listPackageComposerInlineInputOptions,
+  listGoalComposerMentionOptions,
   listPackageComposerMentionOptions,
   packageComposerMentionId,
   packageComposerMentionBindingIdentity,
@@ -35,37 +36,53 @@ import { workflowUiDefinitionFor } from '../core/workflowRegistry';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
 import {
-  defaultGenerationPreparationParameters,
   generationReferenceRoles,
   type GenerationPreparationParameters,
   type GenerationReferenceRole,
 } from '../core/generationPreparationContracts';
+import {
+  useUnifiedComposerDraft,
+  type ComposerReferenceSetting,
+  type UnifiedComposerAgentInput,
+} from './UnifiedComposerProvider';
 
 interface SkillQuickInputComposerProps {
+  agentDisabled?: boolean;
   onInvokeEntryPoint: (invocation: PackageComposerInvocation) => void;
+  onSubmitAgentMessage: (input: UnifiedComposerAgentInput) => void;
   snapshot: BoardSnapshot;
 }
 
 type PickerState = { mode: 'entrypoint' | 'mention'; query: string } | undefined;
-type ReferenceSetting = { purpose: string; required: boolean; role: GenerationReferenceRole };
 
 export function SkillQuickInputComposer({
+  agentDisabled,
   onInvokeEntryPoint,
+  onSubmitAgentMessage,
   snapshot,
 }: SkillQuickInputComposerProps): ReactElement {
   const { t } = useI18n();
   const rootRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [entrypointId, setEntrypointId] = useState<string>();
-  const [instruction, setInstruction] = useState('');
-  const [inlineValuesBySlot, setInlineValuesBySlot] = useState<Record<string, string>>({});
-  const [storyboardOutputCount, setStoryboardOutputCount] = useState<1 | 2 | 3 | 4>(1);
-  const [storyboardPanelCount, setStoryboardPanelCount] = useState<StoryboardSheetPanelCount>(6);
-  const [generationParameters, setGenerationParameters] = useState<GenerationPreparationParameters>(
-    defaultGenerationPreparationParameters,
-  );
-  const [referenceSettings, setReferenceSettings] = useState<Record<string, ReferenceSetting>>({});
-  const [mentions, setMentions] = useState<PackageComposerMention[]>([]);
+  const {
+    entrypointId,
+    generationParameters,
+    inlineValuesBySlot,
+    instruction,
+    mentions,
+    referenceSettings,
+    reset,
+    selectEntryPoint: selectDraftEntryPoint,
+    setGenerationParameters,
+    setInlineValuesBySlot,
+    setInstruction,
+    setMentions,
+    setReferenceSettings,
+    setStoryboardOutputCount,
+    setStoryboardPanelCount,
+    storyboardOutputCount,
+    storyboardPanelCount,
+  } = useUnifiedComposerDraft();
   const [picker, setPicker] = useState<PickerState>();
   const [submitError, setSubmitError] = useState<string>();
   const entrypoints = useMemo(() => listPackageEntryPoints().filter(isRunnableRegistration), []);
@@ -82,7 +99,9 @@ export function SkillQuickInputComposer({
     (option) => option.schemaRef === 'retake.generation-reference-manifest/v1',
   );
   const mentionOptions = useMemo(
-    () => entrypointId ? listPackageComposerMentionOptions(snapshot, entrypointId) : [],
+    () => entrypointId
+      ? listPackageComposerMentionOptions(snapshot, entrypointId)
+      : listGoalComposerMentionOptions(snapshot),
     [entrypointId, snapshot],
   );
   const mentionOptionsById = useMemo(
@@ -149,14 +168,14 @@ export function SkillQuickInputComposer({
     usesStoryboardSheet,
   ]);
   const canSubmit = useMemo(() => {
-    if (!invocation) return false;
+    if (!invocation) return Boolean(instruction.trim()) && !agentDisabled;
     try {
       resolvePackageComposerInvocation(snapshot, invocation);
       return true;
     } catch {
       return false;
     }
-  }, [invocation, snapshot]);
+  }, [agentDisabled, instruction, invocation, snapshot]);
 
   useDismissiblePopover({
     active: Boolean(picker),
@@ -165,14 +184,8 @@ export function SkillQuickInputComposer({
   });
 
   function selectEntryPoint(registration: RegisteredPackageEntryPoint): void {
-    setEntrypointId(registration.entrypoint.entrypointId);
+    selectDraftEntryPoint(registration.entrypoint.entrypointId);
     setInstruction((current) => stripTrailingTrigger(current, '/'));
-    setInlineValuesBySlot({});
-    setStoryboardOutputCount(1);
-    setStoryboardPanelCount(6);
-    setGenerationParameters(defaultGenerationPreparationParameters);
-    setReferenceSettings({});
-    setMentions([]);
     setPicker(undefined);
     setSubmitError(undefined);
     inputRef.current?.focus();
@@ -199,7 +212,7 @@ export function SkillQuickInputComposer({
     setInstruction(value);
     setSubmitError(undefined);
     const mentionQuery = trailingTriggerQuery(value, '@');
-    if (entrypointId && mentionQuery !== undefined) {
+    if (mentionQuery !== undefined) {
       setPicker({ mode: 'mention', query: mentionQuery });
       return;
     }
@@ -214,20 +227,22 @@ export function SkillQuickInputComposer({
   function submit(event: FormEvent): void {
     event.preventDefault();
     if (!invocation) {
-      setPicker({ mode: 'entrypoint', query: '' });
+      if (!instruction.trim() || agentDisabled) return;
+      onSubmitAgentMessage({
+        content: instruction.trim(),
+        inlineValues: [],
+        mentions,
+        parameters: {},
+      });
+      reset();
+      setPicker(undefined);
+      setSubmitError(undefined);
       return;
     }
     try {
       resolvePackageComposerInvocation(snapshot, invocation);
       onInvokeEntryPoint(invocation);
-      setEntrypointId(undefined);
-      setInstruction('');
-      setInlineValuesBySlot({});
-      setStoryboardOutputCount(1);
-      setStoryboardPanelCount(6);
-      setGenerationParameters(defaultGenerationPreparationParameters);
-      setReferenceSettings({});
-      setMentions([]);
+      reset();
       setPicker(undefined);
       setSubmitError(undefined);
     } catch {
@@ -430,7 +445,7 @@ export function SkillQuickInputComposer({
             ref={inputRef}
             rows={1}
             value={instruction}
-            placeholder={entrypointId ? t('skillComposer.inputPlaceholder') : t('skillComposer.slashPlaceholder')}
+            placeholder={entrypointId ? t('skillComposer.inputPlaceholder') : t('skillComposer.goalPlaceholder')}
             onChange={(event) => updateInstruction(event.target.value)}
             onKeyDown={handleInputKeyDown}
           />
@@ -439,12 +454,16 @@ export function SkillQuickInputComposer({
           type="button"
           className="skill-composer-mention-trigger"
           aria-label={t('skillComposer.addMention')}
-          disabled={!entrypointId}
           onClick={() => setPicker({ mode: 'mention', query: '' })}
         >
           <AtSign size={16} />
         </button>
-        <button type="submit" className="skill-composer-submit" disabled={!canSubmit} aria-label={t('skillComposer.create')}>
+        <button
+          type="submit"
+          className="skill-composer-submit"
+          disabled={!canSubmit}
+          aria-label={t(entrypointId ? 'skillComposer.create' : 'skillComposer.planWithAgent')}
+        >
           <ArrowUp size={17} />
         </button>
       </form>
@@ -524,7 +543,7 @@ function storyboardSheetParameters(
   };
 }
 
-function defaultReferenceSetting(label?: string): ReferenceSetting {
+function defaultReferenceSetting(label?: string): ComposerReferenceSetting {
   return {
     purpose: label ? `Preserve ${label}` : 'Preserve the declared visual authority.',
     required: true,
@@ -534,8 +553,8 @@ function defaultReferenceSetting(label?: string): ReferenceSetting {
 
 function updateReferenceSetting(
   mentionId: string,
-  patch: Partial<ReferenceSetting>,
-  setSettings: Dispatch<SetStateAction<Record<string, ReferenceSetting>>>,
+  patch: Partial<ComposerReferenceSetting>,
+  setSettings: Dispatch<SetStateAction<Record<string, ComposerReferenceSetting>>>,
 ): void {
   setSettings((current) => ({
     ...current,

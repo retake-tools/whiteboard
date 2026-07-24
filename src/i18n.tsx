@@ -413,8 +413,10 @@ type TranslationKey =
   | 'skillComposer.title'
   | 'skillComposer.chooseEntryPoint'
   | 'skillComposer.slashPlaceholder'
+  | 'skillComposer.goalPlaceholder'
   | 'skillComposer.inputPlaceholder'
   | 'skillComposer.create'
+  | 'skillComposer.planWithAgent'
   | 'skillComposer.addMention'
   | 'skillComposer.selectedMentions'
   | 'skillComposer.removeMention'
@@ -1286,8 +1288,10 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.title': 'Skill quick input',
     'skillComposer.chooseEntryPoint': '/ Choose',
     'skillComposer.slashPlaceholder': 'Type / to choose a skill or workflow...',
+    'skillComposer.goalPlaceholder': 'Describe a goal, use / for a Skill or Workflow, or @ for context...',
     'skillComposer.inputPlaceholder': 'Describe the input, or type @ to reference a block or asset...',
     'skillComposer.create': 'Create draft',
+    'skillComposer.planWithAgent': 'Plan with Agent',
     'skillComposer.addMention': 'Reference block or asset',
     'skillComposer.selectedMentions': 'Referenced inputs',
     'skillComposer.removeMention': 'Remove reference',
@@ -2154,8 +2158,10 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.title': 'Skill 快速输入',
     'skillComposer.chooseEntryPoint': '/ 选择',
     'skillComposer.slashPlaceholder': '输入 / 选择 Skill 或 Workflow...',
+    'skillComposer.goalPlaceholder': '描述目标，输入 / 选择 Skill 或 Workflow，或用 @ 引用素材...',
     'skillComposer.inputPlaceholder': '描述输入，或输入 @ 引用 Block / Asset...',
     'skillComposer.create': '创建草稿',
+    'skillComposer.planWithAgent': '交给 Agent 规划',
     'skillComposer.addMention': '引用 Block 或 Asset',
     'skillComposer.selectedMentions': '已引用输入',
     'skillComposer.removeMention': '移除引用',

@@ -1,6 +1,7 @@
 import { ArrowUp, AtSign, ChevronDown, Search, Sparkles, X } from 'lucide-react';
 import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactElement } from 'react';
 import {
+  listGoalComposerMentionOptions,
   listPackageComposerInlineInputOptions,
   listPackageComposerMentionOptions,
   packageComposerMentionId,
@@ -16,14 +17,17 @@ import { workflowUiDefinitionFor } from '../core/workflowRegistry';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
 import {
-  defaultGenerationPreparationParameters,
   generationReferenceRoles,
   type GenerationPreparationParameters,
   type GenerationReferenceRole,
 } from '../core/generationPreparationContracts';
+import {
+  useUnifiedComposerDraft,
+  type ComposerReferenceSetting,
+  type UnifiedComposerAgentInput,
+} from './UnifiedComposerProvider';
 
 type PickerState = { mode: 'entrypoint' | 'mention'; query: string } | undefined;
-type ReferenceSetting = { purpose: string; required: boolean; role: GenerationReferenceRole };
 
 export function AgentWorkspaceComposer({
   disabled,
@@ -31,26 +35,27 @@ export function AgentWorkspaceComposer({
   snapshot,
 }: {
   disabled?: boolean;
-  onSubmit: (input: {
-    content: string;
-    entrypointId?: string;
-    inlineValues: PackageComposerInlineValue[];
-    mentions: PackageComposerMention[];
-    parameters: Record<string, unknown>;
-  }) => void;
+  onSubmit: (input: UnifiedComposerAgentInput) => void;
   snapshot: BoardSnapshot;
 }): ReactElement {
   const { t } = useI18n();
   const rootRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [content, setContent] = useState('');
-  const [entrypointId, setEntrypointId] = useState<string>();
-  const [mentions, setMentions] = useState<PackageComposerMention[]>([]);
-  const [inlineValuesBySlot, setInlineValuesBySlot] = useState<Record<string, string>>({});
-  const [generationParameters, setGenerationParameters] = useState<GenerationPreparationParameters>(
-    defaultGenerationPreparationParameters,
-  );
-  const [referenceSettings, setReferenceSettings] = useState<Record<string, ReferenceSetting>>({});
+  const {
+    entrypointId,
+    generationParameters,
+    inlineValuesBySlot,
+    instruction: content,
+    mentions,
+    referenceSettings,
+    reset,
+    selectEntryPoint: selectDraftEntryPoint,
+    setGenerationParameters,
+    setInlineValuesBySlot,
+    setInstruction: setContent,
+    setMentions,
+    setReferenceSettings,
+  } = useUnifiedComposerDraft();
   const [picker, setPicker] = useState<PickerState>();
   const entrypoints = useMemo(() => listPackageEntryPoints().filter(isRunnableRegistration), []);
   const selectedEntryPoint = entrypoints.find((item) => item.entrypoint.entrypointId === entrypointId);
@@ -88,7 +93,9 @@ export function AgentWorkspaceComposer({
     return value ? [{ kind: 'inline', slotId: option.slotId, value }] : [];
   });
   const mentionOptions = useMemo(
-    () => entrypointId ? listPackageComposerMentionOptions(snapshot, entrypointId) : [],
+    () => entrypointId
+      ? listPackageComposerMentionOptions(snapshot, entrypointId)
+      : listGoalComposerMentionOptions(snapshot),
     [entrypointId, snapshot],
   );
   const mentionById = useMemo(
@@ -105,24 +112,30 @@ export function AgentWorkspaceComposer({
     if (!mentionQuery) return true;
     return `${option.label} ${option.description} ${option.slotId}`.toLocaleLowerCase().includes(mentionQuery);
   });
+  const canSubmit = !disabled && (entrypointId
+    ? Boolean(content.trim() || mentions.length > 0 || inlineValues.length > 0)
+    : Boolean(content.trim()));
 
   useDismissiblePopover({ active: Boolean(picker), onDismiss: () => setPicker(undefined), rootRef });
 
   function updateContent(value: string): void {
     setContent(value);
-    const trigger = trailingTriggerQuery(value, entrypointId ? '@' : '/');
-    if (trigger !== undefined) {
-      setPicker({ mode: entrypointId ? 'mention' : 'entrypoint', query: trigger });
-    } else if (picker) setPicker(undefined);
+    const mentionTrigger = trailingTriggerQuery(value, '@');
+    if (mentionTrigger !== undefined) {
+      setPicker({ mode: 'mention', query: mentionTrigger });
+      return;
+    }
+    const entrypointTrigger = trailingTriggerQuery(value, '/');
+    if (entrypointTrigger !== undefined) {
+      setPicker({ mode: 'entrypoint', query: entrypointTrigger });
+      return;
+    }
+    if (picker) setPicker(undefined);
   }
 
   function selectEntryPoint(item: RegisteredPackageEntryPoint): void {
-    setEntrypointId(item.entrypoint.entrypointId);
+    selectDraftEntryPoint(item.entrypoint.entrypointId);
     setContent((current) => stripTrailingTrigger(current, '/'));
-    setMentions([]);
-    setInlineValuesBySlot({});
-    setGenerationParameters(defaultGenerationPreparationParameters);
-    setReferenceSettings({});
     setPicker(undefined);
     inputRef.current?.focus();
   }
@@ -144,7 +157,7 @@ export function AgentWorkspaceComposer({
 
   function submit(event: FormEvent): void {
     event.preventDefault();
-    if (disabled || (!content.trim() && mentions.length === 0 && inlineValues.length === 0)) return;
+    if (!canSubmit) return;
     onSubmit({
       content: content.trim(),
       entrypointId,
@@ -152,12 +165,7 @@ export function AgentWorkspaceComposer({
       mentions,
       parameters: usesGenerationPreparation ? { ...generationParameters } : {},
     });
-    setContent('');
-    setEntrypointId(undefined);
-    setMentions([]);
-    setInlineValuesBySlot({});
-    setGenerationParameters(defaultGenerationPreparationParameters);
-    setReferenceSettings({});
+    reset();
     setPicker(undefined);
   }
 
@@ -165,8 +173,7 @@ export function AgentWorkspaceComposer({
     if (
       event.key === 'Enter'
       && !event.shiftKey
-      && (content.trim() || mentions.length > 0 || inlineValues.length > 0)
-      && !disabled
+      && canSubmit
     ) {
       event.preventDefault();
       event.currentTarget.form?.requestSubmit();
@@ -193,11 +200,9 @@ export function AgentWorkspaceComposer({
               </span>
             );
           })}
-          {entrypointId ? (
-            <button type="button" onClick={() => setPicker({ mode: 'mention', query: '' })}>
-              <AtSign size={13} />{t('agentWorkspace.addMention')}
-            </button>
-          ) : null}
+          <button type="button" onClick={() => setPicker({ mode: 'mention', query: '' })}>
+            <AtSign size={13} />{t('agentWorkspace.addMention')}
+          </button>
           {inlineInputOptions.filter(
             (option) => option.schemaRef !== 'retake.generation-reference-manifest/v1',
           ).map((option) => (
@@ -292,7 +297,7 @@ export function AgentWorkspaceComposer({
           />
           <button
             type="submit"
-            disabled={disabled || (!content.trim() && mentions.length === 0 && inlineValues.length === 0)}
+            disabled={!canSubmit}
             aria-label={t('agentWorkspace.send')}
           >
             <ArrowUp size={17} />
@@ -348,7 +353,7 @@ function stripTrailingTrigger(value: string, trigger: '/' | '@'): string {
   return value.replace(new RegExp(`(?:^|\\s)\\${trigger}[^\\s${trigger === '/' ? '@' : '/'}]*$`), '').trimEnd();
 }
 
-function defaultReferenceSetting(): ReferenceSetting {
+function defaultReferenceSetting(): ComposerReferenceSetting {
   return {
     purpose: 'Preserve the declared visual authority.',
     required: true,

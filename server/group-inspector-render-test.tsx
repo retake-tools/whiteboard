@@ -5,6 +5,7 @@ import { GroupInspector } from '../src/components/GroupInspector';
 import { GroupToolbar } from '../src/components/GroupToolbar';
 import { GroupDrawOverlay } from '../src/components/GroupDrawOverlay';
 import { FloatingToolbar } from '../src/components/FloatingToolbar';
+import { UnifiedComposerProvider } from '../src/components/UnifiedComposerProvider';
 import { OperationInlineControls } from '../src/nodes/OperationInlineControls';
 import { operationDisplayState } from '../src/core/operationDisplay';
 import { ExecutionDetailContent } from '../src/components/ExecutionDetailContent';
@@ -251,13 +252,18 @@ assert.deepEqual(loadCollapsedGroupIds('project_render', 'board_render'), ['grou
 
 const floatingToolbarMarkup = renderToStaticMarkup(
   <I18nProvider>
-    <FloatingToolbar
-      activeTool="select"
-      onAddBlock={() => undefined}
-      onCreateImageToImage={() => undefined}
-      onCreateTextToImage={() => undefined}
-      onSetActiveTool={() => undefined}
-    />
+    <UnifiedComposerProvider>
+      <FloatingToolbar
+        activeTool="select"
+        onAddBlock={() => undefined}
+        onCreateImageToImage={() => undefined}
+        onCreateTextToImage={() => undefined}
+        onInvokeEntryPoint={() => undefined}
+        onSubmitAgentMessage={() => undefined}
+        onSetActiveTool={() => undefined}
+        snapshot={snapshot}
+      />
+    </UnifiedComposerProvider>
   </I18nProvider>,
 );
 const basicElementsMenuStart = floatingToolbarMarkup.indexOf('role="menu" aria-label="Basic elements"');

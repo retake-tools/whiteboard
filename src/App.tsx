@@ -10,6 +10,7 @@ import { OperationFeedback } from './components/OperationFeedback';
 import { ProjectBoardDialog } from './components/ProjectBoardDialog';
 import { getProjectBoardDialogView } from './components/projectBoardDialogView';
 import { TopBar } from './components/TopBar';
+import { UnifiedComposerProvider } from './components/UnifiedComposerProvider';
 import { getAssetPreviewUrl } from './core/assetStore';
 import { blockLockedByGroup, groupMediaItems } from './core/grouping';
 import { loadUiPreferences } from './core/uiPreferences';
@@ -435,7 +436,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
   const projectBoardDialogView = projectBoardDialog
     ? getProjectBoardDialogView(projectBoardDialog, t)
     : undefined;
-  return (
+  const appShell = (
     <main className="app-shell">
       <input
         ref={directImageImportInputRef}
@@ -545,10 +546,15 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
       ) : null}
       <FloatingToolbar
         activeTool={activeCanvasTool}
+        agentDisabled={agentWorkspaceController.isSending}
         onAddBlock={addBlock}
         onCreateImageToImage={createImageToImageDraftFromMenu}
         onCreateTextToImage={() => createTextToImageDraftOperation()}
         onInvokeEntryPoint={packageEntryPointController.invokeEntryPoint}
+        onSubmitAgentMessage={(input) => {
+          setIsAgentWorkspaceOpen(true);
+          void agentWorkspaceController.submitMessage(input);
+        }}
         snapshot={snapshot}
         onSetActiveTool={setActiveCanvasTool}
       />
@@ -672,6 +678,11 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         workflowRuntime={workflowRuntimeController}
       />
     </main>
+  );
+  return (
+    <UnifiedComposerProvider key={`${snapshot.project.projectId}:${snapshot.board.boardId}`}>
+      {appShell}
+    </UnifiedComposerProvider>
   );
 }
 

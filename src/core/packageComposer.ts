@@ -1,6 +1,7 @@
 import { capabilityDefinitionFor } from './capabilityRegistry';
 import type { CapabilityCardinality, CapabilityDataType } from './capabilityContracts';
 import {
+  listPackageEntryPoints,
   resolvePackageEntryPoint,
   type ResolvedPackageEntryPointTarget,
 } from './packageRegistry';
@@ -188,6 +189,22 @@ export function listPackageComposerMentionOptions(
   const blockOptions = snapshot.blocks.flatMap((block) => mentionOptionsForBlock(snapshot, block, slots));
   const assetOptions = snapshot.assets.flatMap((asset) => mentionOptionsForAsset(snapshot, asset, slots));
   return [...blockOptions, ...assetOptions];
+}
+
+export function listGoalComposerMentionOptions(
+  snapshot: BoardSnapshot,
+): PackageComposerMentionOption[] {
+  const optionsById = new Map<string, PackageComposerMentionOption>();
+  for (const registration of listPackageEntryPoints()) {
+    if (registration.entrypoint.kind !== 'workflow') continue;
+    for (const option of listPackageComposerMentionOptions(
+      snapshot,
+      registration.entrypoint.entrypointId,
+    )) {
+      if (!optionsById.has(option.mentionId)) optionsById.set(option.mentionId, option);
+    }
+  }
+  return [...optionsById.values()];
 }
 
 export function packageComposerMentionId(mention: PackageComposerMention): string {
