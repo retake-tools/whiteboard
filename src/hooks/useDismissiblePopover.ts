@@ -5,6 +5,7 @@ export const dismissPopoversEvent = 'retake:dismiss-popovers';
 interface DismissiblePopoverOptions {
   active: boolean;
   additionalRefs?: readonly RefObject<HTMLElement | null>[];
+  focusOnEscapeRef?: RefObject<HTMLElement | null>;
   insideSelector?: string;
   onDismiss: () => void;
   rootRef: RefObject<HTMLElement | null>;
@@ -25,7 +26,11 @@ export function useDismissiblePopover(options: DismissiblePopoverOptions): void 
     }
 
     function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === 'Escape') optionsRef.current.onDismiss();
+      if (event.key === 'Escape') {
+        const focusTarget = optionsRef.current.focusOnEscapeRef?.current;
+        optionsRef.current.onDismiss();
+        if (focusTarget) requestAnimationFrame(() => focusTarget.focus());
+      }
     }
 
     function onDismissRequested(): void {

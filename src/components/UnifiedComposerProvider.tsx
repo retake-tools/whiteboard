@@ -35,6 +35,7 @@ export interface UnifiedComposerAgentInput {
 }
 
 export interface UnifiedComposerDraftController {
+  clearEntryPoint: () => void;
   entrypointId?: string;
   generationParameters: GenerationPreparationParameters;
   inlineValuesBySlot: Record<string, string>;
@@ -79,6 +80,16 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     setMentions([]);
   }, []);
 
+  const clearEntryPoint = useCallback((): void => {
+    setEntrypointId(undefined);
+    setInlineValuesBySlot({});
+    setStoryboardOutputCount(1);
+    setStoryboardPanelCount(6);
+    setGenerationParameters(defaultGenerationPreparationParameters);
+    setReferenceSettings({});
+    setMentions([]);
+  }, []);
+
   const selectEntryPoint = useCallback((nextEntrypointId: string): void => {
     setEntrypointId(nextEntrypointId);
     setInlineValuesBySlot({});
@@ -90,6 +101,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
   }, []);
 
   const value = useMemo<UnifiedComposerDraftController>(() => ({
+    clearEntryPoint,
     entrypointId,
     generationParameters,
     inlineValuesBySlot,
@@ -108,6 +120,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     storyboardOutputCount,
     storyboardPanelCount,
   }), [
+    clearEntryPoint,
     entrypointId,
     generationParameters,
     inlineValuesBySlot,

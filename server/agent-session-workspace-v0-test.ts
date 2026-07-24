@@ -19,10 +19,11 @@ import type { BoardSnapshot } from '../src/core/types';
 import { loadSnapshot, resetWorkspace, saveSnapshot } from './local-store/snapshot-store';
 import { parseAgentRuntimeDecision } from './agent-runtime-port';
 
-const [portSource, workspaceSource, composerSource, controllerSource, appServerSource, apiSource, runtimeClientSource] = await Promise.all([
+const [portSource, workspaceSource, composerSource, sharedComposerSource, controllerSource, appServerSource, apiSource, runtimeClientSource] = await Promise.all([
   readFile(new URL('./agent-runtime-port.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentWorkspace.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentWorkspaceComposer.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/SkillQuickInputComposer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/useAgentWorkspaceController.ts', import.meta.url), 'utf8'),
   readFile(new URL('./codex-app-server-client.ts', import.meta.url), 'utf8'),
   readFile(new URL('./vite-local-api.ts', import.meta.url), 'utf8'),
@@ -38,9 +39,11 @@ assert.doesNotMatch(portSource, /saveSnapshot|createBlock|projectWorkflowDraft/)
 assert.match(appServerSource, /thread\/resume/);
 assert.doesNotMatch(appServerSource, /dynamicTools:/);
 assert.match(workspaceSource, /'chat', 'run', 'changes'/);
-assert.match(composerSource, /listPackageEntryPoints/);
-assert.match(composerSource, /listPackageComposerMentionOptions/);
+assert.match(composerSource, /<SkillQuickInputComposer/);
+assert.match(composerSource, /mode="agent"/);
 assert.doesNotMatch(composerSource, /onInvokeEntryPoint/);
+assert.match(sharedComposerSource, /listPackageEntryPoints/);
+assert.match(sharedComposerSource, /listPackageComposerMentionOptions/);
 assert.match(controllerSource, /persistSnapshot\(withUserMessage, \{ requireLocalApi: true \}\)/);
 assert.match(controllerSource, /applyAgentRuntimeTurn/);
 assert.match(apiSource, /application\/x-ndjson/);

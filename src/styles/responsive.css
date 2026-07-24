@@ -87,8 +87,7 @@
 }
 
 @media (max-width: 640px) {
-  .skill-composer-entrypoint { width: 38px; padding: 0; }
-  .skill-composer-entrypoint span,
-  .skill-composer-entrypoint svg:last-child { display: none; }
+  .skill-composer-entrypoint { max-width: 150px; }
+  .skill-composer-entrypoint-main { padding-left: 8px; }
   .skill-composer-recommended { overflow-x: auto; }
 }

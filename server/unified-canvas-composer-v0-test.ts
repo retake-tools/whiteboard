@@ -13,22 +13,38 @@ import {
 import type { BlockRecord, BoardSnapshot } from '../src/core/types';
 import { resetWorkspace } from './local-store/snapshot-store';
 
-const [appSource, providerSource, canvasComposerSource, agentComposerSource] = await Promise.all([
+const [
+  appSource,
+  providerSource,
+  canvasComposerSource,
+  agentComposerSource,
+  responsiveSource,
+  dismissiblePopoverSource,
+] = await Promise.all([
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/UnifiedComposerProvider.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/SkillQuickInputComposer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentWorkspaceComposer.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/styles/responsive.css', import.meta.url), 'utf8'),
+  readFile(new URL('../src/hooks/useDismissiblePopover.ts', import.meta.url), 'utf8'),
 ]);
 
 assert.match(appSource, /<UnifiedComposerProvider key=/);
 assert.match(providerSource, /createContext<UnifiedComposerDraftController/);
 assert.match(providerSource, /useUnifiedComposerDraft/);
 assert.match(canvasComposerSource, /useUnifiedComposerDraft\(\)/);
-assert.match(agentComposerSource, /useUnifiedComposerDraft\(\)/);
+assert.match(agentComposerSource, /<SkillQuickInputComposer/);
+assert.match(agentComposerSource, /mode="agent"/);
+assert.doesNotMatch(agentComposerSource, /onInvokeEntryPoint/);
 assert.match(canvasComposerSource, /onSubmitAgentMessage/);
 assert.match(canvasComposerSource, /listGoalComposerMentionOptions/);
-assert.match(agentComposerSource, /listGoalComposerMentionOptions/);
-assert.match(agentComposerSource, /setPicker\(\{ mode: 'mention', query: mentionTrigger \}\)/);
+assert.match(canvasComposerSource, /groupMentionOptions/);
+assert.match(canvasComposerSource, /skill-composer-picker-source/);
+assert.match(appSource, /composerVisible=\{!isAgentWorkspaceOpen\}/);
+assert.match(canvasComposerSource, /skill-composer-entrypoint-remove/);
+assert.match(canvasComposerSource, /skill-composer-picker-option/);
+assert.match(dismissiblePopoverSource, /focusOnEscapeRef/);
+assert.doesNotMatch(responsiveSource, /\.skill-composer-entrypoint span,[\s\S]*display: none/);
 
 const snapshot = await emptySnapshot();
 const brief = textBlock(
@@ -76,6 +92,11 @@ assert.equal(command.draftCommand.invocation.mentionLocks[0]?.slotId, 'brief');
 console.log(JSON.stringify({
   ok: true,
   sharedDraftProvider: true,
+  singleVisibleComposer: true,
+  unifiedPickerPresentation: true,
+  groupedMentionSources: true,
+  removableEntrypointChip: true,
+  escapeFocusReturn: true,
   canvasGoalSubmission: true,
   goalMentionPicker: true,
   entrypointIndependentTypedMention: true,

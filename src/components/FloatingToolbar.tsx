@@ -26,6 +26,7 @@ export type CanvasTool = 'group' | 'select' | 'pan';
 interface FloatingToolbarProps {
   activeTool: CanvasTool;
   agentDisabled?: boolean;
+  composerVisible?: boolean;
   onAddBlock: (type: Extract<BlockType, 'group' | 'image' | 'operation' | 'text' | 'video'>) => void;
   onCreateImageToImage: () => void;
   onCreateTextToImage: () => void;
@@ -38,6 +39,7 @@ interface FloatingToolbarProps {
 export function FloatingToolbar({
   activeTool,
   agentDisabled,
+  composerVisible = true,
   onAddBlock,
   onCreateImageToImage,
   onCreateTextToImage,
@@ -50,7 +52,7 @@ export function FloatingToolbar({
 
   return (
     <>
-      {skillDockVisible ? (
+      {skillDockVisible && composerVisible ? (
         <SkillQuickInputComposer
           agentDisabled={agentDisabled}
           snapshot={snapshot}

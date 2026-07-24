@@ -53,14 +53,42 @@
 .skill-composer-entrypoint {
   max-width: 190px;
   flex: 0 0 auto;
-  padding: 0 10px;
+  padding: 0;
   color: #475569;
   font-size: 12px;
   font-weight: 700;
+  overflow: hidden;
 }
 
 .skill-composer-entrypoint span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .skill-composer-entrypoint.is-selected { border-color: #99f6e4; background: #f0fdfa; color: #0f766e; }
+.skill-composer-entrypoint-main {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  gap: 5px;
+  align-items: center;
+  padding: 0 8px 0 10px;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.skill-composer-entrypoint-remove {
+  display: grid;
+  width: 28px;
+  height: 100%;
+  flex: 0 0 28px;
+  place-items: center;
+  border: 0;
+  border-left: 1px solid #bae6e2;
+  background: transparent;
+  color: #64748b;
+}
+.skill-composer-entrypoint:not(.is-selected) { padding: 0 10px; }
+.skill-composer-entrypoint-main:hover,
+.skill-composer-entrypoint-remove:hover { background: rgb(20 184 166 / 9%); }
 
 .skill-composer-input-shell {
   display: flex;
@@ -212,8 +240,88 @@
 .skill-composer-picker-list { display: grid; max-height: min(360px, 52vh); gap: 6px; margin-top: 8px; overflow-y: auto; }
 .skill-composer-picker-list > button { display: grid; gap: 3px; padding: 9px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; text-align: left; }
 .skill-composer-picker-list > button:hover { border-color: #99f6e4; background: #f0fdfa; }
-.skill-composer-picker-list > button span { color: #64748b; font-size: 11px; }
+.skill-composer-picker-list > button span { display: flex; gap: 6px; align-items: center; color: #64748b; font-size: 11px; }
+.skill-composer-picker-list > button span small {
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 9px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
 .skill-composer-picker-list > p { margin: 12px 4px; color: #64748b; font-size: 12px; }
+.skill-composer-picker-source {
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #fff;
+}
+.skill-composer-picker-source > header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 9px;
+  background: #f8fafc;
+}
+.skill-composer-picker-source > header strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #334155;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.skill-composer-picker-source > header span { flex: 0 0 auto; color: #64748b; font-size: 9px; }
+.skill-composer-picker-source > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); background: #fff; }
+.skill-composer-picker-source button {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 0;
+  border-top: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  background: #fff;
+  text-align: left;
+}
+.skill-composer-picker-source button:hover,
+.skill-composer-picker-source button:focus-visible { background: #f0fdfa; }
+.skill-composer-picker-source button strong { color: #0f766e; font-size: 10px; }
+.skill-composer-picker-source button span {
+  overflow: hidden;
+  color: #64748b;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-composer.is-agent-workspace {
+  position: relative;
+  bottom: auto;
+  left: auto;
+  z-index: auto;
+  width: auto;
+  padding: 10px 12px 12px;
+  border: 0;
+  border-top: 1px solid var(--retake-border-subtle);
+  border-radius: 0;
+  background: var(--retake-surface);
+  box-shadow: none;
+  transform: none;
+  backdrop-filter: none;
+}
+.skill-composer.is-agent-workspace .skill-composer-form { align-items: flex-end; flex-wrap: wrap; }
+.skill-composer.is-agent-workspace .skill-composer-entrypoint { max-width: 170px; }
+.skill-composer.is-agent-workspace .skill-composer-input-shell { flex-basis: 210px; }
+.skill-composer.is-agent-workspace .skill-composer-input-shell textarea { min-height: 42px; }
+.skill-composer.is-agent-workspace .skill-composer-picker {
+  right: 12px;
+  bottom: calc(100% + 4px);
+  left: 12px;
+  width: auto;
+}
 
 .context-dock {
   z-index: 10;

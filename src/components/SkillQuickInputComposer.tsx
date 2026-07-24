@@ -48,8 +48,10 @@ import {
 
 interface SkillQuickInputComposerProps {
   agentDisabled?: boolean;
-  onInvokeEntryPoint: (invocation: PackageComposerInvocation) => void;
+  mode?: 'agent' | 'canvas';
+  onInvokeEntryPoint?: (invocation: PackageComposerInvocation) => void;
   onSubmitAgentMessage: (input: UnifiedComposerAgentInput) => void;
+  showRecommendations?: boolean;
   snapshot: BoardSnapshot;
 }
 
@@ -57,14 +59,17 @@ type PickerState = { mode: 'entrypoint' | 'mention'; query: string } | undefined
 
 export function SkillQuickInputComposer({
   agentDisabled,
+  mode = 'canvas',
   onInvokeEntryPoint,
   onSubmitAgentMessage,
+  showRecommendations = mode === 'canvas',
   snapshot,
 }: SkillQuickInputComposerProps): ReactElement {
   const { t } = useI18n();
   const rootRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const {
+    clearEntryPoint,
     entrypointId,
     generationParameters,
     inlineValuesBySlot,
@@ -116,6 +121,7 @@ export function SkillQuickInputComposer({
     mentionOptions,
     picker?.mode === 'mention' ? picker.query : '',
   ), [mentionOptions, picker]);
+  const mentionGroups = useMemo(() => groupMentionOptions(filteredMentions), [filteredMentions]);
   const invocation = useMemo((): PackageComposerInvocation | undefined => entrypointId ? ({
     entrypointId,
     inlineValues: inlineInputOptions.flatMap((option): PackageComposerInlineValue[] => {
@@ -179,6 +185,7 @@ export function SkillQuickInputComposer({
 
   useDismissiblePopover({
     active: Boolean(picker),
+    focusOnEscapeRef: inputRef,
     onDismiss: () => setPicker(undefined),
     rootRef,
   });
@@ -226,6 +233,20 @@ export function SkillQuickInputComposer({
 
   function submit(event: FormEvent): void {
     event.preventDefault();
+    if (mode === 'agent') {
+      if (!canSubmit) return;
+      onSubmitAgentMessage({
+        content: instruction.trim(),
+        ...(entrypointId ? { entrypointId } : {}),
+        inlineValues: invocation?.inlineValues ?? [],
+        mentions,
+        parameters: invocation?.parameters ?? {},
+      });
+      reset();
+      setPicker(undefined);
+      setSubmitError(undefined);
+      return;
+    }
     if (!invocation) {
       if (!instruction.trim() || agentDisabled) return;
       onSubmitAgentMessage({
@@ -241,6 +262,7 @@ export function SkillQuickInputComposer({
     }
     try {
       resolvePackageComposerInvocation(snapshot, invocation);
+      if (!onInvokeEntryPoint) throw new Error('Canvas Composer requires an EntryPoint invocation handler.');
       onInvokeEntryPoint(invocation);
       reset();
       setPicker(undefined);
@@ -257,19 +279,60 @@ export function SkillQuickInputComposer({
     }
   }
 
+  function clearSelectedEntryPoint(): void {
+    clearEntryPoint();
+    setPicker(undefined);
+    setSubmitError(undefined);
+    inputRef.current?.focus();
+  }
+
+  function focusPickerOption(current: HTMLElement, direction: 1 | -1): void {
+    const options = [...(rootRef.current?.querySelectorAll<HTMLButtonElement>('.skill-composer-picker-option') ?? [])];
+    if (options.length === 0) return;
+    const currentIndex = options.indexOf(current as HTMLButtonElement);
+    options[(currentIndex + direction + options.length) % options.length]?.focus();
+  }
+
   return (
-    <section ref={rootRef} className="skill-composer" aria-label={t('skillComposer.title')}>
+    <section
+      ref={rootRef}
+      className={`skill-composer${mode === 'agent' ? ' is-agent-workspace' : ''}`}
+      aria-label={t('skillComposer.title')}
+    >
       <form className="skill-composer-form" onSubmit={submit}>
-        <button
-          type="button"
-          className={`skill-composer-entrypoint${selectedEntryPoint ? ' is-selected' : ''}`}
-          aria-expanded={picker?.mode === 'entrypoint'}
-          onClick={() => setPicker({ mode: 'entrypoint', query: '' })}
-        >
-          <Sparkles size={15} />
-          <span>{selectedEntryPoint ? entryPointDisplayName(selectedEntryPoint, t) : t('skillComposer.chooseEntryPoint')}</span>
-          <ChevronDown size={13} />
-        </button>
+        {selectedEntryPoint ? (
+          <div className="skill-composer-entrypoint is-selected">
+            <button
+              type="button"
+              className="skill-composer-entrypoint-main"
+              aria-expanded={picker?.mode === 'entrypoint'}
+              onClick={() => setPicker({ mode: 'entrypoint', query: '' })}
+            >
+              <Sparkles size={15} />
+              <span>{entryPointDisplayName(selectedEntryPoint, t)}</span>
+              <ChevronDown size={13} />
+            </button>
+            <button
+              type="button"
+              className="skill-composer-entrypoint-remove"
+              aria-label={t('skillComposer.clearEntryPoint')}
+              onClick={clearSelectedEntryPoint}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="skill-composer-entrypoint"
+            aria-expanded={picker?.mode === 'entrypoint'}
+            onClick={() => setPicker({ mode: 'entrypoint', query: '' })}
+          >
+            <Sparkles size={15} />
+            <span>{t('skillComposer.chooseEntryPoint')}</span>
+            <ChevronDown size={13} />
+          </button>
+        )}
         <div className="skill-composer-input-shell">
           {mentions.length > 0 ? (
             <div className="skill-composer-mentions" aria-label={t('skillComposer.selectedMentions')}>
@@ -445,7 +508,11 @@ export function SkillQuickInputComposer({
             ref={inputRef}
             rows={1}
             value={instruction}
-            placeholder={entrypointId ? t('skillComposer.inputPlaceholder') : t('skillComposer.goalPlaceholder')}
+            placeholder={mode === 'agent'
+              ? t('agentWorkspace.inputPlaceholder')
+              : entrypointId
+                ? t('skillComposer.inputPlaceholder')
+                : t('skillComposer.goalPlaceholder')}
             onChange={(event) => updateInstruction(event.target.value)}
             onKeyDown={handleInputKeyDown}
           />
@@ -462,13 +529,17 @@ export function SkillQuickInputComposer({
           type="submit"
           className="skill-composer-submit"
           disabled={!canSubmit}
-          aria-label={t(entrypointId ? 'skillComposer.create' : 'skillComposer.planWithAgent')}
+          aria-label={t(mode === 'agent'
+            ? 'agentWorkspace.send'
+            : entrypointId
+              ? 'skillComposer.create'
+              : 'skillComposer.planWithAgent')}
         >
           <ArrowUp size={17} />
         </button>
       </form>
       {submitError ? <p className="skill-composer-error" role="status">{submitError}</p> : null}
-      <div className="skill-composer-recommended">
+      {showRecommendations ? <div className="skill-composer-recommended">
         <span><Sparkles size={12} />{t('skillDock.recommended')}</span>
         {recommended.map((registration) => (
           <button
@@ -484,16 +555,23 @@ export function SkillQuickInputComposer({
         <button type="button" className="skill-composer-more" onClick={() => setPicker({ mode: 'entrypoint', query: '' })}>
           {t('skillDock.more')}
         </button>
-      </div>
+      </div> : null}
       {picker ? (
         <div className="skill-composer-picker" role="dialog" aria-label={picker.mode === 'entrypoint' ? t('skillDock.library') : t('skillComposer.mentionLibrary')}>
           <label className="skill-composer-picker-search">
             <Search size={15} />
             <input
               autoFocus
+              aria-label={picker.mode === 'entrypoint' ? t('skillDock.search') : t('skillComposer.searchMentions')}
               value={picker.query}
               placeholder={picker.mode === 'entrypoint' ? t('skillDock.search') : t('skillComposer.searchMentions')}
               onChange={(event) => setPicker({ ...picker, query: event.target.value })}
+              onKeyDown={(event) => {
+                if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+                event.preventDefault();
+                const options = rootRef.current?.querySelectorAll<HTMLButtonElement>('.skill-composer-picker-option');
+                options?.[event.key === 'ArrowDown' ? 0 : options.length - 1]?.focus();
+              }}
             />
           </label>
           <div className="skill-composer-picker-list">
@@ -501,18 +579,53 @@ export function SkillQuickInputComposer({
               <button
                 key={registration.entrypoint.entrypointId}
                 type="button"
+                className="skill-composer-picker-option"
                 data-entrypoint-id={registration.entrypoint.entrypointId}
                 data-package-id={registration.packageLock.packageId}
                 onClick={() => selectEntryPoint(registration)}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    focusPickerOption(event.currentTarget, event.key === 'ArrowDown' ? 1 : -1);
+                  }
+                }}
               >
                 <strong>{entryPointDisplayName(registration, t)}</strong>
-                <span>{registration.entrypoint.kind === 'workflow' ? `${t('skillDock.workflowBadge')} · ` : ''}{entryPointDisplayDescription(registration, t)}</span>
+                <span>
+                  <small>{registration.entrypoint.kind === 'workflow' ? t('skillDock.workflowBadge') : t('skillDock.skillBadge')}</small>
+                  {entryPointDisplayDescription(registration, t)}
+                </span>
               </button>
-            )) : filteredMentions.map((option) => (
-              <button key={option.mentionId} type="button" data-mention-id={option.mentionId} onClick={() => selectMention(option)}>
-                <strong>@{option.label}</strong>
-                <span>{option.kind === 'block' ? t('skillComposer.blockMention') : t('skillComposer.assetMention')} · {option.slotId}</span>
-              </button>
+            )) : mentionGroups.map((group) => (
+              <section key={group.sourceKey} className="skill-composer-picker-source">
+                <header>
+                  <strong>@{group.label}</strong>
+                  <span>
+                    {group.kind === 'block' ? t('skillComposer.blockMention') : t('skillComposer.assetMention')}
+                    {' · '}{group.sourceId.slice(-8)}
+                  </span>
+                </header>
+                <div>
+                  {group.options.map((option) => (
+                    <button
+                      key={option.mentionId}
+                      type="button"
+                      className="skill-composer-picker-option"
+                      data-mention-id={option.mentionId}
+                      onClick={() => selectMention(option)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                          event.preventDefault();
+                          focusPickerOption(event.currentTarget, event.key === 'ArrowDown' ? 1 : -1);
+                        }
+                      }}
+                    >
+                      <strong>{t('skillComposer.inputSlot')} · {option.slotId}</strong>
+                      <span>{option.description}{option.artifactType ? ` · ${option.artifactType}` : ''}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
             ))}
             {picker.mode === 'entrypoint' && filteredEntryPoints.length === 0 ? <p>{t('skillComposer.noEntryPoints')}</p> : null}
             {picker.mode === 'mention' && filteredMentions.length === 0 ? <p>{t('skillComposer.noMentions')}</p> : null}
@@ -588,6 +701,35 @@ function filterMentionOptions(options: PackageComposerMentionOption[], query: st
   return options.filter((option) => `${option.label} ${option.description} ${option.slotId} ${option.artifactType ?? ''}`
     .toLocaleLowerCase()
     .includes(normalized));
+}
+
+interface MentionOptionGroup {
+  kind: 'asset' | 'block';
+  label: string;
+  options: PackageComposerMentionOption[];
+  sourceId: string;
+  sourceKey: string;
+}
+
+function groupMentionOptions(options: PackageComposerMentionOption[]): MentionOptionGroup[] {
+  const groups = new Map<string, MentionOptionGroup>();
+  for (const option of options) {
+    const sourceId = option.kind === 'block' ? option.blockId : option.assetId;
+    const sourceKey = `${option.kind}:${sourceId}`;
+    const current = groups.get(sourceKey);
+    if (current) {
+      current.options.push(option);
+      continue;
+    }
+    groups.set(sourceKey, {
+      kind: option.kind,
+      label: option.label,
+      options: [option],
+      sourceId,
+      sourceKey,
+    });
+  }
+  return [...groups.values()];
 }
 
 function mentionForOption(option: PackageComposerMentionOption): PackageComposerMention {

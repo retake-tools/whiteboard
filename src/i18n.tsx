@@ -408,6 +408,7 @@ type TranslationKey =
   | 'skillDock.search'
   | 'skillDock.screenplayCategory'
   | 'skillDock.skillCategory'
+  | 'skillDock.skillBadge'
   | 'skillDock.workflowBadge'
   | 'skillDock.workflowCategory'
   | 'skillComposer.title'
@@ -417,6 +418,7 @@ type TranslationKey =
   | 'skillComposer.inputPlaceholder'
   | 'skillComposer.create'
   | 'skillComposer.planWithAgent'
+  | 'skillComposer.clearEntryPoint'
   | 'skillComposer.addMention'
   | 'skillComposer.selectedMentions'
   | 'skillComposer.removeMention'
@@ -424,6 +426,7 @@ type TranslationKey =
   | 'skillComposer.searchMentions'
   | 'skillComposer.blockMention'
   | 'skillComposer.assetMention'
+  | 'skillComposer.inputSlot'
   | 'skillComposer.noEntryPoints'
   | 'skillComposer.noMentions'
   | 'skillComposer.invalidInput'
@@ -1283,6 +1286,7 @@ const translations: Record<Locale, Translations> = {
     'skillDock.search': 'Search skills and workflows',
     'skillDock.screenplayCategory': 'Screenplay',
     'skillDock.skillCategory': 'Single-step skills',
+    'skillDock.skillBadge': 'Skill',
     'skillDock.workflowBadge': 'Workflow',
     'skillDock.workflowCategory': 'Workflows',
     'skillComposer.title': 'Skill quick input',
@@ -1292,6 +1296,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.inputPlaceholder': 'Describe the input, or type @ to reference a block or asset...',
     'skillComposer.create': 'Create draft',
     'skillComposer.planWithAgent': 'Plan with Agent',
+    'skillComposer.clearEntryPoint': 'Clear selected skill or workflow',
     'skillComposer.addMention': 'Reference block or asset',
     'skillComposer.selectedMentions': 'Referenced inputs',
     'skillComposer.removeMention': 'Remove reference',
@@ -1299,6 +1304,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.searchMentions': 'Search compatible blocks and assets',
     'skillComposer.blockMention': 'Block',
     'skillComposer.assetMention': 'Asset',
+    'skillComposer.inputSlot': 'Input slot',
     'skillComposer.noEntryPoints': 'No matching skills or workflows.',
     'skillComposer.noMentions': 'No compatible blocks or document assets.',
     'skillComposer.invalidInput': 'This input combination is not compatible with the selected entry point.',
@@ -2153,6 +2159,7 @@ const translations: Record<Locale, Translations> = {
     'skillDock.search': '搜索 Skill 与 Workflow',
     'skillDock.screenplayCategory': '剧本',
     'skillDock.skillCategory': '单节点 Skill',
+    'skillDock.skillBadge': 'Skill',
     'skillDock.workflowBadge': 'Workflow',
     'skillDock.workflowCategory': 'Workflow',
     'skillComposer.title': 'Skill 快速输入',
@@ -2162,6 +2169,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.inputPlaceholder': '描述输入，或输入 @ 引用 Block / Asset...',
     'skillComposer.create': '创建草稿',
     'skillComposer.planWithAgent': '交给 Agent 规划',
+    'skillComposer.clearEntryPoint': '清除已选 Skill 或 Workflow',
     'skillComposer.addMention': '引用 Block 或 Asset',
     'skillComposer.selectedMentions': '已引用输入',
     'skillComposer.removeMention': '移除引用',
@@ -2169,6 +2177,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.searchMentions': '搜索兼容的 Block 与 Asset',
     'skillComposer.blockMention': 'Block',
     'skillComposer.assetMention': 'Asset',
+    'skillComposer.inputSlot': '输入 Slot',
     'skillComposer.noEntryPoints': '没有匹配的 Skill 或 Workflow。',
     'skillComposer.noMentions': '当前没有兼容的 Block 或 Document Asset。',
     'skillComposer.invalidInput': '当前输入组合与所选 EntryPoint 不兼容。',

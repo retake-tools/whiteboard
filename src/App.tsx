@@ -547,6 +547,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
       <FloatingToolbar
         activeTool={activeCanvasTool}
         agentDisabled={agentWorkspaceController.isSending}
+        composerVisible={!isAgentWorkspaceOpen}
         onAddBlock={addBlock}
         onCreateImageToImage={createImageToImageDraftFromMenu}
         onCreateTextToImage={() => createTextToImageDraftOperation()}

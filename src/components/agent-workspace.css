@@ -87,29 +87,6 @@
 .agent-workspace-proposal-actions button:last-child { background: var(--retake-text-secondary); }
 .agent-workspace-proposal-actions button:disabled { opacity: .45; cursor: default; }
 
-.agent-workspace-composer { position: relative; padding: 10px 12px 12px; border-top: 1px solid var(--retake-border-subtle); background: var(--retake-surface); }
-.agent-workspace-composer form { display: grid; gap: 7px; }
-.agent-workspace-context-chips { display: flex; gap: 5px; overflow-x: auto; }
-.agent-workspace-context-chips > button,
-.agent-workspace-context-chips > span { display: inline-flex; flex: none; align-items: center; gap: 4px; min-height: 24px; padding: 3px 6px; border-radius: 6px; background: var(--retake-surface-hover); color: var(--retake-text-secondary); font-size: 10px; }
-.agent-workspace-context-chips > button { cursor: pointer; }
-.agent-workspace-context-chips > span > button { display: inline-grid; width: 16px; height: 16px; place-items: center; padding: 0; border-radius: 4px; background: transparent; cursor: pointer; }
-.agent-workspace-inline-input { display: inline-flex; flex: none; align-items: center; gap: 4px; min-height: 24px; padding: 3px 6px; border-radius: 6px; background: var(--retake-surface-hover); color: var(--retake-text-secondary); font-size: 10px; font-weight: 700; }
-.agent-workspace-inline-input input { width: 74px; border: 0; outline: 0; background: transparent; color: var(--retake-text-primary); font: inherit; }
-.agent-workspace-inline-input select { max-width: 86px; border: 0; outline: 0; background: transparent; color: var(--retake-text-primary); font: inherit; }
-.agent-workspace-input-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; align-items: end; }
-.agent-workspace-input-row textarea { min-height: 56px; max-height: 130px; resize: vertical; padding: 9px; border: 1px solid var(--retake-border); border-radius: 8px; color: var(--retake-text); font: inherit; font-size: 12px; line-height: 1.4; }
-.agent-workspace-input-row > button { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 8px; background: var(--retake-accent); color: var(--retake-on-accent); cursor: pointer; }
-.agent-workspace-input-row > button:disabled { opacity: .45; cursor: default; }
-.agent-workspace-picker { position: absolute; right: 12px; bottom: calc(100% - 4px); left: 12px; z-index: 3; overflow: hidden; border: 1px solid var(--retake-border); border-radius: 9px; background: var(--retake-surface-elevated); box-shadow: var(--retake-shadow-popover); }
-.agent-workspace-picker > label { display: flex; align-items: center; gap: 7px; padding: 8px; border-bottom: 1px solid var(--retake-border-subtle); }
-.agent-workspace-picker input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; font: inherit; font-size: 12px; }
-.agent-workspace-picker > div { max-height: 210px; overflow-y: auto; }
-.agent-workspace-picker > div > button { display: flex; width: 100%; flex-direction: column; gap: 2px; padding: 8px 10px; background: transparent; text-align: left; cursor: pointer; }
-.agent-workspace-picker > div > button:hover { background: var(--retake-surface-hover); }
-.agent-workspace-picker strong { color: var(--retake-text-secondary); font-size: 11px; }
-.agent-workspace-picker span { color: var(--retake-text-muted); font-size: 10px; }
-
 .agent-workspace-run,
 .agent-workspace-changes { display: flex; height: 100%; min-height: 0; flex-direction: column; gap: 10px; padding: 14px; overflow-y: auto; }
 .agent-workspace-run label { display: grid; gap: 5px; }

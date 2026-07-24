@@ -18,7 +18,7 @@ const [toolbarSource, composerSource, operationControlsSource, textOperationsSou
 
 assert.equal(toolbarSource.includes("label={t('toolbar.generateText')}"), false, 'Generic text generation must not remain user-facing.');
 assert.match(toolbarSource, /SkillQuickInputComposer/);
-assert.match(composerSource, /className="skill-composer"/);
+assert.match(composerSource, /className=\{`skill-composer/);
 assert.match(composerSource, /skill-composer-picker-search/);
 assert.match(composerSource, /useDismissiblePopover/);
 assert.match(toolbarSource, /onInvokeEntryPoint/);
