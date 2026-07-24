@@ -1,6 +1,7 @@
 import type { CapabilityDefinitionLock, SkillDefinitionLock } from './capabilityContracts';
 import type { PackageLock } from './packageContracts';
 import type { AgentPresetSnapshot } from './agentPresetContracts';
+import type { GoalPlanSnapshotV1 } from './goalPlanContracts';
 import type {
   WorkflowDefinitionLock,
   WorkflowGateDefinitionLock,
@@ -22,6 +23,7 @@ export type AgentRunStopReason =
   | 'capability_completed'
   | 'slice_target_satisfied'
   | 'workflow_terminal'
+  | 'goal_plan_terminal'
   | 'target_paused'
   | 'target_canceled'
   | 'target_invalid'
@@ -79,6 +81,12 @@ export type AgentRunTarget =
       };
     workflowDefinitionLock: WorkflowDefinitionLock;
     workflowRunId: string;
+  }
+  | {
+    goalPlanSnapshot: GoalPlanSnapshotV1;
+    kind: 'goal';
+    workflowDefinitionLock: WorkflowDefinitionLock;
+    workflowRunId: string;
   };
 
 export interface AgentRunScope {
@@ -93,7 +101,8 @@ export interface AgentRunScope {
 export type AgentRunStopPolicy =
   | { kind: 'capability_completed' }
   | { kind: 'workflow_slice_target' }
-  | { kind: 'workflow_terminal' };
+  | { kind: 'workflow_terminal' }
+  | { kind: 'goal_plan_terminal' };
 
 export interface AgentRunPermissions {
   allowedToolPermissions: Array<'retake.execute_capability' | 'retake.read'>;

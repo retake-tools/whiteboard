@@ -11,9 +11,9 @@ import {
 } from '../core/agentSession';
 import { appendAgentRuntimeEvent, decideChangeProposal } from '../core/agentChangeApplication';
 import type {
+  AgentDraftAppliedEffect,
+  AgentDraftLaunchTarget,
   AgentMessageContextRef,
-  PackageEntrypointAgentLaunchTarget,
-  PackageEntryPointDraftAppliedEffect,
 } from '../core/agentSessionContracts';
 import { loadBoardSnapshot } from '../core/boardStore';
 import { requestAgentRuntimeTurn } from '../core/agentRuntimeClient';
@@ -28,6 +28,10 @@ import {
   buildPackageEntrypointDraftLaunchCommand,
   stagePackageEntrypointAgentLaunch,
 } from '../core/packageEntrypointAgentLaunchApplication';
+import {
+  buildGoalPlanDraftLaunchCommand,
+  stageGoalPlanAgentLaunch,
+} from '../core/goalPlanAgentLaunchApplication';
 import { reconcileWorkflowArtifactGates } from '../core/workflowArtifactGateClient';
 import { workflowUiDefinitionFor } from '../core/workflowRegistry';
 import type { useI18n } from '../i18n';
@@ -128,7 +132,7 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     decision: 'approve' | 'reject',
   ): void {
     try {
-      let effect: PackageEntryPointDraftAppliedEffect | undefined;
+      let effect: AgentDraftAppliedEffect | undefined;
       const nextSnapshot = updateSnapshot((current) => {
         const result = decideChangeProposal(
           current,
@@ -172,23 +176,40 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
   async function launchProposal(
     proposalId: string,
     expectedProposalVersion: number,
-    target: PackageEntrypointAgentLaunchTarget,
+    target: AgentDraftLaunchTarget,
     agentPresetEntryPointId?: string,
   ): Promise<void> {
     if (!selectedSessionId || launchInFlightRef.current) return;
-    let command: ReturnType<typeof buildPackageEntrypointDraftLaunchCommand> | undefined;
+    let command: { idempotencyKey: string } | undefined;
     launchInFlightRef.current = true;
     setLaunchingProposalId(proposalId);
     setError(undefined);
     try {
-      command = buildPackageEntrypointDraftLaunchCommand({
-        agentSessionId: selectedSessionId,
-        expectedProposalVersion,
-        proposalId,
-        target,
-        agentPresetEntryPointId,
-      });
-      const result = stagePackageEntrypointAgentLaunch(snapshotRef.current, command);
+      const result = target.kind === 'goal'
+        ? (() => {
+            const goalCommand = buildGoalPlanDraftLaunchCommand({
+              agentPresetEntryPointId,
+              agentSessionId: selectedSessionId,
+              expectedProposalVersion,
+              proposalId,
+            });
+            command = goalCommand;
+            return stageGoalPlanAgentLaunch(snapshotRef.current, goalCommand);
+          })()
+        : (() => {
+            const entrypointCommand = buildPackageEntrypointDraftLaunchCommand({
+              agentPresetEntryPointId,
+              agentSessionId: selectedSessionId,
+              expectedProposalVersion,
+              proposalId,
+              target,
+            });
+            command = entrypointCommand;
+            return stagePackageEntrypointAgentLaunch(
+              snapshotRef.current,
+              entrypointCommand,
+            );
+          })();
       await persistSnapshot(result.stagedSnapshot, { requireLocalApi: true });
       const authoritative = await reconcileDraftLaunchTarget(
         result.stagedSnapshot,
@@ -349,7 +370,7 @@ async function reconcileDraftLaunchTarget(
   snapshot: BoardSnapshot,
   agentRunId: string,
   workflowRunId: string | undefined,
-  target: PackageEntrypointAgentLaunchTarget,
+  target: AgentDraftLaunchTarget,
 ): Promise<BoardSnapshot> {
   if (
     target.kind === 'workflow_slice'

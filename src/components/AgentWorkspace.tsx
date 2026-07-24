@@ -7,6 +7,7 @@ import {
 import { agentPresetDefinitionFor } from '../core/agentPresetRegistry';
 import { messagesForSession, proposalsForSession, runtimeEventsForSession } from '../core/agentSession';
 import type {
+  AgentDraftLaunchTarget,
   AgentRuntimeBindingRecord,
   AgentSessionRecord,
   ChangeProposalRecord,
@@ -19,6 +20,7 @@ import {
 import { skillUiDefinitionFor } from '../core/skillRegistry';
 import type { BoardSnapshot } from '../core/types';
 import { packageEntrypointDraftLaunchRequirements } from '../core/packageEntrypointAgentLaunchApplication';
+import { goalPlanDraftLaunchRequirements } from '../core/goalPlanAgentLaunchApplication';
 import { listWorkflows, workflowUiDefinitionFor } from '../core/workflowRegistry';
 import { useI18n } from '../i18n';
 import { AgentWorkspaceComposer } from './AgentWorkspaceComposer';
@@ -68,7 +70,7 @@ export function AgentWorkspace({
   onLaunchProposal: (
     proposalId: string,
     expectedProposalVersion: number,
-    target: PackageEntrypointAgentLaunchTarget,
+    target: AgentDraftLaunchTarget,
     agentPresetEntryPointId?: string,
   ) => void;
   onResumeAgentRun: (agentRunId: string) => void;
@@ -144,7 +146,7 @@ export function AgentWorkspace({
         ) : tab === 'run' ? (
           <div className="agent-workspace-run">
             <label><span>{t('agentWorkspace.targetRun')}</span><select value={selectedSession.activeAgentRunId ?? ''} onChange={(event) => onSelectAgentRun(event.target.value || undefined)}><option value="">{t('agentWorkspace.noRun')}</option>{agentRuns.map((run) => <option key={run.agentRunId} value={run.agentRunId}>{run.target.kind} · {run.status} · {run.agentRunId.slice(-8)}</option>)}</select></label>
-            {activeRun ? <><dl><div><dt>{t('agentWorkspace.runId')}</dt><dd>{activeRun.agentRunId}</dd></div><div><dt>{t('agentWorkspace.status')}</dt><dd>{activeRun.status}</dd></div><div><dt>{t('agentWorkspace.scope')}</dt><dd>{activeRun.scope.allowedOperationBlockIds.length} Operations · {activeRun.scope.allowedCapabilityIds.length} Capabilities</dd></div><div><dt>{t('agentWorkspace.runtime')}</dt><dd>{binding?.runtimeKind ?? '—'} · {binding?.model ?? '—'}</dd></div><div><dt>{t('agentWorkspace.agentPreset')}</dt><dd>{activeRun.agentPresetSnapshot ? `${activeRun.agentPresetSnapshot.name} · ${activeRun.agentPresetSnapshot.version}` : t('agentWorkspace.noAgentPreset')}</dd></div>{activeRun.agentPresetSnapshot ? <><div><dt>{t('agentWorkspace.package')}</dt><dd>{activeRun.agentPresetPackageLock?.packageId ?? '—'} · {activeRun.agentPresetPackageLock?.version ?? '—'}</dd></div><div><dt>{t('agentWorkspace.presetTools')}</dt><dd>{activeRun.permissions.allowedToolPermissions.join(' · ')}</dd></div></> : null}</dl><div className="agent-workspace-run-actions">{activeRun.status === 'paused' ? <button type="button" onClick={() => onResumeAgentRun(activeRun.agentRunId)}><Play size={14} />{t('agentRuntime.resume')}</button> : <button type="button" disabled={['succeeded', 'failed', 'canceled'].includes(activeRun.status)} onClick={() => onPauseAgentRun(activeRun.agentRunId)}><Pause size={14} />{t('agentRuntime.pause')}</button>}<button type="button" disabled={['succeeded', 'failed', 'canceled'].includes(activeRun.status)} onClick={() => onCancelAgentRun(activeRun.agentRunId)}><CircleStop size={14} />{t('agentRuntime.cancel')}</button></div></> : <p className="agent-workspace-placeholder">{t('agentWorkspace.runEmpty')}</p>}
+            {activeRun ? <><dl><div><dt>{t('agentWorkspace.runId')}</dt><dd>{activeRun.agentRunId}</dd></div><div><dt>{t('agentWorkspace.status')}</dt><dd>{activeRun.status}</dd></div>{activeRun.target.kind === 'goal' ? <><div><dt>{t('agentWorkspace.goalPlan')}</dt><dd>{activeRun.target.goalPlanSnapshot.goalPlanId}</dd></div><div><dt>{t('agentWorkspace.coverage')}</dt><dd>{activeRun.target.goalPlanSnapshot.coverage} · {activeRun.target.workflowRunId}</dd></div></> : null}<div><dt>{t('agentWorkspace.scope')}</dt><dd>{activeRun.scope.allowedOperationBlockIds.length} Operations · {activeRun.scope.allowedCapabilityIds.length} Capabilities</dd></div><div><dt>{t('agentWorkspace.runtime')}</dt><dd>{binding?.runtimeKind ?? '—'} · {binding?.model ?? '—'}</dd></div><div><dt>{t('agentWorkspace.agentPreset')}</dt><dd>{activeRun.agentPresetSnapshot ? `${activeRun.agentPresetSnapshot.name} · ${activeRun.agentPresetSnapshot.version}` : t('agentWorkspace.noAgentPreset')}</dd></div>{activeRun.agentPresetSnapshot ? <><div><dt>{t('agentWorkspace.package')}</dt><dd>{activeRun.agentPresetPackageLock?.packageId ?? '—'} · {activeRun.agentPresetPackageLock?.version ?? '—'}</dd></div><div><dt>{t('agentWorkspace.presetTools')}</dt><dd>{activeRun.permissions.allowedToolPermissions.join(' · ')}</dd></div></> : null}</dl><div className="agent-workspace-run-actions">{activeRun.status === 'paused' ? <button type="button" onClick={() => onResumeAgentRun(activeRun.agentRunId)}><Play size={14} />{t('agentRuntime.resume')}</button> : <button type="button" disabled={['succeeded', 'failed', 'canceled'].includes(activeRun.status)} onClick={() => onPauseAgentRun(activeRun.agentRunId)}><Pause size={14} />{t('agentRuntime.pause')}</button>}<button type="button" disabled={['succeeded', 'failed', 'canceled'].includes(activeRun.status)} onClick={() => onCancelAgentRun(activeRun.agentRunId)}><CircleStop size={14} />{t('agentRuntime.cancel')}</button></div></> : <p className="agent-workspace-placeholder">{t('agentWorkspace.runEmpty')}</p>}
           </div>
         ) : (
           <div className="agent-workspace-changes">
@@ -194,7 +196,7 @@ function ProposalCard({
   onLaunch: (
     proposalId: string,
     expectedProposalVersion: number,
-    target: PackageEntrypointAgentLaunchTarget,
+    target: AgentDraftLaunchTarget,
     agentPresetEntryPointId?: string,
   ) => void;
   onView: (proposalId: string) => void;
@@ -209,11 +211,19 @@ function ProposalCard({
   >({ kind: 'workflow_run' });
   const [agentPresetEntryPointId, setAgentPresetEntryPointId] = useState('');
   const command = proposal.proposedCommand;
-  const typedInvocation = command.kind === 'package_entrypoint.instantiate' ? command.invocation : undefined;
+  const goalPlan = command.kind === 'goal_plan.instantiate'
+    ? command.goalPlan
+    : undefined;
+  const typedInvocation = command.kind === 'package_entrypoint.instantiate'
+    ? command.invocation
+    : command.kind === 'goal_plan.instantiate'
+      ? command.draftCommand.invocation
+      : undefined;
   const entrypointName = typedInvocation
     ? typedEntryPointName(typedInvocation.targetLock.entrypointId, t)
     : undefined;
-  const skillOperation = proposal.appliedEffect?.entrypointKind === 'skill'
+  const skillOperation = proposal.appliedEffect?.kind === 'package_entrypoint_draft'
+    && proposal.appliedEffect.entrypointKind === 'skill'
     ? snapshot.blocks.find(
         (block) =>
           block.blockId === proposal.appliedEffect?.primaryBlockId
@@ -238,7 +248,9 @@ function ProposalCard({
   const workflowDefinition = workflowDefinitionId
     ? listWorkflows().find((definition) => definition.workflowId === workflowDefinitionId)
     : undefined;
-  const launchTarget: PackageEntrypointAgentLaunchTarget = isWorkflowEntrypoint
+  const launchTarget: AgentDraftLaunchTarget = goalPlan
+    ? { kind: 'goal' }
+    : isWorkflowEntrypoint
     ? workflowTarget
     : { kind: 'capability' };
   const presetOptions = isLaunchReviewOpen
@@ -255,12 +267,48 @@ function ProposalCard({
   return (
     <article className={`is-${proposal.status}`}>
       <header>
-        <strong>{typedInvocation
+        <strong>{goalPlan
+          ? `${t('agentWorkspace.goalPlan')} · ${entrypointName}`
+          : typedInvocation
           ? `${entrypointName} · ${typedInvocation.targetLock.entrypointKind}`
           : proposal.kind}</strong>
         <span>{proposal.status}</span>
       </header>
       <p>{proposal.summary}</p>
+      {goalPlan ? (
+        <dl className="agent-workspace-proposal-details">
+          <div>
+            <dt>{t('agentWorkspace.goal')}</dt>
+            <dd>{goalPlan.goal}</dd>
+          </div>
+          <div>
+            <dt>{t('agentWorkspace.coverage')}</dt>
+            <dd>{goalPlan.coverage}</dd>
+          </div>
+          <div>
+            <dt>{t('agentWorkspace.planScope')}</dt>
+            <dd>
+              {goalPlan.steps.length} Steps · {
+                new Set(goalPlan.steps.map((step) => step.capabilityLock.capabilityId)).size
+              } Capabilities
+            </dd>
+          </div>
+          <div>
+            <dt>{t('agentWorkspace.budget')}</dt>
+            <dd>
+              ≤ {goalPlan.budget.maxExecutionCount} Executions · 0 Package installs · {
+                goalPlan.budget.externalActionPolicy
+              }
+            </dd>
+          </div>
+          {goalPlan.limitations.map((limitation) => (
+            <div key={limitation}>
+              <dt>{t('agentWorkspace.limitation')}</dt>
+              <dd>{limitation}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
       {typedInvocation ? (
         <dl className="agent-workspace-proposal-details">
           <div>
@@ -376,7 +424,7 @@ function ProposalCard({
                   </small>
                 </div>
               ) : null}
-              {workflowDefinition ? (
+              {workflowDefinition && !goalPlan ? (
                 <WorkflowAgentTargetPicker
                   definition={workflowDefinition}
                   value={workflowTarget}
@@ -415,7 +463,9 @@ function ProposalCard({
                   <small>{t('agentWorkspace.presetBoundary')}</small>
                 </div>
               ) : null}
-              <p>{t('agentWorkspace.launchWarning')}</p>
+              <p>{goalPlan
+                ? t('agentWorkspace.goalLaunchWarning')
+                : t('agentWorkspace.launchWarning')}</p>
               <button
                 type="button"
                 disabled={
@@ -447,7 +497,7 @@ function agentPresetOptionsForDraft(
   snapshot: BoardSnapshot,
   proposal: ChangeProposalRecord,
   agentSessionId: string,
-  target: PackageEntrypointAgentLaunchTarget,
+  target: AgentDraftLaunchTarget,
 ): Array<{
   compatible: boolean;
   entrypointId: string;
@@ -462,11 +512,13 @@ function agentPresetOptionsForDraft(
 }> {
   let requirements;
   try {
-    requirements = packageEntrypointDraftLaunchRequirements(
-      snapshot,
-      proposal.proposalId,
-      target,
-    );
+    requirements = target.kind === 'goal'
+      ? goalPlanDraftLaunchRequirements(snapshot, proposal.proposalId)
+      : packageEntrypointDraftLaunchRequirements(
+          snapshot,
+          proposal.proposalId,
+          target,
+        );
   } catch (error) {
     return listPackageEntryPoints()
       .filter((registration) => registration.entrypoint.kind === 'agent_preset')

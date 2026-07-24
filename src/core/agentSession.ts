@@ -17,6 +17,10 @@ import {
   packageComposerMentionId,
 } from './packageComposer';
 import { buildPackageEntrypointInstantiationCommand } from './packageEntrypointDraftApplication';
+import {
+  buildGoalPlanInstantiationCommand,
+  listGoalPlanWorkflowOptions,
+} from './goalPlanRegistry';
 import { resolvePackageEntryPoint } from './packageRegistry';
 import type { BoardSnapshot } from './types';
 
@@ -129,6 +133,11 @@ export function applyAgentRuntimeTurn(
     proposal = createTypedEntrypointProposal(snapshot, session, source, input.decision.message);
   } else if (input.decision.kind === 'agent_run_control') {
     applyAgentRunControl(snapshot, session, input.decision.action, input.decision.agentRunId);
+  } else if (input.decision.kind === 'goal_plan_proposal') {
+    if (session.activeAgentRunId) {
+      throw new Error('Goal Plan cannot replace the active Agent Run target.');
+    }
+    proposal = createGoalPlanProposal(snapshot, session, source, input.decision);
   } else if (input.decision.kind === 'change_proposal') {
     proposal = createChangeProposal(snapshot, session, source, input.decision);
   }
@@ -237,6 +246,9 @@ export function agentRuntimeTurnContext(
       .filter((candidate) => candidate.agentMessageId !== sourceMessageId)
       .slice(-20)
       .map(({ content, role }) => ({ content, role })),
+    goalPlanOptions: !run && !entrypoint
+      ? listGoalPlanWorkflowOptions()
+      : [],
     mentions,
     inlineValues,
     parameters: parameters?.kind === 'parameters' ? structuredClone(parameters.value) : {},
@@ -344,6 +356,40 @@ function createChangeProposal(
   return proposal;
 }
 
+function createGoalPlanProposal(
+  snapshot: BoardSnapshot,
+  session: AgentSessionRecord,
+  source: AgentMessageRecord,
+  decision: Extract<AgentRuntimeTurnDecision, { kind: 'goal_plan_proposal' }>,
+): ChangeProposalRecord {
+  const now = nowIso();
+  const proposalId = createId('proposal');
+  const proposedCommand = buildGoalPlanInstantiationCommand(snapshot, source, {
+    coverage: decision.coverage,
+    limitations: decision.limitations,
+    proposalId,
+    workflowEntryPointId: decision.workflowEntryPointId,
+  });
+  const proposal: ChangeProposalRecord = {
+    agentSessionId: session.agentSessionId,
+    boardId: snapshot.board.boardId,
+    createdAt: now,
+    instruction: proposedCommand.goalPlan.goal,
+    kind: 'plan_goal',
+    proposedCommand,
+    projectId: snapshot.project.projectId,
+    proposalId,
+    recordVersion: 1,
+    sourceMessageId: source.agentMessageId,
+    status: 'awaiting_decision',
+    summary: decision.summary.trim() || decision.message.trim(),
+    updatedAt: now,
+  };
+  snapshot.changeProposals ??= [];
+  snapshot.changeProposals.push(proposal);
+  return proposal;
+}
+
 function applyAgentRunControl(
   snapshot: BoardSnapshot,
   session: AgentSessionRecord,
@@ -385,8 +431,8 @@ function assertContextRefs(
   const inlineRefs = refs.filter((ref) => ref.kind === 'inline');
   const parameterRefs = refs.filter((ref) => ref.kind === 'parameters');
   if (parameterRefs.length > 1) throw new Error('Agent message has multiple parameter refs.');
-  if ((mentionRefs.length > 0 || inlineRefs.length > 0 || parameterRefs.length > 0) && !entrypointId) {
-    throw new Error('Agent message typed inputs require one EntryPoint context.');
+  if ((inlineRefs.length > 0 || parameterRefs.length > 0) && !entrypointId) {
+    throw new Error('Agent message typed inline inputs require one EntryPoint context.');
   }
   const compatibleMentionIds = entrypointId
     ? new Set(listPackageComposerMentionOptions(snapshot, entrypointId).map((option) => option.mentionId))
@@ -401,14 +447,14 @@ function assertContextRefs(
     } else if (ref.kind === 'block') {
       const block = snapshot.blocks.find((candidate) => candidate.blockId === ref.blockId);
       if (!block || block.boardId !== session.boardId) throw new Error('Agent message Block ref is outside Session scope.');
-      if (!compatibleMentionIds.has(packageComposerMentionId(ref))) {
+      if (entrypointId && !compatibleMentionIds.has(packageComposerMentionId(ref))) {
         throw new Error('Agent message Block ref is incompatible with the typed EntryPoint.');
       }
     } else if (ref.kind === 'asset') {
       if (!snapshot.assets.some((asset) => asset.assetId === ref.assetId && asset.projectId === session.projectId)) {
         throw new Error('Agent message Asset ref is outside Session Project scope.');
       }
-      if (!compatibleMentionIds.has(packageComposerMentionId(ref))) {
+      if (entrypointId && !compatibleMentionIds.has(packageComposerMentionId(ref))) {
         throw new Error('Agent message Asset ref is incompatible with the typed EntryPoint.');
       }
     } else if (ref.kind === 'inline') {

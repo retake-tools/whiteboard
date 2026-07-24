@@ -65,6 +65,9 @@ export function stagePackageEntrypointAgentLaunch(
   }
   const proposal = requireProposal(snapshot, command.proposalId);
   if (proposal.draftLaunchEffect) {
+    if (proposal.draftLaunchEffect.kind !== 'package_entrypoint_agent_launch') {
+      throw new Error('Package EntryPoint launch effect kind changed.');
+    }
     assertIdempotentRetry(snapshot, proposal, command);
     return {
       effect: structuredClone(proposal.draftLaunchEffect),
@@ -89,7 +92,10 @@ export function stagePackageEntrypointAgentLaunch(
     || session.boardId !== stagedSnapshot.board.boardId
     || stagedProposal.agentSessionId !== session.agentSessionId
   ) throw new Error('Package EntryPoint Agent launch Session is not active in the Proposal Board.');
-  if (stagedProposal.status !== 'applied' || !stagedProposal.appliedEffect) {
+  if (
+    stagedProposal.status !== 'applied'
+    || stagedProposal.appliedEffect?.kind !== 'package_entrypoint_draft'
+  ) {
     throw new Error('Package EntryPoint Agent launch requires an applied Draft Proposal.');
   }
   if (
@@ -414,6 +420,7 @@ function launchTargetMatches(
   target: NonNullable<BoardSnapshot['agentRuns']>[number]['target'],
   expected: PackageEntrypointAgentLaunchTarget,
 ): boolean {
+  if (target.kind === 'goal') return false;
   if (target.kind === 'capability') return expected.kind === 'capability';
   if (target.kind === 'workflow_run') return expected.kind === 'workflow_run';
   if (expected.kind !== 'workflow_slice') return false;

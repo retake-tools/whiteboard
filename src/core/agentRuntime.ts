@@ -3,6 +3,7 @@ import { assertAgentPresetSnapshotForRun } from './agentPresetApplication';
 import { touchBoard } from './blockFactory';
 import { capabilityDefinitionFor } from './capabilityRegistry';
 import { createId, nowIso } from './id';
+import type { GoalPlanSnapshotV1 } from './goalPlanContracts';
 import { skillDefinitionFor } from './skillRegistry';
 import type {
   AgentRunExecutionAction,
@@ -81,6 +82,69 @@ export function createAgentRunForWorkflowRun(
     createdAt,
     updatedAt: createdAt,
     recordVersion: 1,
+  };
+  snapshot.agentRuns = [...(snapshot.agentRuns ?? []), record];
+  touchBoard(snapshot);
+  return agentRunView(record);
+}
+
+export function createAgentRunForGoalPlan(
+  snapshot: BoardSnapshot,
+  input: {
+    goalPlanSnapshot: GoalPlanSnapshotV1;
+    sourceChangeProposalId: string;
+    workflowRunId: string;
+  },
+): AgentRunRuntimeView {
+  reconcileWorkflowRuntime(snapshot);
+  assertNoActiveAgentRun(snapshot);
+  const workflow = workflowRunViewForId(snapshot, input.workflowRunId);
+  if (!workflow) throw new Error(`Workflow Run not found: ${input.workflowRunId}`);
+  if (workflow.steps.length === 0) {
+    throw new Error(`Goal Plan Workflow Run has no StepRuns: ${input.workflowRunId}`);
+  }
+  const selected = input.goalPlanSnapshot.selectedWorkflow;
+  if (
+    selected.workflowDefinitionLock.workflowDefinitionId
+      !== workflow.record.workflowDefinitionLock.workflowId
+    || selected.workflowDefinitionLock.version
+      !== workflow.record.workflowDefinitionLock.version
+    || selected.workflowDefinitionLock.definitionHash
+      !== workflow.record.workflowDefinitionLock.definitionHash
+    || selected.entrypointId !== workflow.record.entrypointId
+    || JSON.stringify(selected.packageLock) !== JSON.stringify(workflow.record.sourcePackageLock)
+    || workflow.record.sourceChangeProposalId !== input.sourceChangeProposalId
+  ) throw new Error('Goal Plan Workflow Run provenance does not match the approved plan.');
+  const target = {
+    goalPlanSnapshot: structuredClone(input.goalPlanSnapshot),
+    kind: 'goal' as const,
+    workflowDefinitionLock: structuredClone(workflow.record.workflowDefinitionLock),
+    workflowRunId: workflow.record.workflowRunId,
+  };
+  const createdAt = nowIso();
+  const record: AgentRunRecord = {
+    agentRunId: createId('agent_run'),
+    boardId: snapshot.board.boardId,
+    createdAt,
+    createdBy: 'user',
+    entrypointId: selected.entrypointId,
+    executionIds: [],
+    permissions: defaultPermissions(),
+    projectId: snapshot.project.projectId,
+    recordVersion: 1,
+    runtimeKind: 'retake_orchestrator',
+    scope: {
+      boardId: snapshot.board.boardId,
+      projectId: snapshot.project.projectId,
+      workflowRunId: workflow.record.workflowRunId,
+      ...workflowAgentScope(workflow, target),
+    },
+    sourceChangeProposalId: input.sourceChangeProposalId,
+    sourcePackageLock: structuredClone(selected.packageLock),
+    status: 'queued',
+    stopPolicy: { kind: 'goal_plan_terminal' },
+    target,
+    updatedAt: createdAt,
   };
   snapshot.agentRuns = [...(snapshot.agentRuns ?? []), record];
   touchBoard(snapshot);

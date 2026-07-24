@@ -11,6 +11,8 @@ import {
   stagePackageEntrypointDraft,
   type PackageEntrypointDraftPresentation,
 } from './packageEntrypointDraftApplication';
+import { stageGoalPlanDraft } from './goalPlanDraftApplication';
+import { assertCurrentGoalPlanCommand } from './goalPlanRegistry';
 import type { BoardSnapshot } from './types';
 
 export function appendAgentRuntimeEvent(
@@ -76,6 +78,8 @@ export function decideChangeProposal(
     proposal.appliedEffect?.idempotencyKey === (
       proposal.proposedCommand.kind === 'package_entrypoint.instantiate'
         ? proposal.proposedCommand.idempotencyKey
+        : proposal.proposedCommand.kind === 'goal_plan.instantiate'
+          ? proposal.proposedCommand.idempotencyKey
         : undefined
     )
   ) {
@@ -171,6 +175,18 @@ function applyApprovedChangeProposal(
     source.projectId !== proposal.projectId ||
     source.boardId !== proposal.boardId
   ) throw new Error('Typed EntryPoint Proposal source message is outside the approved scope.');
+  if (proposal.proposedCommand.kind === 'goal_plan.instantiate') {
+    assertCurrentGoalPlanCommand(snapshot, source, proposal.proposedCommand);
+    const staged = stageGoalPlanDraft(snapshot, proposal.proposedCommand, presentation);
+    snapshot.blocks = staged.stagedSnapshot.blocks;
+    snapshot.edges = staged.stagedSnapshot.edges;
+    snapshot.board = staged.stagedSnapshot.board;
+    proposal.appliedEffect = staged.effect;
+    return;
+  }
+  if (proposal.proposedCommand.kind !== 'package_entrypoint.instantiate') {
+    throw new Error('This Change Proposal has no registered Application Service command.');
+  }
   const expectedCommand = buildPackageEntrypointInstantiationCommand(snapshot, source, proposal.proposalId);
   if (JSON.stringify(expectedCommand) !== JSON.stringify(proposal.proposedCommand)) {
     throw new Error('Typed EntryPoint Proposal command no longer matches its frozen source message.');

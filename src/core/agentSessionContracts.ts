@@ -4,6 +4,11 @@ import type {
   PackageComposerParametersValue,
 } from './packageComposer';
 import type { AgentPresetSelectionLock } from './agentPresetContracts';
+import type {
+  GoalPlanCoverage,
+  GoalPlanSnapshotV1,
+  GoalPlanWorkflowOptionV1,
+} from './goalPlanContracts';
 
 export type AgentSessionStatus = 'active' | 'archived';
 
@@ -73,6 +78,7 @@ export type ChangeProposalStatus =
 
 export type ChangeProposalKind =
   | 'instantiate_entrypoint'
+  | 'plan_goal'
   | 'expand_permissions'
   | 'install_package'
   | 'modify_workflow'
@@ -128,24 +134,35 @@ export type PackageEntryPointInvocationLock =
       };
     };
 
+export interface PackageEntrypointInstantiateCommand {
+  idempotencyKey: string;
+  invocation: {
+    instruction: string;
+    instructionSlotId?: string;
+    inlineValues: PackageComposerInlineValue[];
+    mentionLocks: PackageEntryPointMentionLock[];
+    parameters: Record<string, unknown>;
+    targetLock: PackageEntryPointInvocationLock;
+  };
+  kind: 'package_entrypoint.instantiate';
+  schemaVersion: 1;
+}
+
+export interface GoalPlanInstantiateCommand {
+  draftCommand: PackageEntrypointInstantiateCommand;
+  goalPlan: GoalPlanSnapshotV1;
+  idempotencyKey: string;
+  kind: 'goal_plan.instantiate';
+  schemaVersion: 1;
+}
+
 export type ChangeProposalCommand =
   | {
       kind: 'agent_session.attach_run';
       targetAgentRunId: string;
     }
-  | {
-      idempotencyKey: string;
-      invocation: {
-        instruction: string;
-        instructionSlotId?: string;
-        inlineValues: PackageComposerInlineValue[];
-        mentionLocks: PackageEntryPointMentionLock[];
-        parameters: Record<string, unknown>;
-        targetLock: PackageEntryPointInvocationLock;
-      };
-      kind: 'package_entrypoint.instantiate';
-      schemaVersion: 1;
-    }
+  | PackageEntrypointInstantiateCommand
+  | GoalPlanInstantiateCommand
   | {
       kind: 'unsupported';
       reason: string;
@@ -159,6 +176,19 @@ export interface PackageEntryPointDraftAppliedEffect {
   primaryBlockId: string;
   workflowGroupId?: string;
 }
+
+export interface GoalPlanDraftAppliedEffect {
+  createdBlockIds: string[];
+  goalPlanId: string;
+  idempotencyKey: string;
+  kind: 'goal_plan_draft';
+  primaryBlockId: string;
+  workflowGroupId: string;
+}
+
+export type AgentDraftAppliedEffect =
+  | PackageEntryPointDraftAppliedEffect
+  | GoalPlanDraftAppliedEffect;
 
 export type PackageEntrypointAgentLaunchTarget =
   | { kind: 'capability' }
@@ -175,6 +205,10 @@ export type PackageEntrypointAgentLaunchTarget =
             kind: 'gate';
           };
     };
+
+export type AgentDraftLaunchTarget =
+  | PackageEntrypointAgentLaunchTarget
+  | { kind: 'goal' };
 
 export interface PackageEntrypointDraftLaunchCommand {
   agentPresetSelection?: AgentPresetSelectionLock;
@@ -198,6 +232,31 @@ export interface PackageEntrypointAgentLaunchEffect {
   workflowRunId?: string;
 }
 
+export interface GoalPlanDraftLaunchCommand {
+  agentPresetSelection?: AgentPresetSelectionLock;
+  agentSessionId: string;
+  expectedProposalVersion: number;
+  idempotencyKey: string;
+  kind: 'goal_plan_draft.launch_agent';
+  proposalId: string;
+  schemaVersion: 1;
+}
+
+export interface GoalPlanAgentLaunchEffect {
+  agentRunId: string;
+  agentSessionId: string;
+  createdWorkflowRun: boolean;
+  idempotencyKey: string;
+  kind: 'goal_plan_agent_launch';
+  launchedAt: string;
+  targetKind: 'goal';
+  workflowRunId: string;
+}
+
+export type AgentDraftLaunchEffect =
+  | PackageEntrypointAgentLaunchEffect
+  | GoalPlanAgentLaunchEffect;
+
 export interface ChangeProposalRecord {
   agentRunId?: string;
   agentSessionId: string;
@@ -212,8 +271,8 @@ export interface ChangeProposalRecord {
   sourceMessageId: string;
   status: ChangeProposalStatus;
   summary: string;
-  appliedEffect?: PackageEntryPointDraftAppliedEffect;
-  draftLaunchEffect?: PackageEntrypointAgentLaunchEffect;
+  appliedEffect?: AgentDraftAppliedEffect;
+  draftLaunchEffect?: AgentDraftLaunchEffect;
   appliedAt?: string;
   applyError?: string;
   changeDecisionId?: string;
@@ -249,6 +308,14 @@ export type AgentRuntimeTurnDecision =
       proposalKind: ChangeProposalKind;
       proposedCommand: ChangeProposalCommand;
       summary: string;
+    }
+  | {
+      coverage: GoalPlanCoverage;
+      kind: 'goal_plan_proposal';
+      limitations: string[];
+      message: string;
+      summary: string;
+      workflowEntryPointId: string;
     };
 
 export interface AgentRuntimeTurnContext {
@@ -276,6 +343,7 @@ export interface AgentRuntimeTurnContext {
   entrypointId?: string;
   history: Array<{ content: string; role: AgentMessageRole }>;
   inlineValues: PackageComposerInlineValue[];
+  goalPlanOptions: GoalPlanWorkflowOptionV1[];
   mentions: PackageComposerMention[];
   parameters: Record<string, unknown>;
   projectId: string;

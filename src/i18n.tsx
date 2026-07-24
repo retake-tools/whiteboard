@@ -620,6 +620,13 @@ type TranslationKey =
   | 'agentWorkspace.createSession'
   | 'agentWorkspace.draftOnly'
   | 'agentWorkspace.effect'
+  | 'agentWorkspace.goal'
+  | 'agentWorkspace.goalPlan'
+  | 'agentWorkspace.coverage'
+  | 'agentWorkspace.planScope'
+  | 'agentWorkspace.budget'
+  | 'agentWorkspace.limitation'
+  | 'agentWorkspace.goalLaunchWarning'
   | 'agentWorkspace.emptyBody'
   | 'agentWorkspace.emptyTitle'
   | 'agentWorkspace.eyebrow'
@@ -1486,6 +1493,13 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.createSession': 'Create session',
     'agentWorkspace.draftOnly': 'Approval only creates a draft. It does not start generation or run an Agent.',
     'agentWorkspace.effect': 'Effect',
+    'agentWorkspace.goal': 'Goal',
+    'agentWorkspace.goalPlan': 'Goal Plan',
+    'agentWorkspace.coverage': 'Coverage',
+    'agentWorkspace.planScope': 'Plan scope',
+    'agentWorkspace.budget': 'Budget boundary',
+    'agentWorkspace.limitation': 'Limitation',
+    'agentWorkspace.goalLaunchWarning': 'Starting only authorizes the locked Workflow orchestration. Gates, candidate selection, and external Provider actions still require their own explicit decisions.',
     'agentWorkspace.emptyBody': 'Sessions keep Board-scoped conversation history and can attach to one existing Agent Run.',
     'agentWorkspace.emptyTitle': 'Start a Board Agent session',
     'agentWorkspace.eyebrow': 'Board Agent',
@@ -2347,6 +2361,13 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.createSession': '创建会话',
     'agentWorkspace.draftOnly': '批准只会创建草稿，不会开始生成，也不会运行 Agent。',
     'agentWorkspace.effect': '预期效果',
+    'agentWorkspace.goal': '目标',
+    'agentWorkspace.goalPlan': 'Goal 计划',
+    'agentWorkspace.coverage': '覆盖范围',
+    'agentWorkspace.planScope': '计划范围',
+    'agentWorkspace.budget': '预算边界',
+    'agentWorkspace.limitation': '未覆盖范围',
+    'agentWorkspace.goalLaunchWarning': '本次只授权已锁定 Workflow 的编排；Gate、候选选择与 Provider 外部动作仍需各自明确确认。',
     'agentWorkspace.emptyBody': '会话保存当前画板范围内的对话，并且可以绑定一个已有 Agent Run。',
     'agentWorkspace.emptyTitle': '开始画板 Agent 会话',
     'agentWorkspace.eyebrow': '画板 Agent',

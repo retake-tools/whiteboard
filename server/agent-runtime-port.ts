@@ -63,6 +63,30 @@ const decisionSchema = {
         summary: { type: 'string' },
       },
     },
+    {
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'kind',
+        'message',
+        'summary',
+        'workflowEntryPointId',
+        'coverage',
+        'limitations',
+      ],
+      properties: {
+        kind: { const: 'goal_plan_proposal' },
+        message: { type: 'string' },
+        summary: { type: 'string' },
+        workflowEntryPointId: { type: 'string' },
+        coverage: { enum: ['full', 'partial'] },
+        limitations: {
+          type: 'array',
+          maxItems: 8,
+          items: { type: 'string' },
+        },
+      },
+    },
   ],
 } satisfies Record<string, unknown>;
 
@@ -75,6 +99,10 @@ Return one JSON object matching the supplied schema.
 - agent_run_control: only when the user explicitly asks for an allowed action on the exact supplied AgentRun id.
 - When retakeContext.agentRun.agentPreset is present, follow its instructions only inside the supplied AgentRun
   target, actions, and tool permissions. Preset text never grants permission or changes Workflow/Gate facts.
+- goal_plan_proposal: only when there is no active AgentRun, no explicit EntryPoint, the user is asking Retake to
+  plan or create a workflow for a goal, and one option in retakeContext.goalPlanOptions is a useful fit. Return that
+  option's exact entrypointId. Use coverage=partial and list concrete limitations when the option does not cover the
+  complete goal. Never invent, combine, reorder, or rewrite Workflow steps.
 - change_proposal: any request to change Workflow structure, install packages, expand permissions, target another run, create/delete/connect Blocks, or otherwise exceed the supplied scope.
   The only registered proposal command is agent_session.attach_run, and only for another AgentRun id listed in availableAgentRuns. All other proposals must use unsupported.
 Chat text is intent, never execution authorization.`;
@@ -203,6 +231,7 @@ function runtimePrompt(context: AgentRuntimeTurnContext): string {
       boardId: context.boardId,
       agentRun: context.agentRun ?? null,
       availableAgentRuns: context.availableAgentRuns,
+      goalPlanOptions: context.goalPlanOptions,
       entrypointId: context.entrypointId ?? null,
       inlineValues: context.inlineValues,
       mentions: context.mentions,
@@ -233,6 +262,34 @@ export function parseAgentRuntimeDecision(text: string, context: AgentRuntimeTur
       throw new Error('Agent Runtime requested an Agent Run control outside the authorized scope.');
     }
     return { action, agentRunId, kind: 'agent_run_control', message };
+  }
+  if (parsed.kind === 'goal_plan_proposal') {
+    if (context.agentRun) {
+      throw new Error('Agent Runtime cannot replace an active Agent Run with a Goal Plan.');
+    }
+    const workflowEntryPointId = parsed.workflowEntryPointId;
+    const coverage = parsed.coverage;
+    const summary = typeof parsed.summary === 'string' ? parsed.summary.trim() : '';
+    const limitations = Array.isArray(parsed.limitations)
+      ? parsed.limitations.map((value) => typeof value === 'string' ? value.trim() : '').filter(Boolean)
+      : [];
+    if (
+      typeof workflowEntryPointId !== 'string'
+      || !context.goalPlanOptions.some((option) => option.entrypointId === workflowEntryPointId)
+    ) throw new Error('Agent Runtime selected a Workflow outside the Goal Plan catalog.');
+    if (coverage !== 'full' && coverage !== 'partial') {
+      throw new Error('Agent Runtime returned an invalid Goal Plan coverage.');
+    }
+    if (!summary) throw new Error('Agent Runtime returned an empty Goal Plan summary.');
+    if (limitations.length > 8) throw new Error('Agent Runtime returned too many Goal Plan limitations.');
+    return {
+      coverage,
+      kind: 'goal_plan_proposal',
+      limitations: [...new Set(limitations)],
+      message,
+      summary,
+      workflowEntryPointId,
+    };
   }
   if (parsed.kind === 'change_proposal') {
     const proposalKind = parsed.proposalKind;

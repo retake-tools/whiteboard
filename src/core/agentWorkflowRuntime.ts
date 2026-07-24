@@ -16,7 +16,10 @@ import {
   type WorkflowStepRuntimeView,
 } from './workflowRuntime';
 
-type WorkflowAgentTarget = Extract<AgentRunRecord['target'], { kind: 'workflow_run' | 'workflow_slice' }>;
+type WorkflowAgentTarget = Extract<
+  AgentRunRecord['target'],
+  { kind: 'goal' | 'workflow_run' | 'workflow_slice' }
+>;
 type AgentRunProjection = Pick<
   AgentRunRecord,
   'currentOperationBlockId' | 'error' | 'executionIds' | 'satisfiedArtifactRevisionId'
@@ -55,6 +58,10 @@ export function assertWorkflowAgentTarget(
   if (!locksEqual(record.target.workflowDefinitionLock, workflow.record.workflowDefinitionLock)) {
     throw new Error('Agent Run Workflow Definition lock changed.');
   }
+  if (
+    record.target.kind === 'goal'
+    && record.stopPolicy.kind !== 'goal_plan_terminal'
+  ) throw new Error('Agent Run Goal stop policy changed.');
   if (
     record.target.kind === 'workflow_run'
     && record.stopPolicy.kind !== 'workflow_terminal'
@@ -121,6 +128,7 @@ export function assertWorkflowAgentTarget(
       || subjectStep.record.stepId !== gate.subject.stepId
     ) throw new Error('Agent Run Workflow Gate target lock changed.');
   }
+  if (record.target.kind === 'goal') assertGoalPlanTarget(workflow, record);
 
   const expectedScope = workflowAgentScope(workflow, record.target);
   if (
@@ -158,11 +166,19 @@ export function projectWorkflowAgentRun(
   if (record.target.kind === 'capability') throw new Error('Workflow Agent Run target required.');
   const workflow = workflowRunViewForId(snapshot, record.target.workflowRunId);
   if (!workflow) throw new Error(`Workflow Run not found: ${record.target.workflowRunId}`);
-  if (record.target.kind === 'workflow_run') return projectWholeWorkflowAgentRun(workflow);
+  if (record.target.kind === 'workflow_run') {
+    return projectWholeWorkflowAgentRun(workflow, 'workflow_terminal');
+  }
+  if (record.target.kind === 'goal') {
+    return projectWholeWorkflowAgentRun(workflow, 'goal_plan_terminal');
+  }
   return projectWorkflowSliceAgentRun(snapshot, workflow, record);
 }
 
-function projectWholeWorkflowAgentRun(workflow: WorkflowRunRuntimeView): AgentRunProjection {
+function projectWholeWorkflowAgentRun(
+  workflow: WorkflowRunRuntimeView,
+  terminalReason: 'goal_plan_terminal' | 'workflow_terminal',
+): AgentRunProjection {
   const executionIds = workflow.steps.flatMap((step) => step.record.executionIds);
   const current = currentWorkflowStep(workflow.steps);
   const base = {
@@ -170,7 +186,9 @@ function projectWholeWorkflowAgentRun(workflow: WorkflowRunRuntimeView): AgentRu
     currentOperationBlockId: current?.record.operationBlockId,
     error: workflow.steps.find((step) => step.status === 'failed')?.record.error,
   };
-  if (workflow.status === 'succeeded') return { ...base, status: 'succeeded', stopReason: 'workflow_terminal' };
+  if (workflow.status === 'succeeded') {
+    return { ...base, status: 'succeeded', stopReason: terminalReason };
+  }
   if (workflow.status === 'canceled') return { ...base, status: 'canceled', stopReason: 'target_canceled' };
   if (workflow.status === 'paused') return { ...base, status: 'paused', stopReason: 'target_paused' };
   if (workflow.status === 'waiting_input') return { ...base, status: 'waiting_input', stopReason: undefined };
@@ -194,6 +212,43 @@ function projectWholeWorkflowAgentRun(workflow: WorkflowRunRuntimeView): AgentRu
     };
   }
   return { ...base, status: 'running', stopReason: undefined };
+}
+
+function assertGoalPlanTarget(
+  workflow: WorkflowRunRuntimeView,
+  record: AgentRunRecord,
+): void {
+  if (record.target.kind !== 'goal') throw new Error('Agent Run Goal target required.');
+  const plan = record.target.goalPlanSnapshot;
+  const selected = plan.selectedWorkflow;
+  if (
+    selected.workflowDefinitionLock.workflowDefinitionId
+      !== workflow.record.workflowDefinitionLock.workflowId
+    || selected.workflowDefinitionLock.version
+      !== workflow.record.workflowDefinitionLock.version
+    || selected.workflowDefinitionLock.definitionHash
+      !== workflow.record.workflowDefinitionLock.definitionHash
+    || selected.entrypointId !== workflow.record.entrypointId
+    || !lockValuesEqual(selected.packageLock, workflow.record.sourcePackageLock)
+  ) throw new Error('Agent Run Goal Plan Workflow lock changed.');
+  if (
+    !record.sourceChangeProposalId
+    || record.sourceChangeProposalId !== workflow.record.sourceChangeProposalId
+  ) throw new Error('Agent Run Goal Plan Proposal provenance changed.');
+  if (plan.steps.length !== workflow.steps.length) {
+    throw new Error('Agent Run Goal Plan Step count changed.');
+  }
+  for (const planned of plan.steps) {
+    const actual = workflow.steps.find((step) => step.record.stepId === planned.stepId)?.record;
+    if (
+      !actual
+      || actual.stageId !== planned.stageId
+      || actual.optional !== planned.optional
+      || !arraysEqual(actual.dependsOn, planned.dependsOn)
+      || !lockValuesEqual(actual.capabilityLock, planned.capabilityLock)
+      || !lockValuesEqual(actual.skillLock, planned.skillLock)
+    ) throw new Error(`Agent Run Goal Plan Step lock changed: ${planned.stepId}`);
+  }
 }
 
 function projectWorkflowSliceAgentRun(
@@ -418,7 +473,7 @@ function scopedWorkflowSteps(
   workflow: WorkflowRunRuntimeView,
   target: WorkflowAgentTarget,
 ): WorkflowStepRuntimeView[] {
-  if (target.kind === 'workflow_run') return workflow.steps;
+  if (target.kind === 'workflow_run' || target.kind === 'goal') return workflow.steps;
   const until = target.until;
   const targetSteps = until.kind === 'stage'
     ? until.requiredStepRunIds.map((stepRunId) =>
@@ -652,6 +707,10 @@ function locksEqual(
   return left.workflowId === right.workflowId
     && left.version === right.version
     && left.definitionHash === right.definitionHash;
+}
+
+function lockValuesEqual(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function arraysEqual(left: string[], right: string[]): boolean {
