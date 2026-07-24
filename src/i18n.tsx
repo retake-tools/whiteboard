@@ -660,6 +660,17 @@ type TranslationKey =
   | 'agentWorkspace.eyebrow'
   | 'agentWorkspace.inputPlaceholder'
   | 'agentWorkspace.instruction'
+  | 'agentWorkspace.intervention'
+  | 'agentWorkspace.intervention.approval.body'
+  | 'agentWorkspace.intervention.approval.title'
+  | 'agentWorkspace.intervention.attention.body'
+  | 'agentWorkspace.intervention.attention.title'
+  | 'agentWorkspace.intervention.input.body'
+  | 'agentWorkspace.intervention.input.title'
+  | 'agentWorkspace.intervention.provider_authorization.body'
+  | 'agentWorkspace.intervention.provider_authorization.title'
+  | 'agentWorkspace.intervention.selection.body'
+  | 'agentWorkspace.intervention.selection.title'
   | 'agentWorkspace.launchAgent'
   | 'agentWorkspace.launching'
   | 'agentWorkspace.launchReady'
@@ -667,6 +678,7 @@ type TranslationKey =
   | 'agentWorkspace.launchReview'
   | 'agentWorkspace.launchWaitingInput'
   | 'agentWorkspace.launchWarning'
+  | 'agentWorkspace.locateIntervention'
   | 'agentWorkspace.agentPreset'
   | 'agentWorkspace.noAgentPreset'
   | 'agentWorkspace.presetBoundary'
@@ -1574,6 +1586,17 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.eyebrow': 'Board Agent',
     'agentWorkspace.inputPlaceholder': 'Ask about this Board or request an allowed Run action…',
     'agentWorkspace.instruction': 'Instruction',
+    'agentWorkspace.intervention': 'Required user action',
+    'agentWorkspace.intervention.approval.body': 'Review the current result on canvas, then explicitly approve or reject its Gate.',
+    'agentWorkspace.intervention.approval.title': 'A Gate needs your decision',
+    'agentWorkspace.intervention.attention.body': 'Inspect the affected Operation on canvas before retrying or changing its inputs.',
+    'agentWorkspace.intervention.attention.title': 'This Run needs attention',
+    'agentWorkspace.intervention.input.body': 'Complete the required input on the affected Operation. The Agent will not invent missing input.',
+    'agentWorkspace.intervention.input.title': 'Complete the required input',
+    'agentWorkspace.intervention.provider_authorization.body': 'This step can call an external Provider and requires your separate, explicit authorization.',
+    'agentWorkspace.intervention.provider_authorization.title': 'Provider authorization required',
+    'agentWorkspace.intervention.selection.body': 'Review the generated candidates on canvas and explicitly choose the accepted result.',
+    'agentWorkspace.intervention.selection.title': 'Choose an accepted result',
     'agentWorkspace.launchAgent': 'Start Agent',
     'agentWorkspace.launching': 'Starting…',
     'agentWorkspace.launchReady': 'Inputs are ready for execution.',
@@ -1581,6 +1604,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.launchReview': 'Review execution authorization',
     'agentWorkspace.launchWaitingInput': 'Required input is incomplete. The Agent will wait without calling a Provider.',
     'agentWorkspace.launchWarning': 'Starting may call the configured Provider and consume credits or incur costs.',
+    'agentWorkspace.locateIntervention': 'Locate on canvas',
     'agentWorkspace.agentPreset': 'Agent preset',
     'agentWorkspace.noAgentPreset': 'No preset (Retake default)',
     'agentWorkspace.presetBoundary': 'The preset narrows this Run only. It cannot change the Workflow or approve Gates.',
@@ -2483,6 +2507,17 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.eyebrow': '画板 Agent',
     'agentWorkspace.inputPlaceholder': '询问当前画板，或请求 Agent Run 范围内的动作…',
     'agentWorkspace.instruction': '指令',
+    'agentWorkspace.intervention': '需要用户处理',
+    'agentWorkspace.intervention.approval.body': '请在画布中审阅当前结果，然后明确批准或拒绝对应 Gate。',
+    'agentWorkspace.intervention.approval.title': 'Gate 等待你的决定',
+    'agentWorkspace.intervention.attention.body': '请先在画布中检查对应 Operation，再决定重试或修改输入。',
+    'agentWorkspace.intervention.attention.title': '当前 Run 需要处理',
+    'agentWorkspace.intervention.input.body': '请补齐对应 Operation 的必填输入；Agent 不会自行编造缺失内容。',
+    'agentWorkspace.intervention.input.title': '补齐必填输入',
+    'agentWorkspace.intervention.provider_authorization.body': '此步骤可能调用外部 Provider，需要你单独、明确地授权。',
+    'agentWorkspace.intervention.provider_authorization.title': '需要 Provider 授权',
+    'agentWorkspace.intervention.selection.body': '请在画布中审阅生成的候选，并明确选择要接受的结果。',
+    'agentWorkspace.intervention.selection.title': '选择要接受的结果',
     'agentWorkspace.launchAgent': '启动 Agent',
     'agentWorkspace.launching': '正在启动…',
     'agentWorkspace.launchReady': '输入已就绪，可以执行。',
@@ -2490,6 +2525,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.launchReview': '审阅执行授权',
     'agentWorkspace.launchWaitingInput': '必填输入尚未完整；Agent 会等待输入，不会调用 Provider。',
     'agentWorkspace.launchWarning': '启动后可能调用当前配置的 Provider，并消耗额度或产生费用。',
+    'agentWorkspace.locateIntervention': '定位到画布',
     'agentWorkspace.agentPreset': 'Agent 预设',
     'agentWorkspace.noAgentPreset': '无预设（Retake 默认）',
     'agentWorkspace.presetBoundary': '预设只收窄本次 Run，不能修改 Workflow 或批准 Gate。',

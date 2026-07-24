@@ -644,6 +644,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
               target,
               agentPresetEntryPointId,
             )}
+          onLocateBlock={locateBlock}
           onPauseAgentRun={agentRuntimeController.pauseAgentRun}
           onResumeAgentRun={agentRuntimeController.resumeAgentRun}
           onRequestCanvasMode={closeAgentWorkspace}

@@ -177,6 +177,13 @@
 .agent-workspace-run-card > header span { display: inline-flex; gap: 5px; align-items: center; color: var(--retake-text-muted); font-size: 10px; font-weight: 750; text-transform: uppercase; }
 .agent-workspace-run-card > header strong { color: var(--retake-accent-strong); font-size: 10px; }
 .agent-workspace-run-card > p { margin: 0; color: var(--retake-text-secondary); font-size: 11px; line-height: 1.45; }
+.agent-workspace-run-intervention { display: grid; gap: 5px; padding: 8px; border-radius: 7px; background: color-mix(in srgb, var(--retake-warning) 10%, transparent); }
+.agent-workspace-run-intervention strong { color: var(--retake-text); font-size: 11px; }
+.agent-workspace-run-intervention p,
+.agent-workspace-run-intervention small { margin: 0; color: var(--retake-text-secondary); font-size: 10px; line-height: 1.4; }
+.agent-workspace-run-intervention small { color: var(--retake-text-muted); overflow-wrap: anywhere; }
+.agent-workspace-run-intervention ul { margin: 0; padding-left: 16px; color: var(--retake-text-secondary); font-size: 10px; line-height: 1.4; }
+.agent-workspace-run-intervention button { display: inline-flex; justify-self: start; align-items: center; gap: 5px; margin-top: 2px; padding: 6px 8px; border: 1px solid var(--retake-border); border-radius: 6px; background: var(--retake-surface); color: var(--retake-text-secondary); font-size: 10px; cursor: pointer; }
 .agent-workspace-run-card details { padding-top: 2px; border-top: 1px solid var(--retake-border-subtle); }
 .agent-workspace-run-card summary { padding-top: 7px; color: var(--retake-text-muted); font-size: 10px; cursor: pointer; }
 .agent-workspace-run-card details label { display: grid; gap: 4px; margin-top: 8px; color: var(--retake-text-muted); font-size: 9px; font-weight: 750; text-transform: uppercase; }

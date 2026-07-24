@@ -1,4 +1,4 @@
-import { Activity, Bot, CircleAlert, CircleStop, Pause, Play, Plus, X } from 'lucide-react';
+import { Activity, Bot, CircleAlert, CircleStop, MapPin, Pause, Play, Plus, X } from 'lucide-react';
 import {
   useEffect,
   useRef,
@@ -7,7 +7,7 @@ import {
   type ReactElement,
   type Ref,
 } from 'react';
-import { operationReadinessFor } from '../core/capabilities';
+import { operationReadinessFor, operationReadinessMessageKey } from '../core/capabilities';
 import {
   agentPresetCompatibilityForRequirements,
 } from '../core/agentPresetApplication';
@@ -22,6 +22,10 @@ import type {
   PackageEntrypointAgentLaunchTarget,
 } from '../core/agentSessionContracts';
 import type { AgentRunRecord } from '../core/agentRuntimeContracts';
+import {
+  agentRunInterventionFor,
+  type AgentRunInterventionKind,
+} from '../core/agentRunIntervention';
 import {
   listPackageEntryPoints,
   resolvePackageEntryPoint,
@@ -50,6 +54,7 @@ export function AgentWorkspace({
   onPauseAgentRun,
   onDecideProposal,
   onLaunchProposal,
+  onLocateBlock,
   onResumeAgentRun,
   onRequestCanvasMode,
   onSelectAgentRun,
@@ -82,6 +87,7 @@ export function AgentWorkspace({
     target: AgentDraftLaunchTarget,
     agentPresetEntryPointId?: string,
   ) => void;
+  onLocateBlock: (blockId: string) => void;
   onResumeAgentRun: (agentRunId: string) => void;
   onRequestCanvasMode: () => void;
   onSelectAgentRun: (agentRunId?: string) => void;
@@ -239,6 +245,8 @@ export function AgentWorkspace({
                   onPauseAgentRun={onPauseAgentRun}
                   onResumeAgentRun={onResumeAgentRun}
                   onSelectAgentRun={onSelectAgentRun}
+                  onLocateBlock={onLocateBlock}
+                  snapshot={snapshot}
                 />
               ) : null}
               {isSending ? (
@@ -277,9 +285,11 @@ const AgentRunSummaryCard = function AgentRunSummaryCard({
   cardRef,
   onCancelAgentRun,
   onPauseAgentRun,
+  onLocateBlock,
   onResumeAgentRun,
   onSelectAgentRun,
   selectedSession,
+  snapshot,
 }: {
   activeRun?: AgentRunRecord;
   agentRuns: AgentRunRecord[];
@@ -287,11 +297,16 @@ const AgentRunSummaryCard = function AgentRunSummaryCard({
   cardRef: Ref<HTMLElement>;
   onCancelAgentRun: (agentRunId: string) => void;
   onPauseAgentRun: (agentRunId: string) => void;
+  onLocateBlock: (blockId: string) => void;
   onResumeAgentRun: (agentRunId: string) => void;
   onSelectAgentRun: (agentRunId?: string) => void;
   selectedSession: AgentSessionRecord;
+  snapshot: BoardSnapshot;
 }): ReactElement {
   const { t } = useI18n();
+  const intervention = activeRun
+    ? agentRunInterventionFor(snapshot, activeRun)
+    : undefined;
   const isTerminal = activeRun
     ? ['succeeded', 'failed', 'canceled'].includes(activeRun.status)
     : false;
@@ -304,6 +319,27 @@ const AgentRunSummaryCard = function AgentRunSummaryCard({
       {activeRun ? (
         <>
           <p>{agentRunTargetLabel(activeRun)}</p>
+          {intervention ? (
+            <section className="agent-workspace-run-intervention" aria-label={t('agentWorkspace.intervention')}>
+              <strong>{t(agentRunInterventionTitleKey(intervention.kind))}</strong>
+              <p>{t(agentRunInterventionBodyKey(intervention.kind))}</p>
+              {intervention.targetLabel ? <small>{intervention.targetLabel}</small> : null}
+              {intervention.readinessIssues.length > 0 ? (
+                <ul>
+                  {intervention.readinessIssues.map((issue) => (
+                    <li key={issue}>{t(operationReadinessMessageKey(issue))}</li>
+                  ))}
+                </ul>
+              ) : null}
+              {intervention.detail ? <small>{intervention.detail}</small> : null}
+              {intervention.locateBlockId ? (
+                <button type="button" onClick={() => onLocateBlock(intervention.locateBlockId!)}>
+                  <MapPin size={14} />
+                  {t('agentWorkspace.locateIntervention')}
+                </button>
+              ) : null}
+            </section>
+          ) : null}
           <div className="agent-workspace-run-actions">
             {activeRun.status === 'paused'
               ? <button type="button" onClick={() => onResumeAgentRun(activeRun.agentRunId)}><Play size={14} />{t('agentRuntime.resume')}</button>
@@ -343,6 +379,14 @@ const AgentRunSummaryCard = function AgentRunSummaryCard({
 
 function agentRunStatusKey(status: AgentRunRecord['status']) {
   return `agentRuntime.status.${status}` as const;
+}
+
+function agentRunInterventionTitleKey(kind: AgentRunInterventionKind) {
+  return `agentWorkspace.intervention.${kind}.title` as const;
+}
+
+function agentRunInterventionBodyKey(kind: AgentRunInterventionKind) {
+  return `agentWorkspace.intervention.${kind}.body` as const;
 }
 
 function proposalStatusKey(status: ChangeProposalStatus) {
