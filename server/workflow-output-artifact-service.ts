@@ -34,6 +34,7 @@ import {
   normalizeGenerationPreparationParameters,
   normalizeGenerationReferenceManifest,
 } from '../src/core/generationPreparationContracts';
+import type { VideoClipArtifactRevisionMetadataV1 } from '../src/core/domainVideoGenerationContracts';
 
 export type WorkflowOutputMaterializationTrigger =
   | { kind: 'execution_succeeded'; executionId: string }
@@ -329,6 +330,12 @@ function materializationCandidates(
       ? storyboardSheetMetadataForExecution(executions.at(-1))
       : output.artifactType === 'video_generation_package'
         ? generationPackageMetadataForExecution(executions.at(-1))
+        : output.artifactType === 'video_clip'
+          ? videoClipMetadataForExecution(
+              snapshot,
+              executions.at(-1),
+              resolved.assetIds[0],
+            )
         : undefined;
     return [{
       artifactType: output.artifactType,
@@ -532,6 +539,45 @@ function generationPackageMetadataForExecution(
     storyboardSheetMetadata,
     unitId: inlineUnit.value,
   });
+}
+
+function videoClipMetadataForExecution(
+  snapshot: BoardSnapshot,
+  execution: ExecutionRecord | undefined,
+  assetId: string | undefined,
+): VideoClipArtifactRevisionMetadataV1 {
+  if (!execution?.domainVideoRequestSnapshot) {
+    throw new Error('Video Clip Artifact requires one Domain Video source Execution.');
+  }
+  if (!assetId) throw new Error('Video Clip Artifact requires one selected Video Asset.');
+  const asset = snapshot.assets.find(
+    (candidate) => candidate.assetId === assetId && candidate.kind === 'video',
+  );
+  if (!asset) throw new Error(`Selected Video Asset is unavailable: ${assetId}`);
+  const providerCall = execution.providerCalls?.find(
+    (call) => call.status === 'succeeded' && call.outputAssetIds.includes(assetId),
+  );
+  if (!providerCall) {
+    throw new Error(`Selected Video Asset has no successful Provider Call: ${assetId}`);
+  }
+  const request = execution.domainVideoRequestSnapshot;
+  return {
+    kind: 'video_clip',
+    schemaRef: 'retake.video-clip-metadata/v1',
+    unitId: request.unitId,
+    generationPackageArtifactRevisionId: request.generationPackageArtifactRevisionId,
+    executionId: execution.executionId,
+    providerCallId: providerCall.providerCallId,
+    adapterId: request.adapterId,
+    connectionId: request.connectionId,
+    provider: request.provider,
+    model: request.model,
+    targetAspectRatio: request.packageProfile.aspectRatio,
+    targetDurationSeconds: request.packageProfile.durationSeconds,
+    ...(asset.duration === undefined ? {} : { actualDurationSeconds: asset.duration }),
+    ...(asset.width === undefined ? {} : { width: asset.width }),
+    ...(asset.height === undefined ? {} : { height: asset.height }),
+  };
 }
 
 function objectRecord(value: unknown): Record<string, unknown> | undefined {

@@ -202,6 +202,9 @@ export interface ExecutionRecord {
   inputBindingsSnapshot?: CapabilityInputBinding[];
   outputSlotResults?: ExecutionOutputSlotResult[];
   resultSummary?: ExecutionResultSummary;
+  domainVideoRequestSnapshot?: import('./domainVideoGenerationContracts').DomainVideoRequestSnapshotV1;
+  providerExecutionAuthorization?: import('./domainVideoGenerationContracts').ProviderExecutionAuthorizationV1;
+  providerCalls?: import('./domainVideoGenerationContracts').ProviderCallRecord[];
 }
 
 export interface ExecutionRequestPrompt {

@@ -13,6 +13,11 @@ import {
   domainVideoGenerationWorkflowId,
 } from '../src/core/domainVideoGenerationContracts';
 import {
+  createAgentRunForWorkflowRun,
+  reconcileAgentRuntime,
+  startAgentRun,
+} from '../src/core/agentRuntime';
+import {
   costDisclosureForConnection,
   resolveDomainVideoLaunchReview,
 } from '../src/core/domainVideoLaunchReview';
@@ -29,15 +34,25 @@ import type { AssetRecord, BoardSnapshot } from '../src/core/types';
 import { operationReadinessFor } from '../src/core/capabilities';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import {
+  acceptWorkflowStepOutputs,
+  createWorkflowRunForGroup,
+  workflowRunViewForId,
+} from '../src/core/workflowRuntime';
+import {
   approvedGenerationPackageToVideoWorkflow,
   validateWorkflowDefinition,
 } from '../src/core/workflowRegistry';
+import { authorizeAndStartDomainVideoGeneration } from './domain-video-generation-service';
 import { reviewDomainVideoLaunch } from './domain-video-launch-review-service';
 import { createAssetFromDataUrl } from './local-store/asset-store';
-import { createOrAdvanceArtifact } from './local-store/artifact-store';
+import {
+  createOrAdvanceArtifact,
+  readProjectArtifacts,
+} from './local-store/artifact-store';
 import { resetWorkspace, saveSnapshot } from './local-store/snapshot-store';
 import { createBoard } from './local-store/workspace-store';
 import { readProjectArtifactLibrary } from './artifact-library-service';
+import { materializeWorkflowOutputArtifacts } from './workflow-output-artifact-service';
 
 const snapshot = await resetWorkspace() as BoardSnapshot;
 snapshot.blocks = [];
@@ -313,7 +328,8 @@ const [appSource, dialogSource, operationControllerSource] = await Promise.all([
   readFile('src/app/useOperationInputController.ts', 'utf8'),
 ]);
 assert.match(appSource, /DomainVideoLaunchReviewDialog/);
-assert.match(dialogSource, /Provider 授权将在下一切片启用/);
+assert.match(dialogSource, /授权并提交 Provider/);
+assert.match(dialogSource, /确认并本地执行/);
 assert.match(operationControllerSource, /retake:open-domain-video-launch-review/);
 
 const sourceBoard = await resetWorkspace();
@@ -452,9 +468,157 @@ assert.equal(
   persistedReference.assetId,
 );
 
+const runtimeProjection = projectWorkflowDraft(targetBoard, {
+  composerInput: {
+    mentions: [{
+      kind: 'block',
+      blockId: targetPackageBlock.blockId,
+      slotId: 'generation_package',
+    }],
+    parameters: { outputCount: 2, qualityTier: 'preview' },
+  },
+  connectionIdForCapability: () => 'retake-mock',
+  labelsForSkill: () => ({
+    operationTitle: 'Generate approved package video',
+    promptPlaceholder: 'Connect package',
+    promptTitle: 'Approved Generation Package',
+    resultTitle: 'Video candidate',
+    waitingBody: 'Waiting for launch review.',
+  }),
+  outputPlaceholder: 'Waiting for launch review.',
+  workflowId: domainVideoGenerationWorkflowId,
+  workflowTitle: 'Approved package to video',
+});
+const workflow = createWorkflowRunForGroup(
+  targetBoard,
+  runtimeProjection.groupBlock.blockId,
+);
+const agent = createAgentRunForWorkflowRun(
+  targetBoard,
+  workflow.record.workflowRunId,
+);
+startAgentRun(targetBoard, agent.record.agentRunId);
+reconcileAgentRuntime(targetBoard);
+assert.equal(
+  targetBoard.agentRuns?.find((candidate) => candidate.agentRunId === agent.record.agentRunId)?.status,
+  'waiting_input',
+);
+assert.equal(
+  targetBoard.agentRuns?.find((candidate) => candidate.agentRunId === agent.record.agentRunId)?.stopReason,
+  'provider_execution_authorization_required',
+);
+await saveSnapshot(targetBoard);
+
+const runtimeOperationId = runtimeProjection.operationBlockIds[0]!;
+const runtimeReview = await reviewDomainVideoLaunch({
+  blockId: runtimeOperationId,
+  boardId: targetBoard.board.boardId,
+  projectId: targetBoard.project.projectId,
+});
+assert.equal(runtimeReview.ready, true, JSON.stringify(runtimeReview, null, 2));
+const beforeMismatchExecutionCount = targetBoard.executions.length;
+await assert.rejects(
+  () => authorizeAndStartDomainVideoGeneration({
+    blockId: runtimeOperationId,
+    boardId: targetBoard.board.boardId,
+    projectId: targetBoard.project.projectId,
+    requestFingerprint: 'fnv1a:stale-review',
+  }),
+  /changed|fingerprint|review/i,
+);
+assert.equal(
+  (await reviewDomainVideoLaunch({
+    blockId: runtimeOperationId,
+    boardId: targetBoard.board.boardId,
+    projectId: targetBoard.project.projectId,
+  })).ready,
+  true,
+);
+const started = await authorizeAndStartDomainVideoGeneration({
+  blockId: runtimeOperationId,
+  boardId: targetBoard.board.boardId,
+  projectId: targetBoard.project.projectId,
+  requestFingerprint: runtimeReview.request!.requestFingerprint,
+});
+assert.equal(started.snapshot.executions.length, beforeMismatchExecutionCount + 1);
+assert.equal(started.execution.capabilityId, domainVideoGenerationCapabilityId);
+assert.equal(started.execution.skillId, domainVideoGenerationSkillId);
+assert.equal(started.execution.status, 'succeeded');
+assert.equal(
+  started.execution.providerExecutionAuthorization?.kind,
+  'not_required_no_external_action',
+);
+assert.equal(
+  started.execution.providerExecutionAuthorization?.requestFingerprint,
+  runtimeReview.request?.requestFingerprint,
+);
+assert.equal(started.execution.requestPrompts?.length, 2);
+assert.equal(started.execution.providerCalls?.length, 2);
+assert.equal(
+  started.execution.providerCalls?.every((call) =>
+    call.status === 'succeeded' && call.outputAssetIds.length === 1),
+  true,
+);
+
+reconcileAgentRuntime(started.snapshot);
+const waitingSelection = workflowRunViewForId(
+  started.snapshot,
+  workflow.record.workflowRunId,
+);
+const runtimeStep = waitingSelection?.steps[0];
+assert.equal(runtimeStep?.status, 'waiting_selection');
+assert.equal(
+  started.snapshot.agentRuns?.find((candidate) => candidate.agentRunId === agent.record.agentRunId)?.status,
+  'waiting_selection',
+);
+acceptWorkflowStepOutputs(started.snapshot, {
+  acceptedOutputAssetIds: [started.execution.outputAssetIds[0]!],
+  expectedStepRunVersion: runtimeStep!.record.recordVersion,
+  stepRunId: runtimeStep!.record.stepRunId,
+});
+await saveSnapshot(started.snapshot);
+const materialized = await materializeWorkflowOutputArtifacts({
+  boardId: started.snapshot.board.boardId,
+  projectId: started.snapshot.project.projectId,
+  trigger: {
+    kind: 'output_accepted',
+    stepRunId: runtimeStep!.record.stepRunId,
+  },
+});
+assert.equal(materialized.bindings.length, 1);
+assert.equal(materialized.bindings[0]?.artifactType, 'video_clip');
+assert.deepEqual(
+  materialized.bindings[0]?.assetIds,
+  [started.execution.outputAssetIds[0]],
+);
+const artifacts = await readProjectArtifacts(started.snapshot.project.projectId);
+const videoRevision = artifacts.revisions.find(
+  (revision) =>
+    revision.artifactRevisionId === materialized.bindings[0]?.artifactRevisionId,
+);
+assert.equal(videoRevision?.metadata?.kind, 'video_clip');
+assert.equal(
+  videoRevision?.sourceArtifactRevisionIds.includes(
+    persistedPackage.revision.artifactRevisionId,
+  ),
+  true,
+);
+const resultGate = materialized.snapshot.workflowGateEvaluations?.find(
+  (evaluation) =>
+    evaluation.gateId === 'video_generation_result_review'
+    && evaluation.subjectArtifactRevisionId === videoRevision?.artifactRevisionId,
+);
+assert.equal(resultGate?.status, 'waiting_approval');
+assert.equal(resultGate?.freshness, 'current');
+
 console.log(JSON.stringify({
   ok: true,
+  agentStopsBeforeProviderAuthorization: true,
+  authorizationFingerprintGuard: true,
   crossBoardProjectAuthorityRead: true,
+  domainExecutionUsesExistingVideoAdapter: true,
+  manualSingleVideoClipArtifactAndGate: true,
+  providerCallRecords: true,
   separateDomainCapability: true,
   exactRegistryLocks: true,
   approvedPackageWorkflowDraft: true,

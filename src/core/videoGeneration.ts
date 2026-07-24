@@ -9,15 +9,35 @@ import {
   capabilityBindingValueForBlock,
 } from './artifactLibrary';
 import {
+  domainVideoGenerationCapabilityDefinition,
   dreaminaCliAdapterDefinition,
   mockVideoAdapterDefinition,
   seedanceModelArkAdapterDefinition,
   videoGenerateCapabilityDefinition,
 } from './capabilityRegistry';
 import { maxZIndex, touchBoard } from './blockFactory';
+import {
+  domainVideoGenerationSkillId,
+  type DomainVideoRequestSnapshotV1,
+  type ProviderExecutionAuthorizationV1,
+} from './domainVideoGenerationContracts';
+import {
+  configurationFingerprint,
+  currentOperationConfiguration,
+} from './executionConfiguration';
 import { createId, nowIso } from './id';
 import { MockVideoAdapter } from './mockVideoAdapter';
+import { skillDefinitionFor } from './skillRegistry';
 import type { AssetRecord, BlockRecord, BoardHistoryEvent, BoardSnapshot, ExecutionInputRole, ExecutionRecord } from './types';
+import { attachWorkflowExecution, reconcileWorkflowRuntime } from './workflowRuntime';
+
+export interface DomainVideoExecutionContext {
+  authorization: ProviderExecutionAuthorizationV1;
+  generationPackageBlockId: string;
+  operationBlockId: string;
+  providerPrompt: string;
+  request: DomainVideoRequestSnapshotV1;
+}
 
 export interface VideoGenerationInput {
   targetBlockId: string;
@@ -26,6 +46,7 @@ export interface VideoGenerationInput {
   outputCount: number;
   aspectRatio?: string;
   connectionId?: string;
+  domain?: DomainVideoExecutionContext;
 }
 
 export interface VideoGenerationRun {
@@ -78,9 +99,13 @@ export async function runMockVideoGeneration(
   snapshot: BoardSnapshot,
   input: VideoGenerationInput,
   adapter: CapabilityAdapterPort = new MockVideoAdapter(),
+  options: {
+    beforeExecute?: (run: VideoGenerationRun) => Promise<void>;
+  } = {},
 ): Promise<VideoGenerationRun> {
   const run = createVideoGenerationExecution(snapshot, input);
   try {
+    await options.beforeExecute?.(run);
     await adapter.validate(run.request, mockVideoAdapterDefinition);
     const result = await adapter.execute({
       request: run.request,
@@ -102,7 +127,10 @@ export function createVideoGenerationExecution(
   input: VideoGenerationInput,
   profile: VideoExecutionProfile = mockVideoExecutionProfile,
 ): VideoGenerationRun {
-  const targetBlock = snapshot.blocks.find((block) => block.blockId === input.targetBlockId && block.type === 'video');
+  const domain = input.domain;
+  const targetBlock = snapshot.blocks.find(
+    (block) => block.blockId === input.targetBlockId && block.type === 'video',
+  ) ?? (domain ? createDomainVideoTargetBlock(snapshot, domain.operationBlockId) : undefined);
   if (!targetBlock) throw new Error(`Video target block not found: ${input.targetBlockId}`);
   const prompt = input.prompt.trim();
   if (!prompt) throw new Error('Enter a video prompt before generating.');
@@ -116,7 +144,17 @@ export function createVideoGenerationExecution(
   const requestId = createId('request');
   const executionId = createId('exec');
   const createdAt = nowIso();
-  const inputBindings = videoInputBindings(snapshot, targetBlock, prompt);
+  if (domain) assertDomainExecutionContext(domain, profile);
+  const capability = domain
+    ? domainVideoGenerationCapabilityDefinition
+    : videoGenerateCapabilityDefinition;
+  const skill = domain ? skillDefinitionFor(domainVideoGenerationSkillId) : undefined;
+  const inputBindings = domain
+    ? domainVideoInputBindings(domain)
+    : videoInputBindings(snapshot, targetBlock, prompt);
+  const workflowStep = domain
+    ? (snapshot.workflowStepRuns ?? []).find((step) => step.operationBlockId === domain.operationBlockId)
+    : undefined;
   const request: CapabilityExecutionRequest = {
     schemaVersion: 1,
     requestId,
@@ -125,13 +163,26 @@ export function createVideoGenerationExecution(
       projectId: snapshot.project.projectId,
       boardId: snapshot.board.boardId,
     },
-    trigger: { kind: 'video_block_shortcut', sourceBlockId: targetBlock.blockId },
+    trigger: workflowStep
+      ? {
+          kind: 'workflow_step',
+          sourceBlockId: domain?.operationBlockId,
+          workflowRunId: workflowStep.workflowRunId,
+          stepRunId: workflowStep.stepRunId,
+        }
+      : domain
+        ? { kind: 'operation_block', sourceBlockId: domain.operationBlockId }
+        : { kind: 'video_block_shortcut', sourceBlockId: targetBlock.blockId },
     capabilityLock: {
-      capabilityId: videoGenerateCapabilityDefinition.capabilityId,
-      version: videoGenerateCapabilityDefinition.version,
-      definitionHash: videoGenerateCapabilityDefinition.definitionHash,
+      capabilityId: capability.capabilityId,
+      version: capability.version,
+      definitionHash: capability.definitionHash,
     },
-    skillLock: null,
+    skillLock: skill ? {
+      skillId: skill.skillId,
+      version: skill.version,
+      definitionHash: skill.definitionHash,
+    } : null,
     executionProfileId: profile.executionProfileId,
     requestedAdapterId: profile.adapterDefinition.adapterId,
     ...(input.connectionId ? { requestedConnectionId: input.connectionId } : {}),
@@ -140,7 +191,7 @@ export function createVideoGenerationExecution(
       durationSeconds: input.durationSeconds,
       outputCount: input.outputCount,
       aspectRatio: input.aspectRatio ?? '9:16',
-      qualityTier: profile.qualityTier,
+      qualityTier: domain?.request.launchParameters.qualityTier ?? profile.qualityTier,
     },
     resultProjection: {
       mode: input.outputCount > 1 ? 'target_and_siblings' : 'target',
@@ -150,7 +201,7 @@ export function createVideoGenerationExecution(
     idempotencyKey: `${snapshot.board.boardId}:${targetBlock.blockId}:${executionId}`,
     createdAt,
   };
-  assertValidCapabilityExecutionRequest(request, videoGenerateCapabilityDefinition);
+  assertValidCapabilityExecutionRequest(request, capability);
   const resultBlocks = prepareVideoResultBlocks(
     snapshot,
     targetBlock,
@@ -171,7 +222,7 @@ export function createVideoGenerationExecution(
     requestId,
     projectId: snapshot.project.projectId,
     boardId: snapshot.board.boardId,
-    capabilityId: videoGenerateCapabilityDefinition.capabilityId,
+    capabilityId: capability.capabilityId,
     adapter: profile.adapter,
     status: 'running',
     inputBlockIds: [...new Set(inputBlockIds)],
@@ -179,19 +230,62 @@ export function createVideoGenerationExecution(
     outputBlockIds: resultBlocks.map((block) => block.blockId),
     outputAssetIds: [],
     triggerMode: profile.triggerMode,
-    provider: profile.adapterDefinition.provider,
-    model: profile.adapterDefinition.model,
+    provider: domain?.request.provider ?? profile.adapterDefinition.provider,
+    model: domain?.request.model ?? profile.adapterDefinition.model,
     ...(input.connectionId ? { connectionId: input.connectionId } : {}),
+    ...(skill ? { skillId: skill.skillId } : {}),
     prompt,
-    params: { generation: structuredClone(request.parameters), shortcutBlockId: targetBlock.blockId },
+    requestPrompts: domain
+      ? resultBlocks.map((block, index) => ({
+          index,
+          outputBlockId: block.blockId,
+          prompt: domain.providerPrompt,
+        }))
+      : undefined,
+    params: {
+      generation: structuredClone(request.parameters),
+      ...(domain
+        ? {
+            operationBlockId: domain.operationBlockId,
+            generationPackageBlockId: domain.generationPackageBlockId,
+          }
+        : { shortcutBlockId: targetBlock.blockId }),
+    },
     startedAt: createdAt,
     capabilityLock: structuredClone(request.capabilityLock),
+    ...(request.skillLock ? { skillSnapshot: structuredClone(request.skillLock) } : {}),
     adapterSnapshot: adapterSnapshot(profile.adapterDefinition),
     inputBindingsSnapshot: structuredClone(inputBindings),
     outputSlotResults: [{ slotId: 'videos', assetIds: [] }],
     resultSummary: { requested: input.outputCount, succeeded: 0, failed: 0 },
+    ...(domain ? {
+      domainVideoRequestSnapshot: structuredClone(domain.request),
+      providerExecutionAuthorization: structuredClone(domain.authorization),
+      providerCalls: resultBlocks.map((_, index) => ({
+        providerCallId: createId('provider_call'),
+        executionId,
+        callIndex: index,
+        status: 'queued' as const,
+        provider: domain.request.provider,
+        model: domain.request.model,
+        requestPromptIndex: index,
+        outputAssetIds: [],
+        billingSource: domain.authorization.costDisclosure.billingSource,
+        startedAt: createdAt,
+      })),
+    } : {}),
   };
+  if (domain) {
+    const operation = snapshot.blocks.find((block) =>
+      block.blockId === domain.operationBlockId && block.type === 'operation',
+    );
+    if (!operation) throw new Error(`Domain Video Operation not found: ${domain.operationBlockId}`);
+    execution.configuration = currentOperationConfiguration(snapshot, operation);
+    execution.configurationFingerprint = configurationFingerprint(execution.configuration);
+    attachWorkflowExecution(snapshot, operation, execution);
+  }
   snapshot.executions.unshift(execution);
+  if (domain) reconcileWorkflowRuntime(snapshot);
   appendHistory(snapshot, {
     eventId: createId('history'),
     type: 'operation_created',
@@ -246,6 +340,14 @@ function completeMockVideoGeneration(
   execution.outputAssetIds = assets.map((asset) => asset.assetId);
   execution.outputSlotResults = [{ slotId: 'videos', assetIds: [...execution.outputAssetIds] }];
   execution.resultSummary = { requested: resultBlocks.length, succeeded: assets.length, failed: 0 };
+  if (execution.providerCalls) {
+    execution.providerCalls = execution.providerCalls.map((call, index) => ({
+      ...call,
+      status: 'succeeded',
+      outputAssetIds: assets[index] ? [assets[index].assetId] : [],
+      completedAt,
+    }));
+  }
   execution.completedAt = completedAt;
   appendHistory(snapshot, {
     eventId: createId('history'),
@@ -258,6 +360,63 @@ function completeMockVideoGeneration(
     summary: 'Mock video generation completed',
   });
   touchBoard(snapshot);
+}
+
+function assertDomainExecutionContext(
+  domain: DomainVideoExecutionContext,
+  profile: VideoExecutionProfile,
+): void {
+  const request = domain.request;
+  const authorization = domain.authorization;
+  if (
+    authorization.requestFingerprint !== request.requestFingerprint
+    || authorization.generationPackageArtifactRevisionId
+      !== request.generationPackageArtifactRevisionId
+    || authorization.adapterId !== request.adapterId
+    || authorization.connectionId !== request.connectionId
+    || authorization.outputCount !== request.launchParameters.outputCount
+  ) {
+    throw new Error('Domain Video authorization does not match the final request.');
+  }
+  if (
+    request.adapterId !== profile.adapterDefinition.adapterId
+    || request.adapterVersion !== profile.adapterDefinition.version
+    || request.adapterDefinitionHash !== profile.adapterDefinition.definitionHash
+  ) {
+    throw new Error('Domain Video Adapter lock does not match the selected execution profile.');
+  }
+  const local = profile.adapterDefinition.routeKind === 'local';
+  if (
+    local
+      ? authorization.kind !== 'not_required_no_external_action'
+        || authorization.action !== 'local_execute'
+      : authorization.kind !== 'explicit_user_submit'
+        || authorization.action !== 'provider_submit'
+  ) {
+    throw new Error('Domain Video authorization kind does not match the Adapter route.');
+  }
+}
+
+function domainVideoInputBindings(
+  domain: DomainVideoExecutionContext,
+): CapabilityInputBinding[] {
+  return [
+    {
+      slotId: 'generation_package',
+      values: [{
+        kind: 'artifact_revision',
+        artifactRevisionId: domain.request.generationPackageArtifactRevisionId,
+        blockId: domain.generationPackageBlockId,
+      }],
+    },
+    {
+      slotId: 'references',
+      values: domain.request.referenceBindings.map((binding) => ({
+        kind: 'asset' as const,
+        assetId: binding.assetId,
+      })),
+    },
+  ];
 }
 
 function failMockVideoGeneration(
@@ -371,6 +530,53 @@ function createVideoResultBlock(
     updatedAt: createdAt,
   };
   snapshot.blocks.push(block);
+  return block;
+}
+
+function createDomainVideoTargetBlock(
+  snapshot: BoardSnapshot,
+  operationBlockId: string,
+): BlockRecord {
+  const operation = snapshot.blocks.find(
+    (block) => block.blockId === operationBlockId && block.type === 'operation',
+  );
+  if (!operation) throw new Error(`Domain Video Operation not found: ${operationBlockId}`);
+  const existingOutput = snapshot.edges
+    .filter((edge) => edge.kind === 'execution_output' && edge.sourceBlockId === operationBlockId)
+    .flatMap((edge) => {
+      const block = snapshot.blocks.find(
+        (candidate) => candidate.blockId === edge.targetBlockId && candidate.type === 'video',
+      );
+      return block ? [block] : [];
+    })[0];
+  if (existingOutput) return existingOutput;
+  const createdAt = nowIso();
+  const block: BlockRecord = {
+    blockId: createId('block'),
+    boardId: snapshot.board.boardId,
+    type: 'video',
+    layerId: operation.layerId,
+    parentGroupId: operation.parentGroupId,
+    position: {
+      x: operation.position.x + operation.size.width + 90,
+      y: operation.position.y,
+    },
+    size: { width: 320, height: 240 },
+    zIndex: maxZIndex(snapshot.blocks) + 1,
+    data: {
+      title: 'Video result',
+      body: 'Waiting for authorized Domain Video execution.',
+    },
+    createdAt,
+    updatedAt: createdAt,
+  };
+  snapshot.blocks.push(block);
+  snapshot.edges.push({
+    edgeId: createId('edge'),
+    sourceBlockId: operationBlockId,
+    targetBlockId: block.blockId,
+    kind: 'execution_output',
+  });
   return block;
 }
 

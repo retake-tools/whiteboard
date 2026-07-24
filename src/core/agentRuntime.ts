@@ -486,6 +486,9 @@ export function nextAgentRunExecutionAction(snapshot: BoardSnapshot): AgentRunEx
     if (executions.length > 0) return undefined;
     const operation = operationBlock(snapshot, record.target.operationBlockId);
     if (!operationReadinessFor(snapshot, operation).canRun) return undefined;
+    if (capabilityRequiresExplicitProviderAuthorization(executionCapabilityId(operation))) {
+      return undefined;
+    }
     return {
       actionKey: `${record.agentRunId}:operation:${operation.blockId}:0`,
       agentRunId: record.agentRunId,
@@ -577,10 +580,16 @@ function projectCapabilityAgentRun(
   const latest = executions[0];
   if (!latest) {
     const ready = operationReadinessFor(snapshot, operation).canRun;
+    const authorizationRequired = ready
+      && capabilityRequiresExplicitProviderAuthorization(executionCapabilityId(operation));
     return {
-      status: ready ? 'running' : 'waiting_input',
-      stopReason: undefined,
-      error: undefined,
+      status: ready && !authorizationRequired ? 'running' : 'waiting_input',
+      stopReason: authorizationRequired
+        ? 'provider_execution_authorization_required'
+        : undefined,
+      error: authorizationRequired
+        ? 'Explicit user Provider authorization is required before this Capability can execute.'
+        : undefined,
       executionIds: [],
       currentOperationBlockId: operation.blockId,
     };
@@ -610,6 +619,22 @@ function projectCapabilityAgentRun(
     executionIds: executions.map((execution) => execution.executionId),
     currentOperationBlockId: operation.blockId,
   };
+}
+
+function executionCapabilityId(operation: BlockRecord): string {
+  const capabilityId = operation.data.capabilityId;
+  if (typeof capabilityId !== 'string' || !capabilityId) {
+    throw new Error(`Operation Capability is missing: ${operation.blockId}`);
+  }
+  return capabilityId;
+}
+
+function capabilityRequiresExplicitProviderAuthorization(
+  capabilityId: string,
+): boolean {
+  return capabilityDefinitionFor(capabilityId).runtimeRequirements.includes(
+    'explicit_external_action_authorization',
+  );
 }
 
 export function acceptVerifiedAgentArtifactRevision(

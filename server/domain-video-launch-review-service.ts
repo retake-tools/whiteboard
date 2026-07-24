@@ -4,9 +4,12 @@ import {
   normalizeDomainVideoGenerationParameters,
   type DomainVideoLaunchReviewV1,
 } from '../src/core/domainVideoGenerationContracts';
-import { resolveDomainVideoLaunchReview } from '../src/core/domainVideoLaunchReview';
+import {
+  providerNeutralSubmitSource,
+  resolveDomainVideoLaunchReview,
+} from '../src/core/domainVideoLaunchReview';
 import { isVideoGenerationPackageArtifactRevisionMetadataV2 } from '../src/core/generationPreparationContracts';
-import type { AssetRecord, BlockRecord } from '../src/core/types';
+import type { AssetRecord, BlockRecord, BoardSnapshot } from '../src/core/types';
 import { readProjectArtifactAuthority } from './artifact-library-service';
 import { readAssetMetadata, resolveAssetStoragePath } from './local-store/asset-files';
 import { listExecutionProviderSettings } from './local-store/execution-provider-store';
@@ -20,6 +23,23 @@ export async function reviewDomainVideoLaunch(input: {
   boardId: string;
   projectId: string;
 }): Promise<DomainVideoLaunchReviewV1> {
+  return (await prepareDomainVideoLaunch(input)).review;
+}
+
+export interface DomainVideoLaunchPreparation {
+  generationPackageBlock: BlockRecord;
+  operation: BlockRecord;
+  providerPrompt: string;
+  referenceAssets: AssetRecord[];
+  review: DomainVideoLaunchReviewV1;
+  snapshot: BoardSnapshot;
+}
+
+export async function prepareDomainVideoLaunch(input: {
+  blockId: string;
+  boardId: string;
+  projectId: string;
+}): Promise<DomainVideoLaunchPreparation> {
   const snapshot = await loadSnapshot(input.projectId, input.boardId);
   const operation = domainVideoOperation(snapshot.blocks, input.blockId);
   const packageBlock = generationPackageInputBlock(snapshot.blocks, snapshot.edges, input.blockId);
@@ -56,7 +76,7 @@ export async function reviewDomainVideoLaunch(input: {
     ? providerSettings.connections.find((candidate) => candidate.connectionId === connectionId)
     : undefined;
 
-  return resolveDomainVideoLaunchReview({
+  const review = resolveDomainVideoLaunchReview({
     artifactLibrary,
     connection,
     gateSnapshots,
@@ -70,6 +90,19 @@ export async function reviewDomainVideoLaunch(input: {
     referenceAssets,
     snapshot,
   });
+  const promptIssues: DomainVideoLaunchReviewV1['issues'] = [];
+  const providerPrompt = providerNeutralSubmitSource(packageMarkdown, promptIssues);
+  if (promptIssues.length > 0) {
+    throw new Error(promptIssues[0]?.message ?? 'Provider-neutral submit source is invalid.');
+  }
+  return {
+    generationPackageBlock: packageBlock,
+    operation,
+    providerPrompt,
+    referenceAssets,
+    review,
+    snapshot,
+  };
 }
 
 async function readReferenceAssets(

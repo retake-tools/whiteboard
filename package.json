@@ -67,6 +67,7 @@
     "generation-preparation-v0:test": "RETAKE_WORKSPACE_DIR=.retake-test-generation-preparation-v0 tsx server/generation-preparation-runtime-v0-test.ts",
     "generation-package-v2:test": "RETAKE_WORKSPACE_DIR=.retake-test-generation-package-v2 tsx server/generation-package-v2-handoff-test.ts",
     "domain-video-launch-review-v0:test": "RETAKE_WORKSPACE_DIR=.retake-test-domain-video-launch-review-v0 tsx server/domain-video-launch-review-v0-test.ts",
+    "domain-video-runtime-v0:test": "RETAKE_WORKSPACE_DIR=.retake-test-domain-video-runtime-v0 tsx server/domain-video-launch-review-v0-test.ts",
     "artifact-v0:test": "RETAKE_WORKSPACE_DIR=.retake-test-artifact-v0 tsx server/artifact-record-revision-store-v0-test.ts",
     "library-v0:test": "RETAKE_WORKSPACE_DIR=.retake-test-library-v0 tsx server/project-asset-library-v0-test.tsx",
     "workflow-output-artifact-v0:test": "RETAKE_WORKSPACE_DIR=.retake-test-workflow-output-artifact-v0 tsx server/workflow-output-artifact-materialization-v0-test.ts",

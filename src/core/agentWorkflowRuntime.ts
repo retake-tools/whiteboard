@@ -3,6 +3,7 @@ import type {
   AgentRunRecord,
   AgentRunScope,
 } from './agentRuntimeContracts';
+import { capabilityDefinitionFor } from './capabilityRegistry';
 import type { BoardSnapshot } from './types';
 import type {
   WorkflowGateDefinitionLock,
@@ -141,6 +142,7 @@ export function nextWorkflowAgentExecutionAction(
   if (scopedSteps.some((step) => step.status === 'queued' || step.status === 'running')) return undefined;
   const step = scopedSteps.find((candidate) => candidate.status === 'ready');
   if (!step || !record.scope.allowedOperationBlockIds.includes(step.record.operationBlockId)) return undefined;
+  if (requiresExplicitProviderAuthorization(step)) return undefined;
   return {
     actionKey: `${record.agentRunId}:step:${step.record.stepRunId}:${step.record.executionIds.length}`,
     agentRunId: record.agentRunId,
@@ -178,6 +180,18 @@ function projectWholeWorkflowAgentRun(workflow: WorkflowRunRuntimeView): AgentRu
   }
   if (workflow.status === 'needs_attention' || workflow.status === 'failed') {
     return { ...base, status: 'needs_attention', stopReason: undefined };
+  }
+  const authorizationStep = workflow.steps.find((step) =>
+    step.status === 'ready' && requiresExplicitProviderAuthorization(step),
+  );
+  if (authorizationStep) {
+    return {
+      ...base,
+      currentOperationBlockId: authorizationStep.record.operationBlockId,
+      status: 'waiting_input',
+      stopReason: 'provider_execution_authorization_required',
+      error: 'Explicit user Provider authorization is required before this Workflow Step can execute.',
+    };
   }
   return { ...base, status: 'running', stopReason: undefined };
 }
@@ -242,6 +256,18 @@ function projectWorkflowSliceAgentRun(
   }
   if (steps.some((step) => step.status === 'waiting_input')) {
     return { ...base, status: 'waiting_input', stopReason: undefined };
+  }
+  const authorizationStep = steps.find((step) =>
+    step.status === 'ready' && requiresExplicitProviderAuthorization(step),
+  );
+  if (authorizationStep) {
+    return {
+      ...base,
+      currentOperationBlockId: authorizationStep.record.operationBlockId,
+      status: 'waiting_input',
+      stopReason: 'provider_execution_authorization_required',
+      error: 'Explicit user Provider authorization is required before this Workflow Step can execute.',
+    };
   }
   if (targets.every((target) => target.status === 'succeeded' && target.freshness === 'current')) {
     if (until.kind === 'gate') {
@@ -378,6 +404,14 @@ function projectWorkflowSliceAgentRun(
         };
   }
   return { ...base, status: 'running', stopReason: undefined };
+}
+
+function requiresExplicitProviderAuthorization(
+  step: WorkflowStepRuntimeView,
+): boolean {
+  return capabilityDefinitionFor(
+    step.record.capabilityLock.capabilityId,
+  ).runtimeRequirements.includes('explicit_external_action_authorization');
 }
 
 function scopedWorkflowSteps(

@@ -248,12 +248,16 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     snapshotRef,
   });
   const {
+    authorizeDomainVideoGeneration,
     closeDomainVideoLaunchReview,
     domainVideoLaunchReview,
   } = useDomainVideoLaunchReviewController(
     snapshotRef,
     snapshot.project.projectId,
     snapshot.board.boardId,
+    updateSnapshot,
+    setOperationToast,
+    setSelectedBlocks,
   );
   const workflowRuntimeController = useWorkflowRuntimeController({
     persistSnapshot,
@@ -506,6 +510,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         <Suspense fallback={null}>
           <DomainVideoLaunchReviewDialog
             state={domainVideoLaunchReview}
+            onAuthorize={() => void authorizeDomainVideoGeneration()}
             onClose={closeDomainVideoLaunchReview}
           />
         </Suspense>

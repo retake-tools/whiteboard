@@ -75,6 +75,7 @@ export async function importAssetFromPath(input: {
 export async function createAssetFromDataUrl(input: {
   projectId: string;
   dataUrl: string;
+  duration?: number;
   fileName?: string;
   kind?: AssetKind;
   width?: number;
@@ -98,6 +99,7 @@ export async function createAssetFromDataUrl(input: {
     storageProvider: 'local',
     storageKey: path.relative(projectDir, storageKey),
     previewUrl: `/api/local/assets/${input.projectId}/${assetId}/${fileName}`,
+    duration: input.duration,
     width: input.width,
     height: input.height,
     sourceExecutionId: input.sourceExecutionId,

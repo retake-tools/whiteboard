@@ -9,10 +9,15 @@ import {
   isVideoGenerationPackageArtifactRevisionMetadataV2,
   type VideoGenerationPackageArtifactRevisionMetadata,
 } from './generationPreparationContracts';
+import {
+  isVideoClipArtifactRevisionMetadataV1,
+  type VideoClipArtifactRevisionMetadataV1,
+} from './domainVideoGenerationContracts';
 
 export type ArtifactRevisionMetadata =
   | StoryboardSheetArtifactRevisionMetadata
-  | VideoGenerationPackageArtifactRevisionMetadata;
+  | VideoGenerationPackageArtifactRevisionMetadata
+  | VideoClipArtifactRevisionMetadataV1;
 
 export type ArtifactScope = 'project' | 'workflow_run' | 'step_run';
 
@@ -197,6 +202,10 @@ export function assertValidCreateOrAdvanceArtifactCommand(
   } else if (command.artifactType === 'video_generation_package') {
     if (!isVideoGenerationPackageArtifactRevisionMetadataV2(command.metadata)) {
       throw new Error('Video Generation Package Artifact requires valid typed V2 metadata.');
+    }
+  } else if (command.artifactType === 'video_clip') {
+    if (!isVideoClipArtifactRevisionMetadataV1(command.metadata)) {
+      throw new Error('Video Clip Artifact requires valid typed metadata.');
     }
   } else if (command.metadata !== undefined) {
     throw new Error(`Artifact metadata is not supported for type: ${command.artifactType}`);

@@ -4,9 +4,11 @@ import type { DomainVideoLaunchReviewState } from '../app/useDomainVideoLaunchRe
 import './domain-video-launch-review-dialog.css';
 
 export function DomainVideoLaunchReviewDialog({
+  onAuthorize,
   onClose,
   state,
 }: {
+  onAuthorize: () => void;
   onClose: () => void;
   state: DomainVideoLaunchReviewState;
 }): ReactElement {
@@ -37,7 +39,7 @@ export function DomainVideoLaunchReviewDialog({
               {review.ready ? <CheckCircle2 /> : <AlertTriangle />}
               <div>
                 <strong>{review.ready ? '执行条件已满足' : '执行条件尚未满足'}</strong>
-                <span>{review.ready ? '本次仅生成审阅快照，不会上传或提交 Provider。' : `${review.issues.length} 个阻断项需要处理。`}</span>
+                <span>{review.ready ? '确认后，授权仅绑定本次精确请求；任一条件变化都需要重新审阅。' : `${review.issues.length} 个阻断项需要处理。`}</span>
               </div>
             </div>
             <dl>
@@ -67,8 +69,17 @@ export function DomainVideoLaunchReviewDialog({
             ) : null}
             <footer>
               <button type="button" onClick={onClose}>关闭</button>
-              <button type="button" className="is-primary" disabled>
-                Provider 授权将在下一切片启用
+              <button
+                type="button"
+                className="is-primary"
+                disabled={!review.ready || state.executing}
+                onClick={onAuthorize}
+              >
+                {state.executing
+                  ? '正在保存授权…'
+                  : review.route.routeKind === 'local'
+                    ? '确认并本地执行'
+                    : '授权并提交 Provider'}
               </button>
             </footer>
           </div>

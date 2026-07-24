@@ -60,6 +60,7 @@ import { materializeWorkflowOutputArtifacts } from './workflow-output-artifact-s
 import { reconcileAgentArtifactTargets } from './agent-artifact-target-service';
 import { reconcileWorkflowArtifactGates } from './workflow-gate-artifact-service';
 import { reviewDomainVideoLaunch } from './domain-video-launch-review-service';
+import { authorizeAndStartDomainVideoGeneration } from './domain-video-generation-service';
 
 type MiddlewareContainer = {
   use(
@@ -116,6 +117,28 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               boardId: body.boardId,
               projectId: body.projectId,
             }));
+            return;
+          }
+
+          if (method === 'POST' && url.pathname === '/domain-video/execute') {
+            const body = (await readJson(req)) as {
+              blockId?: string;
+              boardId?: string;
+              projectId?: string;
+              requestFingerprint?: string;
+            };
+            if (!body.blockId || !body.boardId || !body.projectId || !body.requestFingerprint) {
+              sendJson(res, {
+                error: 'blockId, boardId, projectId, and requestFingerprint are required',
+              }, 400);
+              return;
+            }
+            sendJson(res, await authorizeAndStartDomainVideoGeneration({
+              blockId: body.blockId,
+              boardId: body.boardId,
+              projectId: body.projectId,
+              requestFingerprint: body.requestFingerprint,
+            }), 202);
             return;
           }
 

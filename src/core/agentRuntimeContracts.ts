@@ -25,6 +25,7 @@ export type AgentRunStopReason =
   | 'target_paused'
   | 'target_canceled'
   | 'target_invalid'
+  | 'provider_execution_authorization_required'
   | 'user_paused'
   | 'user_canceled';
 

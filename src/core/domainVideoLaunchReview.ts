@@ -434,7 +434,7 @@ function validateAdapterReferenceProfile(
   }
 }
 
-function providerNeutralSubmitSource(
+export function providerNeutralSubmitSource(
   markdown: string,
   issues: DomainVideoLaunchReviewV1['issues'],
 ): string {

@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict';
 import { createBlockRecord } from '../src/core/blockFactory';
+import { seedanceModelArkAdapterDefinition } from '../src/core/capabilityRegistry';
+import {
+  domainVideoGenerationCapabilityId,
+  domainVideoGenerationSkillId,
+  type DomainVideoRequestSnapshotV1,
+  type ProviderExecutionAuthorizationV1,
+} from '../src/core/domainVideoGenerationContracts';
 import type { BoardSnapshot } from '../src/core/types';
 import { createAssetFromDataUrl } from './local-store/asset-store';
 import { resetWorkspace, saveSnapshot } from './local-store/snapshot-store';
@@ -116,8 +123,113 @@ assert.equal(cancellation.remoteQueuedTasksCanceled, 1);
 assert.equal(cancellation.snapshot.blocks.some((block) => block.blockId === cancelTarget.blockId), true);
 assert.equal(preservedAssetIds.every((assetId) => cancellation.snapshot.assets.some((asset) => asset.assetId === assetId)), true);
 
+const domainOperation = createBlockRecord(cancellation.snapshot, 'operation');
+domainOperation.blockId = 'block_domain_seedance_operation';
+domainOperation.data = {
+  title: 'Domain Seedance',
+  capabilityId: domainVideoGenerationCapabilityId,
+  skillId: domainVideoGenerationSkillId,
+};
+const domainPackage = createBlockRecord(cancellation.snapshot, 'document');
+domainPackage.blockId = 'block_domain_seedance_package';
+cancellation.snapshot.blocks.push(domainPackage, domainOperation);
+await saveSnapshot(cancellation.snapshot);
+const domainRequest: DomainVideoRequestSnapshotV1 = {
+  schemaRef: 'retake.domain-video-request/v1',
+  generationPackageArtifactRevisionId: 'revision_domain_seedance',
+  generationPackageAssetId: 'asset_domain_seedance_package',
+  unitId: 'U-SEEDANCE',
+  referenceManifestDigest: 'fnv1a:empty',
+  referenceBindings: [],
+  packageProfile: {
+    aspectRatio: '9:16',
+    durationSeconds: 8,
+    promptLanguage: 'en',
+  },
+  launchParameters: { outputCount: 1, qualityTier: 'preview' },
+  adapterId: seedanceModelArkAdapterDefinition.adapterId,
+  adapterVersion: seedanceModelArkAdapterDefinition.version,
+  adapterDefinitionHash: seedanceModelArkAdapterDefinition.definitionHash,
+  connectionId: 'domain-seedance-test',
+  provider: 'byteplus-modelark',
+  model: config.model,
+  inputProfileId: 'approved_generation_package_video',
+  requestFingerprint: 'fnv1a:domain-seedance-test',
+};
+const domainAuthorization: ProviderExecutionAuthorizationV1 = {
+  schemaRef: 'retake.provider-execution-authorization/v1',
+  kind: 'explicit_user_submit',
+  action: 'provider_submit',
+  authorizedByActorId: 'user_local',
+  authorizedAt: '2026-07-24T00:00:00.000Z',
+  generationPackageArtifactRevisionId: domainRequest.generationPackageArtifactRevisionId,
+  requestFingerprint: domainRequest.requestFingerprint,
+  adapterId: domainRequest.adapterId,
+  connectionId: domainRequest.connectionId,
+  outputCount: 1,
+  costDisclosure: {
+    billingSource: 'metered_api',
+    risk: 'medium',
+    estimateStatus: 'unknown',
+  },
+};
+const mismatchProvider = createFakeProvider({ taskOutcomes: ['succeeded'] });
+await assert.rejects(
+  () => startSeedanceVideoGeneration({
+    projectId: cancellation.snapshot!.project.projectId,
+    boardId: cancellation.snapshot!.board.boardId,
+    targetBlockId: '',
+    prompt: 'Execute the approved Domain Video package.',
+    durationSeconds: 8,
+    outputCount: 1,
+    aspectRatio: '9:16',
+    connectionId: domainRequest.connectionId,
+    domain: {
+      authorization: {
+        ...domainAuthorization,
+        requestFingerprint: 'fnv1a:stale-domain-seedance',
+      },
+      generationPackageBlockId: domainPackage.blockId,
+      operationBlockId: domainOperation.blockId,
+      providerPrompt: 'Execute the approved Domain Video package.',
+      request: domainRequest,
+    },
+  }, { config, fetchImpl: mismatchProvider.fetch }),
+  /authorization does not match/i,
+);
+assert.equal(mismatchProvider.createBodies.length, 0);
+const domainProvider = createFakeProvider({ taskOutcomes: ['succeeded'] });
+const domainRun = await startSeedanceVideoGeneration({
+  projectId: cancellation.snapshot.project.projectId,
+  boardId: cancellation.snapshot.board.boardId,
+  targetBlockId: '',
+  prompt: 'Execute the approved Domain Video package.',
+  durationSeconds: 8,
+  outputCount: 1,
+  aspectRatio: '9:16',
+  connectionId: domainRequest.connectionId,
+  domain: {
+    authorization: domainAuthorization,
+    generationPackageBlockId: domainPackage.blockId,
+    operationBlockId: domainOperation.blockId,
+    providerPrompt: 'Execute the approved Domain Video package.',
+    request: domainRequest,
+  },
+}, { config, fetchImpl: domainProvider.fetch });
+await domainRun.completion;
+const domainSnapshot = await loadCurrentSnapshot(domainRun.snapshot);
+const domainExecution = findExecution(domainSnapshot, domainRun.execution.executionId);
+assert.equal(domainExecution.capabilityId, domainVideoGenerationCapabilityId);
+assert.equal(domainExecution.skillId, domainVideoGenerationSkillId);
+assert.equal(domainExecution.providerExecutionAuthorization?.kind, 'explicit_user_submit');
+assert.equal(domainExecution.providerCalls?.[0]?.status, 'succeeded');
+assert.equal(domainExecution.providerCalls?.[0]?.providerTaskId, 'task_1');
+assert.equal(domainExecution.providerCalls?.[0]?.outputAssetIds.length, 1);
+
 console.log(JSON.stringify({
   ok: true,
+  domainAuthorizationBlocksSubmit: mismatchProvider.createBodies.length === 0,
+  domainProviderCallRecorded: domainExecution.providerCalls?.[0]?.status === 'succeeded',
   directApiOutputs: succeededExecution.outputAssetIds.length,
   partialSuccessAssetsPreserved: failedExecution.outputAssetIds.length,
   queuedTasksCanceled: cancellation.remoteQueuedTasksCanceled,
