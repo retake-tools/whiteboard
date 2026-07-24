@@ -19,6 +19,7 @@ export function AgentSessionHistoryMenu({
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const filteredSessions = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     if (!normalized) return sessions;
@@ -31,7 +32,9 @@ export function AgentSessionHistoryMenu({
       if (!rootRef.current?.contains(event.target as Node)) setIsOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setIsOpen(false);
+      if (event.key !== 'Escape') return;
+      setIsOpen(false);
+      requestAnimationFrame(() => triggerRef.current?.focus());
     };
     document.addEventListener('pointerdown', closeOnPointerDown);
     document.addEventListener('keydown', closeOnEscape);
@@ -44,6 +47,7 @@ export function AgentSessionHistoryMenu({
   return (
     <div ref={rootRef} className="agent-session-history">
       <TooltipIconButton
+        buttonRef={triggerRef}
         className="icon-button"
         isPressed={isOpen}
         label={t('agentWorkspace.history')}
@@ -79,6 +83,7 @@ export function AgentSessionHistoryMenu({
                 onClick={() => {
                   onSelectSession(session.agentSessionId);
                   setIsOpen(false);
+                  requestAnimationFrame(() => triggerRef.current?.focus());
                 }}
               >
                 <span>
@@ -97,6 +102,7 @@ export function AgentSessionHistoryMenu({
               onClick={() => {
                 onArchiveSession();
                 setIsOpen(false);
+                requestAnimationFrame(() => triggerRef.current?.focus());
               }}
             >
               <Archive size={14} />

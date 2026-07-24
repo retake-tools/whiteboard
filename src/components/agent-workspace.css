@@ -37,6 +37,15 @@
 .agent-workspace > header strong { color: var(--retake-text); font-size: 14px; }
 .agent-workspace > header .icon-button { width: 30px; height: 30px; }
 
+.agent-workspace button:focus-visible,
+.agent-workspace input:focus-visible,
+.agent-workspace select:focus-visible,
+.agent-workspace summary:focus-visible,
+.agent-workspace textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--retake-accent) 72%, white);
+  outline-offset: 2px;
+}
+
 .agent-workspace-header-actions { position: relative; flex: 0 0 auto; }
 .agent-session-history { position: relative; display: flex; }
 .agent-session-history-popover {

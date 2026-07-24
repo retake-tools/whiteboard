@@ -41,6 +41,7 @@ const ExecutionProvidersSettings = lazy(async () => {
 export type AutosaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 interface TopBarProps {
+  agentWorkspaceButtonRef?: MutableRefObject<HTMLButtonElement | null>;
   snapshot: BoardSnapshot;
   autosaveStatus: AutosaveStatus;
   canUndo: boolean;
@@ -75,6 +76,7 @@ interface TopBarProps {
 }
 
 export function TopBar({
+  agentWorkspaceButtonRef,
   snapshot,
   autosaveStatus,
   canUndo,
@@ -395,6 +397,7 @@ export function TopBar({
             <Library size={16} />
           </TooltipIconButton>
           <TooltipIconButton
+            buttonRef={agentWorkspaceButtonRef}
             className="icon-button"
             isPressed={isAgentWorkspaceOpen}
             label={t('agentWorkspace.open')}

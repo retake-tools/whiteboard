@@ -1,6 +1,7 @@
 import { ArrowUp, AtSign, Bot, ChevronDown, Search, Sparkles, X } from 'lucide-react';
 import {
   useMemo,
+  useId,
   useRef,
   useState,
   type Dispatch,
@@ -48,6 +49,7 @@ import {
 
 interface SkillQuickInputComposerProps {
   agentDisabled?: boolean;
+  autoFocus?: boolean;
   mode?: 'agent' | 'canvas';
   onInvokeEntryPoint?: (invocation: PackageComposerInvocation) => void;
   onSubmitAgentMessage: (input: UnifiedComposerAgentInput) => void;
@@ -59,6 +61,7 @@ type PickerState = { mode: 'entrypoint' | 'mention'; query: string } | undefined
 
 export function SkillQuickInputComposer({
   agentDisabled,
+  autoFocus,
   mode = 'canvas',
   onInvokeEntryPoint,
   onSubmitAgentMessage,
@@ -66,6 +69,7 @@ export function SkillQuickInputComposer({
   snapshot,
 }: SkillQuickInputComposerProps): ReactElement {
   const { t } = useI18n();
+  const keyboardHintId = useId();
   const rootRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const {
@@ -472,6 +476,8 @@ export function SkillQuickInputComposer({
             </div>
           ) : null}
           <textarea
+            aria-describedby={keyboardHintId}
+            autoFocus={autoFocus}
             ref={inputRef}
             rows={3}
             value={instruction}
@@ -484,6 +490,9 @@ export function SkillQuickInputComposer({
             onKeyDown={handleInputKeyDown}
           />
         </div>
+        <small className="skill-composer-keyboard-hint" id={keyboardHintId}>
+          {t('skillComposer.keyboardHint')}
+        </small>
         <div className="skill-composer-controls">
           <label className="skill-composer-mode">
             <Bot size={15} />

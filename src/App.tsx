@@ -86,6 +86,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
   } = boardSession;
   const initialUiPreferences = useRef(loadUiPreferences());
   const directImageImportInputRef = useRef<HTMLInputElement | null>(null);
+  const agentWorkspaceButtonRef = useRef<HTMLButtonElement | null>(null);
   const pendingDirectImageImportBlockIdRef = useRef<string | undefined>(undefined);
   const [inspectorBlockId, setInspectorBlockId] = useState<string | undefined>();
   const [isMiniMapVisible, setIsMiniMapVisible] = useState(() => initialUiPreferences.current.isMiniMapVisible);
@@ -389,6 +390,11 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     setIsAgentWorkspaceOpen(next);
   }
 
+  function closeAgentWorkspace(): void {
+    setIsAgentWorkspaceOpen(false);
+    requestAnimationFrame(() => agentWorkspaceButtonRef.current?.focus());
+  }
+
   function toggleArtifactLibrary(): void {
     setIsArtifactLibraryOpen((current) => {
       const next = !current;
@@ -453,6 +459,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         }}
       />
       <TopBar
+        agentWorkspaceButtonRef={agentWorkspaceButtonRef}
         snapshot={snapshot}
         autosaveStatus={autosaveStatus}
         canUndo={canUndo}
@@ -623,7 +630,7 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
           snapshot={snapshot}
           onArchiveSession={agentWorkspaceController.archiveSession}
           onCancelAgentRun={agentRuntimeController.cancelAgentRun}
-          onClose={() => setIsAgentWorkspaceOpen(false)}
+          onClose={closeAgentWorkspace}
           onCreateSession={() => agentWorkspaceController.newSession()}
           onDecideProposal={agentWorkspaceController.decideProposal}
           onLaunchProposal={(proposalId, expectedProposalVersion, target, agentPresetEntryPointId) =>

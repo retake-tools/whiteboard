@@ -36,6 +36,13 @@
 
 .skill-composer-form { display: grid; gap: 8px; }
 
+.skill-composer-keyboard-hint {
+  margin: -3px 4px 0;
+  color: var(--retake-text-subtle);
+  font-size: 9px;
+  text-align: right;
+}
+
 .skill-composer-controls {
   display: flex;
   min-width: 0;

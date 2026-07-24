@@ -15,6 +15,7 @@ export function AgentWorkspaceComposer({
   return (
     <SkillQuickInputComposer
       agentDisabled={disabled}
+      autoFocus
       mode="agent"
       onSubmitAgentMessage={onSubmit}
       showRecommendations={false}

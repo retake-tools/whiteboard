@@ -416,6 +416,7 @@ type TranslationKey =
   | 'skillComposer.slashPlaceholder'
   | 'skillComposer.goalPlaceholder'
   | 'skillComposer.inputPlaceholder'
+  | 'skillComposer.keyboardHint'
   | 'skillComposer.create'
   | 'skillComposer.creationMode'
   | 'skillComposer.planWithAgent'
@@ -665,6 +666,13 @@ type TranslationKey =
   | 'agentWorkspace.parameters'
   | 'agentWorkspace.pendingChanges'
   | 'agentWorkspace.preparingSession'
+  | 'agentWorkspace.proposalStatus.awaiting_decision'
+  | 'agentWorkspace.proposalStatus.approved'
+  | 'agentWorkspace.proposalStatus.rejected'
+  | 'agentWorkspace.proposalStatus.applying'
+  | 'agentWorkspace.proposalStatus.applied'
+  | 'agentWorkspace.proposalStatus.failed'
+  | 'agentWorkspace.proposalStatus.superseded'
   | 'agentWorkspace.rejectProposal'
   | 'agentWorkspace.run'
   | 'agentWorkspace.runEmpty'
@@ -1307,6 +1315,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.slashPlaceholder': 'Type / to choose a skill or workflow...',
     'skillComposer.goalPlaceholder': 'Describe what you want to create, or use @ to reference Board context...',
     'skillComposer.inputPlaceholder': 'Describe the input, or type @ to reference a block or asset...',
+    'skillComposer.keyboardHint': 'Enter to send · Shift+Enter for a new line',
     'skillComposer.create': 'Create draft',
     'skillComposer.creationMode': 'Creation mode',
     'skillComposer.planWithAgent': 'Plan with Agent',
@@ -1556,6 +1565,13 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.parameters': 'Parameters',
     'agentWorkspace.pendingChanges': 'Waiting for review',
     'agentWorkspace.preparingSession': 'Preparing the default conversation…',
+    'agentWorkspace.proposalStatus.awaiting_decision': 'Waiting for review',
+    'agentWorkspace.proposalStatus.approved': 'Approved',
+    'agentWorkspace.proposalStatus.rejected': 'Rejected',
+    'agentWorkspace.proposalStatus.applying': 'Applying',
+    'agentWorkspace.proposalStatus.applied': 'Applied',
+    'agentWorkspace.proposalStatus.failed': 'Failed',
+    'agentWorkspace.proposalStatus.superseded': 'Superseded',
     'agentWorkspace.rejectProposal': 'Reject proposal',
     'agentWorkspace.run': 'Run',
     'agentWorkspace.runEmpty': 'Attach an existing Agent Run. Chat does not create execution authority.',
@@ -2193,6 +2209,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.slashPlaceholder': '输入 / 选择 Skill 或 Workflow...',
     'skillComposer.goalPlaceholder': '描述你想创作的内容，或用 @ 引用画板素材...',
     'skillComposer.inputPlaceholder': '描述输入，或输入 @ 引用 Block / Asset...',
+    'skillComposer.keyboardHint': 'Enter 发送 · Shift+Enter 换行',
     'skillComposer.create': '创建草稿',
     'skillComposer.creationMode': '创作模式',
     'skillComposer.planWithAgent': '交给 Agent 规划',
@@ -2442,6 +2459,13 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.parameters': '参数',
     'agentWorkspace.pendingChanges': '等待审阅',
     'agentWorkspace.preparingSession': '正在准备默认会话…',
+    'agentWorkspace.proposalStatus.awaiting_decision': '等待审阅',
+    'agentWorkspace.proposalStatus.approved': '已批准',
+    'agentWorkspace.proposalStatus.rejected': '已拒绝',
+    'agentWorkspace.proposalStatus.applying': '正在应用',
+    'agentWorkspace.proposalStatus.applied': '已应用',
+    'agentWorkspace.proposalStatus.failed': '失败',
+    'agentWorkspace.proposalStatus.superseded': '已被替代',
     'agentWorkspace.rejectProposal': '拒绝提案',
     'agentWorkspace.run': '运行',
     'agentWorkspace.runEmpty': '绑定已有 Agent Run；聊天本身不会创建执行授权。',

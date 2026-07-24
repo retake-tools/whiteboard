@@ -1,5 +1,12 @@
 import { Activity, Bot, CircleAlert, CircleStop, Pause, Play, Plus, X } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactElement, type Ref } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactElement,
+  type Ref,
+} from 'react';
 import { operationReadinessFor } from '../core/capabilities';
 import {
   agentPresetCompatibilityForRequirements,
@@ -11,6 +18,7 @@ import type {
   AgentRuntimeBindingRecord,
   AgentSessionRecord,
   ChangeProposalRecord,
+  ChangeProposalStatus,
   PackageEntrypointAgentLaunchTarget,
 } from '../core/agentSessionContracts';
 import type { AgentRunRecord } from '../core/agentRuntimeContracts';
@@ -85,6 +93,7 @@ export function AgentWorkspace({
 }): ReactElement {
   const { t } = useI18n();
   const runCardRef = useRef<HTMLElement>(null);
+  const timelineEndRef = useRef<HTMLDivElement>(null);
   const messages = selectedSession ? messagesForSession(snapshot, selectedSession.agentSessionId) : [];
   const proposals = selectedSession
     ? [...proposalsForSession(snapshot, selectedSession.agentSessionId)]
@@ -110,8 +119,22 @@ export function AgentWorkspace({
     if (focusedAgentRunId) runCardRef.current?.scrollIntoView({ block: 'nearest' });
   }, [focusedAgentRunId]);
 
+  useEffect(() => {
+    timelineEndRef.current?.scrollIntoView({ block: 'end' });
+  }, [
+    activeRun?.status,
+    isSending,
+    messages.length,
+    proposals.length,
+    selectedSession?.agentSessionId,
+  ]);
+
   return (
-    <aside className="agent-workspace" aria-label={t('agentWorkspace.title')}>
+    <aside
+      className="agent-workspace"
+      aria-label={t('agentWorkspace.title')}
+      onKeyDown={trapNarrowWorkspaceFocus}
+    >
       <header>
         <div className="agent-workspace-heading">
           <span><Bot size={15} />{t('agentWorkspace.eyebrow')}</span>
@@ -129,7 +152,12 @@ export function AgentWorkspace({
         </div>
       </header>
       {selectedSession ? (
-        <div className="agent-workspace-context-bar">
+        <div
+          className="agent-workspace-context-bar"
+          role="status"
+          aria-atomic="true"
+          aria-live="polite"
+        >
           <span><Activity size={13} />{activeRun
             ? `${t('agentWorkspace.run')} · ${t(agentRunStatusKey(activeRun.status))}`
             : t('agentWorkspace.noRun')}</span>
@@ -149,7 +177,12 @@ export function AgentWorkspace({
           </div>
         ) : (
           <div className="agent-workspace-chat">
-            <div className="agent-workspace-messages" role="log" aria-live="polite">
+            <div
+              className="agent-workspace-messages"
+              role="log"
+              aria-live="polite"
+              aria-relevant="additions text"
+            >
               {messages.length === 0 && proposals.length === 0 && !activeRun
                 ? <div className="agent-workspace-welcome"><Bot size={20} /><strong>{t('agentWorkspace.chatEmptyTitle')}</strong><p>{t('agentWorkspace.chatEmpty')}</p></div>
                 : null}
@@ -206,7 +239,20 @@ export function AgentWorkspace({
                   onSelectAgentRun={onSelectAgentRun}
                 />
               ) : null}
-              {isSending ? <article className="is-assistant is-pending"><span>{t('agentWorkspace.agent')}</span><p>{latestRuntimeEvent?.kind === 'decision_delta' ? t('agentWorkspace.streaming') : t('agentWorkspace.thinking')}</p></article> : null}
+              {isSending ? (
+                <article
+                  className="is-assistant is-pending"
+                  role="status"
+                  aria-atomic="true"
+                  aria-live="polite"
+                >
+                  <span>{t('agentWorkspace.agent')}</span>
+                  <p>{latestRuntimeEvent?.kind === 'decision_delta'
+                    ? t('agentWorkspace.streaming')
+                    : t('agentWorkspace.thinking')}</p>
+                </article>
+              ) : null}
+              <div ref={timelineEndRef} aria-hidden="true" />
             </div>
             {error ? <p className="agent-workspace-error" role="alert">{error}</p> : null}
             <AgentWorkspaceComposer disabled={isSending} snapshot={snapshot} onSubmit={onSubmitMessage} />
@@ -290,6 +336,27 @@ const AgentRunSummaryCard = function AgentRunSummaryCard({
 
 function agentRunStatusKey(status: AgentRunRecord['status']) {
   return `agentRuntime.status.${status}` as const;
+}
+
+function proposalStatusKey(status: ChangeProposalStatus) {
+  return `agentWorkspace.proposalStatus.${status}` as const;
+}
+
+function trapNarrowWorkspaceFocus(event: ReactKeyboardEvent<HTMLElement>): void {
+  if (event.key !== 'Tab' || !window.matchMedia('(max-width: 640px)').matches) return;
+  const focusableElements = [...event.currentTarget.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), details > summary, [href], [tabindex]:not([tabindex="-1"])',
+  )].filter((element) => element.getClientRects().length > 0);
+  const first = focusableElements.at(0);
+  const last = focusableElements.at(-1);
+  if (!first || !last) return;
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 function agentRunTargetLabel(run: AgentRunRecord): string {
@@ -395,7 +462,7 @@ function ProposalCard({
           : typedInvocation
           ? `${entrypointName} · ${typedInvocation.targetLock.entrypointKind}`
           : proposal.kind}</strong>
-        <span>{proposal.status}</span>
+        <span>{t(proposalStatusKey(proposal.status))}</span>
       </header>
       <p>{proposal.summary}</p>
       {goalPlan ? (

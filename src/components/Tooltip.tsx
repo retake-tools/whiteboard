@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type MutableRefObject,
   type MouseEvent,
   type PointerEvent,
   type ReactElement,
@@ -12,6 +13,7 @@ import {
 } from 'react';
 
 interface TooltipIconButtonProps {
+  buttonRef?: MutableRefObject<HTMLButtonElement | null>;
   children: ReactNode;
   className?: string;
   disabled?: boolean;
@@ -28,6 +30,7 @@ interface TooltipWrapperProps {
 }
 
 export function TooltipIconButton({
+  buttonRef,
   children,
   className = 'icon-button',
   disabled,
@@ -36,12 +39,15 @@ export function TooltipIconButton({
   onClick,
   onPointerDown,
 }: TooltipIconButtonProps): ReactElement {
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const tooltipButtonRef = useRef<HTMLButtonElement | null>(null);
   const [isVisible, setIsVisible] = useState(false);
 
   return (
     <button
-      ref={buttonRef}
+      ref={(node) => {
+        tooltipButtonRef.current = node;
+        if (buttonRef) buttonRef.current = node;
+      }}
       type="button"
       className={`${className} tooltipped-button${isPressed ? ' is-active' : ''}`}
       disabled={disabled}
@@ -55,7 +61,7 @@ export function TooltipIconButton({
       aria-label={label}
     >
       {children}
-      {isVisible && !disabled ? <TooltipBubble anchor={buttonRef.current} label={label} /> : null}
+      {isVisible && !disabled ? <TooltipBubble anchor={tooltipButtonRef.current} label={label} /> : null}
     </button>
   );
 }
