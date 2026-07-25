@@ -72,9 +72,15 @@ export interface RetakePackageManifest extends PackageLock {
   entrypoints: RetakePackageEntryPoint[];
   name: string;
   schemaVersion: 1;
-  source: {
-    kind: 'builtin';
-  };
+  source:
+    | {
+      kind: 'builtin';
+    }
+    | {
+      archiveDigest: string;
+      installationId: string;
+      kind: 'installed';
+    };
 }
 
 export interface PackageInvocationContext {

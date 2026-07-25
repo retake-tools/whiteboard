@@ -314,6 +314,7 @@ export const builtInPackageRegistry = createPackageRegistry([
   storyProductionStarterPackage,
   storyProductionAgentPackage,
 ]);
+let activePackageRegistry = builtInPackageRegistry;
 
 export function createPackageRegistry(manifests: RetakePackageManifest[]): RetakePackageRegistry {
   const packageIds = new Set<string>();
@@ -333,12 +334,18 @@ export function createPackageRegistry(manifests: RetakePackageManifest[]): Retak
   return { manifests: structuredClone(manifests) };
 }
 
-export function listPackages(registry: RetakePackageRegistry = builtInPackageRegistry): RetakePackageManifest[] {
+export function listPackages(registry: RetakePackageRegistry = activePackageRegistry): RetakePackageManifest[] {
   return structuredClone(registry.manifests);
 }
 
+export function configurePackageRegistry(
+  manifests: RetakePackageManifest[],
+): void {
+  activePackageRegistry = createPackageRegistry(manifests);
+}
+
 export function listPackageEntryPoints(
-  registry: RetakePackageRegistry = builtInPackageRegistry,
+  registry: RetakePackageRegistry = activePackageRegistry,
 ): RegisteredPackageEntryPoint[] {
   return registry.manifests.flatMap((manifest) => manifest.entrypoints.map((entrypoint) => ({
     entrypoint: structuredClone(entrypoint),
@@ -347,14 +354,14 @@ export function listPackageEntryPoints(
 }
 
 export function listRecommendedPackageEntryPoints(
-  registry: RetakePackageRegistry = builtInPackageRegistry,
+  registry: RetakePackageRegistry = activePackageRegistry,
 ): RegisteredPackageEntryPoint[] {
   return listPackageEntryPoints(registry).filter(({ entrypoint }) => entrypoint.recommended === true);
 }
 
 export function resolvePackageEntryPoint(
   query: PackageEntryPointQuery,
-  registry: RetakePackageRegistry = builtInPackageRegistry,
+  registry: RetakePackageRegistry = activePackageRegistry,
 ): PackageEntryPointResolution {
   const candidates = listPackageEntryPoints(registry).filter((candidate) => matchesQuery(candidate.entrypoint, query));
   if (candidates.length === 0) return { status: 'not_found' };

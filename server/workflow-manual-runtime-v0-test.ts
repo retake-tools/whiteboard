@@ -4,7 +4,11 @@ import type { ExecutionConnectionSummary } from '../src/core/executionProviders'
 import { textDocumentCapabilityIds } from '../src/core/capabilityRegistry';
 import { executeExistingTextGenerationOperation, type TextGenerationLabels } from '../src/core/textOperations';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
-import { storyToStoryboardWorkflow } from '../src/core/workflowRegistry';
+import {
+  configureWorkflowRegistry,
+  listWorkflows,
+  storyToStoryboardWorkflow,
+} from '../src/core/workflowRegistry';
 import {
   createAgentRunForWorkflowRun,
   reconcileAgentRuntime,
@@ -286,13 +290,23 @@ assert.equal(workflowRunViewForGroup(incompleteSnapshot, incompleteProjection.gr
 const selectionSnapshot = await emptySnapshot();
 const selectionProjection = projectWorkflowDraft(selectionSnapshot, projectionInput());
 blockFor(selectionSnapshot, selectionProjection.workflowInputBlockIds[0]).data.body = 'Choose one generated candidate.';
-const selectionDefinitionStep = storyToStoryboardWorkflow.steps.find(
+const originalWorkflowRegistry = listWorkflows();
+const selectionWorkflowRegistry = structuredClone(originalWorkflowRegistry);
+const selectionDefinition = selectionWorkflowRegistry.find(
+  (definition) => definition.workflowId === storyToStoryboardWorkflow.workflowId,
+);
+assert.ok(selectionDefinition);
+const selectionDefinitionStep = selectionDefinition.steps.find(
   (step) => step.stepId === 'screenplay_generate',
 );
 assert.ok(selectionDefinitionStep);
 selectionDefinitionStep.outputAcceptancePolicy = 'manual_selection';
-const selectionRun = createWorkflowRunForGroup(selectionSnapshot, selectionProjection.groupBlock.blockId);
-delete selectionDefinitionStep.outputAcceptancePolicy;
+configureWorkflowRegistry(selectionWorkflowRegistry);
+const selectionRun = createWorkflowRunForGroup(
+  selectionSnapshot,
+  selectionProjection.groupBlock.blockId,
+);
+configureWorkflowRegistry(originalWorkflowRegistry);
 const selectionStep = stepFor(selectionSnapshot, selectionRun.record.workflowRunId, 'screenplay_generate');
 assert.equal(selectionStep.outputAcceptancePolicy, 'manual_selection');
 const firstCandidateExecution = queueStep(
@@ -389,7 +403,13 @@ const gateSnapshot = await emptySnapshot();
 const gateProjection = projectWorkflowDraft(gateSnapshot, projectionInput());
 const gateBrief = blockFor(gateSnapshot, gateProjection.workflowInputBlockIds[0]);
 gateBrief.data.body = 'A courier cat crosses a collapsing bridge.';
-storyToStoryboardWorkflow.gates.push({
+const originalGateWorkflowRegistry = listWorkflows();
+const gateWorkflowRegistry = structuredClone(originalGateWorkflowRegistry);
+const gateDefinition = gateWorkflowRegistry.find(
+  (definition) => definition.workflowId === storyToStoryboardWorkflow.workflowId,
+);
+assert.ok(gateDefinition);
+gateDefinition.gates.push({
   definitionHash: 'sha256:test-screenplay-human-approval-v0',
   gateId: 'screenplay_human_approval',
   kind: 'human_approval',
@@ -401,8 +421,9 @@ storyToStoryboardWorkflow.gates.push({
     stepId: 'screenplay_generate',
   },
 });
+configureWorkflowRegistry(gateWorkflowRegistry);
 const gateRun = createWorkflowRunForGroup(gateSnapshot, gateProjection.groupBlock.blockId);
-storyToStoryboardWorkflow.gates.pop();
+configureWorkflowRegistry(originalGateWorkflowRegistry);
 assert.equal(gateRun.record.gateDefinitionLocks.length, 1);
 assert.equal(storyToStoryboardWorkflow.gates.length, 0, 'The built-in Workflow must keep no default Gate in V0.');
 const gateAgent = createAgentRunForWorkflowRun(gateSnapshot, gateRun.record.workflowRunId);

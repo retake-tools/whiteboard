@@ -1,4 +1,5 @@
 import type { CapabilityInputBinding, SkillDefinitionLock } from './capabilityContracts';
+import { capabilityDefinitionFor } from './capabilityRegistry';
 
 export type SkillCategory = 'media_generation' | 'previsualization' | 'production_design' | 'screenplay';
 
@@ -104,8 +105,8 @@ export interface RetakeSkillDefinition extends SkillDefinitionLock {
   instructionTemplate: string;
   outputRequirements: string[];
   source: {
-    kind: 'catmeme_migration';
-    paths: string[];
+    kind: 'builtin' | 'catmeme_migration' | 'package';
+    paths?: string[];
   };
 }
 
@@ -414,6 +415,8 @@ const builtInSkills = [
   videoGenerationFromApprovedPackageSkill,
 ] as const;
 
+let activeSkills: RetakeSkillDefinition[] = structuredClone([...builtInSkills]);
+
 const skillUiDefinitions: Record<string, RetakeSkillUiDefinition> = {
   [screenplayFromBriefSkill.skillId]: {
     nameKey: 'skill.screenplayFromBrief.name',
@@ -598,7 +601,38 @@ const skillUiDefinitions: Record<string, RetakeSkillUiDefinition> = {
 };
 
 export function listSkills(): RetakeSkillDefinition[] {
-  return [...builtInSkills];
+  return structuredClone(activeSkills);
+}
+
+export function configureSkillRegistry(
+  definitions: RetakeSkillDefinition[],
+): void {
+  const ids = new Set<string>();
+  for (const definition of definitions) {
+    if (ids.has(definition.skillId)) throw new Error(`Duplicate Skill ID: ${definition.skillId}`);
+    ids.add(definition.skillId);
+    if (
+      definition.schemaVersion !== 1
+      || !definition.skillId
+      || !definition.version
+      || !definition.definitionHash
+      || definition.capabilityBindings.length === 0
+    ) throw new Error(`Skill definition is invalid: ${definition.skillId}`);
+    for (const binding of definition.capabilityBindings) {
+      const capability = capabilityDefinitionFor(binding.capabilityId);
+      for (const inputSlotId of binding.inputSlots) {
+        if (!capability.inputSlots.some((slot) => slot.slotId === inputSlotId)) {
+          throw new Error(`Skill input Slot is not registered: ${definition.skillId}.${inputSlotId}`);
+        }
+      }
+      for (const outputSlotId of binding.outputSlots) {
+        if (!capability.outputSlots.some((slot) => slot.slotId === outputSlotId)) {
+          throw new Error(`Skill output Slot is not registered: ${definition.skillId}.${outputSlotId}`);
+        }
+      }
+    }
+  }
+  activeSkills = structuredClone(definitions);
 }
 
 export function skillUiDefinitionFor(skillId: string): RetakeSkillUiDefinition {
@@ -608,15 +642,15 @@ export function skillUiDefinitionFor(skillId: string): RetakeSkillUiDefinition {
 }
 
 export function skillDefinitionFor(skillId: string): RetakeSkillDefinition {
-  const skill = builtInSkills.find((candidate) => candidate.skillId === skillId);
+  const skill = activeSkills.find((candidate) => candidate.skillId === skillId);
   if (!skill) throw new Error(`Skill not found: ${skillId}`);
-  return skill;
+  return structuredClone(skill);
 }
 
 export function skillsForCapability(capabilityId: string): RetakeSkillDefinition[] {
-  return builtInSkills.filter((skill) => skill.capabilityBindings.some(
+  return structuredClone(activeSkills.filter((skill) => skill.capabilityBindings.some(
     (binding) => binding.capabilityId === capabilityId,
-  ));
+  )));
 }
 
 export function capabilityForSkill(skill: RetakeSkillDefinition): string {

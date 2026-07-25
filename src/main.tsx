@@ -19,11 +19,29 @@ import './nodes/block-node.css';
 import './nodes/operation-inline-controls.css';
 import { App } from './App';
 import { I18nProvider } from './i18n';
+import { bootstrapInstalledRuntimeRegistry } from './core/installedRuntimeRegistryClient';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <I18nProvider>
-      <App />
-    </I18nProvider>
-  </StrictMode>,
-);
+const root = createRoot(document.getElementById('root')!);
+
+void bootstrapInstalledRuntimeRegistry()
+  .then(() => {
+    root.render(
+      <StrictMode>
+        <I18nProvider>
+          <App />
+        </I18nProvider>
+      </StrictMode>,
+    );
+  })
+  .catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    root.render(
+      <main className="workspace-load-shell" role="alert">
+        <section className="workspace-load-card is-error">
+          <h1>Retake Package bootstrap failed</h1>
+          <code>{message}</code>
+          <p>Check the Workspace Package lock and bundled Package files, then reload Retake.</p>
+        </section>
+      </main>,
+    );
+  });

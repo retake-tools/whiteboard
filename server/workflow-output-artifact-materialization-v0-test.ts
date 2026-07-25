@@ -10,7 +10,11 @@ import {
   createWorkflowRunForGroup,
   reconcileWorkflowRuntime,
 } from '../src/core/workflowRuntime';
-import { storyToStoryboardWorkflow } from '../src/core/workflowRegistry';
+import {
+  configureWorkflowRegistry,
+  listWorkflows,
+  storyToStoryboardWorkflow,
+} from '../src/core/workflowRegistry';
 import { readProjectArtifactLibrary } from './artifact-library-service';
 import { createAssetFromDataUrl } from './local-store/asset-store';
 import { readProjectArtifacts } from './local-store/artifact-store';
@@ -150,13 +154,20 @@ assert.equal(
 const manual = await emptySnapshot();
 const manualProjection = projectWorkflowDraft(manual, projectionInput());
 blockFor(manual, manualProjection.workflowInputBlockIds[0]).data.body = 'Choose the screenplay output.';
-const screenplayDefinitionStep = storyToStoryboardWorkflow.steps.find(
+const originalWorkflowRegistry = listWorkflows();
+const manualWorkflowRegistry = structuredClone(originalWorkflowRegistry);
+const manualWorkflowDefinition = manualWorkflowRegistry.find(
+  (definition) => definition.workflowId === storyToStoryboardWorkflow.workflowId,
+);
+assert.ok(manualWorkflowDefinition);
+const screenplayDefinitionStep = manualWorkflowDefinition.steps.find(
   (step) => step.stepId === 'screenplay_generate',
 );
 assert.ok(screenplayDefinitionStep);
 screenplayDefinitionStep.outputAcceptancePolicy = 'manual_selection';
+configureWorkflowRegistry(manualWorkflowRegistry);
 const manualRun = createWorkflowRunForGroup(manual, manualProjection.groupBlock.blockId);
-delete screenplayDefinitionStep.outputAcceptancePolicy;
+configureWorkflowRegistry(originalWorkflowRegistry);
 const manualStep = stepFor(manual, manualRun.record.workflowRunId, 'screenplay_generate');
 const manualExecution = queueStep(manual, manualStep);
 await saveSnapshot(manual);

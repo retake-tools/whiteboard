@@ -16,6 +16,8 @@ import {
   workflowGateViewsForRun,
 } from '../src/core/workflowGateRuntime';
 import {
+  configureWorkflowRegistry,
+  listWorkflows,
   storyToStoryboardWorkflow,
   validateWorkflowDefinition,
   type WorkflowHumanApprovalGateDefinition,
@@ -324,11 +326,18 @@ async function workflowFixture(
     connectionIdForCapability: () => readyTextConnection.connectionId,
   });
   blockFor(snapshot, projection.workflowInputBlockIds[0]).data.body = brief;
-  storyToStoryboardWorkflow.gates.push(artifactGate);
+  const originalWorkflowRegistry = listWorkflows();
+  const artifactGateWorkflowRegistry = structuredClone(originalWorkflowRegistry);
+  const workflowDefinition = artifactGateWorkflowRegistry.find(
+    (definition) => definition.workflowId === storyToStoryboardWorkflow.workflowId,
+  );
+  assert.ok(workflowDefinition);
+  workflowDefinition.gates.push(artifactGate);
+  configureWorkflowRegistry(artifactGateWorkflowRegistry);
   try {
     createWorkflowRunForGroup(snapshot, projection.groupBlock.blockId);
   } finally {
-    storyToStoryboardWorkflow.gates.pop();
+    configureWorkflowRegistry(originalWorkflowRegistry);
   }
   return { inputBlockId: projection.workflowInputBlockIds[0], snapshot };
 }

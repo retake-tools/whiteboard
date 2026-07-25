@@ -20,7 +20,12 @@ const skillCapabilityBindingSchema = z.object({
 export const declarativeSkillDefinitionSchema = z.object({
   ...definitionIdentity,
   capabilityBindings: z.array(skillCapabilityBindingSchema).min(1),
-  category: z.string().min(1),
+  category: z.enum([
+    'media_generation',
+    'previsualization',
+    'production_design',
+    'screenplay',
+  ]),
   description: z.string().min(1),
   instructionTemplate: z.string().min(1),
   name: z.string().min(1),

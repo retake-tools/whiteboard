@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import {
+  access,
   link,
   mkdir,
   open,
@@ -208,6 +209,16 @@ export class LocalPackageManagerService {
 
   async list(): Promise<WorkspacePackageLockV1> {
     return structuredClone(await this.readLockfile());
+  }
+
+  async hasLockfile(): Promise<boolean> {
+    try {
+      await access(path.join(this.packagesRoot, workspacePackageLockFile));
+      return true;
+    } catch (error) {
+      if (isNotFoundError(error)) return false;
+      throw error;
+    }
   }
 
   async loadRegistry(): Promise<InstalledDeclarativePackageRegistry> {

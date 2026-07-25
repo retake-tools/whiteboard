@@ -1,0 +1,21 @@
+{
+  "dependencyPackages": [
+    {
+      "archiveDigest": "sha256:069bd7fbb9d4aea32fae345798a9b2702f5f9b75c1eb533a12ed3cac3758616d",
+      "archivePath": "story-production-agent-0.3.0.retakepkg",
+      "digest": "sha256:80fbebcebba51315b0bf3d5980fec07ef4f842c64dfa01cfc2426f44ffcc9514",
+      "packageId": "retake.package.story-production-agent",
+      "version": "0.3.0"
+    }
+  ],
+  "hostCompatibility": ">=0.1.2 <0.2.0",
+  "profileId": "retake.default-video-production",
+  "rootPackage": {
+    "archiveDigest": "sha256:a0522453a4e7de0bbc26697b78025ac4a806fe7b1798288524832fcf13a644b3",
+    "archivePath": "story-production-starter-0.5.0.retakepkg",
+    "digest": "sha256:b5e0ac116b75a8fcdb56f94d6e33fae635d3cd11ec29a5ef669bc2c9aa2841e5",
+    "packageId": "retake.package.story-production-starter",
+    "version": "0.5.0"
+  },
+  "schemaVersion": 1
+}

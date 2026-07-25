@@ -62,6 +62,12 @@ import { reconcileAgentArtifactTargets } from './agent-artifact-target-service';
 import { reconcileWorkflowArtifactGates } from './workflow-gate-artifact-service';
 import { reviewDomainVideoLaunch } from './domain-video-launch-review-service';
 import { authorizeAndStartDomainVideoGeneration } from './domain-video-generation-service';
+import packageMetadata from '../package.json';
+import { retakeRoot } from './local-store/context';
+import {
+  ensureDefaultDeclarativePackageBootstrap,
+  invalidateDefaultDeclarativePackageBootstrap,
+} from './declarative-package-bootstrap-service';
 
 type MiddlewareContainer = {
   use(
@@ -92,6 +98,21 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
             sendJson(res, { ok: true, service: 'retake-whiteboard' });
             return;
           }
+
+          if (method === 'GET' && url.pathname === '/package-registry/bootstrap') {
+            sendJson(res, await ensurePackageBootstrap());
+            return;
+          }
+
+          if (method === 'POST' && url.pathname === '/reset') {
+            const snapshot = await resetWorkspace();
+            invalidateDefaultDeclarativePackageBootstrap();
+            await ensurePackageBootstrap();
+            sendJson(res, snapshot);
+            return;
+          }
+
+          await ensurePackageBootstrap();
 
           if (method === 'GET' && url.pathname === '/artifacts') {
             const projectId = url.searchParams.get('projectId');
@@ -649,11 +670,6 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
             return;
           }
 
-          if (method === 'POST' && url.pathname === '/reset') {
-            sendJson(res, await resetWorkspace());
-            return;
-          }
-
           if (method === 'POST' && url.pathname === '/binding/codex') {
             const body = (await readJson(req)) as {
               projectId?: string;
@@ -995,6 +1011,13 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
           );
         }
       });
+}
+
+function ensurePackageBootstrap() {
+  return ensureDefaultDeclarativePackageBootstrap({
+    hostVersion: packageMetadata.version,
+    workspaceRoot: retakeRoot,
+  });
 }
 
 function isFileNotFoundError(error: unknown): boolean {

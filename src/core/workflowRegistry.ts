@@ -577,6 +577,8 @@ const builtInWorkflows = [
   approvedGenerationPackageToVideoWorkflow,
 ] as const;
 
+let activeWorkflows: WorkflowDefinition[] = structuredClone([...builtInWorkflows]);
+
 const workflowUiDefinitions: Record<string, WorkflowUiDefinition> = {
   [storyToStoryboardWorkflow.workflowId]: {
     nameKey: 'workflow.storyToStoryboard.name',
@@ -597,13 +599,28 @@ const workflowUiDefinitions: Record<string, WorkflowUiDefinition> = {
 };
 
 export function listWorkflows(): WorkflowDefinition[] {
-  return [...builtInWorkflows];
+  return structuredClone(activeWorkflows);
+}
+
+export function configureWorkflowRegistry(
+  definitions: WorkflowDefinition[],
+): void {
+  const ids = new Set<string>();
+  for (const definition of definitions) {
+    if (ids.has(definition.workflowId)) {
+      throw new Error(`Duplicate Workflow definition: ${definition.workflowId}`);
+    }
+    ids.add(definition.workflowId);
+    const issues = validateWorkflowDefinition(definition);
+    if (issues.length > 0) throw new Error(issues.join('\n'));
+  }
+  activeWorkflows = structuredClone(definitions);
 }
 
 export function workflowDefinitionFor(workflowId: string): WorkflowDefinition {
-  const definition = builtInWorkflows.find((candidate) => candidate.workflowId === workflowId);
+  const definition = activeWorkflows.find((candidate) => candidate.workflowId === workflowId);
   if (!definition) throw new Error(`Workflow definition not found: ${workflowId}`);
-  return definition;
+  return structuredClone(definition);
 }
 
 export function workflowUiDefinitionFor(workflowId: string): WorkflowUiDefinition {

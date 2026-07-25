@@ -97,6 +97,7 @@ When inputs are missing, a human Gate is waiting, output provenance is unclear, 
 export const builtInAgentPresetRegistry = createAgentPresetRegistry([
   storyProductionDirectorPreset,
 ]);
+let activeAgentPresetRegistry = builtInAgentPresetRegistry;
 
 export function createAgentPresetRegistry(
   definitions: AgentPresetDefinition[],
@@ -114,14 +115,20 @@ export function createAgentPresetRegistry(
 }
 
 export function listAgentPresets(
-  registry: AgentPresetRegistry = builtInAgentPresetRegistry,
+  registry: AgentPresetRegistry = activeAgentPresetRegistry,
 ): AgentPresetDefinition[] {
   return structuredClone(registry.definitions);
 }
 
+export function configureAgentPresetRegistry(
+  definitions: AgentPresetDefinition[],
+): void {
+  activeAgentPresetRegistry = createAgentPresetRegistry(definitions);
+}
+
 export function agentPresetDefinitionFor(
   agentPresetId: string,
-  registry: AgentPresetRegistry = builtInAgentPresetRegistry,
+  registry: AgentPresetRegistry = activeAgentPresetRegistry,
 ): AgentPresetDefinition {
   const definition = registry.definitions.find(
     (candidate) => candidate.agentPresetId === agentPresetId,

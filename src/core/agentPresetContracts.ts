@@ -49,7 +49,7 @@ export interface AgentPresetDefinition extends AgentPresetDefinitionLock {
   schemaVersion: 1;
   skillPolicy: AgentPresetSkillPolicy;
   source: {
-    kind: 'builtin' | 'catmeme_migration';
+    kind: 'builtin' | 'catmeme_migration' | 'package';
     paths?: string[];
   };
   toolPolicy: {
