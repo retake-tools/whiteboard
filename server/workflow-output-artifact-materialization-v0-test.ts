@@ -86,6 +86,10 @@ assert.equal(firstBinding.outputSlotId, 'screenplay');
 assert.equal(firstBinding.artifactType, 'screenplay_master');
 assert.deepEqual(firstBinding.assetIds, [firstAsset.assetId]);
 assert.deepEqual(firstBinding.executionIds, [firstExecution.executionId]);
+const firstResultBlock = blockFor(firstCompleted.snapshot, firstExecution.outputBlockIds[0]);
+assert.equal(firstResultBlock.data.artifactId, firstBinding.artifactId);
+assert.equal(firstResultBlock.data.artifactRevisionId, firstBinding.artifactRevisionId);
+assert.equal(firstResultBlock.data.artifactType, firstBinding.artifactType);
 const firstArtifacts = await readProjectArtifacts(automatic.project.projectId);
 assert.equal(firstArtifacts.artifacts.length, 1);
 assert.equal(firstArtifacts.revisions.length, 1);
@@ -198,6 +202,16 @@ const acceptedBinding = stepFor(
   'screenplay_generate',
 ).outputArtifactBindings[0];
 assert.deepEqual(acceptedBinding.assetIds, [manualAsset.assetId]);
+const acceptedResultBlock = blockFor(
+  acceptedResult.snapshot,
+  manualExecution.outputBlockIds[0],
+);
+assert.equal(acceptedResultBlock.data.artifactId, acceptedBinding.artifactId);
+assert.equal(
+  acceptedResultBlock.data.artifactRevisionId,
+  acceptedBinding.artifactRevisionId,
+);
+assert.equal(acceptedResultBlock.data.artifactType, acceptedBinding.artifactType);
 const acceptedArtifacts = await readProjectArtifacts(manual.project.projectId);
 assert.equal(acceptedArtifacts.revisions[0].createdByActor.actorType, 'user');
 assert.equal(acceptedArtifacts.artifacts[0].libraryVisibility, 'hidden');
@@ -275,6 +289,7 @@ console.log(JSON.stringify({
   rerunAdvancesRevisionAndPreservesHistory: true,
   manualSelectionWaitsForAcceptance: true,
   acceptedOutputMaterialized: true,
+  resultBlockPinsArtifactRevision: true,
   interruptedBindingWriteRecoverable: true,
   idempotentRetryDoesNotDuplicateRevision: true,
 }));

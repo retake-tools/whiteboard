@@ -28,7 +28,7 @@ import {
   executeExistingGenerationPreparationOperation,
 } from '../core/generationPreparationOperations';
 import { generationPreparationCapabilityId } from '../core/generationPreparationContracts';
-import { loadProjectArtifactLibrary } from '../core/artifactLibraryClient';
+import { loadProjectArtifactAuthority } from '../core/artifactLibraryClient';
 import { domainVideoGenerationCapabilityId } from '../core/domainVideoGenerationContracts';
 import { createDraftDomainVideoGenerationOperation } from '../core/domainVideoGenerationOperations';
 
@@ -184,7 +184,7 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
     try {
       await persistSnapshot(snapshotRef.current, { requireLocalApi: true });
       const artifactLibrary = currentCapabilityId(block) === generationPreparationCapabilityId
-        ? await loadProjectArtifactLibrary(snapshotRef.current.project.projectId)
+        ? await loadProjectArtifactAuthority(snapshotRef.current.project.projectId)
         : undefined;
       const queuedSnapshot = updateSnapshot((current) => {
         const currentBlock = current.blocks.find((candidate) => candidate.blockId === block.blockId);

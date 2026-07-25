@@ -46,7 +46,7 @@ import {
   resetWorkspace,
   saveSnapshot,
 } from './local-store/snapshot-store';
-import { readProjectArtifactLibrary } from './artifact-library-service';
+import { readProjectArtifactAuthority } from './artifact-library-service';
 import { startTextGeneration } from './text-generation-service';
 import { decideWorkflowApproval } from '../src/core/workflowGateRuntime';
 
@@ -270,7 +270,7 @@ assert.equal(operation.data.capabilityId, generationPreparationCapabilityId);
 assert.equal(operationReadinessFor(snapshot, operation).canRun, true);
 
 const queued = executeExistingGenerationPreparationOperation(snapshot, {
-  artifactLibrary: await readProjectArtifactLibrary(snapshot.project.projectId),
+  artifactLibrary: await readProjectArtifactAuthority(snapshot.project.projectId),
   connection: connection!,
   labels: labels(),
   operationBlockId: operation.blockId,
@@ -371,6 +371,7 @@ console.log(JSON.stringify({
   ok: true,
   exactAgentCommand: true,
   approvedSheetRevisionRequired: true,
+  hiddenWorkflowArtifactAuthorityAccepted: true,
   typedReferenceManifest: true,
   selfContainedGenerationPackageV2: true,
   multimodalTextRequest: true,

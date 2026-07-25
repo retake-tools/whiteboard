@@ -33,6 +33,7 @@ import {
 } from './local-store';
 import {
   promoteProjectAsset,
+  readProjectArtifactAuthority,
   readProjectArtifactLibrary,
 } from './artifact-library-service';
 import type { BoardSnapshot } from '../src/core/types';
@@ -99,6 +100,16 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               return;
             }
             sendJson(res, await readProjectArtifactLibrary(projectId));
+            return;
+          }
+
+          if (method === 'GET' && url.pathname === '/artifacts/authority') {
+            const projectId = url.searchParams.get('projectId');
+            if (!projectId) {
+              sendJson(res, { error: 'projectId is required' }, 400);
+              return;
+            }
+            sendJson(res, await readProjectArtifactAuthority(projectId));
             return;
           }
 

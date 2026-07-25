@@ -90,6 +90,7 @@ export async function materializeWorkflowOutputArtifacts(
       result: CreateOrAdvanceArtifactResult;
       expectedStepRunVersion: number;
     }> = [];
+    const reusableBindings: WorkflowStepOutputArtifactBinding[] = [];
     for (const candidate of candidates) {
       const existingBinding = scope.step.outputArtifactBindings.find(
         (binding) => binding.workflowOutputSlotId === candidate.workflowOutputSlotId,
@@ -110,7 +111,10 @@ export async function materializeWorkflowOutputArtifacts(
         && existingArtifact?.currentRevisionId === existingRevision.artifactRevisionId
         && arraysEqual(existingBinding.assetIds, candidate.assetIds)
         && arraysEqual(existingBinding.executionIds, candidate.executionIds)
-      ) continue;
+      ) {
+        reusableBindings.push(structuredClone(existingBinding));
+        continue;
+      }
 
       const semanticKey = `workflow_output:${candidate.workflowOutputSlotId}`;
       const identityKey = artifactIdentityKey({
@@ -175,7 +179,13 @@ export async function materializeWorkflowOutputArtifacts(
       });
     }
 
-    if (materialized.length === 0) return { bindings: [], snapshot: initial };
+    if (materialized.length === 0) {
+      if (projectArtifactBindingsToOutputBlocks(initial, reusableBindings)) {
+        touchSnapshot(initial);
+        await saveSnapshot(initial);
+      }
+      return { bindings: [], snapshot: initial };
+    }
     const latest = await loadSnapshot(input.projectId, input.boardId);
     const latestScope = resolveTriggerScope(latest, input.trigger);
     if (!latestScope) throw new Error('Workflow output materialization trigger is no longer current.');
@@ -239,6 +249,10 @@ export async function materializeWorkflowOutputArtifacts(
       ),
       ...replacements,
     ];
+    projectArtifactBindingsToOutputBlocks(latest, [
+      ...reusableBindings,
+      ...replacements,
+    ]);
     latestScope.step.recordVersion += 1;
     latestScope.step.updatedAt = replacements[replacements.length - 1].boundAt;
     touchSnapshot(latest);
@@ -258,6 +272,43 @@ export async function materializeWorkflowOutputArtifacts(
       snapshot: reconciled.snapshot,
     };
   });
+}
+
+function projectArtifactBindingsToOutputBlocks(
+  snapshot: BoardSnapshot,
+  bindings: WorkflowStepOutputArtifactBinding[],
+): boolean {
+  let changed = false;
+  const executionById = new Map(
+    snapshot.executions.map((execution) => [execution.executionId, execution]),
+  );
+  for (const binding of bindings) {
+    const outputBlockIds = new Set(binding.executionIds.flatMap(
+      (executionId) => executionById.get(executionId)?.outputBlockIds ?? [],
+    ));
+    const assetIds = new Set(binding.assetIds);
+    for (const block of snapshot.blocks) {
+      if (
+        !outputBlockIds.has(block.blockId)
+        || typeof block.data.assetId !== 'string'
+        || !assetIds.has(block.data.assetId)
+      ) continue;
+      if (
+        block.data.artifactId === binding.artifactId
+        && block.data.artifactRevisionId === binding.artifactRevisionId
+        && block.data.artifactType === binding.artifactType
+      ) continue;
+      block.data = {
+        ...block.data,
+        artifactId: binding.artifactId,
+        artifactRevisionId: binding.artifactRevisionId,
+        artifactType: binding.artifactType,
+      };
+      block.updatedAt = binding.boundAt;
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 function resolveTriggerScope(

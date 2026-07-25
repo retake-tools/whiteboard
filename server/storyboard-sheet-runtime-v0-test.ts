@@ -297,6 +297,16 @@ const firstMaterialized = await materializeWorkflowOutputArtifacts({
 });
 currentStep = requiredStep(firstMaterialized.snapshot, runView.record.workflowRunId);
 assert.deepEqual(currentStep.outputArtifactBindings[0]?.assetIds, [candidateA.assetId]);
+const acceptedCandidateBlock = firstMaterialized.snapshot.blocks.find(
+  (block) =>
+    block.data.assetId === candidateA.assetId
+    && block.data.sourceExecutionId === queued.execution.executionId,
+);
+assert.equal(
+  acceptedCandidateBlock?.data.artifactRevisionId,
+  currentStep.outputArtifactBindings[0]?.artifactRevisionId,
+);
+assert.equal(acceptedCandidateBlock?.data.artifactType, 'storyboard_sheet');
 const firstArtifacts = await readProjectArtifacts(snapshot.project.projectId);
 assert.equal(firstArtifacts.revisions.length, 1);
 assert.deepEqual(firstArtifacts.revisions[0]?.metadata, {
@@ -377,6 +387,7 @@ console.log(JSON.stringify({
   sameUnitCandidates: 2,
   manualSingleEnforced: true,
   acceptedAssetMaterialized: true,
+  acceptedBlockPinsArtifactRevision: true,
   typedArtifactMetadata: true,
   artifactGateCurrentRevision: true,
   reselectionAdvancesRevision: true,

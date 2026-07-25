@@ -16,6 +16,18 @@ export async function loadProjectArtifactLibrary(
   return (await response.json()) as ProjectArtifactLibrarySnapshot;
 }
 
+export async function loadProjectArtifactAuthority(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<ProjectArtifactLibrarySnapshot> {
+  const response = await fetch(
+    `/api/local/artifacts/authority?projectId=${encodeURIComponent(projectId)}`,
+    { signal },
+  );
+  if (!response.ok) throw await artifactApiError(response, 'Failed to load Project Artifact authority.');
+  return (await response.json()) as ProjectArtifactLibrarySnapshot;
+}
+
 export async function promoteProjectAsset(
   command: PromoteProjectAssetCommand,
 ): Promise<CreateOrAdvanceArtifactResult> {
