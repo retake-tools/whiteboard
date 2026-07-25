@@ -58,6 +58,15 @@ export interface DeclarativePackagePackResult extends DeclarativePackageInspecti
   outputPath: string;
 }
 
+export interface MaterializedDeclarativePackage {
+  archive: Buffer;
+  archiveDigest: string;
+  definitions: DeclarativePackageDefinitions;
+  digest: string;
+  inspection: DeclarativePackageInspection;
+  manifest: DeclarativePackageManifest;
+}
+
 interface LoadedPackage {
   definitions: DeclarativePackageDefinitions;
   digest: string;
@@ -108,6 +117,40 @@ export async function packDeclarativePackage(
     archiveDigest,
     manifest: exactManifest,
     outputPath: output,
+  };
+}
+
+export async function materializeDeclarativePackage(
+  sourcePath: string,
+): Promise<MaterializedDeclarativePackage> {
+  const loaded = await loadDeclarativePackage(sourcePath);
+  const exactManifest: DeclarativePackageManifest = {
+    ...structuredClone(loaded.manifest),
+    integrity: loaded.digest,
+  };
+  const entries = new Map<string, Buffer>([
+    [declarativePackageManifestFile, Buffer.from(`${stableStringify(exactManifest)}\n`, 'utf8')],
+    ...loaded.fileBuffers.entries(),
+  ]);
+  const archive = createDeterministicPackageArchive(entries);
+  const archiveDigest = sha256(archive);
+  if (
+    loaded.inspection.archiveDigest
+    && loaded.inspection.archiveDigest !== archiveDigest
+  ) {
+    throw new Error('Package archive bytes are not in canonical deterministic form.');
+  }
+  return {
+    archive,
+    archiveDigest,
+    definitions: cloneDefinitions(loaded.definitions),
+    digest: loaded.digest,
+    inspection: {
+      ...structuredClone(loaded.inspection),
+      archiveDigest,
+      manifest: exactManifest,
+    },
+    manifest: exactManifest,
   };
 }
 
@@ -398,4 +441,20 @@ function sha256(value: Buffer): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function cloneDefinitions(
+  definitions: DeclarativePackageDefinitions,
+): DeclarativePackageDefinitions {
+  return {
+    agentPresets: new Map(
+      [...definitions.agentPresets].map(([id, definition]) => [id, structuredClone(definition)]),
+    ),
+    skills: new Map(
+      [...definitions.skills].map(([id, definition]) => [id, structuredClone(definition)]),
+    ),
+    workflows: new Map(
+      [...definitions.workflows].map(([id, definition]) => [id, structuredClone(definition)]),
+    ),
+  };
 }

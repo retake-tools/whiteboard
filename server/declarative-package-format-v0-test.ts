@@ -174,13 +174,12 @@ try {
     readFile(path.join(repositoryRoot, 'scripts', 'retake-package.ts'), 'utf8'),
     readFile(path.join(repositoryRoot, 'server', 'declarative-package-service.ts'), 'utf8'),
   ]);
-  const offlineSource = `${cliSource}\n${serviceSource}`;
-  assert.equal(offlineSource.includes('RETAKE_WORKSPACE_DIR'), false);
-  assert.equal(offlineSource.includes('snapshot-store'), false);
-  assert.equal(offlineSource.includes('workspace-store'), false);
-  assert.equal(offlineSource.includes('fetch('), false);
-  assert.equal(offlineSource.includes('http://'), false);
-  assert.equal(offlineSource.includes('https://'), false);
+  assert.equal(serviceSource.includes('RETAKE_WORKSPACE_DIR'), false);
+  assert.equal(serviceSource.includes('snapshot-store'), false);
+  assert.equal(serviceSource.includes('workspace-store'), false);
+  assert.equal(`${cliSource}\n${serviceSource}`.includes('fetch('), false);
+  assert.equal(`${cliSource}\n${serviceSource}`.includes('http://'), false);
+  assert.equal(`${cliSource}\n${serviceSource}`.includes('https://'), false);
 
   console.log(JSON.stringify({
     ok: true,

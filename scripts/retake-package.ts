@@ -1,13 +1,18 @@
 #!/usr/bin/env node
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   inspectDeclarativePackage,
   packDeclarativePackage,
   validateDeclarativePackage,
   type DeclarativePackageInspection,
 } from '../server/declarative-package-service';
+import { LocalPackageManagerService } from '../server/local-package-manager-service';
 
 const args = process.argv.slice(2);
 const json = removeFlag(args, '--json');
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 try {
   if (args.shift() !== 'package') usage();
@@ -49,6 +54,78 @@ try {
       outputPath: result.outputPath,
       packageId: result.manifest.packageId,
       version: result.manifest.version,
+    });
+  } else if (command === 'install') {
+    const sourcePath = requiredArgument(args, 'Package directory or archive');
+    const workspaceRoot = workspaceOption(args);
+    const dependencySources = optionValues(args, '--dependency-source');
+    rejectExtraArguments(args);
+    const manager = await packageManager(workspaceRoot);
+    const result = await manager.install(sourcePath, dependencySources);
+    printManager(json, {
+      changed: result.changed,
+      command,
+      resolvedPackages: result.lockfile.resolvedPackages,
+      revision: result.lockfile.revision,
+      root: result.root,
+      workspaceRoot: manager.workspaceRoot,
+    });
+  } else if (command === 'list') {
+    const workspaceRoot = workspaceOption(args);
+    rejectExtraArguments(args);
+    const manager = await packageManager(workspaceRoot);
+    const lockfile = await manager.list();
+    printManager(json, {
+      command,
+      installations: lockfile.installations,
+      resolvedPackages: lockfile.resolvedPackages,
+      revision: lockfile.revision,
+      roots: lockfile.roots,
+      workspaceRoot: manager.workspaceRoot,
+    });
+  } else if (command === 'activate') {
+    const packageId = requiredArgument(args, 'Package ID');
+    const workspaceRoot = workspaceOption(args);
+    const version = optionValue(args, '--version');
+    const digest = optionValue(args, '--digest');
+    rejectExtraArguments(args);
+    const manager = await packageManager(workspaceRoot);
+    const result = await manager.activate({ digest, packageId, version });
+    printManager(json, {
+      changed: result.changed,
+      command,
+      resolvedPackages: result.lockfile.resolvedPackages,
+      revision: result.lockfile.revision,
+      root: result.root,
+      workspaceRoot: manager.workspaceRoot,
+    });
+  } else if (command === 'rollback') {
+    const packageId = requiredArgument(args, 'Package ID');
+    const workspaceRoot = workspaceOption(args);
+    const target = optionValue(args, '--to');
+    rejectExtraArguments(args);
+    const manager = await packageManager(workspaceRoot);
+    const result = await manager.rollback(packageId, target);
+    printManager(json, {
+      changed: result.changed,
+      command,
+      resolvedPackages: result.lockfile.resolvedPackages,
+      revision: result.lockfile.revision,
+      root: result.root,
+      workspaceRoot: manager.workspaceRoot,
+    });
+  } else if (command === 'remove') {
+    const packageId = requiredArgument(args, 'Package ID');
+    const workspaceRoot = workspaceOption(args);
+    rejectExtraArguments(args);
+    const manager = await packageManager(workspaceRoot);
+    const lockfile = await manager.remove(packageId);
+    printManager(json, {
+      command,
+      resolvedPackages: lockfile.resolvedPackages,
+      revision: lockfile.revision,
+      roots: lockfile.roots,
+      workspaceRoot: manager.workspaceRoot,
     });
   } else {
     usage();
@@ -102,6 +179,26 @@ function print(jsonOutput: boolean, value: Record<string, unknown>): void {
   process.stdout.write(`${lines.join('\n')}\n`);
 }
 
+function printManager(jsonOutput: boolean, value: Record<string, unknown>): void {
+  if (jsonOutput) {
+    process.stdout.write(`${JSON.stringify({ ok: true, ...value })}\n`);
+    return;
+  }
+  const roots = Array.isArray(value.roots) ? value.roots : undefined;
+  const resolved = Array.isArray(value.resolvedPackages) ? value.resolvedPackages : [];
+  const root = value.root as { packageId?: string; version?: string } | undefined;
+  const lines = [
+    `Command: ${String(value.command)}`,
+    `Workspace: ${String(value.workspaceRoot)}`,
+    typeof value.revision === 'number' ? `Revision: ${value.revision}` : undefined,
+    typeof value.changed === 'boolean' ? `Changed: ${value.changed ? 'yes' : 'no'}` : undefined,
+    root?.packageId ? `Root: ${root.packageId}@${String(root.version)}` : undefined,
+    roots ? `Roots: ${roots.length}` : undefined,
+    `Resolved Packages: ${resolved.length}`,
+  ].filter((line): line is string => Boolean(line));
+  process.stdout.write(`${lines.join('\n')}\n`);
+}
+
 function removeFlag(values: string[], flag: string): boolean {
   const index = values.indexOf(flag);
   if (index === -1) return false;
@@ -116,6 +213,32 @@ function optionValue(values: string[], option: string): string | undefined {
   if (!value || value.startsWith('--')) throw new Error(`${option} requires a value.`);
   values.splice(index, 2);
   return value;
+}
+
+function optionValues(values: string[], option: string): string[] {
+  const results: string[] = [];
+  while (values.includes(option)) {
+    const value = optionValue(values, option);
+    if (value) results.push(value);
+  }
+  return results;
+}
+
+function workspaceOption(values: string[]): string {
+  return optionValue(values, '--workspace')
+    ?? process.env.RETAKE_WORKSPACE_DIR
+    ?? '.retake';
+}
+
+async function packageManager(workspaceRoot: string): Promise<LocalPackageManagerService> {
+  const packageJson = JSON.parse(
+    await readFile(path.join(repositoryRoot, 'package.json'), 'utf8'),
+  ) as { version?: unknown };
+  if (typeof packageJson.version !== 'string') throw new Error('Retake host version is unavailable.');
+  return new LocalPackageManagerService({
+    hostVersion: packageJson.version,
+    workspaceRoot,
+  });
 }
 
 function requiredArgument(values: string[], label: string): string {
@@ -134,5 +257,10 @@ function usage(): never {
     '  retake package validate <directory-or-archive> [--json]',
     '  retake package pack <directory> --output <file.retakepkg> [--json]',
     '  retake package inspect <directory-or-archive> [--json]',
+    '  retake package install <directory-or-archive> --workspace <root> [--dependency-source <source>]... [--json]',
+    '  retake package list --workspace <root> [--json]',
+    '  retake package activate <packageId> --workspace <root> (--version <version> | --digest <digest>) [--json]',
+    '  retake package rollback <packageId> --workspace <root> [--to <version-or-digest>] [--json]',
+    '  retake package remove <packageId> --workspace <root> [--json]',
   ].join('\n'));
 }
