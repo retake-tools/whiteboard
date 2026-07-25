@@ -1,4 +1,5 @@
 import { cancelAgentRun, pauseAgentRun, startAgentRun } from './agentRuntime';
+import { buildAgentBoardReadModel } from './agentBoardReadModel';
 import type {
   AgentMessageContextRef,
   AgentMessageRecord,
@@ -254,6 +255,11 @@ export function agentRuntimeTurnContext(
         status: candidate.status,
         targetKind: candidate.target.kind,
       })),
+    boardReadModel: buildAgentBoardReadModel(snapshot, {
+      ...(run ? { activeAgentRun: run } : {}),
+      mentionedBlockIds: mentions.flatMap((mention) =>
+        mention.kind === 'block' ? [mention.blockId] : []),
+    }),
     boardId: snapshot.board.boardId,
     ...(entrypoint?.kind === 'entrypoint' ? { entrypointId: entrypoint.entrypointId } : {}),
     history: messagesForSession(snapshot, agentSessionId)

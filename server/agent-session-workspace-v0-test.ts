@@ -150,6 +150,24 @@ assert.equal(context.agentRun?.agentRunId, run.record.agentRunId);
 assert.deepEqual(context.agentRun?.allowedActions, ['pause', 'cancel']);
 assert.equal(context.entrypointId, undefined);
 assert.equal(context.mentions.length, 0);
+assert.equal(context.boardReadModel.schemaRef, 'retake.agent-board-read-model/v1');
+assert.equal(context.boardReadModel.summary.operationCounts.total, 1);
+assert.equal(context.boardReadModel.operations[0]?.operationBlockId, draft.operationBlock.blockId);
+const initialBoardReadFingerprint = context.boardReadModel.source.fingerprint;
+const draftInputBlock = draft.inputBlocks[0]!;
+draftInputBlock.data.body = 'A courier cat reaches the cinema at sunrise.';
+draftInputBlock.updatedAt = '2026-07-25T01:00:00.000Z';
+snapshot.board.updatedAt = '2026-07-25T01:00:00.000Z';
+const refreshedContext = agentRuntimeTurnContext(
+  snapshot,
+  created.session.agentSessionId,
+  userMessage.agentMessageId,
+);
+assert.notEqual(refreshedContext.boardReadModel.source.fingerprint, initialBoardReadFingerprint);
+assert.equal(
+  refreshedContext.boardReadModel.blocks.find((block) => block.blockId === draftInputBlock.blockId)?.text?.preview,
+  draftInputBlock.data.body,
+);
 
 applyAgentRuntimeTurn(snapshot, {
   agentSessionId: created.session.agentSessionId,
@@ -339,6 +357,7 @@ console.log(JSON.stringify({
   outOfScopeProposal: true,
   staleSaveProtected: true,
   noChatAsExecutionContract: true,
+  currentBoardReadModelPerTurn: true,
 }));
 
 async function emptySnapshot(): Promise<BoardSnapshot> {

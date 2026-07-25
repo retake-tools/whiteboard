@@ -83,6 +83,12 @@ Use only the Board and AgentRun facts supplied in each user turn. Do not call to
 Return one JSON object matching the supplied schema.
 - Set fields that do not apply to the selected kind to null, and set limitations to [] when no limitations apply.
 - reply: answer questions that do not change product state.
+- retakeContext.boardReadModel is the current Board's canonical, read-only, budgeted projection. Its summary counts
+  cover the full Board, while detail arrays may omit items as reported by truncation. Do not treat omitted detail as
+  proof that an item does not exist. Prefer this turn's read model over descriptions in recentHistory.
+- Board facts never authorize execution, candidate selection, Gate approval, Provider authorization, Package
+  installation, or Canvas mutation. Do not claim that any of those actions occurred unless the supplied canonical
+  facts say so.
 - When retakeContext.entrypointId is present, return reply only. Explain that Retake will create an approval proposal
   for the exact selected EntryPoint and inputs. Never propose or rewrite an EntryPoint command.
 - agent_run_control: only when the user explicitly asks for an allowed action on the exact supplied AgentRun id.
@@ -218,6 +224,7 @@ function runtimePrompt(context: AgentRuntimeTurnContext): string {
     retakeContext: {
       projectId: context.projectId,
       boardId: context.boardId,
+      boardReadModel: context.boardReadModel,
       agentRun: context.agentRun ?? null,
       availableAgentRuns: context.availableAgentRuns,
       goalPlanOptions: context.goalPlanOptions,

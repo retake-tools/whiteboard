@@ -9,6 +9,7 @@ import type {
   GoalPlanSnapshotV1,
   GoalPlanWorkflowOptionV1,
 } from './goalPlanContracts';
+import type { AgentBoardReadModelV1 } from './agentBoardReadModelContracts';
 
 export type AgentSessionStatus = 'active' | 'archived';
 
@@ -339,6 +340,7 @@ export interface AgentRuntimeTurnContext {
     status: string;
     targetKind: string;
   }>;
+  boardReadModel: AgentBoardReadModelV1;
   boardId: string;
   entrypointId?: string;
   history: Array<{ content: string; role: AgentMessageRole }>;
