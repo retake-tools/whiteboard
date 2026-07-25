@@ -39,7 +39,7 @@ const connection = settings.connections.find(
 assert.equal(connection?.status, 'ready', connection?.lastError);
 assert.equal(connection?.modelId, model);
 
-createScreenplayDraft(snapshot, '第一份 Brief');
+const gateOperationBlockId = createScreenplayDraft(snapshot, '第一份 Brief');
 createScreenplayDraft(snapshot, '第二份 Brief');
 const session = createAgentSession(snapshot, {
   connectionId: connection.connectionId,
@@ -56,8 +56,10 @@ assert.match(first.result.decision.message, new RegExp(`count=${first.operationC
 assert.ok(first.result.decision.message.includes(`fingerprint=${first.fingerprint}`));
 
 const blockedOperationBlockId = createScreenplayDraft(snapshot, '');
-addWaitingApprovalFixture(snapshot, blockedOperationBlockId);
+addWaitingApprovalFixture(snapshot, gateOperationBlockId);
 await saveSnapshot(snapshot);
+const baselineExecutionCount = snapshot.executions.length;
+const baselineApprovalRequestCount = snapshot.workflowApprovalRequests?.length ?? 0;
 
 const second = await executeReadTurn(snapshot, session.agentSessionId, {
   gateId: 'review_gate',
@@ -76,10 +78,10 @@ assert.ok(second.result.decision.message.includes('gateStatus=waiting_approval')
 assert.ok(!second.result.decision.message.includes(first.fingerprint));
 assert.equal(second.result.externalThreadId, first.result.externalThreadId);
 
-assert.equal(snapshot.executions.length, 0);
+assert.equal(snapshot.executions.length, baselineExecutionCount);
 assert.equal(snapshot.changeProposals?.length ?? 0, 0);
 assert.equal(snapshot.changeDecisions?.length ?? 0, 0);
-assert.equal(snapshot.workflowApprovalRequests?.length ?? 0, 1);
+assert.equal(snapshot.workflowApprovalRequests?.length ?? 0, baselineApprovalRequestCount);
 assert.equal(snapshot.workflowApprovalDecisions?.length ?? 0, 0);
 assert.equal(
   runtimeBindingForSession(snapshot, session.agentSessionId)?.externalThreadId,
@@ -151,17 +153,21 @@ async function executeReadTurn(
   }
   await saveSnapshot(currentSnapshot);
 
-  const result = await runAgentRuntimeTurn({
-    agentSessionId,
-    boardId: currentSnapshot.board.boardId,
-    projectId: currentSnapshot.project.projectId,
-    sourceMessageId: sourceMessage.agentMessageId,
-  }, (event) => {
-    appendAgentRuntimeEvent(currentSnapshot, {
-      event,
+  const result = await withTimeout(
+    runAgentRuntimeTurn({
+      agentSessionId,
+      boardId: currentSnapshot.board.boardId,
+      projectId: currentSnapshot.project.projectId,
       sourceMessageId: sourceMessage.agentMessageId,
-    });
-  });
+    }, (event) => {
+      appendAgentRuntimeEvent(currentSnapshot, {
+        event,
+        sourceMessageId: sourceMessage.agentMessageId,
+      });
+    }),
+    120_000,
+    'Agent Board Read Model V1.4 live turn did not complete within 120 seconds.',
+  );
   applyAgentRuntimeTurn(currentSnapshot, {
     agentSessionId,
     decision: result.decision,
@@ -172,6 +178,24 @@ async function executeReadTurn(
   });
   await saveSnapshot(currentSnapshot);
   return { fingerprint, operationCount, result };
+}
+
+async function withTimeout<Value>(
+  promise: Promise<Value>,
+  timeoutMs: number,
+  message: string,
+): Promise<Value> {
+  let timeout: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 function createScreenplayDraft(snapshot: BoardSnapshot, brief: string): string {
@@ -190,6 +214,7 @@ function createScreenplayDraft(snapshot: BoardSnapshot, brief: string): string {
 
 function addWaitingApprovalFixture(snapshot: BoardSnapshot, operationBlockId: string): void {
   const now = '2026-07-25T00:00:00.000Z';
+  const executionId = 'execution_v1_4_live';
   const workflowRunId = 'workflow_run_v1_4_live';
   const stepId = 'step_screenplay_review';
   const stepRunId = 'step_run_v1_4_live';
@@ -248,7 +273,7 @@ function addWaitingApprovalFixture(snapshot: BoardSnapshot, operationBlockId: st
     },
     createdAt: now,
     dependsOn: [],
-    executionIds: [],
+    executionIds: [executionId],
     freshness: 'current',
     operationBlockId,
     outputAcceptancePolicy: 'automatic',
@@ -273,7 +298,7 @@ function addWaitingApprovalFixture(snapshot: BoardSnapshot, operationBlockId: st
       skillId: 'retake.screenplay.from-brief',
       version: '1.0.0',
     },
-    status: 'waiting_input',
+    status: 'succeeded',
     stepId,
     stepRunId,
     updatedAt: now,
@@ -281,6 +306,23 @@ function addWaitingApprovalFixture(snapshot: BoardSnapshot, operationBlockId: st
   };
   snapshot.workflowRuns = [workflowRun];
   snapshot.workflowStepRuns = [stepRun];
+  snapshot.executions.push({
+    adapter: 'direct_api',
+    boardId: snapshot.board.boardId,
+    capabilityId: 'story.screenplay.generate',
+    completedAt: now,
+    executionId,
+    inputBlockIds: [],
+    model: 'fixture-model',
+    outputAssetIds: [],
+    outputBlockIds: [],
+    params: { operationBlockId },
+    projectId: snapshot.project.projectId,
+    prompt: 'V1.4 live fixture baseline',
+    provider: 'fixture-provider',
+    startedAt: now,
+    status: 'succeeded',
+  });
   snapshot.workflowGateEvaluations = [{
     approvalRequestId,
     boardId: snapshot.board.boardId,
