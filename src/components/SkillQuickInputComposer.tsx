@@ -1,5 +1,6 @@
 import { ArrowUp, AtSign, Bot, ChevronDown, ImageIcon, Search, Sparkles, X } from 'lucide-react';
 import {
+  useEffect,
   useMemo,
   useId,
   useRef,
@@ -219,6 +220,14 @@ export function SkillQuickInputComposer({
     onCreateImageDraft,
     snapshot,
   ]);
+
+  useEffect(() => {
+    const focusComposer = () => {
+      requestAnimationFrame(() => inputRef.current?.focus());
+    };
+    window.addEventListener('retake:focus-unified-composer', focusComposer);
+    return () => window.removeEventListener('retake:focus-unified-composer', focusComposer);
+  }, []);
 
   useDismissiblePopover({
     active: Boolean(picker),

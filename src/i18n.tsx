@@ -2,7 +2,7 @@ import { createContext, useContext, useMemo, useState, type ReactElement, type R
 
 export type Locale = 'en' | 'zh';
 
-type TranslationKey =
+export type TranslationKey =
   | 'autosave.error'
   | 'autosave.idle'
   | 'autosave.saved'
@@ -525,6 +525,36 @@ type TranslationKey =
   | 'workflow.approvedGenerationPackageToVideo.name'
   | 'workflow.approvedGenerationPackageToVideo.description'
   | 'workflowDraft.outputPending'
+  | 'workflowContinuation.artifactNotFound'
+  | 'workflowContinuation.artifactOutdated'
+  | 'workflowContinuation.artifactPinIncomplete'
+  | 'workflowContinuation.blocked'
+  | 'workflowContinuation.close'
+  | 'workflowContinuation.continue'
+  | 'workflowContinuation.description'
+  | 'workflowContinuation.eyebrow'
+  | 'workflowContinuation.gateNotRequired'
+  | 'workflowContinuation.gateOutdated'
+  | 'workflowContinuation.gateOutdatedBody'
+  | 'workflowContinuation.gatePassed'
+  | 'workflowContinuation.gateRejected'
+  | 'workflowContinuation.gateRejectedBody'
+  | 'workflowContinuation.gateWaiting'
+  | 'workflowContinuation.gateWaitingBody'
+  | 'workflowContinuation.inputSlot'
+  | 'workflowContinuation.loadFailed'
+  | 'workflowContinuation.loading'
+  | 'workflowContinuation.missingInputs'
+  | 'workflowContinuation.noCandidates'
+  | 'workflowContinuation.noCandidatesBody'
+  | 'workflowContinuation.none'
+  | 'workflowContinuation.open'
+  | 'workflowContinuation.package'
+  | 'workflowContinuation.recommended'
+  | 'workflowContinuation.replaceAndContinue'
+  | 'workflowContinuation.replaceWarning'
+  | 'workflowContinuation.sourceMissing'
+  | 'workflowContinuation.title'
   | 'workflowRuntime.create'
   | 'workflowRuntime.createFailed'
   | 'workflowRuntime.created'
@@ -1451,6 +1481,36 @@ const translations: Record<Locale, Translations> = {
     'workflow.approvedGenerationPackageToVideo.name': 'Approved package to video',
     'workflow.approvedGenerationPackageToVideo.description': 'Generate, select, and review one video from an approved Generation Package.',
     'workflowDraft.outputPending': 'Run the upstream operation to create this document.',
+    'workflowContinuation.artifactNotFound': 'The pinned Artifact is no longer available in Project authority.',
+    'workflowContinuation.artifactOutdated': 'This Block points to an older Artifact revision. Continue from the current result instead.',
+    'workflowContinuation.artifactPinIncomplete': 'This result does not have a complete Artifact revision pin.',
+    'workflowContinuation.blocked': 'This result cannot continue yet',
+    'workflowContinuation.close': 'Close workflow continuation',
+    'workflowContinuation.continue': 'Prepare composer',
+    'workflowContinuation.description': 'Choose an installed Workflow that accepts this exact Artifact revision.',
+    'workflowContinuation.eyebrow': 'Continue production',
+    'workflowContinuation.gateNotRequired': 'No approval required',
+    'workflowContinuation.gateOutdated': 'Approval outdated',
+    'workflowContinuation.gateOutdatedBody': 'The approval for this revision is outdated. Review the current result first.',
+    'workflowContinuation.gatePassed': 'Approved',
+    'workflowContinuation.gateRejected': 'Rejected',
+    'workflowContinuation.gateRejectedBody': 'This revision was rejected and cannot enter the next Workflow.',
+    'workflowContinuation.gateWaiting': 'Waiting for approval',
+    'workflowContinuation.gateWaitingBody': 'Approve this exact Artifact revision before continuing.',
+    'workflowContinuation.inputSlot': 'Target input',
+    'workflowContinuation.loadFailed': 'Failed to read Project Artifact authority.',
+    'workflowContinuation.loading': 'Checking current revision and installed Workflows…',
+    'workflowContinuation.missingInputs': 'Still required',
+    'workflowContinuation.noCandidates': 'No compatible installed Workflow',
+    'workflowContinuation.noCandidatesBody': 'This Artifact is current, but no installed Workflow accepts it as a typed revision input.',
+    'workflowContinuation.none': 'None',
+    'workflowContinuation.open': 'Continue production',
+    'workflowContinuation.package': 'Package',
+    'workflowContinuation.recommended': 'Recommended',
+    'workflowContinuation.replaceAndContinue': 'Replace draft',
+    'workflowContinuation.replaceWarning': 'The shared Composer already contains a draft. Select again to replace it.',
+    'workflowContinuation.sourceMissing': 'The source Block is no longer on this Board.',
+    'workflowContinuation.title': 'Choose the next Workflow',
     'workflowRuntime.create': 'Create Workflow Run',
     'workflowRuntime.createFailed': 'Workflow Run could not be created',
     'workflowRuntime.created': 'Workflow Run created',
@@ -2372,6 +2432,36 @@ const translations: Record<Locale, Translations> = {
     'workflow.approvedGenerationPackageToVideo.name': '已批准生成包转视频',
     'workflow.approvedGenerationPackageToVideo.description': '基于已批准生成包生成、选择并审阅一个视频。',
     'workflowDraft.outputPending': '执行上游 Operation 后将在这里生成文档。',
+    'workflowContinuation.artifactNotFound': '项目权威数据中已找不到这个 Block 固定的 Artifact。',
+    'workflowContinuation.artifactOutdated': '这个 Block 指向旧的 Artifact 修订，请从当前结果继续。',
+    'workflowContinuation.artifactPinIncomplete': '这个结果没有完整固定 Artifact 修订。',
+    'workflowContinuation.blocked': '这个结果暂时不能继续',
+    'workflowContinuation.close': '关闭继续生产窗口',
+    'workflowContinuation.continue': '预填 Composer',
+    'workflowContinuation.description': '选择一个接受当前精确 Artifact 修订的已安装 Workflow。',
+    'workflowContinuation.eyebrow': '继续生产',
+    'workflowContinuation.gateNotRequired': '无需审批',
+    'workflowContinuation.gateOutdated': '审批已过期',
+    'workflowContinuation.gateOutdatedBody': '这个修订的审批已经过期，请先审阅当前结果。',
+    'workflowContinuation.gatePassed': '已批准',
+    'workflowContinuation.gateRejected': '已拒绝',
+    'workflowContinuation.gateRejectedBody': '这个修订已被拒绝，不能进入下一 Workflow。',
+    'workflowContinuation.gateWaiting': '等待审批',
+    'workflowContinuation.gateWaitingBody': '请先批准这个精确 Artifact 修订，再继续生产。',
+    'workflowContinuation.inputSlot': '目标输入',
+    'workflowContinuation.loadFailed': '无法读取项目 Artifact 权威数据。',
+    'workflowContinuation.loading': '正在检查当前修订和已安装 Workflow…',
+    'workflowContinuation.missingInputs': '仍需补充',
+    'workflowContinuation.noCandidates': '没有兼容的已安装 Workflow',
+    'workflowContinuation.noCandidatesBody': '当前 Artifact 有效，但还没有已安装 Workflow 接受它作为 typed revision 输入。',
+    'workflowContinuation.none': '无',
+    'workflowContinuation.open': '继续生产',
+    'workflowContinuation.package': 'Package',
+    'workflowContinuation.recommended': '推荐',
+    'workflowContinuation.replaceAndContinue': '替换草稿',
+    'workflowContinuation.replaceWarning': '共享 Composer 中已有临时草稿，请再次选择以确认替换。',
+    'workflowContinuation.sourceMissing': '源 Block 已不在当前画布。',
+    'workflowContinuation.title': '选择下一段 Workflow',
     'workflowRuntime.create': '创建 Workflow Run',
     'workflowRuntime.createFailed': '无法创建 Workflow Run',
     'workflowRuntime.created': 'Workflow Run 已创建',

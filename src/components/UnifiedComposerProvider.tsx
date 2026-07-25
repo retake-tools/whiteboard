@@ -48,6 +48,12 @@ export interface UnifiedComposerImageDraftInput {
   references: ImageComposerReference[];
 }
 
+export interface WorkflowContinuationComposerHandoff {
+  entrypointId: string;
+  inlineValuesBySlot: Record<string, string>;
+  mentions: PackageComposerMention[];
+}
+
 export interface UnifiedComposerDraftController {
   clearEntryPoint: () => void;
   composerMode: ComposerMode;
@@ -58,6 +64,7 @@ export interface UnifiedComposerDraftController {
   imageReferenceRoles: Record<string, ImageComposerReferenceRole>;
   inlineValuesBySlot: Record<string, string>;
   instruction: string;
+  isDirty: boolean;
   mentions: PackageComposerMention[];
   referenceSettings: Record<string, ComposerReferenceSetting>;
   reset: () => void;
@@ -74,6 +81,7 @@ export interface UnifiedComposerDraftController {
   setReferenceSettings: Dispatch<SetStateAction<Record<string, ComposerReferenceSetting>>>;
   setStoryboardOutputCount: Dispatch<SetStateAction<1 | 2 | 3 | 4>>;
   setStoryboardPanelCount: Dispatch<SetStateAction<StoryboardSheetPanelCount>>;
+  startWorkflowContinuation: (handoff: WorkflowContinuationComposerHandoff) => void;
   storyboardOutputCount: 1 | 2 | 3 | 4;
   storyboardPanelCount: StoryboardSheetPanelCount;
 }
@@ -148,6 +156,29 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     setImageReferenceRoles({});
   }, []);
 
+  const startWorkflowContinuation = useCallback((
+    handoff: WorkflowContinuationComposerHandoff,
+  ): void => {
+    setComposerModeState('agent');
+    setEntrypointId(handoff.entrypointId);
+    setInstruction('');
+    setInlineValuesBySlot(structuredClone(handoff.inlineValuesBySlot));
+    setStoryboardOutputCount(1);
+    setStoryboardPanelCount(6);
+    setGenerationParameters(defaultGenerationPreparationParameters);
+    setReferenceSettings({});
+    setMentions(structuredClone(handoff.mentions));
+    setImageReferenceRoles({});
+  }, []);
+
+  const isDirty = Boolean(
+    composerMode !== 'agent'
+    || entrypointId
+    || instruction.trim()
+    || mentions.length > 0
+    || Object.values(inlineValuesBySlot).some((value) => value.trim()),
+  );
+
   const value = useMemo<UnifiedComposerDraftController>(() => ({
     clearEntryPoint,
     composerMode,
@@ -158,6 +189,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     imageReferenceRoles,
     inlineValuesBySlot,
     instruction,
+    isDirty,
     mentions,
     referenceSettings,
     reset,
@@ -174,6 +206,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     setReferenceSettings,
     setStoryboardOutputCount,
     setStoryboardPanelCount,
+    startWorkflowContinuation,
     storyboardOutputCount,
     storyboardPanelCount,
   }), [
@@ -186,12 +219,14 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     imageReferenceRoles,
     inlineValuesBySlot,
     instruction,
+    isDirty,
     mentions,
     referenceSettings,
     reset,
     resetImageSubmission,
     selectEntryPoint,
     setComposerMode,
+    startWorkflowContinuation,
     storyboardOutputCount,
     storyboardPanelCount,
   ]);

@@ -1,5 +1,5 @@
 import { Handle, NodeResizer, Position, type NodeProps, type ResizeParams } from '@xyflow/react';
-import { Check, ChevronDown, Clock, FileText, ImageIcon, Info, Layers3, LockKeyhole, Play, Plus, RefreshCw, Video } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, Clock, FileText, ImageIcon, Info, Layers3, LockKeyhole, Play, Plus, RefreshCw, Video } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { isLocalCanvasCapability, schemaForCapability } from '../core/capabilities';
 import type { SwitchableOperationMode } from '../core/imageOperations';
@@ -39,6 +39,10 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
   const isStoryboardSheetOperation = blockType === 'operation' && data.capabilityId === storyboardSheetCapabilityId;
   const isGenerationPreparationOperation = blockType === 'operation'
     && data.capabilityId === generationPreparationCapabilityId;
+  const hasWorkflowContinuation = blockType !== 'operation'
+    && typeof data.artifactId === 'string'
+    && typeof data.artifactRevisionId === 'string'
+    && typeof data.artifactType === 'string';
   const [isHeadingHovered, setIsHeadingHovered] = useState(false);
 
   if (blockType === 'group') {
@@ -157,6 +161,25 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
             className="block-heading-info-button nodrag nopan"
             label={t('inspector.openDetails')}
           />
+        ) : null}
+        {hasWorkflowContinuation ? (
+          <button
+            type="button"
+            className="workflow-continuation-open nodrag nopan"
+            aria-label={t('workflowContinuation.open')}
+            title={t('workflowContinuation.open')}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              window.dispatchEvent(new CustomEvent(
+                'retake:open-workflow-continuation',
+                { detail: { blockId: id } },
+              ));
+            }}
+          >
+            <span>{t('workflowContinuation.open')}</span>
+            <ArrowRight size={13} />
+          </button>
         ) : null}
       </div>
       <BlockBody blockId={id} data={data as BlockData} title={title} type={blockType} />

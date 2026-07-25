@@ -11,6 +11,7 @@ import { ProjectBoardDialog } from './components/ProjectBoardDialog';
 import { getProjectBoardDialogView } from './components/projectBoardDialogView';
 import { TopBar } from './components/TopBar';
 import { UnifiedComposerProvider } from './components/UnifiedComposerProvider';
+import { WorkflowContinuationDialog } from './components/WorkflowContinuationDialog';
 import { getAssetPreviewUrl } from './core/assetStore';
 import { blockLockedByGroup, groupMediaItems } from './core/grouping';
 import { loadUiPreferences } from './core/uiPreferences';
@@ -536,6 +537,15 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
           onSelectRole={completeInputReferenceMention}
         />
       ) : null}
+      <WorkflowContinuationDialog
+        snapshot={snapshot}
+        onPrepareComposer={() => {
+          setInspectorBlockId(undefined);
+          setIsHistoryOpen(false);
+          setIsAgentWorkspaceOpen(false);
+          setIsArtifactLibraryOpen(false);
+        }}
+      />
       {projectBoardDialog && projectBoardDialogView ? (
         <ProjectBoardDialog
           cancelLabel={t('projectBoard.cancel')}
