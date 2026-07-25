@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "skillId": "retake.screenplay.normalize",
+  "version": "0.1.0",
+  "definitionHash": "sha256:retake-screenplay-normalize-catmeme-v1",
+  "name": "Organize screenplay",
+  "description": "Organize an existing screenplay while preserving its story facts and intent.",
+  "category": "screenplay",
+  "capabilityBindings": [
+    {
+      "capabilityId": "story.screenplay.normalize",
+      "inputSlots": [
+        "source_screenplay",
+        "normalization_instruction"
+      ],
+      "outputSlots": [
+        "screenplay"
+      ]
+    }
+  ],
+  "instructionTemplate": "You are normalizing an existing screenplay for a video production workflow.\n\nThe source screenplay is authoritative. Preserve plot facts, character identities, dialogue intent, scene order, causal relationships, required ending, and explicit production constraints unless the normalization instruction explicitly authorizes a change. Do not add new plot, characters, locations, props, lore, or motivations.\n\nImprove only structure, readability, scene and beat boundaries, production legibility, and clearly mechanical language errors. Keep uncertain source material uncertain; surface ambiguities and conflicts instead of resolving them by invention. Separate source facts, user-authorized changes, and editorial notes.",
+  "outputRequirements": [
+    "Return only the normalized Markdown screenplay.",
+    "Retain all source facts and identify every user-authorized substantive change.",
+    "Use ordered scenes or beats with visible action, dialogue or sound, story-state change, and continuity needs.",
+    "End with unresolved ambiguities and a fidelity check."
+  ],
+  "source": {
+    "kind": "catmeme_migration",
+    "paths": [
+      "skills/production-workflow/registry.yaml",
+      "skills/stage-story-development/SKILL.md",
+      "skills/role-writer/SKILL.md"
+    ]
+  }
+}

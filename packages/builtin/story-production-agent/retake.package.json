@@ -1,0 +1,55 @@
+{
+  "components": {
+    "agentPresets": [
+      {
+        "agentPresetId": "retake.agent.story-production-director",
+        "definitionHash": "sha256:retake-agent-story-production-director-generation-package-v1",
+        "definitionPath": "agents/agent-story-production-director/retake.agent.json",
+        "resourcePaths": [],
+        "version": "0.3.0"
+      }
+    ],
+    "skills": [],
+    "workflows": []
+  },
+  "dependencies": [],
+  "description": "A bounded AgentPreset for coordinating the built-in story-production target.",
+  "entrypoints": [
+    {
+      "schemaVersion": 1,
+      "entrypointId": "agent:retake.agent.story-production-director",
+      "kind": "agent_preset",
+      "name": "Story Production Director",
+      "description": "Advance the locked story-production target one ready step at a time and stop at missing facts or gates.",
+      "ref": {
+        "agentPresetId": "retake.agent.story-production-director"
+      },
+      "compatibleStageIds": [
+        "story_screenplay",
+        "production_design",
+        "storyboard_previsualization",
+        "media_generation"
+      ],
+      "requiredInputSlotIds": []
+    }
+  ],
+  "files": [
+    "LICENSE",
+    "README.md",
+    "agents/agent-story-production-director/retake.agent.json"
+  ],
+  "integrity": "sha256:auto",
+  "license": "MIT",
+  "name": "Retake Story Production Agent",
+  "optionalDependencies": [],
+  "packageId": "retake.package.story-production-agent",
+  "permissions": [],
+  "publisher": {
+    "name": "Retake Tools",
+    "publisherId": "retake.tools"
+  },
+  "retakeHostCompatibility": ">=0.1.2 <0.2.0",
+  "schemaVersion": 1,
+  "signature": null,
+  "version": "0.3.0"
+}

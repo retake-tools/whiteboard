@@ -1,0 +1,240 @@
+{
+  "schemaVersion": 1,
+  "workflowId": "retake.workflow.story-to-storyboard",
+  "version": "0.2.0",
+  "definitionHash": "sha256:retake-workflow-story-to-storyboard-stage-runtime-v2",
+  "name": "Story to storyboard plan",
+  "description": "Project a manual draft from creative brief through screenplay and production design to storyboard planning.",
+  "inputSlots": [
+    {
+      "slotId": "brief",
+      "artifactTypes": [
+        "creative_brief"
+      ],
+      "cardinality": "one",
+      "dataTypes": [
+        "text",
+        "document"
+      ],
+      "required": true
+    }
+  ],
+  "outputSlots": [
+    {
+      "slotId": "screenplay",
+      "source": {
+        "kind": "step_output",
+        "stepId": "screenplay_generate",
+        "outputSlotId": "screenplay"
+      },
+      "exposedAsIntermediate": true
+    },
+    {
+      "slotId": "character_bible",
+      "source": {
+        "kind": "step_output",
+        "stepId": "character_define",
+        "outputSlotId": "character_bible"
+      },
+      "exposedAsIntermediate": true
+    },
+    {
+      "slotId": "scene_bible",
+      "source": {
+        "kind": "step_output",
+        "stepId": "scene_define",
+        "outputSlotId": "scene_bible"
+      },
+      "exposedAsIntermediate": true
+    },
+    {
+      "slotId": "storyboard_plan",
+      "source": {
+        "kind": "step_output",
+        "stepId": "storyboard_plan",
+        "outputSlotId": "storyboard_plan"
+      },
+      "exposedAsIntermediate": false
+    }
+  ],
+  "stages": [
+    {
+      "stageId": "story_screenplay",
+      "stageTypeId": "retake.stage.story_screenplay",
+      "name": "Story & Screenplay",
+      "completionPolicy": "all_required_steps",
+      "outputWorkflowSlotIds": [
+        "screenplay"
+      ]
+    },
+    {
+      "stageId": "production_design",
+      "stageTypeId": "retake.stage.production_design",
+      "name": "Production Design",
+      "completionPolicy": "all_required_steps",
+      "outputWorkflowSlotIds": [
+        "character_bible",
+        "scene_bible"
+      ]
+    },
+    {
+      "stageId": "storyboard_previsualization",
+      "stageTypeId": "retake.stage.storyboard_previsualization",
+      "name": "Storyboard & Previsualization",
+      "completionPolicy": "all_required_steps",
+      "outputWorkflowSlotIds": [
+        "storyboard_plan"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "stepId": "screenplay_generate",
+      "type": "capability",
+      "stageId": "story_screenplay",
+      "capabilityLock": {
+        "capabilityId": "story.screenplay.generate",
+        "version": "0.1.0",
+        "definitionHash": "sha256:retake-story-screenplay-generate-v1"
+      },
+      "skillLock": {
+        "skillId": "retake.screenplay.from-brief",
+        "version": "0.1.0",
+        "definitionHash": "sha256:retake-screenplay-from-brief-catmeme-v1"
+      },
+      "inputBindings": [
+        {
+          "inputSlotId": "brief",
+          "source": {
+            "kind": "workflow_input",
+            "slotId": "brief"
+          }
+        }
+      ],
+      "outputSlots": [
+        "screenplay"
+      ],
+      "runPolicy": "manual",
+      "dependsOn": [],
+      "optional": false
+    },
+    {
+      "stepId": "character_define",
+      "type": "capability",
+      "stageId": "production_design",
+      "capabilityLock": {
+        "capabilityId": "design.character.define",
+        "version": "0.1.0",
+        "definitionHash": "sha256:retake-design-character-define-v1"
+      },
+      "skillLock": {
+        "skillId": "retake.character-bible.from-screenplay",
+        "version": "0.1.0",
+        "definitionHash": "sha256:retake-character-bible-from-screenplay-catmeme-v1"
+      },
+      "inputBindings": [
+        {
+          "inputSlotId": "screenplay",
+          "source": {
+            "kind": "step_output",
+            "stepId": "screenplay_generate",
+            "outputSlotId": "screenplay"
+          }
+        }
+      ],
+      "outputSlots": [
+        "character_bible"
+      ],
+      "runPolicy": "manual",
+      "dependsOn": [
+        "screenplay_generate"
+      ],
+      "optional": false
+    },
+    {
+      "stepId": "scene_define",
+      "type": "capability",
+      "stageId": "production_design",
+      "capabilityLock": {
+        "capabilityId": "design.scene.define",
+        "version": "0.1.0",
+        "definitionHash": "sha256:retake-design-scene-define-v1"
+      },
+      "skillLock": {
+        "skillId": "retake.scene-bible.from-screenplay",
+        "version": "0.1.0",
+        "definitionHash": "sha256:retake-scene-bible-from-screenplay-catmeme-v1"
+      },
+      "inputBindings": [
+        {
+          "inputSlotId": "screenplay",
+          "source": {
+            "kind": "step_output",
+            "stepId": "screenplay_generate",
+            "outputSlotId": "screenplay"
+          }
+        }
+      ],
+      "outputSlots": [
+        "scene_bible"
+      ],
+      "runPolicy": "manual",
+      "dependsOn": [
+        "screenplay_generate"
+      ],
+      "optional": false
+    },
+    {
+      "stepId": "storyboard_plan",
+      "type": "capability",
+      "stageId": "storyboard_previsualization",
+      "capabilityLock": {
+        "capabilityId": "previs.storyboard.plan",
+        "version": "0.1.0",
+        "definitionHash": "sha256:retake-previs-storyboard-plan-v1"
+      },
+      "skillLock": {
+        "skillId": "retake.storyboard-plan.from-production-design",
+        "version": "0.1.0",
+        "definitionHash": "sha256:retake-storyboard-plan-from-production-design-catmeme-v1"
+      },
+      "inputBindings": [
+        {
+          "inputSlotId": "screenplay",
+          "source": {
+            "kind": "step_output",
+            "stepId": "screenplay_generate",
+            "outputSlotId": "screenplay"
+          }
+        },
+        {
+          "inputSlotId": "character_bible",
+          "source": {
+            "kind": "step_output",
+            "stepId": "character_define",
+            "outputSlotId": "character_bible"
+          }
+        },
+        {
+          "inputSlotId": "scene_bible",
+          "source": {
+            "kind": "step_output",
+            "stepId": "scene_define",
+            "outputSlotId": "scene_bible"
+          }
+        }
+      ],
+      "outputSlots": [
+        "storyboard_plan"
+      ],
+      "runPolicy": "manual",
+      "dependsOn": [
+        "character_define",
+        "scene_define"
+      ],
+      "optional": false
+    }
+  ],
+  "gates": [],
+  "defaultRunMode": "manual"
+}
