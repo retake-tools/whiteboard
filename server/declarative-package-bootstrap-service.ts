@@ -15,7 +15,7 @@ import {
 import { packageVersionSatisfies, parsePackageVersion } from './package-semver';
 import type {
   ResolvedWorkspacePackage,
-  WorkspacePackageLockV1,
+  WorkspacePackageLockV2,
 } from './workspace-package-lock';
 
 export const defaultBootstrapProfileId = 'retake.default-video-production';
@@ -223,7 +223,7 @@ async function validateBootstrapArchive(
 }
 
 function projectInstalledRuntimeRegistry(
-  lockfile: WorkspacePackageLockV1,
+  lockfile: WorkspacePackageLockV2,
   registry: InstalledDeclarativePackageRegistry,
 ): InstalledRuntimeRegistrySnapshotV1 {
   const resolvedByPackageId = new Map(

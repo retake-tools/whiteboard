@@ -24,6 +24,7 @@ export function resolvePackageClosure(
   roots: WorkspacePackageRoot[],
   candidates: Map<string, PackageCandidate[]>,
   hostVersion: string,
+  pinnedCandidates: PackageCandidate[] = [],
 ): PackageDependencyResolution {
   const selected = new Map<string, PackageCandidate>();
   const constraints = new Map<string, string[]>();
@@ -38,6 +39,16 @@ export function resolvePackageClosure(
     }
     selected.set(root.packageId, candidate);
     constraints.set(root.packageId, [root.requestedRange]);
+  }
+  for (const candidate of pinnedCandidates) {
+    const packageId = candidate.installation.packageId;
+    const existing = selected.get(packageId);
+    if (
+      existing
+      && existing.installation.installationId !== candidate.installation.installationId
+    ) throw new Error(`Pinned Package conflicts with another selection: ${packageId}`);
+    selected.set(packageId, candidate);
+    constraints.set(packageId, [candidate.installation.version]);
   }
   const result = resolveRecursively({
     candidates,

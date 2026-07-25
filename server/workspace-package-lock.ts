@@ -4,13 +4,27 @@ import {
   parsePackageVersion,
 } from './package-semver';
 
-export const workspacePackageLockSchemaVersion = 1;
+export const workspacePackageLockSchemaVersion = 2;
 export const workspacePackageLockFile = 'retake.packages.lock.json';
+const namespacedIdPattern = /^[a-z0-9]+(?:[._-][a-z0-9]+)+$/;
 
 export interface LocalPackageSource {
   kind: 'local_archive' | 'local_directory';
   path: string;
 }
+
+export interface RemoteRegistryPackageSource {
+  catalogVersion: number;
+  kind: 'remote_registry';
+  publisherId: string;
+  registryId: string;
+  rootVersion: number;
+  targetDigest: string;
+}
+
+export type PackageInstallationSource =
+  | LocalPackageSource
+  | RemoteRegistryPackageSource;
 
 export interface PackageInstallationRecord {
   archiveDigest: string;
@@ -19,7 +33,7 @@ export interface PackageInstallationRecord {
   installedAt: string;
   lastActivatedAt: string;
   packageId: string;
-  source: LocalPackageSource;
+  source: PackageInstallationSource;
   version: string;
 }
 
@@ -45,29 +59,29 @@ export interface ResolvedWorkspacePackage {
   version: string;
 }
 
-export interface WorkspacePackageLockV1 {
+export interface WorkspacePackageLockV2 {
   hostVersion: string;
   installations: PackageInstallationRecord[];
   resolvedPackages: ResolvedWorkspacePackage[];
   revision: number;
   roots: WorkspacePackageRoot[];
-  schemaVersion: 1;
+  schemaVersion: 2;
   updatedAt: string;
 }
 
-export function emptyWorkspacePackageLock(hostVersion: string): WorkspacePackageLockV1 {
+export function emptyWorkspacePackageLock(hostVersion: string): WorkspacePackageLockV2 {
   return {
     hostVersion,
     installations: [],
     resolvedPackages: [],
     revision: 0,
     roots: [],
-    schemaVersion: 1,
+    schemaVersion: 2,
     updatedAt: new Date(0).toISOString(),
   };
 }
 
-export function parseWorkspacePackageLock(value: unknown): WorkspacePackageLockV1 {
+export function parseWorkspacePackageLock(value: unknown): WorkspacePackageLockV2 {
   if (!isRecord(value)) throw new Error('Workspace Package lockfile must be an object.');
   assertExactKeys(value, [
     'hostVersion',
@@ -78,7 +92,7 @@ export function parseWorkspacePackageLock(value: unknown): WorkspacePackageLockV
     'schemaVersion',
     'updatedAt',
   ], 'Workspace Package lockfile');
-  if (value.schemaVersion !== workspacePackageLockSchemaVersion) {
+  if (value.schemaVersion !== 1 && value.schemaVersion !== workspacePackageLockSchemaVersion) {
     throw new Error('Unsupported Workspace Package lockfile schemaVersion.');
   }
   if (!Number.isInteger(value.revision) || (value.revision as number) < 0) {
@@ -90,7 +104,10 @@ export function parseWorkspacePackageLock(value: unknown): WorkspacePackageLockV
   if (!Array.isArray(value.installations) || !Array.isArray(value.roots) || !Array.isArray(value.resolvedPackages)) {
     throw new Error('Workspace Package lockfile collections are invalid.');
   }
-  const installations = value.installations.map(parseInstallation);
+  const sourceSchemaVersion = value.schemaVersion as 1 | 2;
+  const installations = value.installations.map((entry) => (
+    parseInstallation(entry, sourceSchemaVersion)
+  ));
   const roots = value.roots.map(parseRoot);
   const resolvedPackages = value.resolvedPackages.map(parseResolvedPackage);
   assertUnique(installations.map((entry) => entry.installationId), 'Installation ID');
@@ -155,12 +172,15 @@ export function parseWorkspacePackageLock(value: unknown): WorkspacePackageLockV
     resolvedPackages,
     revision: value.revision as number,
     roots,
-    schemaVersion: 1,
+    schemaVersion: 2,
     updatedAt: value.updatedAt,
   };
 }
 
-function parseInstallation(value: unknown): PackageInstallationRecord {
+function parseInstallation(
+  value: unknown,
+  sourceSchemaVersion: 1 | 2,
+): PackageInstallationRecord {
   if (!isRecord(value)) throw new Error('Package Installation must be an object.');
   assertExactKeys(value, [
     'archiveDigest',
@@ -172,11 +192,7 @@ function parseInstallation(value: unknown): PackageInstallationRecord {
     'source',
     'version',
   ], 'Package Installation');
-  if (!isRecord(value.source)) throw new Error('Package Installation source is invalid.');
-  assertExactKeys(value.source, ['kind', 'path'], 'Package Installation source');
-  if (value.source.kind !== 'local_archive' && value.source.kind !== 'local_directory') {
-    throw new Error('Package Installation source kind is invalid.');
-  }
+  const source = parsePackageSource(value.source, sourceSchemaVersion);
   const strings = [
     'archiveDigest',
     'digest',
@@ -191,13 +207,56 @@ function parseInstallation(value: unknown): PackageInstallationRecord {
       throw new Error(`Package Installation ${key} is invalid.`);
     }
   }
-  if (typeof value.source.path !== 'string' || !path.isAbsolute(value.source.path)) {
-    throw new Error('Package Installation source path must be absolute.');
-  }
   assertDigest(value.digest, 'Package Installation digest');
   assertDigest(value.archiveDigest, 'Package Installation archiveDigest');
+  if (source.kind === 'remote_registry' && source.targetDigest !== value.archiveDigest) {
+    throw new Error('Remote Registry source targetDigest does not match Installation archiveDigest.');
+  }
   parsePackageVersion(value.version as string);
-  return value as unknown as PackageInstallationRecord;
+  return {
+    ...value,
+    source,
+  } as unknown as PackageInstallationRecord;
+}
+
+function parsePackageSource(
+  value: unknown,
+  sourceSchemaVersion: 1 | 2,
+): PackageInstallationSource {
+  if (!isRecord(value)) throw new Error('Package Installation source is invalid.');
+  if (value.kind === 'local_archive' || value.kind === 'local_directory') {
+    assertExactKeys(value, ['kind', 'path'], 'Package Installation source');
+    if (typeof value.path !== 'string' || !path.isAbsolute(value.path)) {
+      throw new Error('Package Installation source path must be absolute.');
+    }
+    return value as unknown as LocalPackageSource;
+  }
+  if (value.kind !== 'remote_registry' || sourceSchemaVersion !== 2) {
+    throw new Error('Package Installation source kind is invalid.');
+  }
+  assertExactKeys(value, [
+    'catalogVersion',
+    'kind',
+    'publisherId',
+    'registryId',
+    'rootVersion',
+    'targetDigest',
+  ], 'Package Installation source');
+  for (const key of ['publisherId', 'registryId'] as const) {
+    if (
+      typeof value[key] !== 'string'
+      || !namespacedIdPattern.test(value[key] as string)
+    ) {
+      throw new Error(`Remote Registry source ${key} is invalid.`);
+    }
+  }
+  for (const key of ['catalogVersion', 'rootVersion'] as const) {
+    if (!Number.isInteger(value[key]) || (value[key] as number) < 1) {
+      throw new Error(`Remote Registry source ${key} is invalid.`);
+    }
+  }
+  assertDigest(value.targetDigest, 'Remote Registry source targetDigest');
+  return value as unknown as RemoteRegistryPackageSource;
 }
 
 function parseRoot(value: unknown): WorkspacePackageRoot {

@@ -38,26 +38,34 @@ import {
   workspacePackageLockFile,
   workspacePackageLockSchemaVersion,
   type PackageInstallationRecord,
+  type RemoteRegistryPackageSource,
   type ResolvedPackageDependency,
   type ResolvedWorkspacePackage,
-  type WorkspacePackageLockV1,
+  type WorkspacePackageLockV2,
   type WorkspacePackageRoot,
 } from './workspace-package-lock';
 export {
   workspacePackageLockFile,
   workspacePackageLockSchemaVersion,
   type LocalPackageSource,
+  type PackageInstallationSource,
   type PackageInstallationRecord,
+  type RemoteRegistryPackageSource,
   type ResolvedPackageDependency,
   type ResolvedWorkspacePackage,
-  type WorkspacePackageLockV1,
+  type WorkspacePackageLockV2,
   type WorkspacePackageRoot,
 } from './workspace-package-lock';
 
 export interface LocalPackageInstallResult {
   changed: boolean;
-  lockfile: WorkspacePackageLockV1;
+  lockfile: WorkspacePackageLockV2;
   root: ResolvedWorkspacePackage;
+}
+
+export interface VerifiedRemotePackageArchive {
+  source: RemoteRegistryPackageSource;
+  sourcePath: string;
 }
 
 export interface InstalledDefinition<T> {
@@ -100,12 +108,45 @@ export class LocalPackageManagerService {
     sourcePath: string,
     dependencySourcePaths: string[] = [],
   ): Promise<LocalPackageInstallResult> {
+    return this.installSources([
+      { sourcePath },
+      ...dependencySourcePaths.map((dependencySourcePath) => ({
+        sourcePath: dependencySourcePath,
+      })),
+    ]);
+  }
+
+  async installVerifiedRemote(
+    root: VerifiedRemotePackageArchive,
+    dependencies: VerifiedRemotePackageArchive[] = [],
+    action: 'install' | 'update',
+  ): Promise<LocalPackageInstallResult> {
+    return this.installSources([root, ...dependencies], {
+      pinSuppliedDependencies: true,
+      remoteAction: action,
+    });
+  }
+
+  private async installSources(
+    sources: Array<{
+      source?: RemoteRegistryPackageSource;
+      sourcePath: string;
+    }>,
+    options: {
+      pinSuppliedDependencies?: boolean;
+      remoteAction?: 'install' | 'update';
+    } = {},
+  ): Promise<LocalPackageInstallResult> {
+    if (sources.length === 0) throw new Error('Package install requires a root source.');
     return this.withMutationLock(async () => {
       const current = await this.readLockfile();
       const supplied = await Promise.all(
-        [sourcePath, ...dependencySourcePaths].map((source) => this.candidateFromSource(source, current)),
+        sources.map((source) => this.candidateFromSource(source, current)),
       );
       const root = supplied[0]!;
+      if (options.remoteAction) {
+        assertRemoteInstallAction(current, root, options.remoteAction);
+      }
       assertUniqueSuppliedSources(supplied);
       const candidates = await this.loadCandidatePool(current, supplied);
       const proposedRoots = current.roots.filter(
@@ -116,7 +157,12 @@ export class LocalPackageManagerService {
         packageId: root.installation.packageId,
         requestedRange: root.installation.version,
       });
-      const resolution = resolvePackageClosure(proposedRoots, candidates, this.hostVersion);
+      const resolution = resolvePackageClosure(
+        proposedRoots,
+        candidates,
+        this.hostVersion,
+        options.pinSuppliedDependencies ? supplied.slice(1) : [],
+      );
       const selectedInstallations = [...resolution.selected.values()].map(
         (candidate) => candidate.installation,
       );
@@ -183,7 +229,7 @@ export class LocalPackageManagerService {
     });
   }
 
-  async remove(packageId: string): Promise<WorkspacePackageLockV1> {
+  async remove(packageId: string): Promise<WorkspacePackageLockV2> {
     return this.withMutationLock(async () => {
       const current = await this.readLockfile();
       if (!current.roots.some((root) => root.packageId === packageId)) {
@@ -207,7 +253,7 @@ export class LocalPackageManagerService {
     });
   }
 
-  async list(): Promise<WorkspacePackageLockV1> {
+  async list(): Promise<WorkspacePackageLockV2> {
     return structuredClone(await this.readLockfile());
   }
 
@@ -279,7 +325,7 @@ export class LocalPackageManagerService {
   }
 
   private async activateInstallation(
-    current: WorkspacePackageLockV1,
+    current: WorkspacePackageLockV2,
     target: PackageInstallationRecord,
   ): Promise<LocalPackageInstallResult> {
     if (!current.roots.some((root) => root.packageId === target.packageId)) {
@@ -314,10 +360,18 @@ export class LocalPackageManagerService {
   }
 
   private async candidateFromSource(
-    sourcePath: string,
-    current: WorkspacePackageLockV1,
+    input: {
+      source?: RemoteRegistryPackageSource;
+      sourcePath: string;
+    },
+    current: WorkspacePackageLockV2,
   ): Promise<PackageCandidate> {
-    const materialized = await materializeDeclarativePackage(sourcePath);
+    const materialized = await materializeDeclarativePackage(input.sourcePath);
+    if (input.source && input.source.targetDigest !== materialized.archiveDigest) {
+      throw new Error(
+        `Verified remote Package target digest does not match its archive: ${materialized.manifest.packageId}`,
+      );
+    }
     const existing = current.installations.find((installation) => (
       installation.packageId === materialized.manifest.packageId
       && installation.version === materialized.manifest.version
@@ -332,12 +386,14 @@ export class LocalPackageManagerService {
         installedAt: now,
         lastActivatedAt: now,
         packageId: materialized.manifest.packageId,
-        source: {
-          kind: materialized.inspection.sourceKind === 'archive'
-            ? 'local_archive'
-            : 'local_directory',
-          path: path.resolve(sourcePath),
-        },
+        source: input.source
+          ? structuredClone(input.source)
+          : {
+              kind: materialized.inspection.sourceKind === 'archive'
+                ? 'local_archive'
+                : 'local_directory',
+              path: path.resolve(input.sourcePath),
+            },
         version: materialized.manifest.version,
       },
       materialized,
@@ -361,7 +417,7 @@ export class LocalPackageManagerService {
   }
 
   private async loadCandidatePool(
-    current: WorkspacePackageLockV1,
+    current: WorkspacePackageLockV2,
     supplied: PackageCandidate[],
   ): Promise<Map<string, PackageCandidate[]>> {
     const installed = await Promise.all(
@@ -414,7 +470,7 @@ export class LocalPackageManagerService {
     return path.join(this.packagesRoot, 'cache', 'sha256', `${match[1]}.retakepkg`);
   }
 
-  private async readLockfile(): Promise<WorkspacePackageLockV1> {
+  private async readLockfile(): Promise<WorkspacePackageLockV2> {
     const lockPath = path.join(this.packagesRoot, workspacePackageLockFile);
     let value: unknown;
     try {
@@ -426,7 +482,7 @@ export class LocalPackageManagerService {
     return parseWorkspacePackageLock(value);
   }
 
-  private async writeLockfile(lockfile: WorkspacePackageLockV1): Promise<void> {
+  private async writeLockfile(lockfile: WorkspacePackageLockV2): Promise<void> {
     await mkdir(this.packagesRoot, { recursive: true });
     const outputPath = path.join(this.packagesRoot, workspacePackageLockFile);
     const temporaryPath = `${outputPath}.tmp-${process.pid}-${randomBytes(6).toString('hex')}`;
@@ -467,12 +523,12 @@ export class LocalPackageManagerService {
 }
 
 function buildNextLockfile(input: {
-  current: WorkspacePackageLockV1;
+  current: WorkspacePackageLockV2;
   hostVersion: string;
   resolution: PackageDependencyResolution;
   roots: WorkspacePackageRoot[];
   selectedInstallations: PackageInstallationRecord[];
-}): WorkspacePackageLockV1 {
+}): WorkspacePackageLockV2 {
   const now = new Date().toISOString();
   const installationMap = new Map(
     input.current.installations.map((installation) => [
@@ -541,7 +597,7 @@ function assertResolvedCandidate(
 }
 
 function findInstallation(
-  lockfile: WorkspacePackageLockV1,
+  lockfile: WorkspacePackageLockV2,
   input: { digest?: string; packageId: string; version?: string },
 ): PackageInstallationRecord {
   const matches = lockfile.installations.filter((installation) => (
@@ -559,7 +615,7 @@ function findInstallation(
 }
 
 function requiredInstallation(
-  lockfile: WorkspacePackageLockV1,
+  lockfile: WorkspacePackageLockV2,
   installationId: string,
 ): PackageInstallationRecord {
   const installation = lockfile.installations.find(
@@ -570,7 +626,7 @@ function requiredInstallation(
 }
 
 function requiredResolvedPackage(
-  lockfile: WorkspacePackageLockV1,
+  lockfile: WorkspacePackageLockV2,
   packageId: string,
 ): ResolvedWorkspacePackage {
   const resolved = lockfile.resolvedPackages.find((candidate) => candidate.packageId === packageId);
@@ -590,9 +646,30 @@ function assertUniqueSuppliedSources(candidates: PackageCandidate[]): void {
   }
 }
 
+function assertRemoteInstallAction(
+  current: WorkspacePackageLockV2,
+  root: PackageCandidate,
+  action: 'install' | 'update',
+): void {
+  const packageId = root.installation.packageId;
+  const active = current.resolvedPackages.find((entry) => entry.packageId === packageId);
+  if (action === 'install') {
+    if (active) {
+      throw new Error(`Package is already active; use an explicit update or rollback: ${packageId}`);
+    }
+    return;
+  }
+  if (!active) throw new Error(`Package update requires an active Installation: ${packageId}`);
+  if (comparePackageVersions(root.installation.version, active.version) <= 0) {
+    throw new Error(
+      `Package update must select a newer version; use rollback for older versions: ${packageId}`,
+    );
+  }
+}
+
 function sameActiveState(
-  left: WorkspacePackageLockV1,
-  right: WorkspacePackageLockV1,
+  left: WorkspacePackageLockV2,
+  right: WorkspacePackageLockV2,
 ): boolean {
   return JSON.stringify({
     hostVersion: left.hostVersion,

@@ -35,11 +35,15 @@ export async function fetchTrustedRegistryCatalog(input: {
   now?: Date;
   previousState?: TrustedRegistryStateV1;
   root: unknown;
+  signal?: AbortSignal;
   timeoutMs?: number;
 }): Promise<VerifiedTrustedRegistryCatalog> {
   const root = parseAndValidateRoot(input.root, input.now);
   const catalogUrl = new URL(trustedRegistryCatalogPath, validateRegistryRootBaseUrl(root.baseUrl));
   const controller = new AbortController();
+  const forwardAbort = () => controller.abort(input.signal?.reason);
+  input.signal?.addEventListener('abort', forwardAbort, { once: true });
+  if (input.signal?.aborted) forwardAbort();
   const timeout = setTimeout(
     () => controller.abort(),
     input.timeoutMs ?? defaultCatalogTimeoutMs,
@@ -56,7 +60,13 @@ export async function fetchTrustedRegistryCatalog(input: {
         signal: controller.signal,
       });
     } catch (error) {
-      if (controller.signal.aborted) throw new Error('Trusted Registry catalog request timed out.');
+      if (controller.signal.aborted) {
+        throw new Error(
+          input.signal?.aborted
+            ? 'Trusted Registry catalog request was cancelled.'
+            : 'Trusted Registry catalog request timed out.',
+        );
+      }
       throw new Error(`Trusted Registry catalog request failed: ${errorMessage(error)}`);
     }
     if (!response.ok) {
@@ -79,7 +89,13 @@ export async function fetchTrustedRegistryCatalog(input: {
     try {
       bytes = await readLimitedResponseBytes(response, trustedRegistryMaxCatalogBytes);
     } catch (error) {
-      if (controller.signal.aborted) throw new Error('Trusted Registry catalog request timed out.');
+      if (controller.signal.aborted) {
+        throw new Error(
+          input.signal?.aborted
+            ? 'Trusted Registry catalog request was cancelled.'
+            : 'Trusted Registry catalog request timed out.',
+        );
+      }
       throw error;
     }
     let envelope: unknown;
@@ -96,6 +112,7 @@ export async function fetchTrustedRegistryCatalog(input: {
     });
   } finally {
     clearTimeout(timeout);
+    input.signal?.removeEventListener('abort', forwardAbort);
   }
 }
 

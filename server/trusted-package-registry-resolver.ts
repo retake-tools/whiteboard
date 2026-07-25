@@ -19,6 +19,7 @@ export interface TrustedRemotePackageCandidate {
   archiveSizeBytes: number;
   catalogVersion: number;
   dependencies: RegistryReleaseV1['dependencies'];
+  description: string;
   digest: string;
   name: string;
   optionalDependencies: RegistryReleaseV1['optionalDependencies'];
@@ -206,6 +207,7 @@ function resolutionForRelease(
       archiveSizeBytes: release.archiveSizeBytes,
       catalogVersion: verifiedCatalog.catalog.catalogVersion,
       dependencies: structuredClone(release.dependencies),
+      description: registryPackage.description,
       digest: release.digest,
       name: registryPackage.name,
       optionalDependencies: structuredClone(release.optionalDependencies),
