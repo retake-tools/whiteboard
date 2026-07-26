@@ -8,7 +8,10 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { retakeWebPluginV1Toolchain } from '@retake-tools/package-sdk';
+import {
+  activatePluginWebModule,
+  retakeWebPluginV1Toolchain,
+} from '@retake-tools/package-sdk';
 import { LocalPackageManagerService } from './local-package-manager-service';
 import { PluginRuntimeService } from './plugin-runtime-service';
 import { pluginRuntimeStateFile } from './plugin-runtime-state-store';
@@ -71,6 +74,51 @@ try {
     'retake.plugin.whiteboard-runtime-fixture',
   );
   assert.equal(enabled.status, 'enabled');
+  const moduleFile = await service.readEnabledModuleFile({
+    packageDigest: enabled.packageLock.digest,
+    path: enabled.manifest.runtime.entrypoint,
+    pluginModuleId: enabled.pluginModuleId,
+  });
+  assert.equal(moduleFile.mediaType, 'text/javascript; charset=utf-8');
+  const moduleNamespace = await import(
+    `data:text/javascript;base64,${moduleFile.bytes.toString('base64')}`
+  );
+  const activated = await activatePluginWebModule({
+    host: {
+      getReadSnapshot: () => ({
+        boardId: 'board.fixture',
+        boundAssetIds: [],
+        boundBlockIds: ['block.fixture'],
+        boundGroupIds: [],
+        projectId: 'project.fixture',
+        revision: 'revision.fixture',
+        selectedBlockIds: ['block.fixture'],
+      }),
+      subscribeReadSnapshot: () => () => {},
+      version: enabled.negotiatedHostApiVersion!,
+    },
+    manifest: enabled.manifest,
+    module: moduleNamespace,
+    packageDigest: enabled.packageLock.digest,
+  });
+  assert.equal(activated.contributions.length, 1);
+  await activated.dispose();
+  await assert.rejects(
+    service.readEnabledModuleFile({
+      packageDigest: `sha256:${'f'.repeat(64)}`,
+      path: enabled.manifest.runtime.entrypoint,
+      pluginModuleId: enabled.pluginModuleId,
+    }),
+    /digest is stale/,
+  );
+  await assert.rejects(
+    service.readEnabledModuleFile({
+      packageDigest: enabled.packageLock.digest,
+      path: '../retake.plugin.json',
+      pluginModuleId: enabled.pluginModuleId,
+    }),
+    /outside dist/,
+  );
   await service.assertPermission(
     'retake.plugin.whiteboard-runtime-fixture',
     'retake.asset.read.bound',
@@ -166,9 +214,11 @@ try {
 
   process.stdout.write(`${JSON.stringify({
     codeTrustSeparatedFromGrant: true,
+    exactModuleFileAuthority: true,
     explicitGrantTrustAndEnable: true,
     fatalFailureExplicit: true,
     installDoesNotEnable: true,
+    nativeModuleActivation: true,
     permissionUpgradeRevokesGrant: true,
     persistedRuntimeState: pluginRuntimeStateFile,
     safeModePreservesDesiredState: true,
@@ -253,7 +303,14 @@ async function writePluginSource(
   });
   await writeFile(
     path.join(sourceRoot, 'src', 'index.ts'),
-    'export const fixtureContribution = { kind: "capability" };\n',
+    [
+      'export const fixtureContribution = { kind: "capability" };',
+      'export function activate(context: { host: { getReadSnapshot(): { revision: string } } }) {',
+      '  context.host.getReadSnapshot();',
+      '  return { dispose() {} };',
+      '}',
+      '',
+    ].join('\n'),
   );
 }
 

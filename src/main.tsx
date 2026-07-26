@@ -20,11 +20,33 @@ import './nodes/operation-inline-controls.css';
 import { App } from './App';
 import { I18nProvider } from './i18n';
 import { bootstrapInstalledRuntimeRegistry } from './core/installedRuntimeRegistryClient';
+import {
+  createPluginHostReadStore,
+  reconcilePluginWebModules,
+} from './core/pluginWebModuleLoader';
 
 const root = createRoot(document.getElementById('root')!);
+const pluginHostReadStore = createPluginHostReadStore({
+  boardId: null,
+  boundAssetIds: [],
+  boundBlockIds: [],
+  boundGroupIds: [],
+  projectId: null,
+  revision: 'unbound',
+  selectedBlockIds: [],
+});
 
 void bootstrapInstalledRuntimeRegistry()
-  .then(() => {
+  .then(async ({ pluginRuntime }) => {
+    const pluginModules = await reconcilePluginWebModules({
+      createHost: (record) => pluginHostReadStore.host(
+        record.negotiatedHostApiVersion!,
+      ),
+      snapshot: pluginRuntime,
+    });
+    if (pluginModules.failures.length > 0) {
+      console.error('Retake Plugin activation failed.', pluginModules.failures);
+    }
     root.render(
       <StrictMode>
         <I18nProvider>

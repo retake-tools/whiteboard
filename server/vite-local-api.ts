@@ -68,6 +68,7 @@ import {
   ensureDefaultDeclarativePackageBootstrap,
   invalidateDefaultDeclarativePackageBootstrap,
 } from './declarative-package-bootstrap-service';
+import { PluginRuntimeService } from './plugin-runtime-service';
 
 type MiddlewareContainer = {
   use(
@@ -113,6 +114,34 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
           }
 
           await ensurePackageBootstrap();
+
+          if (
+            method === 'GET'
+            && url.pathname.startsWith('/plugin-runtime/modules/')
+          ) {
+            const parts = url.pathname
+              .slice('/plugin-runtime/modules/'.length)
+              .split('/');
+            if (parts.length < 3) {
+              sendJson(res, { error: 'Plugin module path is invalid.' }, 400);
+              return;
+            }
+            const [encodedModuleId, encodedDigest, ...fileParts] = parts;
+            const file = await new PluginRuntimeService({
+              hostVersion: packageMetadata.version,
+              workspaceRoot: retakeRoot,
+            }).readEnabledModuleFile({
+              packageDigest: decodeURIComponent(encodedDigest!),
+              path: fileParts.map(decodeURIComponent).join('/'),
+              pluginModuleId: decodeURIComponent(encodedModuleId!),
+            });
+            res.statusCode = 200;
+            res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+            res.setHeader('Content-Type', file.mediaType);
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            res.end(file.bytes);
+            return;
+          }
 
           if (method === 'GET' && url.pathname === '/artifacts') {
             const projectId = url.searchParams.get('projectId');
