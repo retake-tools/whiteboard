@@ -156,6 +156,15 @@ try {
     packDeclarativePackage(starterRoot, path.join(starterRoot, 'nested.retakepkg')),
     /outside the source directory/,
   );
+  const linkedSourceRoot = path.join(temporaryRoot, 'linked-starter-source');
+  await symlink(starterRoot, linkedSourceRoot);
+  await assert.rejects(
+    packDeclarativePackage(
+      linkedSourceRoot,
+      path.join(linkedSourceRoot, 'nested-through-link.retakepkg'),
+    ),
+    /outside the source directory/,
+  );
   await assert.rejects(
     packDeclarativePackage(starterRoot, archiveA),
     /EEXIST/,

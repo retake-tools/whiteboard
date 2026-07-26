@@ -97,7 +97,8 @@ export async function packDeclarativePackage(
     throw new Error(`Package archive output must end with ${declarativePackageArchiveExtension}.`);
   }
   const sourceRealPath = await realpath(source);
-  if (isInsideDirectory(sourceRealPath, output)) {
+  const outputRealPath = await canonicalizePotentialPath(output);
+  if (isInsideDirectory(sourceRealPath, outputRealPath)) {
     throw new Error('Package archive output must be outside the source directory.');
   }
   const loaded = await loadDirectoryPackage(sourceRealPath);
@@ -429,6 +430,27 @@ function describeFileBoundaryMismatch(actual: string[], expected: string[]): str
 function isInsideDirectory(directory: string, candidate: string): boolean {
   const relative = path.relative(directory, candidate);
   return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+async function canonicalizePotentialPath(candidate: string): Promise<string> {
+  const missingSegments: string[] = [];
+  let existingPath = candidate;
+  while (true) {
+    try {
+      const canonical = await realpath(existingPath);
+      return path.join(canonical, ...missingSegments);
+    } catch (error) {
+      if (!isNotFoundError(error)) throw error;
+      const parent = path.dirname(existingPath);
+      if (parent === existingPath) throw error;
+      missingSegments.unshift(path.basename(existingPath));
+      existingPath = parent;
+    }
+  }
+}
+
+function isNotFoundError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
 }
 
 function comparePath(left: string, right: string): number {
