@@ -6,6 +6,7 @@ import type {
 } from '@retake-tools/package-sdk';
 import {
   createPluginHostReadStore,
+  disposePluginWebModule,
   reconcilePluginWebModules,
 } from '../src/core/pluginWebModuleLoader';
 
@@ -19,6 +20,9 @@ const readStore = createPluginHostReadStore({
   selectedBlockIds: ['block.fixture'],
 });
 const host = readStore.host(1);
+assert.equal(host.getReadSnapshot(), host.getReadSnapshot());
+assert.equal(Object.isFrozen(host.getReadSnapshot()), true);
+assert.equal(Object.isFrozen(host.getReadSnapshot().selectedBlockIds), true);
 let readNotifications = 0;
 const unsubscribe = host.subscribeReadSnapshot(() => {
   readNotifications += 1;
@@ -117,6 +121,14 @@ await reconcilePluginWebModules({
   snapshot,
 });
 assert.equal(activationCalls, 1);
+await disposePluginWebModule(record.pluginModuleId);
+assert.equal(disposalCalls, 1);
+await reconcilePluginWebModules({
+  activate,
+  createHost: () => host,
+  snapshot,
+});
+assert.equal(activationCalls, 2);
 await reconcilePluginWebModules({
   activate,
   createHost: () => host,
@@ -125,11 +137,45 @@ await reconcilePluginWebModules({
     safeMode: true,
   },
 });
-assert.equal(disposalCalls, 1);
+assert.equal(disposalCalls, 2);
+
+let fatalFailure:
+  | { message: string; pluginModuleId: string }
+  | undefined;
+await reconcilePluginWebModules({
+  activate: async () => {
+    throw new Error('fixture activation failure');
+  },
+  createHost: () => host,
+  onFatalFailure: (pluginModuleId, message) => {
+    fatalFailure = { message, pluginModuleId };
+  },
+  snapshot: {
+    ...snapshot,
+    modules: [{
+      ...record,
+      packageLock: {
+        ...record.packageLock,
+        digest: `sha256:${'2'.repeat(64)}`,
+      },
+      trust: {
+        ...record.trust,
+        packageDigest: `sha256:${'2'.repeat(64)}`,
+      },
+    }],
+  },
+});
+assert.deepEqual(fatalFailure, {
+  message: 'fixture activation failure',
+  pluginModuleId: record.pluginModuleId,
+});
 
 process.stdout.write(`${JSON.stringify({
+  activationFailureReportsFatalState: true,
   conditionalRuntimeChunk: true,
   exactDigestModuleCache: true,
+  fatalDisposalDetachesActivation: true,
   safeModeDisposesActivation: true,
+  scopedReadSnapshotStableAndImmutable: true,
   scopedSubscriptionDeduplicatesSnapshots: true,
 })}\n`);

@@ -36,6 +36,11 @@ import { useAgentWorkspaceController } from './app/useAgentWorkspaceController';
 import { useArtifactLibraryController } from './app/useArtifactLibraryController';
 import { useDomainVideoLaunchReviewController } from './app/useDomainVideoLaunchReviewController';
 import { WhiteboardCanvas } from './app/WhiteboardCanvas';
+import type { PluginHostReadSnapshotV1 } from '@retake-tools/package-sdk';
+import { PluginPanelHost } from './components/PluginPanelHost';
+import type {
+  PluginContributionRegistryV1,
+} from './core/pluginContributionRegistry';
 
 const DocumentReviewWorkspace = lazy(() => import('./components/DocumentReviewWorkspace').then((module) => ({
   default: module.DocumentReviewWorkspace,
@@ -47,7 +52,18 @@ const DomainVideoLaunchReviewDialog = lazy(() => import('./components/DomainVide
   default: module.DomainVideoLaunchReviewDialog,
 })));
 
-export function App(): ReactElement {
+export function App({
+  onPluginContributionFatalFailure,
+  onPluginHostScopeChange,
+  pluginContributionRegistry,
+}: {
+  onPluginContributionFatalFailure?: (
+    pluginModuleId: string,
+    message: string,
+  ) => Promise<void> | void;
+  onPluginHostScopeChange?: (snapshot: PluginHostReadSnapshotV1) => void;
+  pluginContributionRegistry?: PluginContributionRegistryV1;
+} = {}): ReactElement {
   const { t } = useI18n();
   const boardSession = useBoardSession(t);
 
@@ -64,10 +80,30 @@ export function App(): ReactElement {
     );
   }
 
-  return <ReadyApp boardSession={boardSession} />;
+  return (
+    <ReadyApp
+      boardSession={boardSession}
+      onPluginContributionFatalFailure={onPluginContributionFatalFailure}
+      onPluginHostScopeChange={onPluginHostScopeChange}
+      pluginContributionRegistry={pluginContributionRegistry}
+    />
+  );
 }
 
-function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactElement {
+function ReadyApp({
+  boardSession,
+  onPluginContributionFatalFailure,
+  onPluginHostScopeChange,
+  pluginContributionRegistry,
+}: {
+  boardSession: ReadyBoardSession;
+  onPluginContributionFatalFailure?: (
+    pluginModuleId: string,
+    message: string,
+  ) => Promise<void> | void;
+  onPluginHostScopeChange?: (snapshot: PluginHostReadSnapshotV1) => void;
+  pluginContributionRegistry?: PluginContributionRegistryV1;
+}): ReactElement {
   const { t } = useI18n();
   const {
     applyLoadedSnapshot,
@@ -168,6 +204,37 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
     selectedBlockIds.length === 1
       ? snapshot.blocks.find((block) => block.blockId === selectedBlockIds[0])
       : undefined;
+  const selectedBlockScopeKey = selectedBlockIds.join('\u0000');
+  useEffect(() => {
+    if (!onPluginHostScopeChange) return;
+    const selected = new Set(selectedBlockIds);
+    const selectedBlocks = snapshot.blocks.filter(
+      (block) => selected.has(block.blockId),
+    );
+    onPluginHostScopeChange({
+      boardId: snapshot.board.boardId,
+      boundAssetIds: [...new Set(selectedBlocks.flatMap((block) => (
+        typeof block.data.assetId === 'string' ? [block.data.assetId] : []
+      )))].sort(),
+      boundBlockIds: selectedBlocks
+        .filter((block) => block.type !== 'group')
+        .map((block) => block.blockId)
+        .sort(),
+      boundGroupIds: [...new Set(selectedBlocks.flatMap((block) => [
+        ...(block.type === 'group' ? [block.blockId] : []),
+        ...(block.parentGroupId ? [block.parentGroupId] : []),
+      ]))].sort(),
+      projectId: snapshot.project.projectId,
+      revision: `${snapshot.board.updatedAt}:selection:${selectedBlockScopeKey}`,
+      selectedBlockIds: [...selectedBlockIds],
+    });
+  }, [
+    onPluginHostScopeChange,
+    selectedBlockScopeKey,
+    snapshot.board.boardId,
+    snapshot.board.updatedAt,
+    snapshot.project.projectId,
+  ]);
   const imageOperationController = useImageOperationController({
     centeredBlockPosition,
     centerWorkflowBlocks,
@@ -700,6 +767,12 @@ function ReadyApp({ boardSession }: { boardSession: ReadyBoardSession }): ReactE
         t={t}
         workflowRuntime={workflowRuntimeController}
       />
+      {pluginContributionRegistry && onPluginContributionFatalFailure ? (
+        <PluginPanelHost
+          onFatalFailure={onPluginContributionFatalFailure}
+          registry={pluginContributionRegistry}
+        />
+      ) : null}
     </main>
   );
   return (

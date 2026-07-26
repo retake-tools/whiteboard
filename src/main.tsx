@@ -13,19 +13,30 @@ import './components/group-draw-overlay.css';
 import './components/image-generation-panel.css';
 import './components/input-reference-picker.css';
 import './components/project-board.css';
+import './components/plugin-panel-host.css';
 import './components/workflow-continuation.css';
 import './components/top-bar.css';
 import './nodes/block-node.css';
 import './nodes/operation-inline-controls.css';
 import { App } from './App';
 import { I18nProvider } from './i18n';
-import { bootstrapInstalledRuntimeRegistry } from './core/installedRuntimeRegistryClient';
+import {
+  bootstrapInstalledRuntimeRegistry,
+  reportPluginFatalFailure,
+} from './core/installedRuntimeRegistryClient';
 import {
   createPluginHostReadStore,
+  disposePluginWebModule,
   reconcilePluginWebModules,
 } from './core/pluginWebModuleLoader';
+import { installPluginHostExternals } from './core/pluginHostExternals';
+import {
+  createPluginContributionRegistry,
+} from './core/pluginContributionRegistry';
 
+installPluginHostExternals();
 const root = createRoot(document.getElementById('root')!);
+const pluginContributionRegistry = createPluginContributionRegistry();
 const pluginHostReadStore = createPluginHostReadStore({
   boardId: null,
   boundAssetIds: [],
@@ -42,15 +53,42 @@ void bootstrapInstalledRuntimeRegistry()
       createHost: (record) => pluginHostReadStore.host(
         record.negotiatedHostApiVersion!,
       ),
+      onFatalFailure: reportPluginFatalFailure,
       snapshot: pluginRuntime,
     });
     if (pluginModules.failures.length > 0) {
       console.error('Retake Plugin activation failed.', pluginModules.failures);
     }
+    const contributionFailures = pluginContributionRegistry.replace(
+      pluginModules.sessions,
+    );
+    await Promise.all(contributionFailures.map(async (failure) => {
+      await disposePluginWebModule(failure.pluginModuleId)
+        .catch(() => undefined);
+      await reportPluginFatalFailure(
+        failure.pluginModuleId,
+        failure.error,
+      ).catch(() => undefined);
+    }));
     root.render(
       <StrictMode>
         <I18nProvider>
-          <App />
+          <App
+            onPluginContributionFatalFailure={(pluginModuleId, message) => {
+              pluginContributionRegistry.failModule(pluginModuleId, message);
+              void disposePluginWebModule(pluginModuleId)
+                .catch(() => undefined);
+              return reportPluginFatalFailure(pluginModuleId, message)
+                .catch((error: unknown) => {
+                  console.error(
+                    'Retake Plugin fatal failure report failed.',
+                    { error, pluginModuleId },
+                  );
+                });
+            }}
+            onPluginHostScopeChange={pluginHostReadStore.update}
+            pluginContributionRegistry={pluginContributionRegistry}
+          />
         </I18nProvider>
       </StrictMode>,
     );

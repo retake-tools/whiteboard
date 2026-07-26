@@ -1,0 +1,30 @@
+.plugin-panel-host {
+  display: grid;
+  gap: 12px;
+  max-height: calc(100vh - 112px);
+  max-width: min(420px, calc(100vw - 32px));
+  overflow: auto;
+  pointer-events: none;
+  position: fixed;
+  right: 16px;
+  top: 80px;
+  z-index: 45;
+}
+
+.plugin-panel-host__panel,
+.plugin-panel-host__fallback {
+  pointer-events: auto;
+}
+
+.plugin-panel-host__fallback {
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--retake-surface) 94%, transparent);
+  border: 1px solid var(--retake-danger);
+  border-radius: 12px;
+  box-shadow: var(--retake-shadow-popover);
+  color: var(--retake-text);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+}
