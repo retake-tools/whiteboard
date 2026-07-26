@@ -1,10 +1,10 @@
 export {
   inspectDeclarativePackage,
-  materializeDeclarativePackage,
   packDeclarativePackage,
+  readMaterializedPackageArchive,
   validateDeclarativePackage,
+  type ArchivedMaterializedPackage,
   type DeclarativePackageFileSummary,
   type DeclarativePackageInspection,
   type DeclarativePackagePackResult,
-  type MaterializedDeclarativePackage,
 } from '@retake-tools/package-sdk';

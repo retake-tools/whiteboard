@@ -7,7 +7,7 @@ import {
   type InstalledRuntimeRegistrySnapshotV1,
   withSnapshotDigest,
 } from '../src/core/installedRuntimeRegistry';
-import { materializeDeclarativePackage } from './declarative-package-service';
+import { readMaterializedPackageArchive } from './declarative-package-service';
 import {
   LocalPackageManagerService,
   type InstalledDeclarativePackageRegistry,
@@ -15,7 +15,7 @@ import {
 import { packageVersionSatisfies, parsePackageVersion } from './package-semver';
 import type {
   ResolvedWorkspacePackage,
-  WorkspacePackageLockV2,
+  WorkspacePackageLock,
 } from './workspace-package-lock';
 
 export const defaultBootstrapProfileId = 'retake.default-video-production';
@@ -212,7 +212,7 @@ async function validateBootstrapArchive(
   if (path.dirname(archiveRealPath) !== profileDirectory) {
     throw new Error(`Bootstrap archive escapes the profile directory: ${reference.archivePath}`);
   }
-  const materialized = await materializeDeclarativePackage(archiveRealPath);
+  const materialized = await readMaterializedPackageArchive(archiveRealPath);
   if (
     materialized.manifest.packageId !== reference.packageId
     || materialized.manifest.version !== reference.version
@@ -223,7 +223,7 @@ async function validateBootstrapArchive(
 }
 
 function projectInstalledRuntimeRegistry(
-  lockfile: WorkspacePackageLockV2,
+  lockfile: WorkspacePackageLock,
   registry: InstalledDeclarativePackageRegistry,
 ): InstalledRuntimeRegistrySnapshotV1 {
   const resolvedByPackageId = new Map(

@@ -19,7 +19,7 @@ import type {
   DeclarativePackageManifest,
 } from '../src/core/declarativePackageContracts';
 import {
-  materializeDeclarativePackage,
+  readMaterializedPackageArchive,
   packDeclarativePackage,
 } from './declarative-package-service';
 import {
@@ -158,7 +158,7 @@ try {
     statefulCatalog.state,
   );
 
-  const migrated = parseWorkspacePackageLock({
+  const parsed = parseWorkspacePackageLock({
     hostVersion,
     installations: [],
     resolvedPackages: [],
@@ -167,7 +167,7 @@ try {
     schemaVersion: 1,
     updatedAt: new Date(0).toISOString(),
   });
-  assert.equal(migrated.schemaVersion, 2);
+  assert.equal(parsed.schemaVersion, 1);
 
   const installed = await installTrustedRegistryPackage({
     action: 'install',
@@ -179,7 +179,7 @@ try {
     verifiedCatalog,
   });
   assert.equal(installed.changed, true);
-  assert.equal(installed.lockfile.schemaVersion, 2);
+  assert.equal(installed.lockfile.schemaVersion, 1);
   assert.deepEqual(
     installed.lockfile.resolvedPackages.map((entry) => `${entry.packageId}@${entry.version}`),
     [
@@ -410,7 +410,7 @@ try {
       size: true,
     },
     explicitActions: ['install', 'update', 'rollback'],
-    legacyLockMigration: 'v1-to-v2',
+    workspaceLockSchema: 1,
     networkBoundaries: {
       contentType: true,
       cancellation: true,
@@ -430,7 +430,7 @@ try {
 interface ArchiveFixture {
   archivePath: string;
   manifest: DeclarativePackageManifest;
-  materialized: Awaited<ReturnType<typeof materializeDeclarativePackage>>;
+  materialized: Awaited<ReturnType<typeof readMaterializedPackageArchive>>;
 }
 
 async function createArchive(
@@ -485,7 +485,7 @@ async function createArchive(
   return {
     archivePath,
     manifest,
-    materialized: await materializeDeclarativePackage(archivePath),
+    materialized: await readMaterializedPackageArchive(archivePath),
   };
 }
 

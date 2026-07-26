@@ -2,7 +2,7 @@ import {
   PackageManager,
   type DownloadedTrustedRegistryPackage,
   type PackageManagerMutationResult,
-  type WorkspacePackageLockV2,
+  type WorkspacePackageLock,
 } from '@retake-tools/package-sdk';
 import type {
   DeclarativeAgentPresetDefinition,
@@ -21,7 +21,7 @@ export {
   type RemoteRegistryPackageSource,
   type ResolvedPackageDependency,
   type ResolvedWorkspacePackage,
-  type WorkspacePackageLockV2,
+  type WorkspacePackageLock,
   type WorkspacePackageRoot,
 } from '@retake-tools/package-sdk';
 
@@ -72,6 +72,13 @@ export class LocalPackageManagerService {
     return this.sdkManager.install(sourcePath, dependencySourcePaths);
   }
 
+  async updateGit(
+    packageId: string,
+    dependencySourcePaths: string[] = [],
+  ): Promise<LocalPackageInstallResult> {
+    return this.sdkManager.updateGit(packageId, dependencySourcePaths);
+  }
+
   async installVerifiedRemote(
     root: VerifiedRemotePackageArchive,
     dependencies: VerifiedRemotePackageArchive[] = [],
@@ -99,11 +106,11 @@ export class LocalPackageManagerService {
     return this.sdkManager.rollback(packageId, target);
   }
 
-  async remove(packageId: string): Promise<WorkspacePackageLockV2> {
+  async remove(packageId: string): Promise<WorkspacePackageLock> {
     return this.sdkManager.remove(packageId);
   }
 
-  async list(): Promise<WorkspacePackageLockV2> {
+  async list(): Promise<WorkspacePackageLock> {
     return this.sdkManager.list();
   }
 
