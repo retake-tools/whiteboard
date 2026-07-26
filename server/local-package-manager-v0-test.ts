@@ -168,7 +168,7 @@ try {
   const lockBeforeFailure = await readFile(lockPath);
   await assert.rejects(
     failureManager.install(brokenUpdate),
-    /no compatible single-version resolution/,
+    /no compatible single-version (?:dependency )?resolution/,
   );
   assert.deepEqual(await readFile(lockPath), lockBeforeFailure);
 
@@ -177,7 +177,7 @@ try {
   });
   await assert.rejects(
     failureManager.install(hostIncompatible),
-    /no compatible single-version resolution/,
+    /no compatible single-version (?:dependency )?resolution/,
   );
   assert.deepEqual(await readFile(lockPath), lockBeforeFailure);
 
@@ -273,7 +273,6 @@ try {
   const implementationSource = (
     await Promise.all([
       'server/local-package-manager-service.ts',
-      'server/local-package-dependency-resolver.ts',
       'server/workspace-package-lock.ts',
       'scripts/retake-package.ts',
     ].map((relativePath) => readFile(path.join(repositoryRoot, relativePath), 'utf8')))
@@ -285,6 +284,7 @@ try {
   assert.equal(implementationSource.includes('https://'), false);
   assert.equal(implementationSource.includes('postinstall'), false);
   assert.equal(implementationSource.includes('preinstall'), false);
+  assert.match(implementationSource, /@retake-tools\/package-sdk/);
 
   console.log(JSON.stringify({
     ok: true,

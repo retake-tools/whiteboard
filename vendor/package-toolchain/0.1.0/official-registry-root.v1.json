@@ -1,0 +1,22 @@
+{
+  "baseUrl": "https://registry.retake.tools/",
+  "expiresAt": "2028-07-25T00:00:00.000Z",
+  "keys": [
+    {
+      "algorithm": "ed25519",
+      "keyId": "sha256:693ba9722c1112fb52fff1a630a8f6ac8d51d73d20c045380e64aaaa2d92b1a7",
+      "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAPdenX9TTqM9GwxfkBh9SVB/jkQcKKITatT9m9Itd75E=\n-----END PUBLIC KEY-----\n"
+    }
+  ],
+  "registryId": "retake.registry.official",
+  "roles": {
+    "catalog": {
+      "keyIds": [
+        "sha256:693ba9722c1112fb52fff1a630a8f6ac8d51d73d20c045380e64aaaa2d92b1a7"
+      ],
+      "threshold": 1
+    }
+  },
+  "rootVersion": 1,
+  "schemaVersion": 1
+}
