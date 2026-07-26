@@ -150,6 +150,7 @@ export async function downloadVerifiedTrustedRegistryArchive(input: {
         credentials: 'omit',
         headers: {
           accept: `${trustedRegistryPackageMediaType}, application/octet-stream`,
+          'accept-encoding': 'identity',
         },
         redirect: 'error',
         signal: controller.signal,

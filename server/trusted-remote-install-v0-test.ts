@@ -99,7 +99,12 @@ try {
       fixture.materialized.archive,
     ]),
   );
-  const requests: Array<{ credentials?: RequestCredentials; redirect?: RequestRedirect; url: string }> = [];
+  const requests: Array<{
+    acceptEncoding: string | null;
+    credentials?: RequestCredentials;
+    redirect?: RequestRedirect;
+    url: string;
+  }> = [];
   const fetchImpl = packageFetch(archiveByDigest, requests);
   const workspaceRoot = path.join(temporaryRoot, 'workspace');
   const downloadRoot = path.join(temporaryRoot, 'downloads');
@@ -185,7 +190,9 @@ try {
   assert.equal(installed.installedCandidates.length, 2);
   assert.equal(requests.length, 2);
   assert.equal(requests.every((request) => (
-    request.credentials === 'omit' && request.redirect === 'error'
+    request.acceptEncoding === 'identity'
+    && request.credentials === 'omit'
+    && request.redirect === 'error'
   )), true);
   for (const installation of installed.lockfile.installations) {
     assert.equal(installation.source.kind, 'remote_registry');
@@ -326,6 +333,19 @@ try {
       verifiedCatalog,
     }),
     /Content-Type is invalid/,
+  );
+  await assert.rejects(
+    downloadVerifiedTrustedRegistryArchive({
+      candidate: rootCandidate,
+      fetchImpl: async () => packageResponse(
+        rootV2.materialized.archive,
+        { 'content-encoding': 'gzip' },
+      ),
+      hostVersion,
+      outputDirectory: downloadRoot,
+      verifiedCatalog,
+    }),
+    /content encoding is not allowed/,
   );
   await assert.rejects(
     downloadVerifiedTrustedRegistryArchive({
@@ -578,11 +598,17 @@ function signedCatalog(
 
 function packageFetch(
   archives: Map<string, Buffer>,
-  requests: Array<{ credentials?: RequestCredentials; redirect?: RequestRedirect; url: string }>,
+  requests: Array<{
+    acceptEncoding: string | null;
+    credentials?: RequestCredentials;
+    redirect?: RequestRedirect;
+    url: string;
+  }>,
 ): typeof fetch {
   return async (url, init) => {
     const href = String(url);
     requests.push({
+      acceptEncoding: new Headers(init?.headers).get('accept-encoding'),
       credentials: init?.credentials,
       redirect: init?.redirect,
       url: href,
