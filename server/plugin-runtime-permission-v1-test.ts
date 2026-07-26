@@ -58,6 +58,15 @@ try {
   });
   assert.equal(granted.status, 'installed');
   assert.equal(granted.grant?.grantedBy, 'user');
+  await assert.rejects(
+    service.enable('retake.plugin.whiteboard-runtime-fixture'),
+    /Code Trust/,
+  );
+  const trusted = await service.trustUserCode(
+    'retake.plugin.whiteboard-runtime-fixture',
+  );
+  assert.equal(trusted.trust?.trustChannel, 'user_trusted');
+  assert.equal(trusted.trust?.updatePolicy, 'exact_digest');
   const enabled = await service.enable(
     'retake.plugin.whiteboard-runtime-fixture',
   );
@@ -80,13 +89,14 @@ try {
   }).reconcile();
   assert.equal(restored.modules[0]!.status, 'enabled');
   assert.equal(
-    restored.modules[0]!.grant?.packageDigest,
-    restored.modules[0]!.packageLock.digest,
+    restored.modules[0]!.grant?.publisherId,
+    'retake.publisher.official',
   );
 
   const safe = await service.setSafeMode(true);
   assert.equal(safe.safeMode, true);
   assert.equal(safe.modules[0]!.status, 'disabled');
+  assert.equal(safe.modules[0]!.desiredState, 'enabled');
   assert.equal(
     (await new PluginRuntimeService({
       hostVersion: '0.1.2',
@@ -100,10 +110,7 @@ try {
   );
   const normal = await service.setSafeMode(false);
   assert.equal(normal.safeMode, false);
-  assert.equal(
-    (await service.enable('retake.plugin.whiteboard-runtime-fixture')).status,
-    'enabled',
-  );
+  assert.equal(normal.modules[0]!.status, 'enabled');
 
   const sourceV2 = path.join(temporaryRoot, 'source-v2');
   await writePluginSource(sourceV2, {
@@ -118,8 +125,10 @@ try {
   await manager.install(sourceV2);
   const updated = await service.reconcile();
   assert.equal(updated.modules[0]!.manifest.version, '0.2.0');
-  assert.equal(updated.modules[0]!.status, 'installed');
+  assert.equal(updated.modules[0]!.status, 'disabled');
+  assert.equal(updated.modules[0]!.desiredState, 'enabled');
   assert.equal(updated.modules[0]!.grant, null);
+  assert.equal(updated.modules[0]!.trust, null);
   await assert.rejects(
     service.enable('retake.plugin.whiteboard-runtime-fixture'),
     /exact permission Grant/,
@@ -133,6 +142,9 @@ try {
     ],
     pluginModuleId: 'retake.plugin.whiteboard-runtime-fixture',
   });
+  await service.trustUserCode(
+    'retake.plugin.whiteboard-runtime-fixture',
+  );
   await service.enable('retake.plugin.whiteboard-runtime-fixture');
   const failed = await service.fail(
     'retake.plugin.whiteboard-runtime-fixture',
@@ -153,12 +165,13 @@ try {
   assert.equal(persisted.modules[0]!.status, 'failed');
 
   process.stdout.write(`${JSON.stringify({
-    explicitGrantAndEnable: true,
-    failureIsolation: true,
+    codeTrustSeparatedFromGrant: true,
+    explicitGrantTrustAndEnable: true,
+    fatalFailureExplicit: true,
     installDoesNotEnable: true,
     permissionUpgradeRevokesGrant: true,
     persistedRuntimeState: pluginRuntimeStateFile,
-    safeModeRecovery: true,
+    safeModePreservesDesiredState: true,
     workspaceWrites: 'disposable-only',
   })}\n`);
 } finally {
@@ -229,8 +242,11 @@ async function writePluginSource(
     pluginModuleId: 'retake.plugin.whiteboard-runtime-fixture',
     runtime: {
       entrypoint: 'dist/index.js',
-      hostApiVersion: 1,
-      kind: 'web_sandbox',
+      hostApi: {
+        maximumVersion: 2,
+        minimumVersion: 1,
+      },
+      kind: 'web_module',
     },
     schemaVersion: 1,
     version: input.version,

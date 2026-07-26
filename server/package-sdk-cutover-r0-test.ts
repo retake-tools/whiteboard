@@ -41,7 +41,7 @@ const packageJson = await readJson(path.join(repositoryRoot, 'package.json'));
 const packageLock = await readJson(path.join(repositoryRoot, 'package-lock.json'));
 
 assert.deepEqual(source, {
-  commit: '0f12d87ad4eccb4ef4b0b6b9df6cdb9746965468',
+  commit: '6b40f7d1c589febae18f8f34db080fe3d098a4b6',
   repository: 'https://github.com/retake-tools/package',
   version: '0.1.0',
 });
@@ -194,8 +194,11 @@ try {
       pluginModuleId: 'retake.plugin.controlled-build-fixture',
       runtime: {
         entrypoint: 'dist/index.js',
-        hostApiVersion: 1,
-        kind: 'web_sandbox',
+        hostApi: {
+          maximumVersion: 2,
+          minimumVersion: 1,
+        },
+        kind: 'web_module',
       },
       schemaVersion: 1,
       version: '0.1.0',
