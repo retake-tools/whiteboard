@@ -2,8 +2,13 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
   access,
+  mkdir,
+  mkdtemp,
   readFile,
+  rm,
+  writeFile,
 } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as packageContracts from '@retake-tools/package-contracts';
@@ -36,7 +41,7 @@ const packageJson = await readJson(path.join(repositoryRoot, 'package.json'));
 const packageLock = await readJson(path.join(repositoryRoot, 'package-lock.json'));
 
 assert.deepEqual(source, {
-  commit: '7700ff085e6095f0fc22a462688ff4464f9c53bb',
+  commit: 'e4c4c4540202c67c52c4aeb33e39bd12dec2dd73',
   repository: 'https://github.com/retake-tools/package',
   version: '0.1.0',
 });
@@ -102,6 +107,12 @@ assert.equal(
   registryStateStore.TrustedPackageRegistryStateStore,
   packageSdk.TrustedPackageRegistryStateStore,
 );
+assert.equal(packageSdk.retakeNoneBuildToolchain, 'retake_none@1');
+assert.equal(packageSdk.retakeWebPluginV1OutputPath, 'dist/index.js');
+assert.equal(
+  packageSdk.retakeWebPluginV1Toolchain,
+  'retake_web_plugin_v1@1+esbuild@0.28.1',
+);
 
 const manager = new LocalPackageManagerService({
   hostVersion: '0.1.2',
@@ -109,6 +120,102 @@ const manager = new LocalPackageManagerService({
 });
 assert.equal(manager.sdkManager instanceof packageSdk.PackageManager, true);
 assert.equal(manager.packagesRoot, manager.sdkManager.packagesRoot);
+
+const temporaryRoot = await mkdtemp(
+  path.join(tmpdir(), 'retake-controlled-build-cutover-'),
+);
+try {
+  const sourceRoot = path.join(temporaryRoot, 'source');
+  await mkdir(path.join(sourceRoot, 'src'), { recursive: true });
+  await writeFile(
+    path.join(sourceRoot, 'retake.package.json'),
+    `${JSON.stringify({
+      build: {
+        entrypoint: 'src/index.ts',
+        profile: 'retake_web_plugin_v1',
+        toolchain: packageSdk.retakeWebPluginV1Toolchain,
+      },
+      components: {
+        agentPresets: [],
+        skills: [],
+        workflows: [],
+      },
+      dependencies: [],
+      description: 'Whiteboard controlled build fixture',
+      entrypoints: [],
+      files: [
+        'package.json',
+        'src/index.ts',
+      ],
+      integrity: 'sha256:auto',
+      license: 'MIT',
+      name: 'Whiteboard controlled build fixture',
+      optionalDependencies: [],
+      packageId: 'retake.package.controlled-build-fixture',
+      permissions: [],
+      publisher: {
+        name: 'Retake',
+        publisherId: 'retake.publisher.official',
+      },
+      retakeHostCompatibility: '^0.1.0',
+      schemaVersion: 1,
+      signature: null,
+      version: '0.1.0',
+    }, null, 2)}\n`,
+  );
+  await writeFile(
+    path.join(sourceRoot, 'package.json'),
+    `${JSON.stringify({
+      scripts: {
+        postinstall: 'node -e "require(\'node:fs\').writeFileSync(\'lifecycle-ran\', \'\')"',
+      },
+    }, null, 2)}\n`,
+  );
+  await writeFile(
+    path.join(sourceRoot, 'src', 'index.ts'),
+    'export const pluginId = "retake.plugin.controlled-build-fixture";\n',
+  );
+
+  const [firstBuild, secondBuild] = await Promise.all([
+    packageSdk.materializePackageSource(sourceRoot),
+    packageSdk.materializePackageSource(sourceRoot),
+  ]);
+  assert.equal(firstBuild.digest, secondBuild.digest);
+  assert.deepEqual(firstBuild.build, secondBuild.build);
+  assert.equal(firstBuild.build.profile, 'retake_web_plugin_v1');
+  assert.equal(firstBuild.build.toolchain, packageSdk.retakeWebPluginV1Toolchain);
+  assert.deepEqual(
+    [...firstBuild.files.keys()],
+    [packageSdk.retakeWebPluginV1OutputPath],
+  );
+  assert.notEqual(firstBuild.source.sourceDigest, firstBuild.digest);
+  await assert.rejects(
+    access(path.join(sourceRoot, 'lifecycle-ran')),
+    (error: unknown) => (
+      error instanceof Error
+      && 'code' in error
+      && error.code === 'ENOENT'
+    ),
+  );
+
+  const controlledManager = new LocalPackageManagerService({
+    hostVersion: '0.1.2',
+    workspaceRoot: path.join(temporaryRoot, 'workspace'),
+  });
+  const installed = await controlledManager.install(sourceRoot);
+  assert.equal(installed.lockfile.installations.length, 1);
+  const installation = installed.lockfile.installations[0]!;
+  assert.deepEqual(installation.build, firstBuild.build);
+  assert.equal(installation.sourceDigest, firstBuild.source.sourceDigest);
+  assert.equal(installation.digest, firstBuild.digest);
+  const [installedPackage] = await controlledManager.sdkManager.loadInstalledPackages();
+  assert.deepEqual(
+    [...installedPackage!.files.keys()],
+    [packageSdk.retakeWebPluginV1OutputPath],
+  );
+} finally {
+  await rm(temporaryRoot, { force: true, recursive: true });
+}
 
 const removedPortableImplementations = [
   'server/deterministic-package-tar.ts',
@@ -176,6 +283,7 @@ process.stdout.write(`${JSON.stringify({
   artifactCommit: source.commit,
   artifacts: manifest.packages.length,
   exactVersionAndIntegrity: true,
+  fixedBuildProfiles: ['none', 'retake_web_plugin_v1'],
   portableImplementationsRemoved: removedPortableImplementations.length,
   sdkAuthority: true,
 })}\n`);
