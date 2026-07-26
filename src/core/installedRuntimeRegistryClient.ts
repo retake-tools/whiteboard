@@ -2,9 +2,15 @@ import {
   configureInstalledRuntimeRegistry,
   type InstalledRuntimeRegistrySnapshotV1,
 } from './installedRuntimeRegistry';
+import type { PluginRuntimeSnapshotV1 } from '@retake-tools/package-sdk';
+
+export interface InstalledRuntimeBootstrapResult {
+  pluginRuntime: PluginRuntimeSnapshotV1;
+  snapshot: InstalledRuntimeRegistrySnapshotV1;
+}
 
 export async function bootstrapInstalledRuntimeRegistry(): Promise<
-  InstalledRuntimeRegistrySnapshotV1
+  InstalledRuntimeBootstrapResult
 > {
   const response = await fetch('/api/local/package-registry/bootstrap');
   if (!response.ok) {
@@ -17,7 +23,14 @@ export async function bootstrapInstalledRuntimeRegistry(): Promise<
     }
     throw new Error(message);
   }
-  const body = await response.json() as { snapshot?: unknown };
+  const body = await response.json() as {
+    pluginRuntime?: PluginRuntimeSnapshotV1;
+    snapshot?: unknown;
+  };
   if (!body.snapshot) throw new Error('Package bootstrap returned no Runtime Registry snapshot.');
-  return configureInstalledRuntimeRegistry(body.snapshot);
+  if (!body.pluginRuntime) throw new Error('Package bootstrap returned no Plugin Runtime snapshot.');
+  return {
+    pluginRuntime: structuredClone(body.pluginRuntime),
+    snapshot: configureInstalledRuntimeRegistry(body.snapshot),
+  };
 }

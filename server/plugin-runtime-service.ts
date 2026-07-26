@@ -102,6 +102,48 @@ export class PluginRuntimeService {
     });
   }
 
+  async readEnabledModuleFile(input: {
+    packageDigest: string;
+    path: string;
+    pluginModuleId: string;
+  }): Promise<{ bytes: Buffer; mediaType: string }> {
+    if (
+      !input.path.startsWith('dist/')
+      || input.path.includes('\\')
+      || input.path.split('/').some((segment) => (
+        segment.length === 0 || segment === '.' || segment === '..'
+      ))
+    ) {
+      throw new Error('Plugin Web Module path is outside dist/.');
+    }
+    const host = await this.loadHost();
+    const record = host.list().find(
+      (entry) => entry.pluginModuleId === input.pluginModuleId,
+    );
+    if (
+      !record
+      || record.status !== 'enabled'
+      || !record.grant
+      || !record.trust
+    ) {
+      throw new Error('Plugin Web Module is not enabled and trusted.');
+    }
+    if (record.packageLock.digest !== input.packageDigest) {
+      throw new Error('Plugin Web Module Package digest is stale.');
+    }
+    const installedPackages = await this.manager.sdkManager.loadInstalledPackages();
+    const installed = installedPackages.find((entry) => (
+      entry.manifest.packageId === record.packageLock.packageId
+      && entry.digest === input.packageDigest
+    ));
+    const bytes = installed?.files.get(input.path);
+    if (!bytes) throw new Error('Plugin Web Module file is not installed.');
+    return {
+      bytes: Buffer.from(bytes),
+      mediaType: pluginModuleMediaType(input.path),
+    };
+  }
+
   private async mutate<T>(
     operation: (host: PluginRuntimeHost) => T,
   ): Promise<T> {
@@ -161,4 +203,17 @@ export class PluginRuntimeService {
 
 function compareText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function pluginModuleMediaType(filePath: string): string {
+  if (filePath.endsWith('.js')) return 'text/javascript; charset=utf-8';
+  if (filePath.endsWith('.css')) return 'text/css; charset=utf-8';
+  if (filePath.endsWith('.json')) return 'application/json; charset=utf-8';
+  if (filePath.endsWith('.svg')) return 'image/svg+xml';
+  if (filePath.endsWith('.png')) return 'image/png';
+  if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) return 'image/jpeg';
+  if (filePath.endsWith('.webp')) return 'image/webp';
+  if (filePath.endsWith('.woff2')) return 'font/woff2';
+  if (filePath.endsWith('.woff')) return 'font/woff';
+  return 'application/octet-stream';
 }
