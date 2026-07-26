@@ -50,6 +50,24 @@ export class PluginRuntimeService {
     return this.mutate((host) => host.revoke(pluginModuleId));
   }
 
+  async trustUserCode(
+    pluginModuleId: string,
+  ): Promise<PluginModuleRuntimeRecordV1> {
+    return this.mutate((host) => host.trust({
+      pluginModuleId,
+      trustChannel: 'user_trusted',
+      trustedBy: 'user',
+      trustId: randomUUID(),
+      updatePolicy: 'exact_digest',
+    }));
+  }
+
+  async revokeTrust(
+    pluginModuleId: string,
+  ): Promise<PluginModuleRuntimeRecordV1> {
+    return this.mutate((host) => host.revokeTrust(pluginModuleId));
+  }
+
   async enable(
     pluginModuleId: string,
   ): Promise<PluginModuleRuntimeRecordV1> {
@@ -111,12 +129,29 @@ export class PluginRuntimeService {
 
   private async installedModules(): Promise<InstalledPluginModule[]> {
     const registry = await this.manager.loadRegistry();
+    const publishers = new Map(
+      registry.packages.map((manifest) => [
+        manifest.packageId,
+        manifest.publisher.publisherId,
+      ]),
+    );
     return [...registry.pluginModules.values()]
-      .map((entry) => ({
-        definitionHash: entry.definition.definitionHash,
-        manifest: structuredClone(entry.definition),
-        packageLock: structuredClone(entry.packageLock),
-      }))
+      .map((entry) => {
+        const publisherId = publishers.get(entry.packageLock.packageId);
+        if (!publisherId) {
+          throw new Error(
+            `PluginModule Package publisher is missing: ${
+              entry.packageLock.packageId
+            }`,
+          );
+        }
+        return {
+          definitionHash: entry.definition.definitionHash,
+          manifest: structuredClone(entry.definition),
+          packageLock: structuredClone(entry.packageLock),
+          publisherId,
+        };
+      })
       .sort((left, right) => compareText(
         left.manifest.pluginModuleId,
         right.manifest.pluginModuleId,
