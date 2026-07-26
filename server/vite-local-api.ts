@@ -69,6 +69,7 @@ import {
   invalidateDefaultDeclarativePackageBootstrap,
 } from './declarative-package-bootstrap-service';
 import { PluginRuntimeService } from './plugin-runtime-service';
+import { pluginHostExternalModuleSource } from './plugin-host-external-modules';
 
 type MiddlewareContainer = {
   use(
@@ -117,6 +118,23 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
 
           if (
             method === 'GET'
+            && url.pathname.startsWith('/plugin-runtime/externals/v1/')
+          ) {
+            const source = pluginHostExternalModuleSource(url.pathname);
+            if (!source) {
+              sendJson(res, { error: 'Plugin Host external is not found.' }, 404);
+              return;
+            }
+            res.statusCode = 200;
+            res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+            res.setHeader('Content-Type', 'text/javascript; charset=utf-8');
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            res.end(source);
+            return;
+          }
+
+          if (
+            method === 'GET'
             && url.pathname.startsWith('/plugin-runtime/modules/')
           ) {
             const parts = url.pathname
@@ -140,6 +158,28 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
             res.setHeader('Content-Type', file.mediaType);
             res.setHeader('X-Content-Type-Options', 'nosniff');
             res.end(file.bytes);
+            return;
+          }
+
+          const pluginFailureMatch = url.pathname.match(
+            /^\/plugin-runtime\/modules\/([^/]+)\/fail$/,
+          );
+          if (method === 'POST' && pluginFailureMatch) {
+            const body = (await readJson(req)) as { message?: string };
+            if (!body.message) {
+              sendJson(res, { error: 'Plugin fatal failure message is required.' }, 400);
+              return;
+            }
+            sendJson(
+              res,
+              await new PluginRuntimeService({
+                hostVersion: packageMetadata.version,
+                workspaceRoot: retakeRoot,
+              }).fail(
+                decodeURIComponent(pluginFailureMatch[1]!),
+                body.message,
+              ),
+            );
             return;
           }
 

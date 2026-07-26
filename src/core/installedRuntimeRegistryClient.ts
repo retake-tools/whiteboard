@@ -34,3 +34,26 @@ export async function bootstrapInstalledRuntimeRegistry(): Promise<
     snapshot: configureInstalledRuntimeRegistry(body.snapshot),
   };
 }
+
+export async function reportPluginFatalFailure(
+  pluginModuleId: string,
+  message: string,
+): Promise<void> {
+  const response = await fetch(
+    `/api/local/plugin-runtime/modules/${
+      encodeURIComponent(pluginModuleId)
+    }/fail`,
+    {
+      body: JSON.stringify({ message }),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    },
+  );
+  if (response.ok) return;
+  const body = await response.json().catch(() => ({})) as { error?: unknown };
+  throw new Error(
+    typeof body.error === 'string'
+      ? body.error
+      : `Plugin fatal failure report failed with HTTP ${response.status}.`,
+  );
+}

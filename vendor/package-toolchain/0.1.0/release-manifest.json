@@ -1,11 +1,11 @@
 {
   "packages": [
     {
-      "bytes": 14931,
+      "bytes": 14895,
       "file": "retake-tools-package-archive-0.1.0.tgz",
-      "integrity": "sha512-cWkWwUamGBKGQ4LTpBNEf2G11/AiPJEFbh9EB8U9SVe+6+N9KdvTQnvpEQhcR6/dsl3J55QTFK+VPNm4CD2WQA==",
+      "integrity": "sha512-sbUOCf2iJ6N5uD4StgZ7SWN9zVPT/a5S/sye0Hnun/RrwdeQhwwIVRjttp8EI0NU/WHf+efDIHpG7OsyvDbEUA==",
       "name": "@retake-tools/package-archive",
-      "sha256": "sha256:794c55b9f536c2c351c4e4a21e8e973db1549b951be46c7064316f238dbe9e97",
+      "sha256": "sha256:4b2941017b3c43c626f74b7b409aa875eab5cfae8e51fcd7019e938246cbea31",
       "version": "0.1.0"
     },
     {
@@ -17,11 +17,11 @@
       "version": "0.1.0"
     },
     {
-      "bytes": 14079,
+      "bytes": 14222,
       "file": "retake-tools-package-contracts-0.1.0.tgz",
-      "integrity": "sha512-++fU4f3F+mvZMw/eJ9/YXNjaOqqqOkupFHx/NUnQLGSgdPFKabncmDovzyfuRlIO8OMUOZofKyVHfsAcQKDgWg==",
+      "integrity": "sha512-GrTz7FXNnqtha+3alMt9gk5v1CUvJNnzpgZeSOmEKudoaT+oH9Bl3fHgzLL9ZB7/zBWxBvWOzvFudKpLP0zKCA==",
       "name": "@retake-tools/package-contracts",
-      "sha256": "sha256:b5ee036469ee6ea25fd3132580bef84ed4d1670e664cf7b5f5b3c6fc527045f8",
+      "sha256": "sha256:bd0dc737e62bda23bd106a3759f4e2fda5869352d138bc8508e270a49f733c80",
       "version": "0.1.0"
     },
     {
@@ -41,19 +41,19 @@
       "version": "0.1.0"
     },
     {
-      "bytes": 2906,
+      "bytes": 2927,
       "file": "retake-tools-package-sdk-0.1.0.tgz",
-      "integrity": "sha512-5VPLzrvmjoGTWQEa5nXLxjmELNuHVy5abyvviQmru6ckcbsVXn2jZ0d+7iZ/LMZthwYBIgz0JbSBoRs6YFShqA==",
+      "integrity": "sha512-Hosqe1a2PL1sd4T8lB/PWqWqy8RbbAkudoQS1VHoL9IMXQsfigKBcGgRUnugrQFtD6xJcHjX6YQNOiaOrAKuTQ==",
       "name": "@retake-tools/package-sdk",
-      "sha256": "sha256:7520d3b78b7de194ee956727f90ec2a27f7a54a0bb52bbdea9154870c576848b",
+      "sha256": "sha256:4478aba22ff05c0b804e7fae67a15e3a9a2b58911c0044cd38b5eaa4aaf5e70c",
       "version": "0.1.0"
     },
     {
-      "bytes": 8603,
+      "bytes": 8731,
       "file": "retake-tools-plugin-runtime-0.1.0.tgz",
-      "integrity": "sha512-/Wd/cUGRURZtdlLY/tclo7i9abCUM/NO4pChOn0Xd6bLc5BauMScNuO/VeM4ISY6KYx2nZh3nGClAoV9FJqj1Q==",
+      "integrity": "sha512-olq57mGnSNKIuAZdpTZhZI2Uy6jBHhiMcwFk/vENXH74XSoIPlhvY8iUJboV2o1bw5pcApQ8/F4hgKfRzzVeKg==",
       "name": "@retake-tools/plugin-runtime",
-      "sha256": "sha256:3fee0848f5741fdf2ed3c6a584bde51afd49f1b87ecff9f7cd506c4089a94c83",
+      "sha256": "sha256:3fc6578573ab1ce5b6a90cdfffc21c7e0d11365ec2f3b80fd13faca362822c9f",
       "version": "0.1.0"
     }
   ],
