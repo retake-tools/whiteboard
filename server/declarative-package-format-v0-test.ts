@@ -30,8 +30,18 @@ const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'retake-package-format-v
 try {
   const starter = await validateDeclarativePackage(starterRoot);
   const agent = await validateDeclarativePackage(agentRoot);
-  assert.deepEqual(starter.components, { agentPresets: 0, skills: 8, workflows: 4 });
-  assert.deepEqual(agent.components, { agentPresets: 1, skills: 0, workflows: 0 });
+  assert.deepEqual(starter.components, {
+    agentPresets: 0,
+    pluginModules: 0,
+    skills: 8,
+    workflows: 4,
+  });
+  assert.deepEqual(agent.components, {
+    agentPresets: 1,
+    pluginModules: 0,
+    skills: 0,
+    workflows: 0,
+  });
   assert.equal(starter.entrypoints, storyProductionStarterPackage.entrypoints.length);
   assert.equal(agent.entrypoints, storyProductionAgentPackage.entrypoints.length);
   assert.deepEqual(starter.manifest.dependencies, [{
@@ -60,13 +70,23 @@ try {
   const singleSkillRoot = path.join(temporaryRoot, 'single-skill');
   const singleSkillManifest = await createSingleSkillFixture(singleSkillRoot);
   const singleSkill = await validateDeclarativePackage(singleSkillRoot);
-  assert.deepEqual(singleSkill.components, { agentPresets: 0, skills: 1, workflows: 0 });
+  assert.deepEqual(singleSkill.components, {
+    agentPresets: 0,
+    pluginModules: 0,
+    skills: 1,
+    workflows: 0,
+  });
   assert.equal(singleSkill.entrypoints, 1);
-  assert.equal(singleSkill.manifest.integrity, 'sha256:auto');
+  assert.equal(singleSkill.manifest.integrity, singleSkill.digest);
   const singleSkillArchive = path.join(temporaryRoot, 'single-skill.retakepkg');
   await packDeclarativePackage(singleSkillRoot, singleSkillArchive);
   const inspectedSingleSkill = await inspectDeclarativePackage(singleSkillArchive);
-  assert.deepEqual(inspectedSingleSkill.components, { agentPresets: 0, skills: 1, workflows: 0 });
+  assert.deepEqual(inspectedSingleSkill.components, {
+    agentPresets: 0,
+    pluginModules: 0,
+    skills: 1,
+    workflows: 0,
+  });
 
   const exactManifest: DeclarativePackageManifest = {
     ...singleSkillManifest,

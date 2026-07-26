@@ -41,7 +41,7 @@ const packageJson = await readJson(path.join(repositoryRoot, 'package.json'));
 const packageLock = await readJson(path.join(repositoryRoot, 'package-lock.json'));
 
 assert.deepEqual(source, {
-  commit: '0fb081ec1de9102b492956e8f60415f740af2d75',
+  commit: '0f12d87ad4eccb4ef4b0b6b9df6cdb9746965468',
   repository: 'https://github.com/retake-tools/package',
   version: '0.1.0',
 });
@@ -111,7 +111,11 @@ assert.equal(packageSdk.retakeNoneBuildToolchain, 'retake_none@1');
 assert.equal(packageSdk.retakeWebPluginV1OutputPath, 'dist/index.js');
 assert.equal(
   packageSdk.retakeWebPluginV1Toolchain,
-  'retake_web_plugin_v1@1+esbuild@0.28.1',
+  'retake_web_plugin_v1@2+esbuild@0.28.1',
+);
+assert.equal(
+  packageSdk.retakeWebPluginV1BuildProvenancePath,
+  'retake.build.json',
 );
 
 const manager = new LocalPackageManagerService({
@@ -214,9 +218,18 @@ try {
     [...firstBuild.files.keys()],
     [
       packageSdk.retakeWebPluginV1OutputPath,
+      packageSdk.retakeWebPluginV1BuildProvenancePath,
       'retake.plugin.json',
     ],
   );
+  const buildProvenance = JSON.parse(
+    firstBuild.files
+      .get(packageSdk.retakeWebPluginV1BuildProvenancePath)!
+      .toString('utf8'),
+  );
+  assert.equal(buildProvenance.profile, 'retake_web_plugin_v1');
+  assert.equal(buildProvenance.toolchain, packageSdk.retakeWebPluginV1Toolchain);
+  assert.deepEqual(buildProvenance.dependencies, []);
   assert.equal(firstBuild.definitions.pluginModules.size, 1);
   assert.notEqual(firstBuild.source.sourceDigest, firstBuild.digest);
   await assert.rejects(
@@ -243,6 +256,7 @@ try {
     [...installedPackage!.files.keys()],
     [
       packageSdk.retakeWebPluginV1OutputPath,
+      packageSdk.retakeWebPluginV1BuildProvenancePath,
       'retake.plugin.json',
     ],
   );
