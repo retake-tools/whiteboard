@@ -9,6 +9,6 @@ export {
   type RemoteRegistryPackageSource,
   type ResolvedPackageDependency,
   type ResolvedWorkspacePackage,
-  type WorkspacePackageLockV2,
+  type WorkspacePackageLock,
   type WorkspacePackageRoot,
 } from '@retake-tools/package-sdk';
