@@ -1,59 +1,59 @@
 {
   "packages": [
     {
-      "bytes": 10535,
+      "bytes": 14906,
       "file": "retake-tools-package-archive-0.1.0.tgz",
-      "integrity": "sha512-jJABdaAArye53zoU8pLvjNQa8sIfcpAygBDS0BVuAuxE9UPyIjHQ7UEBWzrNHfNFOaCpBO6R56cniTImLMvo2A==",
+      "integrity": "sha512-HyiGTg7oFihJqDJYxc7WiPmluE6at7xutyfoCuFbXFrxBfc9z20v1oO1eOmEnsxxksj2oxbzNbzZydsYfOaNgQ==",
       "name": "@retake-tools/package-archive",
-      "sha256": "sha256:aa82178b70d06a37e65983f007d49d69fd6bf8fcfadc9753b87c98be40412c94",
+      "sha256": "sha256:efef49373d3dd0ca0f3d9af8050424ebf48ae9ec23fb518db244fe50050ffa1d",
       "version": "0.1.0"
     },
     {
-      "bytes": 3012,
+      "bytes": 2992,
       "file": "retake-tools-package-cli-0.1.0.tgz",
-      "integrity": "sha512-kiB9YjQdO/2tJKDCyroF28twAhyxxsK/hUfCxh+1BqTLtHepyCmWkh+xg+oh/D38cFRA5z1CsIer45ai6KnqWQ==",
+      "integrity": "sha512-TqGbe9Jj2XfgdJticBK7qtS9laVMT04Bn8TBxVpvYZhy8AW7yeHFWz36+b5EaufFeWscrW6xNoG4pFFj4LwpGw==",
       "name": "@retake-tools/package-cli",
-      "sha256": "sha256:8efa00db7772cfbe9d27869fff55b0aaf8024d1817dfefb9be43408c332ded08",
+      "sha256": "sha256:1e142b3cc81336f1cb49799aeb21ac6c35b7eb90adf46705a76b25cf879b4164",
       "version": "0.1.0"
     },
     {
-      "bytes": 13747,
+      "bytes": 13826,
       "file": "retake-tools-package-contracts-0.1.0.tgz",
-      "integrity": "sha512-O9qNUoRUaN7yQcHnoaVrZcw1Dp9ptN+j1S/HcRNf+BHTOioX7GY+bKgKZoDbAMbf44+JI58wtT5CQC4T/KYJvQ==",
+      "integrity": "sha512-ODa+t3NLMuG4byBW1Y+oqBMpjnutP3cp/rOu2Ycg1z1niOQyoy1SyvLnMjBqQB9GPKJBM4c/1NBnMv0f4YKgng==",
       "name": "@retake-tools/package-contracts",
-      "sha256": "sha256:a3e92d00ff16954e6fa4381017fa9de82b80030cb1857c425145451cf405c8e5",
+      "sha256": "sha256:6d0945e5563aa9b66dcdc7ea9347a69a921687cac5fc69abca7ac3d7dc8fc205",
       "version": "0.1.0"
     },
     {
-      "bytes": 19776,
+      "bytes": 19719,
       "file": "retake-tools-package-manager-0.1.0.tgz",
-      "integrity": "sha512-a0g8aXMH4XB/bHHiuCoSZAwvxGF9VNbyW48wJxfHS9mRVtCA6KlyFtP/x7a+OxerT/zGdj6kBTd8Iyk29Lhfiw==",
+      "integrity": "sha512-rsaq3W0mUltKoX8rFXIOO50W4epkiPKPjbdZM7TZj1KCekUCcJG+kJ1chnZ9ozI/JfOf1iHPXW760tDfY1yE9g==",
       "name": "@retake-tools/package-manager",
-      "sha256": "sha256:b043a75f7e1b68637809c08e48c2c75178c8784794a163e416fb6256653bf389",
+      "sha256": "sha256:e1e7359b38a16a0d9f09421bf3dc717f46c76287a9b3f27e1ee11e1e19c26032",
       "version": "0.1.0"
     },
     {
-      "bytes": 11267,
+      "bytes": 11190,
       "file": "retake-tools-package-registry-client-0.1.0.tgz",
-      "integrity": "sha512-tD3TEvcRqan3kxM4STuF5ORwOzcGlTA/Gv0rliUYwHBjljHbVLxoKNeymTdvFzJsPMlsAsqCwQXMD/6q/ODCBA==",
+      "integrity": "sha512-nqhcWaYbeSrvZ8BN2iLnWRUogCOdp3AzjR0QbStdERcWOq0dIaFqC9mT8kyWqt3R+PdzcwRSLndWKSMAY/Bxiw==",
       "name": "@retake-tools/package-registry-client",
-      "sha256": "sha256:6ab36d2bb579e54d74e07e92f79dbaaf47b1c9051008fbc6768961ec669ed9e8",
+      "sha256": "sha256:11670bf4ddba60c61ceba1b4284719c579891bfdb2a44f51a5c69522bf2a9a41",
       "version": "0.1.0"
     },
     {
-      "bytes": 2764,
+      "bytes": 2748,
       "file": "retake-tools-package-sdk-0.1.0.tgz",
-      "integrity": "sha512-T0P9m7zq2U7waRdpb2Wj/k6JzJyN7n3vgrW6qE4rT16InrS5sywq3zdx0oXccAWcrk0ljfTW1e6qihBsql7KJw==",
+      "integrity": "sha512-RthPlW5o5tVJ8A3au9aZ4ug3sG11fKtye1PKEalwk/iWqQmrHAageFtyh90SqcN8wwMFzEktJRyR0OFYzj8G/Q==",
       "name": "@retake-tools/package-sdk",
-      "sha256": "sha256:3cfd3cdb215bdbd44da2301fd9fcc72d4500c4ed2c8c7ed0e95648ed5d08dfb3",
+      "sha256": "sha256:d2d7bb9914b305e3e92c0a3dcee814f7e3049819b1ce370a54fe332b19f2ad42",
       "version": "0.1.0"
     },
     {
-      "bytes": 5779,
+      "bytes": 5733,
       "file": "retake-tools-plugin-runtime-0.1.0.tgz",
-      "integrity": "sha512-39ChfLfBz75MeT14vUwedo57ViAmINoNlEZdyvpj+Pvg8hqhtCYmdIOKOLmwN+JHR6fdaPv8EXrJlp3UFWd1oA==",
+      "integrity": "sha512-4MbIPOxaMBhcwZwSjUA0lvvlQFDKC2jfXc6+2/6NItXkogT0qx0QfF7kgGWhy5AltjyxtyS9gBsUbsWnyyIPsg==",
       "name": "@retake-tools/plugin-runtime",
-      "sha256": "sha256:205874499dcdacbc63259e08eb4b7cf1b7cc7618a4b0a3d85e7c03183403d81d",
+      "sha256": "sha256:b2703e2a0fad96fccb742c64b1a866783cee774b1b83bf0dfd8641ae7d1bb2ce",
       "version": "0.1.0"
     }
   ],
