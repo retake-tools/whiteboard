@@ -41,13 +41,13 @@ const packageJson = await readJson(path.join(repositoryRoot, 'package.json'));
 const packageLock = await readJson(path.join(repositoryRoot, 'package-lock.json'));
 
 assert.deepEqual(source, {
-  commit: 'e4c4c4540202c67c52c4aeb33e39bd12dec2dd73',
+  commit: '0fb081ec1de9102b492956e8f60415f740af2d75',
   repository: 'https://github.com/retake-tools/package',
   version: '0.1.0',
 });
 assert.equal(manifest.schemaVersion, 1);
 assert.equal(manifest.toolchainVersion, '0.1.0');
-assert.equal(manifest.packages.length, 6);
+assert.equal(manifest.packages.length, 7);
 
 for (const entry of manifest.packages) {
   const dependency = packageJson.dependencies[entry.name];
@@ -137,6 +137,13 @@ try {
       },
       components: {
         agentPresets: [],
+        pluginModules: [{
+          definitionHash: 'sha256:whiteboard-controlled-build-v1',
+          definitionPath: 'retake.plugin.json',
+          pluginModuleId: 'retake.plugin.controlled-build-fixture',
+          resourcePaths: [],
+          version: '0.1.0',
+        }],
         skills: [],
         workflows: [],
       },
@@ -145,6 +152,7 @@ try {
       entrypoints: [],
       files: [
         'package.json',
+        'retake.plugin.json',
         'src/index.ts',
       ],
       integrity: 'sha256:auto',
@@ -172,6 +180,24 @@ try {
     }, null, 2)}\n`,
   );
   await writeFile(
+    path.join(sourceRoot, 'retake.plugin.json'),
+    `${JSON.stringify({
+      contributions: [],
+      definitionHash: 'sha256:whiteboard-controlled-build-v1',
+      description: 'Whiteboard controlled build fixture module',
+      name: 'Whiteboard controlled build fixture',
+      permissions: ['retake.package.read.self'],
+      pluginModuleId: 'retake.plugin.controlled-build-fixture',
+      runtime: {
+        entrypoint: 'dist/index.js',
+        hostApiVersion: 1,
+        kind: 'web_sandbox',
+      },
+      schemaVersion: 1,
+      version: '0.1.0',
+    }, null, 2)}\n`,
+  );
+  await writeFile(
     path.join(sourceRoot, 'src', 'index.ts'),
     'export const pluginId = "retake.plugin.controlled-build-fixture";\n',
   );
@@ -186,8 +212,12 @@ try {
   assert.equal(firstBuild.build.toolchain, packageSdk.retakeWebPluginV1Toolchain);
   assert.deepEqual(
     [...firstBuild.files.keys()],
-    [packageSdk.retakeWebPluginV1OutputPath],
+    [
+      packageSdk.retakeWebPluginV1OutputPath,
+      'retake.plugin.json',
+    ],
   );
+  assert.equal(firstBuild.definitions.pluginModules.size, 1);
   assert.notEqual(firstBuild.source.sourceDigest, firstBuild.digest);
   await assert.rejects(
     access(path.join(sourceRoot, 'lifecycle-ran')),
@@ -211,7 +241,10 @@ try {
   const [installedPackage] = await controlledManager.sdkManager.loadInstalledPackages();
   assert.deepEqual(
     [...installedPackage!.files.keys()],
-    [packageSdk.retakeWebPluginV1OutputPath],
+    [
+      packageSdk.retakeWebPluginV1OutputPath,
+      'retake.plugin.json',
+    ],
   );
 } finally {
   await rm(temporaryRoot, { force: true, recursive: true });
@@ -284,6 +317,7 @@ process.stdout.write(`${JSON.stringify({
   artifacts: manifest.packages.length,
   exactVersionAndIntegrity: true,
   fixedBuildProfiles: ['none', 'retake_web_plugin_v1'],
+  pluginRuntimeArtifact: true,
   portableImplementationsRemoved: removedPortableImplementations.length,
   sdkAuthority: true,
 })}\n`);

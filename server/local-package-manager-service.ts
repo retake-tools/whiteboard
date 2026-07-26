@@ -9,6 +9,7 @@ import type {
   DeclarativePackageManifest,
   DeclarativeSkillDefinition,
   DeclarativeWorkflowDefinition,
+  RetakePluginModuleManifestV1,
   RetakePackageEntryPoint,
 } from '@retake-tools/package-contracts';
 
@@ -32,6 +33,7 @@ export interface InstalledDefinition<T> {
   definition: T;
   packageLock: {
     digest: string;
+    installationId: string;
     packageId: string;
     version: string;
   };
@@ -48,6 +50,7 @@ export interface InstalledDeclarativePackageRegistry {
     };
   }>;
   packages: DeclarativePackageManifest[];
+  pluginModules: Map<string, InstalledDefinition<RetakePluginModuleManifestV1>>;
   skills: Map<string, InstalledDefinition<DeclarativeSkillDefinition>>;
   workflows: Map<string, InstalledDefinition<DeclarativeWorkflowDefinition>>;
 }
@@ -130,6 +133,7 @@ export class LocalPackageManagerService {
       agentPresets: new Map(),
       entrypoints: [],
       packages: [],
+      pluginModules: new Map(),
       skills: new Map(),
       workflows: new Map(),
     };
@@ -144,6 +148,7 @@ export class LocalPackageManagerService {
       }
       const packageLock = {
         digest: resolved.digest,
+        installationId: resolved.installationId,
         packageId: resolved.packageId,
         version: resolved.version,
       };
@@ -160,6 +165,12 @@ export class LocalPackageManagerService {
           packageLock: structuredClone(packageLock),
         });
       }
+      addDefinitions(
+        registry.pluginModules,
+        installed.definitions.pluginModules,
+        packageLock,
+        'PluginModule',
+      );
       addDefinitions(
         registry.skills,
         installed.definitions.skills,

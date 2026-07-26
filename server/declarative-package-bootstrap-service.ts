@@ -1,6 +1,7 @@
 import { lstat, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { PluginRuntimeSnapshotV1 } from '@retake-tools/package-sdk';
 import type { RetakePackageManifest } from '../src/core/packageContracts';
 import {
   configureInstalledRuntimeRegistry,
@@ -13,6 +14,7 @@ import {
   type InstalledDeclarativePackageRegistry,
 } from './local-package-manager-service';
 import { packageVersionSatisfies, parsePackageVersion } from './package-semver';
+import { PluginRuntimeService } from './plugin-runtime-service';
 import type {
   ResolvedWorkspacePackage,
   WorkspacePackageLock,
@@ -45,6 +47,7 @@ export interface DeclarativePackageBootstrapProfileV1 {
 
 export interface DeclarativePackageBootstrapResult {
   installed: boolean;
+  pluginRuntime: PluginRuntimeSnapshotV1;
   snapshot: InstalledRuntimeRegistrySnapshotV1;
 }
 
@@ -57,6 +60,9 @@ export async function ensureDefaultDeclarativePackageBootstrap(input: {
   defaultBootstrapPromise ??= bootstrapDeclarativePackages({
     activateRuntime: true,
     hostVersion: input.hostVersion,
+    ...(process.env.RETAKE_PLUGIN_SAFE_MODE === '1'
+      ? { pluginSafeMode: true }
+      : {}),
     profilePath: defaultBootstrapProfilePath,
     workspaceRoot: input.workspaceRoot,
   });
@@ -75,6 +81,7 @@ export function invalidateDefaultDeclarativePackageBootstrap(): void {
 export async function bootstrapDeclarativePackages(input: {
   activateRuntime?: boolean;
   hostVersion: string;
+  pluginSafeMode?: boolean;
   profilePath: string;
   workspaceRoot: string;
 }): Promise<DeclarativePackageBootstrapResult> {
@@ -96,9 +103,18 @@ export async function bootstrapDeclarativePackages(input: {
     manager.loadRegistry(),
   ]);
   const snapshot = projectInstalledRuntimeRegistry(lockfile, installedRegistry);
+  const pluginRuntime = await new PluginRuntimeService({
+    hostVersion: input.hostVersion,
+    workspaceRoot: input.workspaceRoot,
+  }).reconcile(
+    input.pluginSafeMode === undefined
+      ? {}
+      : { safeMode: input.pluginSafeMode },
+  );
   if (input.activateRuntime !== false) configureInstalledRuntimeRegistry(snapshot);
   return {
     installed: !hasLockfile,
+    pluginRuntime,
     snapshot,
   };
 }
