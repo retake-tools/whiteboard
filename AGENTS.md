@@ -93,6 +93,10 @@ integration branch.
 - Merge a feature into `develop` only after its coherent scope is complete, the
   relevant verification has passed, and product status documentation is
   current. Keep `develop` usable as the base for the next feature.
+- After a feature branch is merged into `develop`, verify that the remote merge
+  is complete, then delete the merged branch both locally and from `origin`.
+  Never delete a branch that still has an open pull request or commits not
+  contained in `origin/develop`.
 - Prepare a public release by verifying the complete integrated state on
   `develop`, obtaining explicit user approval, then merging `develop` into
   `main` and pushing `main`.
