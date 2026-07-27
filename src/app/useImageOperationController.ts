@@ -708,15 +708,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     await persistSnapshot(nextSnapshot);
   }
 
-  const annotationConnections = readyConnectionsForCapability(providerSettings, 'image.annotation_edit');
-  const preferredAnnotationConnectionId = preferredReadyImageConnection(
-    snapshotRef.current,
-    'image.annotation_edit',
-    providerSettings,
-  )?.connectionId;
-
   return {
-    annotationConnections,
     closePromptPreviewAfterCopy,
     copiedPromptKey,
     copyPromptWithHistory,
@@ -727,7 +719,6 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     importImageIntoBlock,
     operationToast,
     promptPreview,
-    preferredAnnotationConnectionId,
     refreshQueuedOperationPrompt,
     retryFailedImageResult,
     setCopiedPromptKey,
@@ -773,18 +764,6 @@ function preferredReadyImageConnection(
     useCase: 'image',
   });
   return preference.isUsable ? preference.connection : undefined;
-}
-
-function readyConnectionsForCapability(
-  settings: ExecutionProviderSettingsSnapshot | undefined,
-  capabilityId: string,
-): ExecutionConnectionSummary[] {
-  return settings?.connections.filter(
-    (connection) =>
-      connection.status === 'ready' &&
-      connection.enabledUseCases.includes('image') &&
-      connection.supportedCapabilityIds.includes(capabilityId),
-  ) ?? [];
 }
 
 function capabilityIdForImmediateImageOperation(operation: ImageCodexOperation): string {

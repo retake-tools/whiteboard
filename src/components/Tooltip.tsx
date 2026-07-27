@@ -158,7 +158,6 @@ type TooltipGeometry = { placement: TooltipPlacement; x: number; y: number };
 type TooltipStyle = CSSProperties & { '--tooltip-left': string; '--tooltip-top': string };
 
 function preferredPlacement(anchor: HTMLElement, rect: DOMRect): TooltipPlacement {
-  if (anchor.closest('.annotation-tool-strip')) return 'right';
   if (anchor.closest('.image-info-button')) return 'left';
   return rect.top < 44 ? 'bottom' : 'top';
 }

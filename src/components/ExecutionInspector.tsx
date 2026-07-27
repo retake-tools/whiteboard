@@ -35,7 +35,6 @@ interface ExecutionInspectorProps {
   snapshot: BoardSnapshot;
   onClose: () => void;
   onCopyPrompt: (input: CopyPromptInput) => void | Promise<void>;
-  onOpenAnnotationEditor: (executionId: string) => void;
   onRestoreConfiguration: (executionId: string) => void;
   onPluginFatalFailure?: (
     pluginModuleId: string,
@@ -50,7 +49,6 @@ export function ExecutionInspector({
   selectedBlock,
   snapshot,
   onCopyPrompt,
-  onOpenAnnotationEditor,
   onPluginFatalFailure,
   onRestoreConfiguration,
   pluginContributionRegistry,
@@ -209,11 +207,6 @@ export function ExecutionInspector({
               copySource="execution_inspector"
               onCopyPrompt={onCopyPrompt}
               onPluginFatalFailure={onPluginFatalFailure}
-              onOpenAnnotationEditor={
-                context.annotationManifest
-                  ? () => onOpenAnnotationEditor(context.execution.executionId)
-                  : undefined
-              }
               onRestoreConfiguration={
                 typeof context.executionVersion === 'number'
                   ? () => onRestoreConfiguration(context.execution.executionId)

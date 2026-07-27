@@ -321,7 +321,6 @@ export function useCanvasController(options: CanvasControllerOptions) {
       if (sameBlockSelection(pendingSelection, nextSelectedBlockIds)) pendingFlowSelectionRef.current = undefined;
       return;
     }
-    if (nextSelectedBlockIds.length === 0 && document.querySelector('.annotation-popover')) return;
     if (!sameBlockSelection(selectedBlockIdsRef.current, nextSelectedBlockIds)) setSelectedBlocks(snapshotRef.current, nextSelectedBlockIds, { source: 'flow' });
   }
 

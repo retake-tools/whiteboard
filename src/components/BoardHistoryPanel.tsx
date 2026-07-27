@@ -34,7 +34,6 @@ interface BoardHistoryPanelProps {
   onClose: () => void;
   onCopyPrompt: (input: CopyPromptInput) => void | Promise<void>;
   onLocateBlock: (blockId: string) => void;
-  onOpenAnnotationEditor: (executionId: string) => void;
   onPluginFatalFailure?: (
     pluginModuleId: string,
     message: string,
@@ -60,7 +59,6 @@ export function BoardHistoryPanel({
   onClose,
   onCopyPrompt,
   onLocateBlock,
-  onOpenAnnotationEditor,
   onPluginFatalFailure,
   pluginContributionRegistry,
   snapshot,
@@ -158,12 +156,14 @@ export function BoardHistoryPanel({
                       copyKey={copyKey}
                       copySource="history_panel"
                       onCopyPrompt={onCopyPrompt}
-                      onPluginFatalFailure={onPluginFatalFailure}
-                      onOpenAnnotationEditor={
-                        detailContext.annotationManifest
-                          ? () => onOpenAnnotationEditor(detailContext.execution.executionId)
-                          : undefined
+                      onBeforePluginOperationAction={
+                        async (operationBlockId) => {
+                          onLocateBlock(operationBlockId);
+                          await nextAnimationFrame();
+                          await nextAnimationFrame();
+                        }
                       }
+                      onPluginFatalFailure={onPluginFatalFailure}
                       pluginContributionRegistry={
                         pluginContributionRegistry
                       }
@@ -179,6 +179,12 @@ export function BoardHistoryPanel({
       )}
     </aside>
   );
+}
+
+function nextAnimationFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
 }
 
 function createHistoryEntries(

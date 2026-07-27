@@ -362,7 +362,8 @@ const completedAnnotationOperationMarkup = renderToStaticMarkup(
     />
   </I18nProvider>,
 );
-assert.match(completedAnnotationOperationMarkup, /Generate again/);
+assert.match(completedAnnotationOperationMarkup, /Managed by Plugin/);
+assert.doesNotMatch(completedAnnotationOperationMarkup, /Generate again/);
 
 const invalidOperationMarkup = renderToStaticMarkup(
   <I18nProvider>
@@ -569,7 +570,6 @@ const historyMarkup = renderToStaticMarkup(
       onClose={() => undefined}
       onCopyPrompt={() => undefined}
       onLocateBlock={() => undefined}
-      onOpenAnnotationEditor={() => undefined}
     />
   </I18nProvider>,
 );
@@ -621,13 +621,12 @@ const annotationManifestMarkup = renderToStaticMarkup(
       copyKey="annotation-manifest-render"
       copySource="history_panel"
       onCopyPrompt={() => undefined}
-      onOpenAnnotationEditor={() => undefined}
     />
   </I18nProvider>,
 );
 assert.match(annotationManifestMarkup, /Annotation Manifest/);
 assert.match(annotationManifestMarkup, /M1 · Numbered marker/);
-assert.match(annotationManifestMarkup, /Open in annotation editor/);
+assert.doesNotMatch(annotationManifestMarkup, /Open in annotation editor/);
 assert.match(annotationManifestMarkup, /User-facing annotation instruction/);
 assert.match(annotationManifestMarkup, /User prompt/);
 assert.match(annotationManifestMarkup, /Agent execution prompt/);
@@ -651,10 +650,7 @@ const replaceableToolbarMarkup = renderToStaticMarkup(
       selectedImageUrl="/source.png"
       onCreateSimilar={() => undefined}
       onDownloadImage={() => undefined}
-      onAnnotationDraftChange={() => undefined}
-      onAnnotationDraftFlush={() => undefined}
       onReplaceImage={() => undefined}
-      onRunAnnotationEdit={() => undefined}
       onRunQuickEdit={() => undefined}
     />
   </I18nProvider>,
@@ -674,10 +670,7 @@ const resultToolbarMarkup = renderToStaticMarkup(
       selectedImageUrl="/result.png"
       onCreateSimilar={() => undefined}
       onDownloadImage={() => undefined}
-      onAnnotationDraftChange={() => undefined}
-      onAnnotationDraftFlush={() => undefined}
       onReplaceImage={() => undefined}
-      onRunAnnotationEdit={() => undefined}
       onRunQuickEdit={() => undefined}
     />
   </I18nProvider>,

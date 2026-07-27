@@ -33,11 +33,9 @@ export interface ReadyBoardSession {
   canRedo: boolean;
   canUndo: boolean;
   connectPorts: (ports: BoardSessionPorts) => void;
-  flushAnnotationDraftPersist: () => void;
   persistSnapshot: (snapshot: BoardSnapshot, options?: PersistSnapshotOptions) => Promise<void>;
   redo: () => void;
   retrySave: () => Promise<void>;
-  scheduleAnnotationDraftPersist: () => void;
   snapshot: BoardSnapshot;
   snapshotRef: RefObject<BoardSnapshot>;
   undo: () => void;
@@ -65,7 +63,6 @@ export function useBoardSession(t: ReturnType<typeof useI18n>['t']): BoardSessio
   const historyRef = useRef<{ past: BoardSnapshot[]; future: BoardSnapshot[] }>({ past: [], future: [] });
   const pendingPersistCountRef = useRef(0);
   const hasUnsavedChangesRef = useRef(false);
-  const annotationDraftPersistTimerRef = useRef<number | undefined>(undefined);
   const portsRef = useRef<BoardSessionPorts>({
     onBoardLoaded: () => undefined,
     onRemoteSnapshot: () => undefined,
@@ -119,12 +116,6 @@ export function useBoardSession(t: ReturnType<typeof useI18n>['t']): BoardSessio
       },
     });
   }, [isReady]);
-
-  useEffect(() => () => {
-    if (annotationDraftPersistTimerRef.current !== undefined) {
-      window.clearTimeout(annotationDraftPersistTimerRef.current);
-    }
-  }, []);
 
   function requireCurrentSnapshot(): BoardSnapshot {
     const current = snapshotRef.current;
@@ -191,25 +182,6 @@ export function useBoardSession(t: ReturnType<typeof useI18n>['t']): BoardSessio
     await persistSnapshot(requireCurrentSnapshot());
   }
 
-  function scheduleAnnotationDraftPersist(): void {
-    if (annotationDraftPersistTimerRef.current !== undefined) {
-      window.clearTimeout(annotationDraftPersistTimerRef.current);
-    }
-    annotationDraftPersistTimerRef.current = window.setTimeout(() => {
-      annotationDraftPersistTimerRef.current = undefined;
-      const currentSnapshot = snapshotRef.current;
-      if (currentSnapshot) void persistSnapshot(currentSnapshot);
-    }, 300);
-  }
-
-  function flushAnnotationDraftPersist(): void {
-    if (annotationDraftPersistTimerRef.current === undefined) return;
-    window.clearTimeout(annotationDraftPersistTimerRef.current);
-    annotationDraftPersistTimerRef.current = undefined;
-    const currentSnapshot = snapshotRef.current;
-    if (currentSnapshot) void persistSnapshot(currentSnapshot);
-  }
-
   function undo(): void {
     const previous = historyRef.current.past.pop();
     if (!previous) return;
@@ -246,11 +218,9 @@ export function useBoardSession(t: ReturnType<typeof useI18n>['t']): BoardSessio
     canRedo: historyRef.current.future.length > 0,
     canUndo: historyRef.current.past.length > 0,
     connectPorts,
-    flushAnnotationDraftPersist,
     persistSnapshot,
     redo,
     retrySave,
-    scheduleAnnotationDraftPersist,
     snapshot: loadState.snapshot,
     snapshotRef: snapshotRef as RefObject<BoardSnapshot>,
     undo,

@@ -1,54 +1,30 @@
 import {
   Download,
-  History,
   ImagePlus,
   ImageUp,
   Maximize2,
-  MessageSquareText,
   MoreHorizontal,
   WandSparkles,
-  X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactElement, ReactNode, RefObject } from 'react';
+import type {
+  CSSProperties,
+  ReactElement,
+  ReactNode,
+  RefObject,
+} from 'react';
 import type { BlockRecord } from '../core/types';
-import type { ExecutionConnectionSummary } from '../core/executionProviders';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
-import { ImageAnnotationEditor, type AnnotationComposite } from './ImageAnnotationEditor';
-import {
-  annotationDraftMatches,
-  type AnnotationDraft,
-  type AnnotationDraftContent,
-  type AnnotationManifest,
-} from '../core/imageAnnotations';
 import { TooltipIconButton, TooltipWrapper } from './Tooltip';
 
-type ImageTool = 'quick-edit' | 'annotation-edit' | 'create-similar' | 'more';
+type ImageTool = 'quick-edit' | 'create-similar' | 'more';
 
 interface ContextToolbarProps {
-  annotationConnections?: ExecutionConnectionSummary[];
-  preferredAnnotationConnectionId?: string;
   canvasZoom: number;
-  annotationEditorOpenRequest?: {
-    draft: AnnotationDraft;
-    requestId: number;
-  };
   pluginActions?: ReactNode;
   selectedBlock?: BlockRecord;
   selectedImageUrl?: string;
-  onRunAnnotationEdit: (input: {
-    instruction: string;
-    manifest: AnnotationManifest;
-    composite: AnnotationComposite;
-    connectionId: string;
-    historical: boolean;
-    variationCount: number;
-  }) => void;
-  onAnnotationDraftChange: (draft: AnnotationDraftContent) => void;
-  onAnnotationDraftFlush: () => void;
-  onAnnotationEditorOpenRequestHandled: () => void;
   onCreateSimilar: () => void;
   onDownloadImage: () => void;
   onReplaceImage: () => void;
@@ -56,126 +32,33 @@ interface ContextToolbarProps {
 }
 
 export function ContextToolbar({
-  annotationConnections = [],
-  preferredAnnotationConnectionId,
   canvasZoom,
-  annotationEditorOpenRequest,
   pluginActions,
   selectedBlock,
   selectedImageUrl,
-  onAnnotationDraftChange,
-  onAnnotationDraftFlush,
-  onAnnotationEditorOpenRequestHandled,
-  onRunAnnotationEdit,
   onCreateSimilar,
   onDownloadImage,
   onReplaceImage,
   onRunQuickEdit,
 }: ContextToolbarProps): ReactElement | null {
   const [activeTool, setActiveTool] = useState<ImageTool | null>(null);
-  const initialAnnotationDraft = annotationDraftForBlock(selectedBlock);
-  const [historicalAnnotationDraft, setHistoricalAnnotationDraft] = useState<AnnotationDraft | undefined>();
-  const [annotationInstruction, setAnnotationInstruction] = useState(
-    () => initialAnnotationDraft?.globalInstruction ?? '',
-  );
-  const [annotationOffset, setAnnotationOffset] = useState({ x: 0, y: 0 });
-  const [isAnnotationDragging, setIsAnnotationDragging] = useState(false);
   const [quickEditInstruction, setQuickEditInstruction] = useState('');
-  const annotationDragRef = useRef({ startX: 0, startY: 0, baseX: 0, baseY: 0 });
-  const pendingAnnotationDraftRef = useRef<AnnotationDraftContent | undefined>(undefined);
-  const annotationDraftSaveTimerRef = useRef<number | undefined>(undefined);
   const dockRef = useRef<HTMLDivElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const { t } = useI18n();
 
   useEffect(() => {
     if (!selectedBlock || selectedBlock.type !== 'image') return;
-    setHistoricalAnnotationDraft(undefined);
-    setAnnotationInstruction(annotationDraftForBlock(selectedBlock)?.globalInstruction ?? '');
     setActiveTool(null);
-    setAnnotationOffset({ x: 0, y: 0 });
   }, [selectedBlock?.blockId, selectedBlock?.type, selectedImageUrl]);
 
-  useEffect(() => {
-    if (!annotationEditorOpenRequest || selectedBlock?.type !== 'image' || !selectedImageUrl) return;
-    setHistoricalAnnotationDraft(structuredClone(annotationEditorOpenRequest.draft));
-    setAnnotationInstruction(annotationEditorOpenRequest.draft.globalInstruction);
-    setActiveTool('annotation-edit');
-    onAnnotationEditorOpenRequestHandled();
-  }, [annotationEditorOpenRequest, onAnnotationEditorOpenRequestHandled, selectedBlock?.type, selectedImageUrl]);
-
-  useEffect(() => () => {
-    if (annotationDraftSaveTimerRef.current !== undefined) {
-      window.clearTimeout(annotationDraftSaveTimerRef.current);
-    }
-  }, []);
-
-  function queueAnnotationDraftChange(draft: AnnotationDraftContent): void {
-    if (historicalAnnotationDraft) {
-      setHistoricalAnnotationDraft((current) => current ? {
-        ...current,
-        globalInstruction: draft.globalInstruction,
-        marks: structuredClone(draft.marks),
-      } : current);
-      return;
-    }
-    pendingAnnotationDraftRef.current = draft;
-    if (annotationDraftSaveTimerRef.current !== undefined) {
-      window.clearTimeout(annotationDraftSaveTimerRef.current);
-    }
-    annotationDraftSaveTimerRef.current = window.setTimeout(() => {
-      annotationDraftSaveTimerRef.current = undefined;
-      const pendingDraft = pendingAnnotationDraftRef.current;
-      pendingAnnotationDraftRef.current = undefined;
-      if (pendingDraft) onAnnotationDraftChange(pendingDraft);
-    }, 120);
-  }
-
-  function flushAnnotationDraft(): void {
-    if (annotationDraftSaveTimerRef.current !== undefined) {
-      window.clearTimeout(annotationDraftSaveTimerRef.current);
-      annotationDraftSaveTimerRef.current = undefined;
-    }
-    const pendingDraft = pendingAnnotationDraftRef.current;
-    pendingAnnotationDraftRef.current = undefined;
-    if (pendingDraft) onAnnotationDraftChange(pendingDraft);
-    onAnnotationDraftFlush();
-  }
-
-  useEffect(() => {
-    if (!isAnnotationDragging) return;
-
-    function onPointerMove(event: PointerEvent): void {
-      const drag = annotationDragRef.current;
-      setAnnotationOffset({
-        x: clamp(event.clientX - drag.startX + drag.baseX, -window.innerWidth / 2 + 160, window.innerWidth / 2 - 160),
-        y: clamp(event.clientY - drag.startY + drag.baseY, -64, Math.max(0, window.innerHeight - 220)),
-      });
-    }
-
-    function onPointerUp(): void {
-      setIsAnnotationDragging(false);
-    }
-
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp);
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-    };
-  }, [isAnnotationDragging]);
-
   const hasImageAsset = Boolean(selectedImageUrl);
-  const activeAnnotationDraft = historicalAnnotationDraft ?? annotationDraftForBlock(selectedBlock);
   const visibleActiveTool = selectedBlock?.type === 'image' && hasImageAsset ? activeTool : null;
 
   useDismissiblePopover({
-    active: Boolean(visibleActiveTool && visibleActiveTool !== 'annotation-edit'),
+    active: Boolean(visibleActiveTool),
     additionalRefs: [popoverRef],
-    onDismiss: () => {
-      setActiveTool(null);
-      setIsAnnotationDragging(false);
-    },
+    onDismiss: () => setActiveTool(null),
     rootRef: dockRef,
   });
 
@@ -185,17 +68,6 @@ export function ContextToolbar({
 
   function toggleTool(tool: ImageTool): void {
     setActiveTool((current) => (current === tool ? null : tool));
-  }
-
-  function beginAnnotationDrag(event: ReactPointerEvent<HTMLDivElement>): void {
-    if ((event.target as HTMLElement).closest('button, input, textarea')) return;
-    annotationDragRef.current = {
-      startX: event.clientX,
-      startY: event.clientY,
-      baseX: annotationOffset.x,
-      baseY: annotationOffset.y,
-    };
-    setIsAnnotationDragging(true);
   }
 
   if (!hasImageAsset) return null;
@@ -213,9 +85,6 @@ export function ContextToolbar({
       <div className="context-toolbar">
         <IconButton label={t('context.quickEdit')} onClick={() => toggleTool('quick-edit')}>
           <WandSparkles size={16} />
-        </IconButton>
-        <IconButton label={t('context.annotateEdit')} onClick={() => toggleTool('annotation-edit')}>
-          <MessageSquareText size={16} />
         </IconButton>
         <IconButton label={t('context.createSimilar')} onClick={() => toggleTool('create-similar')}>
           <ImagePlus size={16} />
@@ -235,42 +104,10 @@ export function ContextToolbar({
       </div>
       {visibleActiveTool ? (
         <ImageToolPopover
-          annotationInstruction={annotationInstruction}
-          annotationDraft={activeAnnotationDraft}
-          annotationConnections={annotationConnections}
-          preferredAnnotationConnectionId={preferredAnnotationConnectionId}
-          isHistoricalAnnotationSession={Boolean(historicalAnnotationDraft)}
-          imageUrl={selectedImageUrl}
-          popoverScale={popoverScale}
           popoverRef={popoverRef}
           quickEditInstruction={quickEditInstruction}
-          selectedBlock={selectedBlock}
           tool={visibleActiveTool}
-          annotationPopoverStyle={{
-            transform: `translate(calc(-50% + ${annotationOffset.x}px), ${annotationOffset.y}px)`,
-          }}
-          onAnnotationInstructionChange={setAnnotationInstruction}
-          onAnnotationDraftChange={queueAnnotationDraftChange}
-          onAnnotationPanelPointerDown={beginAnnotationDrag}
-          onClose={() => {
-            if (historicalAnnotationDraft) {
-              setHistoricalAnnotationDraft(undefined);
-            } else {
-              flushAnnotationDraft();
-            }
-            setActiveTool(null);
-          }}
           onCreateSimilar={onCreateSimilar}
-          onRunAnnotationEdit={(input) => {
-            const historical = Boolean(historicalAnnotationDraft);
-            if (historicalAnnotationDraft) {
-              setHistoricalAnnotationDraft(undefined);
-            } else {
-              flushAnnotationDraft();
-            }
-            onRunAnnotationEdit({ ...input, historical });
-            setActiveTool(null);
-          }}
           onQuickEditInstructionChange={setQuickEditInstruction}
           onRunQuickEdit={() => onRunQuickEdit({ instruction: quickEditInstruction })}
         />
@@ -280,51 +117,17 @@ export function ContextToolbar({
 }
 
 function ImageToolPopover({
-  annotationInstruction,
-  annotationDraft,
-  annotationConnections,
-  preferredAnnotationConnectionId,
-  isHistoricalAnnotationSession,
-  imageUrl,
-  popoverScale,
   popoverRef,
   quickEditInstruction,
-  selectedBlock,
   tool,
-  annotationPopoverStyle,
-  onAnnotationInstructionChange,
-  onAnnotationDraftChange,
-  onAnnotationPanelPointerDown,
-  onClose,
   onCreateSimilar,
-  onRunAnnotationEdit,
   onQuickEditInstructionChange,
   onRunQuickEdit,
 }: {
-  annotationInstruction: string;
-  annotationDraft?: AnnotationDraft;
-  annotationConnections: ExecutionConnectionSummary[];
-  preferredAnnotationConnectionId?: string;
-  isHistoricalAnnotationSession: boolean;
-  imageUrl?: string;
-  popoverScale: number;
   popoverRef: RefObject<HTMLDivElement | null>;
   quickEditInstruction: string;
-  selectedBlock: BlockRecord;
   tool: ImageTool;
-  annotationPopoverStyle?: CSSProperties;
-  onAnnotationInstructionChange: (instruction: string) => void;
-  onAnnotationDraftChange: (draft: AnnotationDraftContent) => void;
-  onAnnotationPanelPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  onClose: () => void;
   onCreateSimilar: () => void;
-  onRunAnnotationEdit: (input: {
-    instruction: string;
-    manifest: AnnotationManifest;
-    composite: AnnotationComposite;
-    connectionId: string;
-    variationCount: number;
-  }) => void;
   onQuickEditInstructionChange: (instruction: string) => void;
   onRunQuickEdit: () => void;
 }): ReactElement {
@@ -358,47 +161,6 @@ function ImageToolPopover({
     );
   }
 
-  if (tool === 'annotation-edit') {
-    const annotationEditor = (
-      <div
-        className="annotation-modal-layer nodrag nopan nowheel"
-        onPointerDown={(event) => event.stopPropagation()}
-      >
-        <div ref={popoverRef} className="context-popover annotation-popover" style={annotationPopoverStyle} aria-label={t('context.annotateEdit')}>
-          <div className="context-popover-header annotation-popover-header" onPointerDown={onAnnotationPanelPointerDown}>
-            <h2>{t('context.annotateEdit')}</h2>
-            <IconButton label={t('context.close')} onClick={onClose}>
-              <X size={16} />
-            </IconButton>
-          </div>
-          {isHistoricalAnnotationSession ? (
-            <div className="annotation-history-session-notice" role="status">
-              <History aria-hidden="true" size={16} />
-              <div>
-                <strong>{t('context.historicalAnnotationSession')}</strong>
-                <span>{t('context.historicalAnnotationSessionBody')}</span>
-              </div>
-            </div>
-          ) : null}
-          <ImageAnnotationEditor
-            connectionOptions={annotationConnections}
-            defaultConnectionId={preferredAnnotationConnectionId}
-            imageUrl={imageUrl}
-            initialDraft={annotationDraft}
-            instruction={annotationInstruction}
-            runLabel={t('context.run')}
-            title={t('context.annotateEdit')}
-            unavailableLabel={t('context.annotationSourceMissing')}
-            onInstructionChange={onAnnotationInstructionChange}
-            onDraftChange={onAnnotationDraftChange}
-            onRun={onRunAnnotationEdit}
-          />
-        </div>
-      </div>
-    );
-    return createPortal(annotationEditor, document.body);
-  }
-
   return (
     <div ref={popoverRef} className="context-popover" aria-label={t('context.moreTools')}>
       <h2>{t('context.more')}</h2>
@@ -417,14 +179,6 @@ function ImageToolPopover({
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
-}
-
-function annotationDraftForBlock(block: BlockRecord | undefined): AnnotationDraft | undefined {
-  if (!block || block.type !== 'image') return undefined;
-  const sourceAssetId = typeof block.data.assetId === 'string' ? block.data.assetId : undefined;
-  return annotationDraftMatches(block.data.annotationDraft, sourceAssetId)
-    ? block.data.annotationDraft
-    : undefined;
 }
 
 function IconButton({

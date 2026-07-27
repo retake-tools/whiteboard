@@ -15,6 +15,7 @@ import {
 import {
   createPluginHostReadStore,
 } from '../src/core/pluginWebModuleLoader';
+import type { AnnotationManifest } from '../src/core/imageAnnotations';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import type {
   AssetRecord,
@@ -74,6 +75,57 @@ const capability = {
   },
   kind: 'capability',
 } as const;
+const annotationCapability = {
+  apiVersion: 2,
+  definition: {
+    capabilityId: 'image.annotation_edit',
+    category: 'image_editing',
+    definitionHash: 'sha256:image-annotation-edit-fixture-v2',
+    displayName: 'Annotation Edit',
+    inputSlots: [
+      {
+        artifactTypes: [],
+        bindingKinds: ['asset', 'block'],
+        cardinality: 'one',
+        dataTypes: ['image'],
+        required: true,
+        semanticRole: 'source',
+        slotId: 'source_image',
+      },
+      {
+        artifactTypes: [],
+        bindingKinds: ['asset'],
+        cardinality: 'one',
+        dataTypes: ['image'],
+        required: true,
+        semanticRole: 'annotated_composite',
+        slotId: 'annotated_composite',
+      },
+      {
+        artifactTypes: [],
+        bindingKinds: ['inline'],
+        cardinality: 'one',
+        dataTypes: ['text'],
+        required: true,
+        semanticRole: 'prompt',
+        slotId: 'prompt',
+      },
+    ],
+    outputSlots: [{
+      cardinality: 'many',
+      dataType: 'image',
+      projectionBlockTypes: ['image'],
+      semanticRole: 'edited_images',
+      slotId: 'edited_images',
+    }],
+    parametersSchemaRef: 'definitions/image.annotation_edit.parameters.json',
+    runtimeRequirements: ['durable_asset_output', 'image_generation'],
+    schemaVersion: 2,
+    supportedAdapterClasses: ['agent_runtime.media'],
+    version: '0.2.0',
+  },
+  kind: 'capability',
+} as const;
 
 const snapshot = snapshotWithMaskedEditInputs();
 const source = snapshot.blocks.find(
@@ -102,16 +154,28 @@ const host = hostStore.host(2, pluginModuleId);
 hostStore.update(host.getReadSnapshot(), [sourceAsset, maskAsset]);
 assert.deepEqual(registry.replace([{
   activation: {
-    contributions: [{
-      contribution: {
-        contributionId: 'design.retake.image-studio.masked-edit',
-        definitionHash: capability.definition.definitionHash,
-        definitionPath: 'definitions/image.masked_edit.json',
-        exportName: 'maskedEditCapability',
-        kind: 'capability',
+    contributions: [
+      {
+        contribution: {
+          contributionId: 'design.retake.image-studio.masked-edit',
+          definitionHash: capability.definition.definitionHash,
+          definitionPath: 'definitions/image.masked_edit.json',
+          exportName: 'maskedEditCapability',
+          kind: 'capability',
+        },
+        value: capability,
       },
-      value: capability,
-    }],
+      {
+        contribution: {
+          contributionId: 'design.retake.image-studio.annotation-edit',
+          definitionHash: annotationCapability.definition.definitionHash,
+          definitionPath: 'definitions/image.annotation_edit.json',
+          exportName: 'annotationEditCapability',
+          kind: 'capability',
+        },
+        value: annotationCapability,
+      },
+    ],
   },
   host,
   record: { pluginModuleId },
@@ -133,7 +197,7 @@ cacheExecutionProviderSettings(snapshot.project.projectId, {
     implementationKind: 'agent_bridge',
     providerLabel: 'Codex',
     status: 'ready',
-    supportedCapabilityIds: ['image.masked_edit'],
+    supportedCapabilityIds: ['image.annotation_edit', 'image.masked_edit'],
   }],
   connectors: [],
   projectDefaults: [],
@@ -270,6 +334,105 @@ assert.match(
   new RegExp(`inpaint_mask.*${importedMask.assetId}`, 's'),
 );
 
+const annotationManifest: AnnotationManifest = {
+  schemaVersion: 1,
+  globalInstruction: 'Preserve every unmarked pixel.',
+  marks: [
+    {
+      id: 'R1',
+      kind: 'rect',
+      color: '#dc2626',
+      strokeSize: 'm',
+      intent: 'Replace the jacket with a dark blue jacket.',
+      start: { x: 0.2, y: 0.2 },
+      end: { x: 0.7, y: 0.8 },
+    },
+  ],
+};
+const importedComposite = await host.assets.importImage({
+  dataUrl: 'data:image/png;base64,AA==',
+  fileName: 'annotated-composite.png',
+  height: sourceAsset.height,
+  width: sourceAsset.width,
+});
+const annotationStarted = await host.execution.runConnected({
+  capabilityId: 'image.annotation_edit',
+  inputs: [
+    { blockId: source.blockId, slotId: 'source_image' },
+    {
+      assetId: importedComposite.assetId,
+      slotId: 'annotated_composite',
+    },
+  ],
+  outputCount: 3,
+  parameters: {
+    manifest: annotationManifest,
+  },
+  prompt: 'Apply the structured visual annotation.',
+});
+const annotationExecution = snapshotRef.current.executions.find(
+  (candidate) => candidate.executionId === annotationStarted.executionId,
+)!;
+const annotationOperation = snapshotRef.current.blocks.find(
+  (block) => block.blockId === annotationExecution.params?.operationBlockId,
+)!;
+const annotationHistory = snapshotRef.current.historyEvents?.find(
+  (event) => event.executionId === annotationExecution.executionId,
+)!;
+assert.equal(annotationStarted.outputBlockIds.length, 3);
+assert.deepEqual(annotationExecution.params?.annotationManifest, annotationManifest);
+assert.deepEqual(
+  annotationExecution.params?.pluginParameters,
+  { manifest: annotationManifest },
+);
+assert.equal(
+  annotationExecution.params?.annotatedCompositeAssetId,
+  importedComposite.assetId,
+);
+assert.deepEqual(annotationExecution.params?.inputBindings, [
+  {
+    assetId: sourceAsset.assetId,
+    blockId: source.blockId,
+    inputRole: 'source',
+  },
+  {
+    assetId: importedComposite.assetId,
+    inputRole: 'annotated_composite',
+  },
+]);
+assert.deepEqual(annotationExecution.inputBindingsSnapshot, [
+  {
+    slotId: 'source_image',
+    values: [{
+      assetId: sourceAsset.assetId,
+      blockId: source.blockId,
+      kind: 'asset',
+    }],
+  },
+  {
+    slotId: 'annotated_composite',
+    values: [{ assetId: importedComposite.assetId, kind: 'asset' }],
+  },
+  {
+    slotId: 'prompt',
+    values: [{ kind: 'inline', value: 'Apply the structured visual annotation.' }],
+  },
+]);
+assert.deepEqual(annotationOperation.data.annotationManifest, annotationManifest);
+assert.deepEqual(
+  annotationOperation.data.pluginParameters,
+  { manifest: annotationManifest },
+);
+assert.equal(
+  annotationOperation.data.annotatedCompositeAssetId,
+  importedComposite.assetId,
+);
+assert.deepEqual(annotationHistory.detail?.annotationManifest, annotationManifest);
+assert.equal(
+  annotationHistory.assetIds?.includes(importedComposite.assetId),
+  true,
+);
+
 const executionCount = snapshotRef.current.executions.length;
 await assert.rejects(
   host.execution.runConnected!({
@@ -298,6 +461,8 @@ process.stdout.write(`${JSON.stringify({
   connectedExecutionUsesCurrentRetakeConnection: true,
   credentialsStayOutsidePluginHost: true,
   importedAssetInputCreatesNoIntermediateBlock: true,
+  annotationPluginProjectsLegacyReadModel: true,
+  annotationPluginFreezesTypedCompositeInput: true,
   maskGeometryValidatedBeforeOperation: true,
   multipleResultsShareOneExecution: true,
   typedInputsPersistedToExecutionAndEdges: true,

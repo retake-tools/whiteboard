@@ -9,6 +9,56 @@ import {
 
 export const textGenerateCapabilityDefinition: CapabilityDefinition = definitionForLegacyCapability('text.generate');
 
+const annotationReadCompatibilityCapabilityDefinition: CapabilityDefinition = {
+  schemaVersion: 1,
+  capabilityId: 'image.annotation_edit',
+  version: '0.1.0',
+  definitionHash: 'compat:image.annotation_edit:read-v1',
+  category: 'image_editing',
+  displayName: 'Annotation Edit',
+  inputSlots: [
+    {
+      slotId: 'source_image',
+      semanticRole: 'source',
+      dataTypes: ['image'],
+      artifactTypes: ['image'],
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['block', 'asset', 'artifact_revision'],
+    },
+    {
+      slotId: 'prompt',
+      semanticRole: 'prompt',
+      dataTypes: ['text'],
+      artifactTypes: [],
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['inline'],
+    },
+    {
+      slotId: 'annotated_composite',
+      semanticRole: 'annotated_composite',
+      dataTypes: ['image'],
+      artifactTypes: ['image'],
+      cardinality: 'one',
+      required: true,
+      bindingKinds: ['asset'],
+    },
+  ],
+  outputSlots: [{
+    slotId: 'images',
+    semanticRole: 'edited_images',
+    dataType: 'image',
+    artifactType: 'image',
+    schemaRef: 'retake.image-set/v1',
+    cardinality: 'many',
+    projectionBlockTypes: ['image'],
+  }],
+  parametersSchemaRef: 'compat.params.image.annotation_edit/read-v1',
+  runtimeRequirements: ['image_edit', 'durable_asset_output'],
+  supportedAdapterClasses: ['image.edit', 'agent_runtime.media'],
+};
+
 export const screenplayGenerateCapabilityDefinition: CapabilityDefinition = {
   schemaVersion: 1,
   capabilityId: 'story.screenplay.generate',
@@ -798,6 +848,9 @@ export const volcengineArkSeedreamImageAdapterDefinition: AdapterDefinition = {
 export function capabilityDefinitionFor(capabilityId: string): CapabilityDefinition {
   const pluginDefinition = pluginCapabilityDefinitionFor(capabilityId);
   if (pluginDefinition) return pluginDefinition;
+  if (capabilityId === annotationReadCompatibilityCapabilityDefinition.capabilityId) {
+    return annotationReadCompatibilityCapabilityDefinition;
+  }
   const canonicalDefinition = canonicalCapabilityDefinitions.find(
     (definition) => definition.capabilityId === capabilityId,
   );

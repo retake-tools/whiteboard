@@ -26,7 +26,9 @@ import {
   usePluginDraftController,
 } from './app/usePluginDraftController';
 import { useOperationInputController } from './app/useOperationInputController';
-import { useAnnotationController } from './app/useAnnotationController';
+import {
+  useExecutionConfigurationController,
+} from './app/useExecutionConfigurationController';
 import { useCanvasController } from './app/useCanvasController';
 import { useGroupController } from './app/useGroupController';
 import { useBlockActions } from './app/useBlockActions';
@@ -57,6 +59,7 @@ import type {
 import type {
   PluginHostDraftRecordV2,
 } from './core/pluginDrafts';
+import { pluginHostBoundScope } from './core/pluginHostScope';
 import type {
   PluginRuntimeControllerV1,
 } from './core/pluginRuntimeManagementClient';
@@ -178,11 +181,9 @@ function ReadyApp({
     canRedo,
     canUndo,
     connectPorts,
-    flushAnnotationDraftPersist,
     persistSnapshot,
     redo,
     retrySave,
-    scheduleAnnotationDraftPersist,
     snapshot,
     snapshotRef,
     undo,
@@ -317,25 +318,20 @@ function ReadyApp({
   const selectedBlockScopeKey = selectedBlockIds.join('\u0000');
   useEffect(() => {
     if (!onPluginHostScopeChange) return;
-    const selected = new Set(selectedBlockIds);
-    const selectedBlocks = snapshot.blocks.filter(
-      (block) => selected.has(block.blockId),
+    const {
+      boundAssetIds,
+      boundBlockIds,
+      boundGroupIds,
+    } = pluginHostBoundScope(
+      snapshot,
+      selectedBlockIds,
+      inspectorBlockId,
     );
-    const boundAssetIds = [...new Set(selectedBlocks.flatMap((block) => (
-      typeof block.data.assetId === 'string' ? [block.data.assetId] : []
-    )))].sort();
-    const boundBlockIds = selectedBlocks
-      .filter((block) => block.type !== 'group')
-      .map((block) => block.blockId)
-      .sort();
     onPluginHostScopeChange({
       boardId: snapshot.board.boardId,
       boundAssetIds,
       boundBlockIds,
-      boundGroupIds: [...new Set(selectedBlocks.flatMap((block) => [
-        ...(block.type === 'group' ? [block.blockId] : []),
-        ...(block.parentGroupId ? [block.parentGroupId] : []),
-      ]))].sort(),
+      boundGroupIds,
       projectId: snapshot.project.projectId,
       revision: `${snapshot.board.updatedAt}:selection:${selectedBlockScopeKey}`,
       selectedBlockIds: [...selectedBlockIds],
@@ -344,6 +340,7 @@ function ReadyApp({
     ), pluginDraftViewsForBlocks(snapshot, new Set(boundBlockIds)));
   }, [
     onPluginHostScopeChange,
+    inspectorBlockId,
     selectedBlockScopeKey,
     snapshot.board.boardId,
     snapshot.board.updatedAt,
@@ -458,10 +455,9 @@ function ReadyApp({
     updateSnapshot,
   });
   connectCanvasActions({ deleteBlockIds });
-  const annotationController = useAnnotationController({
-    scheduleAnnotationDraftPersist,
-    setHistoryOpen: setIsHistoryOpen,
-    setInspectorBlockId,
+  const {
+    restoreConfigurationVersion,
+  } = useExecutionConfigurationController({
     setOperationToast,
     setSelectedBlock,
     snapshotRef,
@@ -512,10 +508,6 @@ function ReadyApp({
     t,
     updateSnapshot,
   });
-  const {
-    openHistoricalAnnotationVersion,
-    restoreConfigurationVersion,
-  } = annotationController;
   const groupController = useGroupController({
     canvasAreaRef,
     collapsedGroupIdsRef,
@@ -539,7 +531,6 @@ function ReadyApp({
     addOperationInputBlock,
     directImageImportInputRef,
     isMiniMapVisible,
-    openHistoricalAnnotationVersion,
     pendingDirectImageImportBlockIdRef,
     retryFailedImageResult,
     setHistoryOpen: setIsHistoryOpen,
@@ -769,7 +760,6 @@ function ReadyApp({
         snapshot={snapshot}
         onClose={() => setInspectorBlockId(undefined)}
         onCopyPrompt={copyPromptWithHistory}
-        onOpenAnnotationEditor={openHistoricalAnnotationVersion}
         onPluginFatalFailure={onPluginContributionFatalFailure}
         onRestoreConfiguration={restoreConfigurationVersion}
         pluginContributionRegistry={pluginContributionRegistry}
@@ -817,7 +807,6 @@ function ReadyApp({
           onClose={() => setIsHistoryOpen(false)}
           onCopyPrompt={copyPromptWithHistory}
           onLocateBlock={locateBlock}
-          onOpenAnnotationEditor={openHistoricalAnnotationVersion}
           onPluginFatalFailure={onPluginContributionFatalFailure}
           pluginContributionRegistry={pluginContributionRegistry}
         />
@@ -866,11 +855,9 @@ function ReadyApp({
       ) : null}
 
       <WhiteboardCanvas
-        annotations={annotationController}
         blockActions={blockActions}
         canvas={canvasController}
         directImageImportInputRef={directImageImportInputRef}
-        flushAnnotationDraftPersist={flushAnnotationDraftPersist}
         groups={groupController}
         imageOperations={imageOperationController}
         isMiniMapVisible={isMiniMapVisible}
@@ -890,7 +877,6 @@ function ReadyApp({
         setMiniMapVisible={setIsMiniMapVisible}
         showGrid={showGrid}
         snapshot={snapshot}
-        snapshotRef={snapshotRef}
         t={t}
         workflowRuntime={workflowRuntimeController}
       />

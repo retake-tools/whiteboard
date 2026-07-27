@@ -24,15 +24,21 @@ import type {
 const emptyActions: readonly RegisteredPluginActionV1[] = Object.freeze([]);
 
 export function PluginOperationInspectorActions({
+  disabled = false,
   execution,
   inputAssets,
+  onBeforeInvoke,
   onFatalFailure,
   operationBlock,
   registry,
   sourceBlock,
 }: {
+  disabled?: boolean;
   execution: ExecutionRecord;
   inputAssets: readonly AssetRecord[];
+  onBeforeInvoke?: (
+    operationBlockId: string,
+  ) => Promise<void> | void;
   onFatalFailure?: (
     pluginModuleId: string,
     message: string,
@@ -70,7 +76,9 @@ export function PluginOperationInspectorActions({
       {actions.map((action) => (
         <PluginOperationActionButton
           action={action}
+          disabled={disabled}
           key={action.contributionId}
+          onBeforeInvoke={onBeforeInvoke}
           onFatalFailure={onFatalFailure}
           operation={operation}
         />
@@ -81,10 +89,16 @@ export function PluginOperationInspectorActions({
 
 function PluginOperationActionButton({
   action,
+  disabled,
+  onBeforeInvoke,
   onFatalFailure,
   operation,
 }: {
   action: RegisteredPluginOperationInspectorActionV2;
+  disabled: boolean;
+  onBeforeInvoke?: (
+    operationBlockId: string,
+  ) => Promise<void> | void;
   onFatalFailure?: (
     pluginModuleId: string,
     message: string,
@@ -100,9 +114,10 @@ function PluginOperationActionButton({
   if (action.failure) return null;
 
   const invoke = async (): Promise<void> => {
-    if (pending) return;
+    if (disabled || pending) return;
     setPending(true);
     try {
+      await onBeforeInvoke?.(operation.operationBlockId);
       await action.run(Object.freeze({
         host: action.host,
         operation,
@@ -120,7 +135,7 @@ function PluginOperationActionButton({
   return (
     <button
       className="execution-restore-configuration"
-      disabled={pending}
+      disabled={disabled || pending}
       type="button"
       onClick={() => void invoke()}
     >

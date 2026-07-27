@@ -32,15 +32,10 @@ for (const component of componentSources) {
 }
 
 assert.match(componentSources[0].source, /additionalRefs: \[popoverRef\]/);
-assert.match(
+assert.doesNotMatch(
   componentSources[0].source,
-  /active: Boolean\(visibleActiveTool && visibleActiveTool !== 'annotation-edit'\)/,
-  'annotation editing must opt out of generic outside-click, Escape, and selection-change dismissal',
-);
-assert.match(
-  componentSources[0].source,
-  /className="annotation-modal-layer nodrag nopan nowheel"/,
-  'annotation editing must intercept canvas clicks so selection changes cannot unmount the editor',
+  /annotation-edit|annotation-modal-layer/,
+  'Core toolbar must not retain the retired Annotation authoring surface',
 );
 assert.match(componentSources[4].source, /insideSelector: '\.operation-option-popover-wrap'/);
 assert.match(componentSources[4].source, /currentExecutionProviderSettings/);
@@ -50,7 +45,7 @@ assert.match(componentSources[4].source, /retake:update-operation-connection/);
 
 console.log({
   capturePhaseOutsideClick: true,
-  annotationExplicitCloseOnly: true,
+  annotationAuthoringOwnedByPlugin: true,
   escapeDismissal: true,
   migratedComponents: componentPaths.length,
   portalSupport: true,
