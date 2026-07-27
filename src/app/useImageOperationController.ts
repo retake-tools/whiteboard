@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
-import { createImageAssetFromDataUrl, getAssetPreviewUrl } from '../core/assetStore';
+import { createImageAssetFromDataUrl } from '../core/assetStore';
 import { loadBoardSnapshot } from '../core/boardStore';
 import { localizedBlockData } from '../core/blockLocalization';
 import { createBlockRecord, touchBoard } from '../core/blockFactory';
@@ -10,12 +10,9 @@ import { attachImportedImageAsset } from '../core/imageBlockAsset';
 import { imageBranchDraftSelectionBlockIds } from '../core/imageOperationLayout';
 import {
   addImageCodexOperation,
-  addLocalImageOperation,
-  completeLocalImageOperation,
   createDraftImageToImageOperation,
   createDraftTextToImageOperation,
   executeExistingImageOperationBlock,
-  failLocalImageOperation,
   type ImageCodexOperation,
   type ImageGenerationParams,
   type SwitchableOperationMode,
@@ -24,7 +21,6 @@ import {
   createImageComposerDraft,
   type ImageComposerReference,
 } from '../core/imageComposer';
-import { renderAdjustedImage, type LocalImageAdjustments } from '../core/localImageTransforms';
 import { imageOperationDefaultPrompt, imageOperationTitle } from '../core/imageOperationText';
 import { nowIso } from '../core/id';
 import { createImageResultRetryPrompt } from '../core/prompts';
@@ -471,47 +467,6 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     }
   }
 
-  async function createLocalImageEditOperation(
-    block: BlockRecord,
-    input: { body: string; capabilityId: 'image.local_adjust'; params: LocalImageAdjustments; title: string },
-  ): Promise<void> {
-    const sourceImageUrl = getAssetPreviewUrl(snapshotRef.current.assets, block.data.assetId);
-    if (!sourceImageUrl) return;
-    let executionId = '';
-    let operationBlockId = '';
-    let resultBlockId = '';
-    const runningSnapshot = updateSnapshot((current) => {
-      const result = addLocalImageOperation(current, { body: input.body, capabilityId: input.capabilityId, params: input.params, sourceBlockId: block.blockId, title: input.title });
-      executionId = result.execution.executionId;
-      operationBlockId = result.operationBlock.blockId;
-      resultBlockId = result.resultBlock.blockId;
-      return current;
-    }, { history: true });
-    if (!executionId || !operationBlockId || !resultBlockId) return;
-    setSelectedBlock(runningSnapshot, operationBlockId);
-    try {
-      await persistSnapshot(runningSnapshot);
-      const rendered = await renderAdjustedImage(sourceImageUrl, input.params);
-      const asset = await createImageAssetFromDataUrl({ projectId: runningSnapshot.project.projectId, dataUrl: rendered.dataUrl, fileName: `adjusted-${block.blockId}.png`, width: rendered.width, height: rendered.height, sourceExecutionId: executionId });
-      const completedSnapshot = updateSnapshot((current) => {
-        completeLocalImageOperation(current, { asset, executionId });
-        return current;
-      });
-      await persistSnapshot(completedSnapshot);
-      setSelectedBlock(completedSnapshot, resultBlockId);
-      setOperationToast({ id: executionId, title: t('feedback.localEditCompleted'), tone: 'success' });
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : t('feedback.localEditFailed');
-      const failedSnapshot = updateSnapshot((current) => {
-        failLocalImageOperation(current, { errorMessage, executionId });
-        return current;
-      });
-      await persistSnapshot(failedSnapshot);
-      setSelectedBlock(failedSnapshot, operationBlockId);
-      setOperationToast({ id: executionId, title: t('feedback.localEditFailed'), body: errorMessage, tone: 'error' });
-    }
-  }
-
   async function startExistingOperationBlock(input: { block: BlockRecord; operation: SwitchableOperationMode }): Promise<void> {
     if (blockLockedByGroup(snapshotRef.current, input.block.blockId)) return;
     let operationPrompt = '';
@@ -768,7 +723,6 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     copyQueuedOperationPrompt,
     createImageToImageDraftFromMenu,
     createImageToImageDraftOperation,
-    createLocalImageEditOperation,
     createTextToImageDraftOperation,
     importImageIntoBlock,
     operationToast,

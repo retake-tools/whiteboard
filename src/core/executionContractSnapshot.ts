@@ -37,11 +37,12 @@ export function recordLegacyExecutionContractSnapshot(
 
 export function syncExecutionOutputContractSnapshot(execution: ExecutionRecord): void {
   const definition = safeLegacyDefinition(execution.capabilityId);
-  if (!definition) return;
-  execution.outputSlotResults = definition.outputSlots.map((slot) => ({
-    slotId: slot.slotId,
-    assetIds: outputAssetIdsForSlot(execution, slot.dataType),
-  }));
+  if (definition) {
+    execution.outputSlotResults = definition.outputSlots.map((slot) => ({
+      slotId: slot.slotId,
+      assetIds: outputAssetIdsForSlot(execution, slot.dataType),
+    }));
+  }
   execution.resultSummary = executionResultSummary(execution);
 }
 

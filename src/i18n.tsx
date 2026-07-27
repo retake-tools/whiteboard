@@ -86,7 +86,6 @@ export type TranslationKey =
   | 'codex.binding.connected'
   | 'codex.binding.connect'
   | 'common.dismiss'
-  | 'context.adjust'
   | 'context.addArrow'
   | 'context.arrowTool'
   | 'context.annotateForCodex'
@@ -197,8 +196,6 @@ export type TranslationKey =
   | 'feedback.promptRequired'
   | 'feedback.promptRequiredBody'
   | 'feedback.localApiUnavailable'
-  | 'feedback.localEditCompleted'
-  | 'feedback.localEditFailed'
   | 'history.close'
   | 'history.collapse'
   | 'history.empty'
@@ -1098,7 +1095,6 @@ const translations: Record<Locale, Translations> = {
     'codex.binding.connected': 'Copy Codex binding prompt for this board',
     'codex.binding.connect': 'Copy Codex binding prompt and connect this board',
     'common.dismiss': 'Dismiss',
-    'context.adjust': 'Adjust',
     'context.addArrow': 'Add arrow',
     'context.arrowTool': 'Arrow',
     'context.annotateForCodex': 'Annotation Edit',
@@ -1209,8 +1205,6 @@ const translations: Record<Locale, Translations> = {
     'feedback.promptRequired': 'Prompt required',
     'feedback.promptRequiredBody': 'Enter a prompt before running this operation.',
     'feedback.localApiUnavailable': 'The shared Retake workspace is unavailable. Open this board from the Retake dev or preview server, then try again.',
-    'feedback.localEditCompleted': 'Adjusted image created',
-    'feedback.localEditFailed': 'Local image adjustment failed',
     'history.close': 'Close history',
     'history.collapse': 'Collapse details',
     'history.empty': 'No history yet',
@@ -2105,7 +2099,6 @@ const translations: Record<Locale, Translations> = {
     'codex.binding.connected': '复制当前画板的 Codex 绑定提示',
     'codex.binding.connect': '复制 Codex 绑定提示并连接当前画板',
     'common.dismiss': '关闭提示',
-    'context.adjust': '调整',
     'context.addArrow': '添加箭头',
     'context.arrowTool': '箭头',
     'context.annotateForCodex': '标注编辑',
@@ -2216,8 +2209,6 @@ const translations: Record<Locale, Translations> = {
     'feedback.promptRequired': '请填写提示词',
     'feedback.promptRequiredBody': '请先填写这个操作要生成或修改的内容。',
     'feedback.localApiUnavailable': 'Retake 共享工作区当前不可用。请通过 Retake dev 或 preview 服务打开画板后重试。',
-    'feedback.localEditCompleted': '已生成调整后的图片',
-    'feedback.localEditFailed': '本地图片调整失败',
     'history.close': '关闭历史记录',
     'history.collapse': '收起详情',
     'history.empty': '暂无历史记录',

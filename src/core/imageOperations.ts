@@ -107,20 +107,20 @@ interface DraftTextToImageOperationInput {
   textBlockTitle: string;
 }
 
-interface LocalImageOperationInput {
+interface PluginImageOperationInput {
   body: string;
-  capabilityId: 'image.local_adjust';
+  capabilityId: string;
   params?: Record<string, unknown>;
   sourceBlockId: string;
   title: string;
 }
 
-interface LocalImageOperationCompletionInput {
+interface PluginImageOperationCompletionInput {
   asset: AssetRecord;
   executionId: string;
 }
 
-interface LocalImageOperationFailureInput {
+interface PluginImageOperationFailureInput {
   errorMessage: string;
   executionId: string;
 }
@@ -539,13 +539,13 @@ export function createDraftTextToImageOperation(
   return { operationBlock, textBlock };
 }
 
-export function addLocalImageOperation(
+export function addPluginImageOperation(
   snapshot: BoardSnapshot,
-  input: LocalImageOperationInput,
+  input: PluginImageOperationInput,
 ): { execution: ExecutionRecord; operationBlock: BlockRecord; resultBlock: BlockRecord } {
   const sourceBlock = snapshot.blocks.find((block) => block.blockId === input.sourceBlockId);
   if (!sourceBlock || sourceBlock.type !== 'image') {
-    throw new Error('Local image operation requires a selected image block.');
+    throw new Error('Plugin image operation requires a selected image block.');
   }
 
   const createdAt = nowIso();
@@ -571,7 +571,7 @@ export function addLocalImageOperation(
       triggerMode: 'local_canvas',
       capabilityId: input.capabilityId,
       operationMode: input.capabilityId,
-      localEditParams: input.params,
+      pluginParameters: input.params,
       sourceAssetId: sourceBlock.data.assetId,
       sourceBlockId: sourceBlock.blockId,
       sourceExecutionId: executionId,
@@ -614,7 +614,7 @@ export function addLocalImageOperation(
     outputAssetIds: [],
     triggerMode: 'local_canvas',
     params: {
-      localEdit: input.params,
+      pluginParameters: input.params,
       inputBindings: [{
         assetId: sourceBlock.data.assetId,
         blockId: sourceBlock.blockId,
@@ -642,7 +642,7 @@ export function addLocalImageOperation(
     summary: input.title,
     detail: {
       capabilityId: input.capabilityId,
-      localEdit: input.params,
+      parameters: input.params,
       operationBlockId: operationBlock.blockId,
       resultBlockId: resultBlock.blockId,
       sourceBlockId: sourceBlock.blockId,
@@ -654,13 +654,13 @@ export function addLocalImageOperation(
   return { execution, operationBlock, resultBlock };
 }
 
-export function completeLocalImageOperation(
+export function completePluginImageOperation(
   snapshot: BoardSnapshot,
-  input: LocalImageOperationCompletionInput,
+  input: PluginImageOperationCompletionInput,
 ): { execution: ExecutionRecord; operationBlock: BlockRecord; resultBlock: BlockRecord } {
   const execution = snapshot.executions.find((candidate) => candidate.executionId === input.executionId);
   if (!execution || execution.adapter !== 'local_canvas' || execution.status !== 'running') {
-    throw new Error(`Local image execution is not running: ${input.executionId}`);
+    throw new Error(`Plugin image execution is not running: ${input.executionId}`);
   }
   const operationBlockId = typeof execution.params?.operationBlockId === 'string'
     ? execution.params.operationBlockId
@@ -672,7 +672,7 @@ export function completeLocalImageOperation(
     (block) => block.blockId === execution.outputBlockIds[0] && block.type === 'image',
   );
   if (!operationBlock || !resultBlock) {
-    throw new Error(`Local image execution is missing its operation or result block: ${input.executionId}`);
+    throw new Error(`Plugin image execution is missing its operation or result block: ${input.executionId}`);
   }
 
   const completedAt = nowIso();
@@ -716,9 +716,9 @@ export function completeLocalImageOperation(
   return { execution, operationBlock, resultBlock };
 }
 
-export function failLocalImageOperation(
+export function failPluginImageOperation(
   snapshot: BoardSnapshot,
-  input: LocalImageOperationFailureInput,
+  input: PluginImageOperationFailureInput,
 ): ExecutionRecord | undefined {
   const execution = snapshot.executions.find((candidate) => candidate.executionId === input.executionId);
   if (!execution || execution.adapter !== 'local_canvas' || execution.status !== 'running') return execution;

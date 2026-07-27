@@ -33,7 +33,6 @@ const legacyCapabilityIds = [
   'image.text_to_image',
   'image.image_to_image',
   'image.annotation_edit',
-  'image.local_adjust',
   'image.local_crop',
   'image.local_expand',
   'video.first_last_frame_to_video',

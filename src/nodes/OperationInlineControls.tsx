@@ -1,6 +1,6 @@
 import { AlertCircle, Check, ChevronRight, Clipboard, FileText, Loader2, Play, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
-import { isLocalCanvasCapability, operationReadinessMessageKey, schemaForCapability } from '../core/capabilities';
+import { operationReadinessMessageKey, schemaForCapability } from '../core/capabilities';
 import { isTextDocumentCapability } from '../core/capabilityRegistry';
 import {
   currentExecutionProviderSettings,
@@ -57,13 +57,15 @@ const parameterKeys: GenerationParameterKey[] = [
 ];
 
 export function OperationInlineControls({ blockId, data }: { blockId: string; data: BlockData }): ReactElement {
-  if (isLocalCanvasCapability(data.capabilityId)) return <LocalCanvasOperationControls data={data} />;
+  if (data.adapter === 'local_canvas') return <LocalCanvasOperationControls data={data} />;
   return <GenerationOperationInlineControls blockId={blockId} data={data} />;
 }
 
 function LocalCanvasOperationControls({ data }: { data: BlockData }): ReactElement {
   const { t } = useI18n();
-  const params = localAdjustmentParams(data.localEditParams);
+  const params = localCanvasParameters(
+    data.pluginParameters ?? data.localEditParams,
+  );
   return (
     <div className="operation-inline-controls is-local-canvas" aria-label={t('operationToolbar.title')}>
       <div className="operation-option-row is-read-only">
@@ -72,7 +74,7 @@ function LocalCanvasOperationControls({ data }: { data: BlockData }): ReactEleme
       </div>
       <div className="operation-option-row is-read-only">
         <span>{t('operationToolbar.params')}</span>
-        <strong>{localAdjustmentSummary(params, t)}</strong>
+        <strong>{localCanvasParameterSummary(params, t)}</strong>
       </div>
     </div>
   );
@@ -558,24 +560,51 @@ function workflowStepStatusKey(status: NonNullable<BlockData['workflowStepRunSta
   return `workflowRuntime.stepStatus.${status}` as const;
 }
 
-function localAdjustmentParams(value: unknown): { brightness: number; contrast: number; saturation: number } {
+function localCanvasParameters(
+  value: unknown,
+): Array<[string, string | number | boolean | null]> {
   const record = value && typeof value === 'object' ? value as Record<string, unknown> : {};
-  return {
-    brightness: finiteNumber(record.brightness) ?? 0,
-    contrast: finiteNumber(record.contrast) ?? 0,
-    saturation: finiteNumber(record.saturation) ?? 0,
-  };
+  const preferredOrder = ['brightness', 'contrast', 'saturation'];
+  return Object.entries(record)
+    .filter(
+      (entry): entry is [string, string | number | boolean | null] => (
+        entry[1] === null
+        || typeof entry[1] === 'string'
+        || typeof entry[1] === 'boolean'
+        || typeof entry[1] === 'number' && Number.isFinite(entry[1])
+      ),
+    )
+    .sort(([left], [right]) => {
+      const leftIndex = preferredOrder.indexOf(left);
+      const rightIndex = preferredOrder.indexOf(right);
+      if (leftIndex >= 0 || rightIndex >= 0) {
+        return (leftIndex >= 0 ? leftIndex : preferredOrder.length)
+          - (rightIndex >= 0 ? rightIndex : preferredOrder.length);
+      }
+      return left.localeCompare(right);
+    });
 }
 
-function localAdjustmentSummary(
-  params: { brightness: number; contrast: number; saturation: number },
+function localCanvasParameterSummary(
+  params: Array<[string, string | number | boolean | null]>,
   t: ReturnType<typeof useI18n>['t'],
 ): string {
-  return [
-    `${t('context.brightness')} ${signedValue(params.brightness)}`,
-    `${t('context.contrast')} ${signedValue(params.contrast)}`,
-    `${t('context.saturation')} ${signedValue(params.saturation)}`,
-  ].join(' · ');
+  if (params.length === 0) return '—';
+  return params.map(([key, value]) => (
+    `${localCanvasParameterLabel(key, t)} ${
+      typeof value === 'number' ? signedValue(value) : String(value)
+    }`
+  )).join(' · ');
+}
+
+function localCanvasParameterLabel(
+  key: string,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  if (key === 'brightness') return t('context.brightness');
+  if (key === 'contrast') return t('context.contrast');
+  if (key === 'saturation') return t('context.saturation');
+  return key;
 }
 
 function signedValue(value: number): string {

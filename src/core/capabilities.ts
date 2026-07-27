@@ -229,16 +229,6 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
     promptSource: 'inline',
     supportedAdapters: ['mcp_agent', 'direct_api', 'cli_agent', 'manual_import'],
   },
-  'image.local_adjust': {
-    capabilityId: 'image.local_adjust',
-    defaultAdapter: 'local_canvas',
-    displayNameKey: 'context.adjust',
-    inputContracts: [{ type: 'image', required: true, source: 'block', role: 'source', min: 1, max: 1 }],
-    outputContracts: [{ type: 'image' }],
-    paramsSchema: {},
-    promptSource: 'inline',
-    supportedAdapters: ['local_canvas'],
-  },
   'image.local_crop': {
     capabilityId: 'image.local_crop',
     defaultAdapter: 'manual_import',
@@ -277,10 +267,6 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
 
 export function schemaForCapability(capabilityId: string): CapabilitySchema {
   return capabilitySchemas[capabilityId] ?? capabilitySchemas['image.text_to_image'];
-}
-
-export function isLocalCanvasCapability(capabilityId: unknown): boolean {
-  return typeof capabilityId === 'string' && capabilitySchemas[capabilityId]?.defaultAdapter === 'local_canvas';
 }
 
 export function capabilityForImageOperation(

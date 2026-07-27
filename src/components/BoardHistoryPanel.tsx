@@ -299,10 +299,9 @@ function titleForExecution(execution: ExecutionRecord, t: ReturnType<typeof useI
   ) {
     return t('operation.createSimilar.title');
   }
-  if (execution.capabilityId === 'image.local_adjust') return t('context.adjust');
   if (execution.capabilityId === 'image.local_crop') return t('context.crop');
   if (execution.capabilityId === 'image.local_expand') return t('context.expand');
-  return t('history.execution');
+  return execution.capabilityId || t('history.execution');
 }
 
 function executionBlockIds(execution?: ExecutionRecord): string[] {

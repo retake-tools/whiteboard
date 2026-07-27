@@ -649,7 +649,6 @@ const replaceableToolbarMarkup = renderToStaticMarkup(
       canvasZoom={1}
       selectedBlock={replaceableImageBlock}
       selectedImageUrl="/source.png"
-      onCreateLocalEdit={() => undefined}
       onCreateSimilar={() => undefined}
       onDownloadImage={() => undefined}
       onAnnotationDraftChange={() => undefined}
@@ -662,6 +661,7 @@ const replaceableToolbarMarkup = renderToStaticMarkup(
 );
 assert.match(replaceableToolbarMarkup, /aria-label="Replace image"/);
 assert.match(replaceableToolbarMarkup, /aria-label="Crop · Not available yet"/);
+assert.doesNotMatch(replaceableToolbarMarkup, /aria-label="Adjust"/);
 assert.match(replaceableToolbarMarkup, /disabled=""/);
 const resultToolbarMarkup = renderToStaticMarkup(
   <I18nProvider>
@@ -673,7 +673,6 @@ const resultToolbarMarkup = renderToStaticMarkup(
         data: { ...replaceableImageBlock.data, sourceExecutionId: 'exec_result' },
       }}
       selectedImageUrl="/result.png"
-      onCreateLocalEdit={() => undefined}
       onCreateSimilar={() => undefined}
       onDownloadImage={() => undefined}
       onAnnotationDraftChange={() => undefined}

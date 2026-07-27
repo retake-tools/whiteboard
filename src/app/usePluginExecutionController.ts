@@ -8,9 +8,9 @@ import {
   capabilityDefinitionFor,
 } from '../core/capabilityRegistry';
 import {
-  addLocalImageOperation,
-  completeLocalImageOperation,
-  failLocalImageOperation,
+  addPluginImageOperation,
+  completePluginImageOperation,
+  failPluginImageOperation,
 } from '../core/imageOperations';
 import type {
   PluginExecutionRunnerRequestV1,
@@ -74,14 +74,14 @@ export async function runPluginExecution(
     updateSnapshot,
   }: PluginExecutionControllerOptions,
 ): Promise<PluginExecutionViewV1> {
-  assertSupportedLocalImageExecution(input.capabilityId);
+  const definition = assertSupportedPluginImageExecution(input.capabilityId);
   if (input.inputBlockIds.length !== 1) {
     throw new Error(
-      'Local image adjustment requires exactly one input Image Block.',
+      'Plugin image execution requires exactly one input Image Block.',
     );
   }
   const sourceBlockId = input.inputBlockIds[0]!;
-  const parameters = localAdjustParameters(input.parameters);
+  const parameters = pluginExecutionParameters(input.parameters);
   const initial = snapshotRef.current;
   const sourceBlock = initial.blocks.find(
     (block) => block.blockId === sourceBlockId,
@@ -96,7 +96,7 @@ export async function runPluginExecution(
     || sourceAsset.kind !== 'image'
   ) {
     throw new Error(
-      'Local image adjustment requires a bound Image Block with an Asset.',
+      'Plugin image execution requires a bound Image Block with an Asset.',
     );
   }
 
@@ -104,12 +104,12 @@ export async function runPluginExecution(
   let operationBlockId = '';
   let resultBlockId = '';
   const runningSnapshot = updateSnapshot((current) => {
-    const started = addLocalImageOperation(current, {
-      body: 'Adjust',
-      capabilityId: 'image.local_adjust',
+    const started = addPluginImageOperation(current, {
+      body: definition.displayName,
+      capabilityId: definition.capabilityId,
       params: parameters,
       sourceBlockId,
-      title: 'Adjust',
+      title: definition.displayName,
     });
     executionId = started.execution.executionId;
     operationBlockId = started.operationBlock.blockId;
@@ -132,11 +132,10 @@ export async function runPluginExecution(
     throwIfAborted(signal);
     if (output.images.length !== 1) {
       throw new Error(
-        'Local image adjustment must return exactly one Image output.',
+        'Plugin image execution must return exactly one Image output.',
       );
     }
     const image = output.images[0]!;
-    const definition = capabilityDefinitionFor(input.capabilityId);
     const outputSlotId = definition.outputSlots[0]?.slotId;
     if (
       image.slotId !== undefined
@@ -165,7 +164,7 @@ export async function runPluginExecution(
       executionScope,
     )
       ? updateSnapshot((current) => {
-          completeLocalImageOperation(current, { asset, executionId });
+          completePluginImageOperation(current, { asset, executionId });
           return current;
         })
       : completeDetachedExecution(
@@ -193,7 +192,7 @@ export async function runPluginExecution(
       executionScope,
     )
       ? updateSnapshot((current) => {
-          failLocalImageOperation(current, {
+          failPluginImageOperation(current, {
             errorMessage: message,
             executionId,
           });
@@ -212,22 +211,22 @@ export async function runPluginExecution(
   }
 }
 
-function assertSupportedLocalImageExecution(
+function assertSupportedPluginImageExecution(
   capabilityId: string,
-): void {
+): ReturnType<typeof capabilityDefinitionFor> {
   const definition = capabilityDefinitionFor(capabilityId);
   if (
-    capabilityId !== 'image.local_adjust'
-    || !definition.supportedAdapterClasses.includes('local_canvas')
+    !definition.supportedAdapterClasses.includes('local_canvas')
     || definition.inputSlots.length !== 1
     || !definition.inputSlots[0]?.dataTypes.includes('image')
     || definition.outputSlots.length !== 1
     || definition.outputSlots[0]?.dataType !== 'image'
   ) {
     throw new Error(
-      `Plugin Capability is not supported by the P9.1 execution bridge: ${capabilityId}`,
+      `Plugin Capability is not supported by the local image execution projection: ${capabilityId}`,
     );
   }
+  return definition;
 }
 
 function throwIfAborted(signal: AbortSignal): void {
@@ -235,34 +234,51 @@ function throwIfAborted(signal: AbortSignal): void {
   throw new DOMException('Plugin execution was aborted.', 'AbortError');
 }
 
-function localAdjustParameters(
+function pluginExecutionParameters(
   input: Readonly<Record<string, unknown>>,
-): Record<string, number> {
-  const keys = Object.keys(input).sort();
-  if (
-    keys.join('\u0000')
-      !== ['brightness', 'contrast', 'saturation'].join('\u0000')
-  ) {
+): Record<string, unknown> {
+  if (!isFiniteJsonValue(input, new WeakSet())) {
     throw new Error(
-      'Local image adjustment requires brightness, contrast, and saturation parameters.',
+      'Plugin execution parameters must contain only finite JSON values.',
     );
   }
-  const result: Record<string, number> = {};
-  for (const key of keys) {
-    const value = input[key];
-    if (
-      typeof value !== 'number'
-      || !Number.isFinite(value)
-      || value < -100
-      || value > 100
-    ) {
-      throw new Error(
-        `Local image adjustment parameter is outside -100..100: ${key}`,
-      );
-    }
-    result[key] = value;
+  return structuredClone(input);
+}
+
+function isFiniteJsonValue(
+  value: unknown,
+  ancestors: WeakSet<object>,
+): boolean {
+  if (
+    value === null
+    || typeof value === 'string'
+    || typeof value === 'boolean'
+  ) {
+    return true;
   }
-  return result;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (!value || typeof value !== 'object') return false;
+  if (ancestors.has(value)) return false;
+
+  const prototype = Object.getPrototypeOf(value);
+  if (
+    !Array.isArray(value)
+    && prototype !== Object.prototype
+    && prototype !== null
+  ) {
+    return false;
+  }
+
+  ancestors.add(value);
+  const valid = (
+    Array.isArray(value)
+      ? value.every((entry) => isFiniteJsonValue(entry, ancestors))
+      : Object.values(value).every(
+          (entry) => isFiniteJsonValue(entry, ancestors),
+        )
+  );
+  ancestors.delete(value);
+  return valid;
 }
 
 function completeDetachedExecution(
@@ -270,7 +286,7 @@ function completeDetachedExecution(
   asset: AssetRecord,
   executionId: string,
 ): BoardSnapshot {
-  completeLocalImageOperation(snapshot, { asset, executionId });
+  completePluginImageOperation(snapshot, { asset, executionId });
   return snapshot;
 }
 
@@ -279,7 +295,7 @@ function failDetachedExecution(
   executionId: string,
   errorMessage: string,
 ): BoardSnapshot {
-  failLocalImageOperation(snapshot, { errorMessage, executionId });
+  failPluginImageOperation(snapshot, { errorMessage, executionId });
   return snapshot;
 }
 

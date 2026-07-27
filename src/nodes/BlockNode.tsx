@@ -1,7 +1,7 @@
 import { Handle, NodeResizer, Position, type NodeProps, type ResizeParams } from '@xyflow/react';
 import { ArrowRight, Check, ChevronDown, Clock, FileText, ImageIcon, Info, Layers3, LockKeyhole, Play, Plus, RefreshCw, Video } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
-import { isLocalCanvasCapability, schemaForCapability } from '../core/capabilities';
+import { schemaForCapability } from '../core/capabilities';
 import type { SwitchableOperationMode } from '../core/imageOperations';
 import { operationDisplayState } from '../core/operationDisplay';
 import { managedResultStatusMessageKey } from '../core/resultStatus';
@@ -36,7 +36,7 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
   const showStatusBorder = blockType !== 'operation' && status;
   const hasImagePreview = blockType === 'image' && typeof (data as BlockData).previewUrl === 'string';
   const title = displayBlockTitle(data as BlockData, blockType, t);
-  const isLocalCanvasOperation = blockType === 'operation' && isLocalCanvasCapability(data.capabilityId);
+  const isLocalCanvasOperation = blockType === 'operation' && data.adapter === 'local_canvas';
   const isStoryboardSheetOperation = blockType === 'operation' && data.capabilityId === storyboardSheetCapabilityId;
   const isGenerationPreparationOperation = blockType === 'operation'
     && data.capabilityId === generationPreparationCapabilityId;

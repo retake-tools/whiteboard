@@ -70,6 +70,35 @@ populated.historyEvents = [historyEvent];
 await saveSnapshot(populated);
 
 const fallback = migrateBoardSnapshot(structuredClone(defaultSnapshot));
+const pluginOperationSnapshot = structuredClone(defaultSnapshot);
+const pluginOperation = pluginOperationSnapshot.blocks.find((block) => block.type === 'operation');
+assert(pluginOperation);
+pluginOperation.data.capabilityId = 'image.local_adjust';
+pluginOperation.data.operationMode = 'image.local_adjust';
+const migratedPluginOperation = migrateBoardSnapshot(pluginOperationSnapshot).blocks.find(
+  (block) => block.blockId === pluginOperation.blockId,
+);
+assert.equal(
+  migratedPluginOperation?.data.operationMode,
+  'image.local_adjust',
+  'snapshot migration must preserve a Plugin-owned operation mode',
+);
+
+const capabilityOnlyPluginSnapshot = structuredClone(pluginOperationSnapshot);
+const capabilityOnlyPluginOperation = capabilityOnlyPluginSnapshot.blocks.find(
+  (block) => block.blockId === pluginOperation.blockId,
+);
+assert(capabilityOnlyPluginOperation);
+delete capabilityOnlyPluginOperation.data.operationMode;
+const migratedCapabilityOnlyPluginOperation = migrateBoardSnapshot(
+  capabilityOnlyPluginSnapshot,
+).blocks.find((block) => block.blockId === pluginOperation.blockId);
+assert.equal(
+  migratedCapabilityOnlyPluginOperation?.data.operationMode,
+  'image.local_adjust',
+  'snapshot migration must derive a missing Plugin operation mode from capabilityId',
+);
+
 await assert.rejects(
   () => saveSnapshot(fallback),
   (error) => error instanceof SnapshotWriteConflictError,
@@ -186,6 +215,7 @@ console.log({
   apiConflictSurfaced: true,
   bootstrapOverwriteRejected: true,
   durableHistoryPreserved: true,
+  pluginOperationModePreserved: true,
   staleSelectionRecoveredFromServer: true,
   testWorkspace: process.env.RETAKE_WORKSPACE_DIR,
 });

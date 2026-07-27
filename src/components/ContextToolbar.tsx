@@ -7,18 +7,12 @@ import {
   Maximize2,
   MessageSquareText,
   MoreHorizontal,
-  SlidersHorizontal,
   WandSparkles,
   X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactElement, ReactNode, RefObject } from 'react';
-import {
-  hasImageAdjustments,
-  imageAdjustmentFilter,
-  type LocalImageAdjustments,
-} from '../core/localImageTransforms';
 import type { BlockRecord } from '../core/types';
 import type { ExecutionConnectionSummary } from '../core/executionProviders';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
@@ -32,7 +26,7 @@ import {
 } from '../core/imageAnnotations';
 import { TooltipIconButton, TooltipWrapper } from './Tooltip';
 
-type ImageTool = 'quick-edit' | 'annotation-edit' | 'create-similar' | 'adjust' | 'more';
+type ImageTool = 'quick-edit' | 'annotation-edit' | 'create-similar' | 'more';
 
 interface ContextToolbarProps {
   annotationConnections?: ExecutionConnectionSummary[];
@@ -45,12 +39,6 @@ interface ContextToolbarProps {
   pluginActions?: ReactNode;
   selectedBlock?: BlockRecord;
   selectedImageUrl?: string;
-  onCreateLocalEdit: (input: {
-    body: string;
-    capabilityId: 'image.local_adjust';
-    params: LocalImageAdjustments;
-    title: string;
-  }) => void;
   onRunAnnotationEdit: (input: {
     instruction: string;
     manifest: AnnotationManifest;
@@ -81,7 +69,6 @@ export function ContextToolbar({
   onAnnotationEditorOpenRequestHandled,
   onRunAnnotationEdit,
   onCreateSimilar,
-  onCreateLocalEdit,
   onDownloadImage,
   onReplaceImage,
   onRunQuickEdit,
@@ -93,7 +80,6 @@ export function ContextToolbar({
     () => initialAnnotationDraft?.globalInstruction ?? '',
   );
   const [annotationOffset, setAnnotationOffset] = useState({ x: 0, y: 0 });
-  const [adjustForm, setAdjustForm] = useState({ brightness: 0, contrast: 0, saturation: 0 });
   const [isAnnotationDragging, setIsAnnotationDragging] = useState(false);
   const [quickEditInstruction, setQuickEditInstruction] = useState('');
   const annotationDragRef = useRef({ startX: 0, startY: 0, baseX: 0, baseY: 0 });
@@ -108,7 +94,6 @@ export function ContextToolbar({
     setHistoricalAnnotationDraft(undefined);
     setAnnotationInstruction(annotationDraftForBlock(selectedBlock)?.globalInstruction ?? '');
     setActiveTool(null);
-    setAdjustForm({ brightness: 0, contrast: 0, saturation: 0 });
     setAnnotationOffset({ x: 0, y: 0 });
   }, [selectedBlock?.blockId, selectedBlock?.type, selectedImageUrl]);
 
@@ -239,9 +224,6 @@ export function ContextToolbar({
         <IconButton disabled label={`${t('context.crop')} · ${t('context.unavailable')}`} onClick={() => undefined}>
           <Crop size={16} />
         </IconButton>
-        <IconButton label={t('context.adjust')} onClick={() => toggleTool('adjust')}>
-          <SlidersHorizontal size={16} />
-        </IconButton>
         <IconButton label={t('context.downloadImage')} onClick={onDownloadImage}>
           <Download size={16} />
         </IconButton>
@@ -262,7 +244,6 @@ export function ContextToolbar({
           annotationConnections={annotationConnections}
           preferredAnnotationConnectionId={preferredAnnotationConnectionId}
           isHistoricalAnnotationSession={Boolean(historicalAnnotationDraft)}
-          adjustForm={adjustForm}
           imageUrl={selectedImageUrl}
           popoverScale={popoverScale}
           popoverRef={popoverRef}
@@ -283,8 +264,6 @@ export function ContextToolbar({
             }
             setActiveTool(null);
           }}
-          onAdjustFormChange={setAdjustForm}
-          onCreateLocalEdit={onCreateLocalEdit}
           onCreateSimilar={onCreateSimilar}
           onRunAnnotationEdit={(input) => {
             const historical = Boolean(historicalAnnotationDraft);
@@ -310,7 +289,6 @@ function ImageToolPopover({
   annotationConnections,
   preferredAnnotationConnectionId,
   isHistoricalAnnotationSession,
-  adjustForm,
   imageUrl,
   popoverScale,
   popoverRef,
@@ -322,8 +300,6 @@ function ImageToolPopover({
   onAnnotationDraftChange,
   onAnnotationPanelPointerDown,
   onClose,
-  onAdjustFormChange,
-  onCreateLocalEdit,
   onCreateSimilar,
   onRunAnnotationEdit,
   onQuickEditInstructionChange,
@@ -334,7 +310,6 @@ function ImageToolPopover({
   annotationConnections: ExecutionConnectionSummary[];
   preferredAnnotationConnectionId?: string;
   isHistoricalAnnotationSession: boolean;
-  adjustForm: LocalImageAdjustments;
   imageUrl?: string;
   popoverScale: number;
   popoverRef: RefObject<HTMLDivElement | null>;
@@ -346,13 +321,6 @@ function ImageToolPopover({
   onAnnotationDraftChange: (draft: AnnotationDraftContent) => void;
   onAnnotationPanelPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onClose: () => void;
-  onAdjustFormChange: (form: LocalImageAdjustments) => void;
-  onCreateLocalEdit: (input: {
-    body: string;
-    capabilityId: 'image.local_adjust';
-    params: LocalImageAdjustments;
-    title: string;
-  }) => void;
   onCreateSimilar: () => void;
   onRunAnnotationEdit: (input: {
     instruction: string;
@@ -435,49 +403,6 @@ function ImageToolPopover({
     return createPortal(annotationEditor, document.body);
   }
 
-  if (tool === 'adjust') {
-    return (
-      <div ref={popoverRef} className="context-popover nodrag nopan nowheel" aria-label={t('context.adjust')}>
-        <h2>{t('context.adjust')}</h2>
-        {imageUrl ? (
-          <div className="local-adjust-preview">
-            <img alt="" src={imageUrl} style={{ filter: imageAdjustmentFilter(adjustForm) }} />
-          </div>
-        ) : null}
-        <RangeControl
-          label={t('context.brightness')}
-          value={adjustForm.brightness}
-          onChange={(brightness) => onAdjustFormChange({ ...adjustForm, brightness })}
-        />
-        <RangeControl
-          label={t('context.contrast')}
-          value={adjustForm.contrast}
-          onChange={(contrast) => onAdjustFormChange({ ...adjustForm, contrast })}
-        />
-        <RangeControl
-          label={t('context.saturation')}
-          value={adjustForm.saturation}
-          onChange={(saturation) => onAdjustFormChange({ ...adjustForm, saturation })}
-        />
-        <button
-          type="button"
-          className="primary-popover-button"
-          disabled={!hasImageAdjustments(adjustForm)}
-          onClick={() =>
-            onCreateLocalEdit({
-              capabilityId: 'image.local_adjust',
-              title: t('context.adjust'),
-              body: t('context.adjust'),
-              params: adjustForm,
-            })
-          }
-        >
-          {t('context.run')}
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div ref={popoverRef} className="context-popover" aria-label={t('context.moreTools')}>
       <h2>{t('context.more')}</h2>
@@ -504,31 +429,6 @@ function annotationDraftForBlock(block: BlockRecord | undefined): AnnotationDraf
   return annotationDraftMatches(block.data.annotationDraft, sourceAssetId)
     ? block.data.annotationDraft
     : undefined;
-}
-
-function RangeControl({
-  label,
-  onChange,
-  value,
-}: {
-  label: string;
-  onChange: (value: number) => void;
-  value: number;
-}): ReactElement {
-  return (
-    <label className="range-control nodrag nopan">
-      <span>{label}</span>
-      <input
-        className="nodrag nopan"
-        type="range"
-        min="-100"
-        max="100"
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-      />
-      <output>{value > 0 ? `+${value}` : value}</output>
-    </label>
-  );
 }
 
 function IconButton({
