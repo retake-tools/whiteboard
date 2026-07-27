@@ -3,6 +3,7 @@ import {
   capabilityDefinitionFor,
   codexAppServerTextAdapterDefinition,
   isTextDocumentCapability,
+  tryCapabilityDefinitionFor,
 } from './capabilityRegistry';
 import type { CapabilityBindingValue, CapabilityInputBinding } from './capabilityContracts';
 import {
@@ -584,7 +585,10 @@ function artifactTypeForTextBlock(snapshot: BoardSnapshot, block: BlockRecord): 
     ? snapshot.executions.find((candidate) => candidate.executionId === sourceExecutionId)
     : undefined;
   if (!execution) return undefined;
-  const definition = capabilityDefinitionFor(execution.capabilityId);
+  // Preserve generic historical text/document outputs when their Plugin
+  // definition is no longer installed.
+  const definition = tryCapabilityDefinitionFor(execution.capabilityId);
+  if (!definition) return undefined;
   const outputIndex = execution.outputBlockIds.indexOf(block.blockId);
   return definition.outputSlots[Math.max(0, outputIndex)]?.artifactType ?? definition.outputSlots[0]?.artifactType;
 }

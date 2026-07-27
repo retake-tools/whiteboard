@@ -800,6 +800,16 @@ export function capabilityDefinitionFor(capabilityId: string): CapabilityDefinit
   return definitionForLegacyCapability(capabilityId);
 }
 
+export function tryCapabilityDefinitionFor(
+  capabilityId: string,
+): CapabilityDefinition | undefined {
+  try {
+    return capabilityDefinitionFor(capabilityId);
+  } catch {
+    return undefined;
+  }
+}
+
 export function isTextDocumentCapability(capabilityId: string): boolean {
   try {
     const definition = capabilityDefinitionFor(capabilityId);
