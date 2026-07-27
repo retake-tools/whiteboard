@@ -1,10 +1,13 @@
 import type {
   ActivatedPluginWebModuleV1,
+  PluginAssetV1,
   PluginHostApiV1,
   PluginHostReadSnapshotV1,
+  PluginImageImportV1,
   PluginModuleRuntimeRecordV1,
   PluginRuntimeSnapshotV1,
 } from '@retake-tools/package-sdk';
+import { createImageAssetFromDataUrl } from './assetStore';
 
 const activatedModules = new Map<
   string,
@@ -107,11 +110,36 @@ export async function reconcilePluginWebModules(input: {
 
 export function createPluginHostReadStore(
   initial: PluginHostReadSnapshotV1,
+  options: {
+    importImage?: (
+      input: PluginImageImportV1 & { projectId: string },
+    ) => Promise<PluginAssetV1>;
+  } = {},
 ): PluginHostReadStore {
   let current = freezeReadSnapshot(initial);
+  let boundAssets = new Map<string, PluginAssetV1>();
   const listeners = new Set<(snapshot: PluginHostReadSnapshotV1) => void>();
+  const importImage = options.importImage ?? createImageAssetFromDataUrl;
   return {
     host: (version) => ({
+      assets: Object.freeze({
+        getBound(assetId: string) {
+          if (!current.boundAssetIds.includes(assetId)) return null;
+          return boundAssets.get(assetId) ?? null;
+        },
+        async importImage(input: PluginImageImportV1) {
+          if (!current.projectId) {
+            throw new Error('Plugin asset import requires an active project.');
+          }
+          if (!input.dataUrl.startsWith('data:image/')) {
+            throw new Error('Plugin asset import requires an image data URL.');
+          }
+          return freezePluginAsset(await importImage({
+            ...input,
+            projectId: current.projectId,
+          }));
+        },
+      }),
       getReadSnapshot: () => current,
       subscribeReadSnapshot(listener) {
         listeners.add(listener);
@@ -119,9 +147,15 @@ export function createPluginHostReadStore(
       },
       version,
     }),
-    update(snapshot) {
-      if (sameReadSnapshot(current, snapshot)) return;
+    update(snapshot, assets = []) {
+      const nextAssets = new Map(
+        assets.map((asset) => [asset.assetId, freezePluginAsset(asset)]),
+      );
+      const snapshotChanged = !sameReadSnapshot(current, snapshot);
+      const assetsChanged = !sameAssetMap(boundAssets, nextAssets);
+      if (!snapshotChanged && !assetsChanged) return;
       current = freezeReadSnapshot(snapshot);
+      boundAssets = nextAssets;
       for (const listener of listeners) listener(current);
     },
   };
@@ -129,7 +163,10 @@ export function createPluginHostReadStore(
 
 export interface PluginHostReadStore {
   host(version: number): PluginHostApiV1;
-  update(snapshot: PluginHostReadSnapshotV1): void;
+  update(
+    snapshot: PluginHostReadSnapshotV1,
+    assets?: readonly PluginAssetV1[],
+  ): void;
 }
 
 export async function disposePluginWebModule(
@@ -195,6 +232,40 @@ function sameTextArray(
 ): boolean {
   return left.length === right.length
     && left.every((value, index) => value === right[index]);
+}
+
+function sameAssetMap(
+  left: ReadonlyMap<string, PluginAssetV1>,
+  right: ReadonlyMap<string, PluginAssetV1>,
+): boolean {
+  if (left.size !== right.size) return false;
+  for (const [assetId, asset] of left) {
+    const candidate = right.get(assetId);
+    if (
+      !candidate
+      || asset.createdAt !== candidate.createdAt
+      || asset.duration !== candidate.duration
+      || asset.height !== candidate.height
+      || asset.kind !== candidate.kind
+      || asset.mimeType !== candidate.mimeType
+      || asset.previewUrl !== candidate.previewUrl
+      || asset.width !== candidate.width
+    ) return false;
+  }
+  return true;
+}
+
+function freezePluginAsset(asset: PluginAssetV1): PluginAssetV1 {
+  return Object.freeze({
+    assetId: asset.assetId,
+    createdAt: asset.createdAt,
+    ...(asset.duration === undefined ? {} : { duration: asset.duration }),
+    ...(asset.height === undefined ? {} : { height: asset.height }),
+    kind: asset.kind,
+    mimeType: asset.mimeType,
+    previewUrl: asset.previewUrl,
+    ...(asset.width === undefined ? {} : { width: asset.width }),
+  });
 }
 
 function freezeReadSnapshot(

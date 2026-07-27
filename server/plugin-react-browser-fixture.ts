@@ -40,7 +40,11 @@ try {
   });
   await runtime.reconcile();
   await runtime.grant({
-    permissions: ['retake.block.read.bound'],
+    permissions: [
+      'retake.asset.create',
+      'retake.asset.read.bound',
+      'retake.block.read.bound',
+    ],
     pluginModuleId: 'retake.plugin.react-browser-fixture',
   });
   await runtime.trustUserCode('retake.plugin.react-browser-fixture');
@@ -110,7 +114,11 @@ async function writeReactPluginSource(sourceRoot: string): Promise<void> {
     definitionHash: 'sha256:react-browser-fixture-v1',
     description: 'Disposable React Host singleton browser fixture.',
     name: 'React browser fixture',
-    permissions: ['retake.block.read.bound'],
+    permissions: [
+      'retake.asset.create',
+      'retake.asset.read.bound',
+      'retake.block.read.bound',
+    ],
     pluginModuleId: 'retake.plugin.react-browser-fixture',
     runtime: {
       entrypoint: 'dist/index.js',
@@ -126,7 +134,7 @@ async function writeReactPluginSource(sourceRoot: string): Promise<void> {
   await writeFile(
     path.join(sourceRoot, 'src', 'index.tsx'),
     [
-      "import React, { useSyncExternalStore } from 'react';",
+      "import React, { useState, useSyncExternalStore } from 'react';",
       "import { createPortal } from 'react-dom';",
       "import { createRoot } from 'react-dom/client';",
       "import { jsx } from 'react/jsx-runtime';",
@@ -134,9 +142,14 @@ async function writeReactPluginSource(sourceRoot: string): Promise<void> {
       "import { definePluginContribution } from '@retake/plugin-api';",
       '',
       'export function ReactBrowserFixturePanel({ host }: { host: {',
+      '  assets: {',
+      '    getBound(assetId: string): { assetId: string; previewUrl: string } | null;',
+      '    importImage(input: { dataUrl: string; fileName?: string; height?: number; width?: number }): Promise<{ assetId: string; previewUrl: string }>;',
+      '  };',
       '  getReadSnapshot(): { revision: string; selectedBlockIds: readonly string[] };',
       '  subscribeReadSnapshot(listener: () => void): () => void;',
       '} }) {',
+      '  const [importedAsset, setImportedAsset] = useState<{ assetId: string; previewUrl: string } | null>(null);',
       '  const snapshot = useSyncExternalStore(',
       '    host.subscribeReadSnapshot,',
       '    host.getReadSnapshot,',
@@ -145,7 +158,20 @@ async function writeReactPluginSource(sourceRoot: string): Promise<void> {
       '  if (globalThis.retakeReactPluginBrowserFixture?.crashPanel) {',
       '    throw new Error("fixture panel crash");',
       '  }',
-      '  return <output data-retake-plugin="react-browser-fixture">{`${snapshot.revision}:${snapshot.selectedBlockIds.join(",")}`}</output>;',
+      '  return <section data-retake-plugin="react-browser-fixture">',
+      '    <output>{`${snapshot.revision}:${snapshot.selectedBlockIds.join(",")}`}</output>',
+      '    <button type="button" onClick={async () => {',
+      '      const asset = await host.assets.importImage({',
+      '        dataUrl: "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22%3E%3Crect width=%2216%22 height=%2216%22 fill=%22%2314b8a6%22/%3E%3C/svg%3E",',
+      '        fileName: "plugin-fixture.svg",',
+      '        height: 16,',
+      '        width: 16,',
+      '      });',
+      '      setImportedAsset(asset);',
+      '      globalThis.retakeReactPluginBrowserFixture.importedAsset = asset;',
+      '    }}>Import fixture image</button>',
+      '    {importedAsset ? <img alt="Imported fixture" height="16" src={importedAsset.previewUrl} width="16" /> : null}',
+      '  </section>;',
       '}',
       '',
       'export const fixturePanel = definePluginContribution({',
@@ -156,6 +182,10 @@ async function writeReactPluginSource(sourceRoot: string): Promise<void> {
       '});',
       '',
       'export function activate(context: { host: {',
+      '  assets: {',
+      '    getBound(assetId: string): { assetId: string; previewUrl: string } | null;',
+      '    importImage(input: { dataUrl: string; fileName?: string; height?: number; width?: number }): Promise<{ assetId: string; previewUrl: string }>;',
+      '  };',
       '  getReadSnapshot(): { revision: string; selectedBlockIds: readonly string[] };',
       '  subscribeReadSnapshot(listener: () => void): () => void;',
       '} }) {',

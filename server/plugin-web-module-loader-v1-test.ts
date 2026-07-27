@@ -18,6 +18,19 @@ const readStore = createPluginHostReadStore({
   projectId: 'project.fixture',
   revision: 'revision-1',
   selectedBlockIds: ['block.fixture'],
+}, {
+  async importImage(input) {
+    assert.equal(input.projectId, 'project.fixture');
+    return {
+      assetId: 'asset.imported',
+      createdAt: '2026-07-27T00:00:00.000Z',
+      height: input.height,
+      kind: 'image',
+      mimeType: 'image/svg+xml',
+      previewUrl: '/api/local/assets/project.fixture/asset.imported/fixture.svg',
+      width: input.width,
+    };
+  },
 });
 const host = readStore.host(1);
 assert.equal(host.getReadSnapshot(), host.getReadSnapshot());
@@ -35,6 +48,33 @@ readStore.update({
   selectedBlockIds: [],
 });
 assert.equal(readNotifications, 1);
+readStore.update({
+  ...host.getReadSnapshot(),
+  boundAssetIds: ['asset.bound'],
+}, [{
+  assetId: 'asset.bound',
+  createdAt: '2026-07-27T00:00:00.000Z',
+  height: 480,
+  kind: 'image',
+  mimeType: 'image/png',
+  previewUrl: '/api/local/assets/project.fixture/asset.bound/original.png',
+  width: 640,
+}]);
+assert.equal(host.assets.getBound('asset.missing'), null);
+assert.equal(host.assets.getBound('asset.bound')?.width, 640);
+assert.equal(Object.isFrozen(host.assets.getBound('asset.bound')), true);
+const importedAsset = await host.assets.importImage({
+  dataUrl: 'data:image/svg+xml,%3Csvg%3E%3C/svg%3E',
+  fileName: 'fixture.svg',
+  height: 1,
+  width: 1,
+});
+assert.equal(importedAsset.assetId, 'asset.imported');
+assert.equal(Object.isFrozen(importedAsset), true);
+await assert.rejects(
+  host.assets.importImage({ dataUrl: 'data:text/plain,not-an-image' }),
+  /requires an image data URL/,
+);
 unsubscribe();
 
 const record = {
@@ -177,5 +217,7 @@ process.stdout.write(`${JSON.stringify({
   fatalDisposalDetachesActivation: true,
   safeModeDisposesActivation: true,
   scopedReadSnapshotStableAndImmutable: true,
+  scopedAssetMetadataStableAndImmutable: true,
+  scopedImageImportReturnsBrowserSafeAsset: true,
   scopedSubscriptionDeduplicatesSnapshots: true,
 })}\n`);

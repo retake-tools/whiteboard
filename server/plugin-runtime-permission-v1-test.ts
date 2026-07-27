@@ -85,6 +85,12 @@ try {
   );
   const activated = await activatePluginWebModule({
     host: {
+      assets: {
+        getBound: () => null,
+        importImage: async () => {
+          throw new Error('Fixture does not import assets.');
+        },
+      },
       getReadSnapshot: () => ({
         boardId: 'board.fixture',
         boundAssetIds: [],
