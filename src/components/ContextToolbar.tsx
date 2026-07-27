@@ -2,7 +2,6 @@ import {
   Download,
   ImagePlus,
   ImageUp,
-  Maximize2,
   MoreHorizontal,
   WandSparkles,
 } from 'lucide-react';
@@ -165,10 +164,6 @@ function ImageToolPopover({
     <div ref={popoverRef} className="context-popover" aria-label={t('context.moreTools')}>
       <h2>{t('context.more')}</h2>
       <div className="tool-list">
-        <button type="button" disabled title={t('context.unavailable')}>
-          <Maximize2 size={15} />
-          {t('context.expand')}
-        </button>
         <button type="button" disabled title={t('context.unavailable')}>{t('context.relight')}</button>
         <button type="button" disabled title={t('context.unavailable')}>{t('context.multiAngle')}</button>
         <button type="button" disabled title={t('context.unavailable')}>{t('context.removeBackground')}</button>

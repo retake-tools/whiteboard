@@ -15,6 +15,11 @@ import { startCodexAppServerImage } from '../core/codexAppServerImageClient';
 import {
   annotationManifestFromUnknown,
 } from '../core/restoreAnnotationDraft';
+import {
+  outpaintCapabilityId,
+  readOutpaintParameters,
+  type OutpaintParameters,
+} from '../core/outpaintContracts';
 import type {
   BlockRecord,
   BoardSnapshot,
@@ -153,14 +158,13 @@ export async function runConnectedPluginExecution(
       'Connected Plugin image execution accepts only one source image.',
     );
   }
-  assertMaskGeometry(
-    initial,
-    sourceBlock,
-    additionalInputs.filter(
-      (binding): binding is typeof binding & { block: BlockRecord } => (
-        binding.block !== undefined
-      ),
-    ),
+  const outpaintParameters = input.capabilityId === outpaintCapabilityId
+    ? readOutpaintParameters(input.parameters)
+    : undefined;
+  assertConnectedImageGeometry(
+    source.asset,
+    additionalInputs,
+    outpaintParameters,
   );
 
   const preference = resolveExecutionConnectionPreference({
@@ -216,6 +220,7 @@ export async function runConnectedPluginExecution(
         current,
         sourceBlock,
         input.outputCount ?? 1,
+        outpaintParameters,
       ),
       instruction: input.prompt.trim(),
       ...(annotationManifest ? { annotationManifest } : {}),
@@ -322,25 +327,51 @@ function inputRoleForSlot(
   );
 }
 
-function assertMaskGeometry(
-  snapshot: BoardSnapshot,
-  sourceBlock: BlockRecord,
+function assertConnectedImageGeometry(
+  sourceAsset: import('../core/types').AssetRecord,
   additionalInputs: Array<{
-    block: BlockRecord;
+    asset: import('../core/types').AssetRecord;
     inputRole: ExecutionInputRole;
   }>,
+  outpaintParameters: OutpaintParameters | undefined,
 ): void {
+  if (outpaintParameters) {
+    const guide = additionalInputs.find(
+      (binding) => binding.inputRole === 'control_image',
+    )?.asset;
+    const mask = additionalInputs.find(
+      (binding) => binding.inputRole === 'inpaint_mask',
+    )?.asset;
+    if (!guide || !mask || guide.mimeType !== 'image/png' || mask.mimeType !== 'image/png') {
+      throw new Error(
+        'Outpaint execution requires PNG control_image and inpaint_mask Assets.',
+      );
+    }
+    assertKnownDimensions(
+      sourceAsset,
+      outpaintParameters.sourceWidth,
+      outpaintParameters.sourceHeight,
+      'Outpaint source',
+    );
+    assertKnownDimensions(
+      guide,
+      outpaintParameters.guideWidth,
+      outpaintParameters.guideHeight,
+      'Outpaint guide',
+    );
+    assertKnownDimensions(
+      mask,
+      outpaintParameters.guideWidth,
+      outpaintParameters.guideHeight,
+      'Outpaint mask',
+    );
+    return;
+  }
   const mask = additionalInputs.find(
     (binding) => binding.inputRole === 'inpaint_mask',
-  );
+  )?.asset;
   if (!mask) return;
-  const sourceAsset = snapshot.assets.find(
-    (asset) => asset.assetId === sourceBlock.data.assetId,
-  );
-  const maskAsset = snapshot.assets.find(
-    (asset) => asset.assetId === mask.block.data.assetId,
-  );
-  if (!sourceAsset || !maskAsset || maskAsset.mimeType !== 'image/png') {
+  if (mask.mimeType !== 'image/png') {
     throw new Error(
       'Masked image execution requires source and PNG Mask Assets.',
     );
@@ -348,11 +379,11 @@ function assertMaskGeometry(
   if (
     sourceAsset.width !== undefined
     && sourceAsset.height !== undefined
-    && maskAsset.width !== undefined
-    && maskAsset.height !== undefined
+    && mask.width !== undefined
+    && mask.height !== undefined
     && (
-      sourceAsset.width !== maskAsset.width
-      || sourceAsset.height !== maskAsset.height
+      sourceAsset.width !== mask.width
+      || sourceAsset.height !== mask.height
     )
   ) {
     throw new Error(
@@ -365,6 +396,7 @@ function sourceGenerationParams(
   snapshot: BoardSnapshot,
   sourceBlock: BlockRecord,
   variationCount: 1 | 2 | 3 | 4,
+  outpaintParameters?: OutpaintParameters,
 ): {
   targetHeight?: number;
   targetWidth?: number;
@@ -374,10 +406,33 @@ function sourceGenerationParams(
     (candidate) => candidate.assetId === sourceBlock.data.assetId,
   );
   return {
-    ...(asset?.height ? { targetHeight: asset.height } : {}),
-    ...(asset?.width ? { targetWidth: asset.width } : {}),
+    ...(outpaintParameters
+      ? {
+          targetHeight: outpaintParameters.targetHeight,
+          targetWidth: outpaintParameters.targetWidth,
+        }
+      : {
+          ...(asset?.height ? { targetHeight: asset.height } : {}),
+          ...(asset?.width ? { targetWidth: asset.width } : {}),
+        }),
     variationCount,
   };
+}
+
+function assertKnownDimensions(
+  asset: import('../core/types').AssetRecord,
+  width: number,
+  height: number,
+  label: string,
+): void {
+  if (
+    (asset.width !== undefined && asset.width !== width)
+    || (asset.height !== undefined && asset.height !== height)
+  ) {
+    throw new Error(
+      `${label} dimensions must be ${width}x${height}.`,
+    );
+  }
 }
 
 async function pollConnectedExecution(

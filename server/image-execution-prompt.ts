@@ -1,6 +1,10 @@
 import { annotationEditControlDescription, readAnnotationEditControlManifest } from '../src/core/annotationEditControls';
 import { inputRoleDefinition, isExecutionInputRole } from '../src/core/inputRoles';
 import type { ExecutionInputRole, ExecutionRecord } from '../src/core/types';
+import {
+  outpaintCapabilityId,
+  readOutpaintParameters,
+} from '../src/core/outpaintContracts';
 
 export interface ImageExecutionInputAssignment {
   artifactType?: string;
@@ -123,6 +127,26 @@ export function createProviderImagePrompt(
     return `${command}Edit ${source} according to this instruction: ${sentence(instruction)} Use ${mask} as an exact spatial constraint: white pixels are editable and black pixels must remain unchanged. Do not reproduce the mask in the result.${inputContract}${geometry} Preserve the source dimensions, subject, composition, and every unselected region.${variant} Generate exactly one clean revised image.${toolRule}`;
   }
 
+  if (execution.capabilityId === outpaintCapabilityId) {
+    const parameters = readOutpaintParameters(
+      execution.params?.pluginParameters,
+    );
+    const sourceIndex = attachmentIndex(inputAssignments, 'source');
+    const guideIndex = attachmentIndex(inputAssignments, 'control_image');
+    const maskIndex = attachmentIndex(inputAssignments, 'inpaint_mask');
+    const source = sourceIndex
+      ? `attachment ${sourceIndex}`
+      : 'the attached source image';
+    const guide = guideIndex
+      ? `attachment ${guideIndex}`
+      : 'the attached outpaint guide';
+    const mask = maskIndex
+      ? `attachment ${maskIndex}`
+      : 'the attached outpaint mask';
+    const sourceRect = `${parameters.sourceX},${parameters.sourceY},${parameters.sourceWidth},${parameters.sourceHeight}`;
+    return `${command}Expand ${source} into a ${parameters.targetWidth}x${parameters.targetHeight} output canvas according to this instruction: ${sentence(instruction)} Place the unscaled source exactly at pixel rectangle x,y,width,height=${sourceRect}. Use ${guide} as the authoritative layout guide and ${mask} as the spatial constraint: black is the protected source footprint and white is the area to generate. Generate coherent new scene content only beyond the original boundaries; do not crop, scale, rotate, redraw, or reposition the source, and do not reproduce the guide transparency or mask.${inputContract}${geometry}${variant} Generate exactly one clean expanded image.${toolRule}`;
+  }
+
   if (execution.capabilityId === 'image.image_to_image') {
     const sourceIndex = attachmentIndex(inputAssignments, 'source');
     const source = sourceIndex ? `attachment ${sourceIndex}` : 'the attached source image';
@@ -219,8 +243,10 @@ function inputRoleForSlot(slotId: string): ExecutionInputRole | undefined {
 
 function inputRoleOrder(role: ExecutionInputRole): number {
   if (role === 'source') return 0;
-  if (role === 'annotated_composite') return 2;
-  return 1;
+  if (role === 'control_image') return 1;
+  if (role === 'inpaint_mask') return 2;
+  if (role === 'annotated_composite') return 3;
+  return 4;
 }
 
 function finiteNumber(value: unknown): number | undefined {

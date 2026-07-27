@@ -68,6 +68,7 @@ assert.deepEqual(connection?.supportedCapabilityIds, [
   'image.annotation_edit',
   'image.image_to_image',
   'image.masked_edit',
+  'image.outpaint',
   'image.text_to_image',
   'previs.storyboard_sheet.generate',
 ]);

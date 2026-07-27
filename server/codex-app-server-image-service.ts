@@ -15,6 +15,13 @@ import {
 } from './local-store/asset-files';
 import { createAssetFromDataUrl } from './local-store/asset-store';
 import { compositeMaskedImage } from './masked-image-compositor';
+import {
+  compositeOutpaintImage,
+  validateOutpaintImageInputs,
+} from './outpaint-image-compositor';
+import {
+  outpaintCapabilityId,
+} from '../src/core/outpaintContracts';
 import { listExecutionProviderSettings } from './local-store/execution-provider-store';
 import {
   failExecution,
@@ -103,6 +110,22 @@ async function executeCodexImageRun(
       localImagePaths[index],
     ]),
   );
+  if (execution.capabilityId === outpaintCapabilityId) {
+    const sourcePath = localImagePathByRole.get('source');
+    const guidePath = localImagePathByRole.get('control_image');
+    const maskPath = localImagePathByRole.get('inpaint_mask');
+    if (!sourcePath || !guidePath || !maskPath) {
+      throw new Error(
+        'Outpaint execution requires source, control_image, and inpaint_mask image inputs.',
+      );
+    }
+    await validateOutpaintImageInputs({
+      guidePath,
+      maskPath,
+      parameters: execution.params?.pluginParameters,
+      sourcePath,
+    });
+  }
   const storyboardContext = execution.capabilityId === storyboardSheetCapabilityId
     ? await storyboardSheetPromptContext(initial, execution)
     : '';
@@ -147,6 +170,13 @@ async function executeCodexImageRun(
           localImagePathByRole,
           index,
         )
+        : execution.capabilityId === outpaintCapabilityId
+          ? await importOutpaintCodexImage(
+            execution,
+            image,
+            localImagePathByRole,
+            index,
+          )
         : image.savedPath
           ? await importCodexImagePath(execution, image.savedPath)
           : image.dataUrl
@@ -227,6 +257,45 @@ async function importMaskedCodexImage(
     sourceExecutionId: execution.executionId,
     dataUrl: `data:image/png;base64,${composite.bytes.toString('base64')}`,
     fileName: `codex-masked-image-${index + 1}.png`,
+    height: composite.height,
+    kind: 'image',
+    width: composite.width,
+  });
+}
+
+async function importOutpaintCodexImage(
+  execution: ExecutionRecord,
+  image: { dataUrl?: string; savedPath?: string },
+  localImagePathByRole: ReadonlyMap<string, string | undefined>,
+  index: number,
+) {
+  const sourcePath = localImagePathByRole.get('source');
+  if (!sourcePath) {
+    throw new Error(
+      'Outpaint execution requires a source image input.',
+    );
+  }
+  const candidateBytes = image.savedPath
+    ? await readCodexImagePath(image.savedPath)
+    : image.dataUrl
+      ? parseDataUrl(image.dataUrl).bytes
+      : undefined;
+  if (!candidateBytes) {
+    throw new Error(
+      'Codex App Server outpaint result did not contain a saved path or image data.',
+    );
+  }
+  assertCodexRasterBytes(candidateBytes);
+  const composite = await compositeOutpaintImage({
+    candidateBytes,
+    parameters: execution.params?.pluginParameters,
+    sourcePath,
+  });
+  return createAssetFromDataUrl({
+    projectId: execution.projectId,
+    sourceExecutionId: execution.executionId,
+    dataUrl: `data:image/png;base64,${composite.bytes.toString('base64')}`,
+    fileName: `codex-outpaint-image-${index + 1}.png`,
     height: composite.height,
     kind: 'image',
     width: composite.width,

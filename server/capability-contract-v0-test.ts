@@ -32,7 +32,6 @@ const legacyCapabilityIds = [
   'text.generate',
   'image.text_to_image',
   'image.image_to_image',
-  'image.local_expand',
   'video.first_last_frame_to_video',
 ] as const;
 

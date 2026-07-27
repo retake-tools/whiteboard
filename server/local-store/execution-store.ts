@@ -58,6 +58,23 @@ export async function getExecution(input: { projectId: string; boardId: string; 
   return findExecutionOrThrow(snapshot, input.executionId);
 }
 
+export async function getProjectExecutionContext(input: {
+  projectId: string;
+  executionId: string;
+}): Promise<{ execution: ExecutionRecord; snapshot: BoardSnapshot }> {
+  const snapshot = await findSnapshotForExecution(
+    input.projectId,
+    input.executionId,
+  );
+  if (!snapshot) {
+    throw new Error(`Execution not found: ${input.executionId}`);
+  }
+  return {
+    execution: findExecutionOrThrow(snapshot, input.executionId),
+    snapshot,
+  };
+}
+
 export async function markExecutionRunning(input: { projectId: string; boardId: string; executionId: string }): Promise<{ snapshot: BoardSnapshot; execution: ExecutionRecord }> {
   const snapshot = await loadSnapshot(input.projectId, input.boardId);
   const execution = findExecutionOrThrow(snapshot, input.executionId);
@@ -326,9 +343,11 @@ async function updateMediaResultBlock(input: {
 
 export async function assertSourceExecutionAcceptsAssets(projectId: string, executionId: string | undefined): Promise<void> {
   if (!executionId) return;
-  const snapshot = await findSnapshotForExecution(projectId, executionId).catch(() => undefined);
-  const execution = snapshot?.executions.find((candidate) => candidate.executionId === executionId);
-  if (execution) assertExecutionRunning(execution, 'import an asset for');
+  const context = await getProjectExecutionContext({
+    executionId,
+    projectId,
+  }).catch(() => undefined);
+  if (context) assertExecutionRunning(context.execution, 'import an asset for');
 }
 
 export async function appendAssetImportedHistory(asset: AssetRecord): Promise<void> {

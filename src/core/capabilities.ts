@@ -215,16 +215,6 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
     promptSource: 'block',
     supportedAdapters: ['mcp_agent', 'direct_api', 'cli_agent', 'manual_import', 'mock'],
   },
-  'image.local_expand': {
-    capabilityId: 'image.local_expand',
-    defaultAdapter: 'manual_import',
-    displayNameKey: 'context.expand',
-    inputContracts: [{ type: 'image', required: true, source: 'block', role: 'source', min: 1, max: 1 }],
-    outputContracts: [{ type: 'image' }],
-    paramsSchema: { aspectRatio: true, resolution: true },
-    promptSource: 'inline',
-    supportedAdapters: ['manual_import', 'mock'],
-  },
   'video.first_last_frame_to_video': {
     capabilityId: 'video.first_last_frame_to_video',
     defaultAdapter: 'mcp_agent',

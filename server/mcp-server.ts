@@ -9,13 +9,13 @@ import {
   failExecution,
   getBoardSnapshot,
   getExecution,
-  importAssetFromPath,
   markExecutionRunning,
   resetWorkspace,
   setCodexProjectBinding,
   updateImageResultBlock,
   validateCodexProjectBinding,
 } from './local-store';
+import { importExecutionAssetFromPath } from './execution-image-import-service';
 
 const server = new McpServer({
   name: 'retake-whiteboard',
@@ -179,7 +179,7 @@ server.registerTool(
     },
   },
   async (input) => {
-    const asset = await importAssetFromPath(input);
+    const asset = await importExecutionAssetFromPath(input);
     return toJsonToolResult(asset);
   },
 );

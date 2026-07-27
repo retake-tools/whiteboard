@@ -19,6 +19,7 @@ export {
   createExecution,
   failExecution,
   getExecution,
+  getProjectExecutionContext,
   markExecutionRunning,
   updateImageResultBlock,
   updateDocumentResultBlock,

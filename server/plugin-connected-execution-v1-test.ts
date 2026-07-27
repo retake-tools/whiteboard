@@ -15,6 +15,10 @@ import {
 import {
   createPluginHostReadStore,
 } from '../src/core/pluginWebModuleLoader';
+import {
+  createProviderImagePrompt,
+  imageExecutionInputAssignments,
+} from './image-execution-prompt';
 import type { AnnotationManifest } from '../src/core/imageAnnotations';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import type {
@@ -126,6 +130,66 @@ const annotationCapability = {
   },
   kind: 'capability',
 } as const;
+const outpaintCapability = {
+  apiVersion: 2,
+  definition: {
+    capabilityId: 'image.outpaint',
+    category: 'image_editing',
+    definitionHash: 'sha256:image-outpaint-fixture-v1',
+    displayName: 'AI image expand',
+    inputSlots: [
+      {
+        artifactTypes: [],
+        bindingKinds: ['asset', 'block'],
+        cardinality: 'one',
+        dataTypes: ['image'],
+        required: true,
+        semanticRole: 'source',
+        slotId: 'source_image',
+      },
+      {
+        artifactTypes: [],
+        bindingKinds: ['asset'],
+        cardinality: 'one',
+        dataTypes: ['image'],
+        required: true,
+        semanticRole: 'control_image',
+        slotId: 'outpaint_guide',
+      },
+      {
+        artifactTypes: [],
+        bindingKinds: ['asset'],
+        cardinality: 'one',
+        dataTypes: ['image'],
+        required: true,
+        semanticRole: 'inpaint_mask',
+        slotId: 'inpaint_mask',
+      },
+      {
+        artifactTypes: [],
+        bindingKinds: ['inline'],
+        cardinality: 'one',
+        dataTypes: ['text'],
+        required: true,
+        semanticRole: 'prompt',
+        slotId: 'prompt',
+      },
+    ],
+    outputSlots: [{
+      cardinality: 'many',
+      dataType: 'image',
+      projectionBlockTypes: ['image'],
+      semanticRole: 'expanded_images',
+      slotId: 'expanded_images',
+    }],
+    parametersSchemaRef: 'definitions/image.outpaint.parameters.json',
+    runtimeRequirements: ['durable_asset_output', 'image_generation'],
+    schemaVersion: 2,
+    supportedAdapterClasses: ['agent_runtime.media'],
+    version: '0.1.0',
+  },
+  kind: 'capability',
+} as const;
 
 const snapshot = snapshotWithMaskedEditInputs();
 const source = snapshot.blocks.find(
@@ -175,6 +239,16 @@ assert.deepEqual(registry.replace([{
         },
         value: annotationCapability,
       },
+      {
+        contribution: {
+          contributionId: 'design.retake.image-studio.outpaint',
+          definitionHash: outpaintCapability.definition.definitionHash,
+          definitionPath: 'definitions/image.outpaint.json',
+          exportName: 'outpaintCapability',
+          kind: 'capability',
+        },
+        value: outpaintCapability,
+      },
     ],
   },
   host,
@@ -197,7 +271,11 @@ cacheExecutionProviderSettings(snapshot.project.projectId, {
     implementationKind: 'agent_bridge',
     providerLabel: 'Codex',
     status: 'ready',
-    supportedCapabilityIds: ['image.annotation_edit', 'image.masked_edit'],
+    supportedCapabilityIds: [
+      'image.annotation_edit',
+      'image.masked_edit',
+      'image.outpaint',
+    ],
   }],
   connectors: [],
   projectDefaults: [],
@@ -433,6 +511,88 @@ assert.equal(
   true,
 );
 
+const importedGuide = await host.assets.importImage({
+  dataUrl: 'data:image/png;base64,AA==',
+  fileName: 'outpaint-guide.png',
+  height: 768,
+  width: 1024,
+});
+const importedOutpaintMask = await host.assets.importImage({
+  dataUrl: 'data:image/png;base64,AA==',
+  fileName: 'outpaint-mask.png',
+  height: 768,
+  width: 1024,
+});
+const outpaintParameters = {
+  aspectPreset: '4:3',
+  contractVersion: 1,
+  guideHeight: 768,
+  guideWidth: 1024,
+  maskEncoding: 'grayscale_white_expand_v1',
+  sourceHeight: 512,
+  sourceWidth: 512,
+  sourceX: 256,
+  sourceY: 128,
+  targetHeight: 768,
+  targetWidth: 1024,
+};
+const outpaintStarted = await host.execution.runConnected({
+  capabilityId: 'image.outpaint',
+  inputs: [
+    { blockId: source.blockId, slotId: 'source_image' },
+    { assetId: importedGuide.assetId, slotId: 'outpaint_guide' },
+    { assetId: importedOutpaintMask.assetId, slotId: 'inpaint_mask' },
+  ],
+  outputCount: 2,
+  parameters: outpaintParameters,
+  prompt: 'Extend the surrounding studio naturally.',
+});
+const outpaintExecution = snapshotRef.current.executions.find(
+  (candidate) => candidate.executionId === outpaintStarted.executionId,
+)!;
+assert.equal(outpaintStarted.outputBlockIds.length, 2);
+assert.deepEqual(
+  outpaintExecution.params?.pluginParameters,
+  outpaintParameters,
+);
+assert.deepEqual(
+  outpaintExecution.params?.generation,
+  {
+    targetHeight: 768,
+    targetWidth: 1024,
+    variationCount: 2,
+  },
+);
+assert.deepEqual(outpaintExecution.params?.inputBindings, [
+  {
+    assetId: sourceAsset.assetId,
+    blockId: source.blockId,
+    inputRole: 'source',
+  },
+  {
+    assetId: importedGuide.assetId,
+    inputRole: 'control_image',
+  },
+  {
+    assetId: importedOutpaintMask.assetId,
+    inputRole: 'inpaint_mask',
+  },
+]);
+const outpaintPrompt = createProviderImagePrompt(
+  outpaintExecution,
+  imageExecutionInputAssignments(outpaintExecution),
+  {
+    dialect: 'codex_imagegen',
+    variantCount: 2,
+    variantIndex: 0,
+  },
+);
+assert.match(outpaintPrompt, /exactly at pixel rectangle/);
+assert.match(outpaintPrompt, /x,y,width,height=256,128,512,512/);
+assert.match(outpaintPrompt, /attachment 2.*authoritative layout guide/);
+assert.match(outpaintPrompt, /attachment 3.*spatial constraint/);
+assert.match(outpaintPrompt, /Target pixel dimensions: 1024x768/);
+
 const executionCount = snapshotRef.current.executions.length;
 await assert.rejects(
   host.execution.runConnected!({
@@ -461,6 +621,8 @@ process.stdout.write(`${JSON.stringify({
   connectedExecutionUsesCurrentRetakeConnection: true,
   credentialsStayOutsidePluginHost: true,
   importedAssetInputCreatesNoIntermediateBlock: true,
+  outpaintFreezesTargetGeometryAndTypedGuide: true,
+  outpaintProviderPromptPreservesSourceRectangle: true,
   annotationPluginProjectsLegacyReadModel: true,
   annotationPluginFreezesTypedCompositeInput: true,
   maskGeometryValidatedBeforeOperation: true,
