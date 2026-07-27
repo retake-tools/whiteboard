@@ -16,6 +16,7 @@ import {
   LocalPackageManagerService,
   type InstalledDeclarativePackageRegistry,
 } from './local-package-manager-service';
+import { PluginRuntimeService } from './plugin-runtime-service';
 
 export class PackageLifecycleService {
   private readonly hostVersion: string;
@@ -36,13 +37,17 @@ export class PackageLifecycleService {
       hostVersion: this.hostVersion,
       workspaceRoot: this.workspaceRoot,
     });
-    const [lockfile, registry] = await Promise.all([
+    const [lockfile, pluginRuntime, registry] = await Promise.all([
       this.manager.list(),
+      new PluginRuntimeService({
+        hostVersion: this.hostVersion,
+        workspaceRoot: this.workspaceRoot,
+      }).reconcile(),
       this.manager.loadRegistry(),
     ]);
     return projectPackageLifecycleSnapshot({
       lockfile,
-      pluginRuntime: bootstrap.pluginRuntime,
+      pluginRuntime,
       registry,
       runtimeRegistry: bootstrap.snapshot,
     });

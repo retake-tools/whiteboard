@@ -31,6 +31,7 @@ import {
 } from './declarative-package-bootstrap-service';
 import { handlePackageLifecycleRequest } from './package-lifecycle-api';
 import { PackageLifecycleService } from './package-lifecycle-service';
+import { PluginRuntimeService } from './plugin-runtime-service';
 
 Object.defineProperty(globalThis, 'localStorage', {
   configurable: true,
@@ -59,6 +60,17 @@ try {
   const initial = await service.read();
   assert.equal(initial.schemaVersion, 1);
   assert.equal(initial.packages.length, 2);
+  const runtimeService = new PluginRuntimeService({
+    hostVersion: '0.1.2',
+    workspaceRoot,
+  });
+  await runtimeService.setSafeMode(true);
+  assert.equal(
+    (await service.read()).pluginRuntime.safeMode,
+    true,
+    'Package lifecycle reads must not replay a cached Plugin Runtime snapshot.',
+  );
+  await runtimeService.setSafeMode(false);
 
   const installedOne = await service.mutate({
     action: 'install',
@@ -175,6 +187,7 @@ try {
     dependencyRemovalGuardOwnedByPackageManager: true,
     localPathsProjectedWithoutDirectoryDisclosure: true,
     localSourceInstallRollbackRemove: true,
+    pluginRuntimeReadUsesFreshPersistedAuthority: true,
     sourceUpdateCapabilityIsExact: true,
     webLibraryRendersLifecycleActions: true,
   })}\n`);
