@@ -835,6 +835,36 @@ export type TranslationKey =
   | 'projectBoard.renameProject'
   | 'projectBoard.switchBoard'
   | 'projectBoard.unpin'
+  | 'pluginSettings.close'
+  | 'pluginSettings.codeNotTrusted'
+  | 'pluginSettings.codeTrusted'
+  | 'pluginSettings.contributions'
+  | 'pluginSettings.description'
+  | 'pluginSettings.disable'
+  | 'pluginSettings.empty'
+  | 'pluginSettings.emptyDescription'
+  | 'pluginSettings.enable'
+  | 'pluginSettings.enterSafeMode'
+  | 'pluginSettings.grant'
+  | 'pluginSettings.kicker'
+  | 'pluginSettings.leaveSafeMode'
+  | 'pluginSettings.noPermissions'
+  | 'pluginSettings.package'
+  | 'pluginSettings.permissions'
+  | 'pluginSettings.permissionsGranted'
+  | 'pluginSettings.permissionsNotGranted'
+  | 'pluginSettings.publisher'
+  | 'pluginSettings.refresh'
+  | 'pluginSettings.safeMode'
+  | 'pluginSettings.safeModeDescription'
+  | 'pluginSettings.statusDisabled'
+  | 'pluginSettings.statusEnabled'
+  | 'pluginSettings.statusFailed'
+  | 'pluginSettings.statusIncompatible'
+  | 'pluginSettings.statusInstalled'
+  | 'pluginSettings.title'
+  | 'pluginSettings.trust'
+  | 'pluginSettings.trustWarning'
   | 'settings.keyboardShortcuts'
   | 'settings.generationProfiles'
   | 'settings.generationProfileBuiltin'
@@ -896,6 +926,7 @@ export type TranslationKey =
   | 'settings.noCompatibleConnection'
   | 'settings.language'
   | 'settings.preferences'
+  | 'settings.plugins'
   | 'settings.shortcutClose'
   | 'settings.shortcutRedo'
   | 'settings.shortcutUndo'
@@ -1791,6 +1822,36 @@ const translations: Record<Locale, Translations> = {
     'projectBoard.renameProject': 'Rename project',
     'projectBoard.switchBoard': 'Open board',
     'projectBoard.unpin': 'Close on outside click',
+    'pluginSettings.close': 'Close Plugin management',
+    'pluginSettings.codeNotTrusted': 'Code not trusted',
+    'pluginSettings.codeTrusted': 'Exact code trusted',
+    'pluginSettings.contributions': 'Contributions',
+    'pluginSettings.description': 'Manage installed PluginModules. Runtime changes apply to the current page immediately; source installation and updates are handled separately.',
+    'pluginSettings.disable': 'Disable',
+    'pluginSettings.empty': 'No PluginModules installed',
+    'pluginSettings.emptyDescription': 'Install a Package containing a PluginModule before managing its runtime state here.',
+    'pluginSettings.enable': 'Enable',
+    'pluginSettings.enterSafeMode': 'Enter safe mode',
+    'pluginSettings.grant': 'Grant exact permissions',
+    'pluginSettings.kicker': 'In-process Plugin Runtime',
+    'pluginSettings.leaveSafeMode': 'Leave safe mode',
+    'pluginSettings.noPermissions': 'No declared permissions',
+    'pluginSettings.package': 'Package',
+    'pluginSettings.permissions': 'Declared permissions',
+    'pluginSettings.permissionsGranted': 'Permissions granted',
+    'pluginSettings.permissionsNotGranted': 'Permissions not granted',
+    'pluginSettings.publisher': 'Publisher',
+    'pluginSettings.refresh': 'Refresh',
+    'pluginSettings.safeMode': 'Safe mode',
+    'pluginSettings.safeModeDescription': 'Temporarily detach every Plugin contribution while preserving each desired state.',
+    'pluginSettings.statusDisabled': 'Disabled',
+    'pluginSettings.statusEnabled': 'Enabled',
+    'pluginSettings.statusFailed': 'Failed',
+    'pluginSettings.statusIncompatible': 'Incompatible',
+    'pluginSettings.statusInstalled': 'Installed',
+    'pluginSettings.title': 'Plugins',
+    'pluginSettings.trust': 'Trust exact code',
+    'pluginSettings.trustWarning': 'Trust runs this exact Package digest in the same page as the canvas. Review the source before continuing.',
     'settings.keyboardShortcuts': 'Keyboard shortcuts',
     'settings.generationProfiles': 'Generation profiles',
     'settings.generationProfileBuiltin': 'Built-in · Read only',
@@ -1852,6 +1913,7 @@ const translations: Record<Locale, Translations> = {
     'settings.noCompatibleConnection': 'No compatible ready connection',
     'settings.language': 'Language',
     'settings.preferences': 'Preferences',
+    'settings.plugins': 'Plugins',
     'settings.shortcutClose': 'Close dialogs and panels',
     'settings.shortcutRedo': 'Redo',
     'settings.shortcutUndo': 'Undo',
@@ -2742,6 +2804,36 @@ const translations: Record<Locale, Translations> = {
     'projectBoard.renameProject': '重命名项目',
     'projectBoard.switchBoard': '打开画板',
     'projectBoard.unpin': '点击外部关闭',
+    'pluginSettings.close': '关闭插件管理',
+    'pluginSettings.codeNotTrusted': '代码未信任',
+    'pluginSettings.codeTrusted': '已信任当前代码',
+    'pluginSettings.contributions': '扩展贡献',
+    'pluginSettings.description': '管理已经安装的 PluginModule。运行状态会立即作用于当前页面；源码安装和更新由独立流程处理。',
+    'pluginSettings.disable': '停用',
+    'pluginSettings.empty': '尚未安装 PluginModule',
+    'pluginSettings.emptyDescription': '请先安装包含 PluginModule 的 Package，再在这里管理运行状态。',
+    'pluginSettings.enable': '启用',
+    'pluginSettings.enterSafeMode': '进入安全模式',
+    'pluginSettings.grant': '授权声明权限',
+    'pluginSettings.kicker': '页内 Plugin Runtime',
+    'pluginSettings.leaveSafeMode': '退出安全模式',
+    'pluginSettings.noPermissions': '未声明权限',
+    'pluginSettings.package': 'Package',
+    'pluginSettings.permissions': '声明权限',
+    'pluginSettings.permissionsGranted': '权限已授权',
+    'pluginSettings.permissionsNotGranted': '权限未授权',
+    'pluginSettings.publisher': '发布者',
+    'pluginSettings.refresh': '刷新',
+    'pluginSettings.safeMode': '安全模式',
+    'pluginSettings.safeModeDescription': '临时卸载所有插件贡献，同时保留每个插件原本的启用意图。',
+    'pluginSettings.statusDisabled': '已停用',
+    'pluginSettings.statusEnabled': '已启用',
+    'pluginSettings.statusFailed': '运行失败',
+    'pluginSettings.statusIncompatible': '不兼容',
+    'pluginSettings.statusInstalled': '已安装',
+    'pluginSettings.title': '插件',
+    'pluginSettings.trust': '信任当前代码',
+    'pluginSettings.trustWarning': '信任后会在画布所在页面执行当前 Package 摘要对应的代码，请先审阅源码。',
     'settings.keyboardShortcuts': '快捷键',
     'settings.generationProfiles': '生成配置',
     'settings.generationProfileBuiltin': '内置 · 只读',
@@ -2803,6 +2895,7 @@ const translations: Record<Locale, Translations> = {
     'settings.noCompatibleConnection': '没有兼容且可用的连接',
     'settings.language': '语言',
     'settings.preferences': '偏好设置',
+    'settings.plugins': '插件',
     'settings.shortcutClose': '关闭弹窗和面板',
     'settings.shortcutRedo': '重做',
     'settings.shortcutUndo': '撤销',

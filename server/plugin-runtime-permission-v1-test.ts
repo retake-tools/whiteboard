@@ -52,27 +52,31 @@ try {
     /not granted/,
   );
 
-  const granted = await service.grant({
-    permissions: [
-      'retake.asset.read.bound',
-      'retake.package.read.self',
-    ],
-    pluginModuleId: 'retake.plugin.whiteboard-runtime-fixture',
-  });
-  assert.equal(granted.status, 'installed');
-  assert.equal(granted.grant?.grantedBy, 'user');
+  const granted = await service.manageModule(
+    'retake.plugin.whiteboard-runtime-fixture',
+    'grant',
+  );
+  assert.equal(granted.modules[0]!.status, 'installed');
+  assert.equal(granted.modules[0]!.grant?.grantedBy, 'user');
+  assert.deepEqual(
+    granted.modules[0]!.grant?.permissions,
+    granted.modules[0]!.manifest.permissions,
+  );
   await assert.rejects(
     service.enable('retake.plugin.whiteboard-runtime-fixture'),
     /Code Trust/,
   );
-  const trusted = await service.trustUserCode(
+  const trusted = await service.manageModule(
     'retake.plugin.whiteboard-runtime-fixture',
+    'trust',
   );
-  assert.equal(trusted.trust?.trustChannel, 'user_trusted');
-  assert.equal(trusted.trust?.updatePolicy, 'exact_digest');
-  const enabled = await service.enable(
+  assert.equal(trusted.modules[0]!.trust?.trustChannel, 'user_trusted');
+  assert.equal(trusted.modules[0]!.trust?.updatePolicy, 'exact_digest');
+  const enabledSnapshot = await service.manageModule(
     'retake.plugin.whiteboard-runtime-fixture',
+    'enable',
   );
+  const enabled = enabledSnapshot.modules[0]!;
   assert.equal(enabled.status, 'enabled');
   const moduleFile = await service.readEnabledModuleFile({
     packageDigest: enabled.packageLock.digest,
@@ -206,6 +210,21 @@ try {
   );
   assert.equal(failed.status, 'failed');
   assert.equal(failed.failure?.message, 'fixture sandbox crash');
+  const disabledAfterFailure = await service.manageModule(
+    'retake.plugin.whiteboard-runtime-fixture',
+    'disable',
+  );
+  assert.equal(disabledAfterFailure.modules[0]!.status, 'disabled');
+  const recoveredAfterFailure = await service.manageModule(
+    'retake.plugin.whiteboard-runtime-fixture',
+    'enable',
+  );
+  assert.equal(recoveredAfterFailure.modules[0]!.status, 'enabled');
+  const failedAgain = await service.fail(
+    'retake.plugin.whiteboard-runtime-fixture',
+    'fixture sandbox crash',
+  );
+  assert.equal(failedAgain.status, 'failed');
 
   const statePath = path.join(
     manager.packagesRoot,
@@ -225,6 +244,7 @@ try {
     fatalFailureExplicit: true,
     installDoesNotEnable: true,
     nativeModuleActivation: true,
+    runtimeManagementReturnsSnapshot: true,
     permissionUpgradeRevokesGrant: true,
     persistedRuntimeState: pluginRuntimeStateFile,
     safeModePreservesDesiredState: true,

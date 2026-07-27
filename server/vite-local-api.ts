@@ -70,6 +70,9 @@ import {
 } from './declarative-package-bootstrap-service';
 import { PluginRuntimeService } from './plugin-runtime-service';
 import { pluginHostExternalModuleSource } from './plugin-host-external-modules';
+import {
+  handlePluginRuntimeManagementRequest,
+} from './plugin-runtime-management-api';
 
 type MiddlewareContainer = {
   use(
@@ -115,6 +118,22 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
           }
 
           await ensurePackageBootstrap();
+
+          const pluginRuntimeManagement =
+            await handlePluginRuntimeManagementRequest({
+              method,
+              pathname: url.pathname,
+              readBody: () => readJson(req),
+              service: createPluginRuntimeService(),
+            });
+          if (pluginRuntimeManagement.handled) {
+            sendJson(
+              res,
+              pluginRuntimeManagement.value,
+              pluginRuntimeManagement.statusCode,
+            );
+            return;
+          }
 
           if (
             method === 'GET'
@@ -1084,6 +1103,13 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
 
 function ensurePackageBootstrap() {
   return ensureDefaultDeclarativePackageBootstrap({
+    hostVersion: packageMetadata.version,
+    workspaceRoot: retakeRoot,
+  });
+}
+
+function createPluginRuntimeService(): PluginRuntimeService {
+  return new PluginRuntimeService({
     hostVersion: packageMetadata.version,
     workspaceRoot: retakeRoot,
   });

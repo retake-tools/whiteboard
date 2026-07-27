@@ -47,29 +47,45 @@ try {
     hostVersion: '0.1.2',
     workspaceRoot: retakeRoot,
   });
-  await runtime.reconcile();
-  await runtime.grant({
-    permissions: [
-      'retake.asset.create',
-      'retake.asset.read.bound',
-      'retake.block.read.bound',
-    ],
-    pluginModuleId: 'retake.plugin.react-browser-fixture',
-  });
-  await runtime.trustUserCode('retake.plugin.react-browser-fixture');
-  const enabled = await runtime.enable(
-    'retake.plugin.react-browser-fixture',
+  const installed = await runtime.reconcile();
+  const fixtureState = parseFixtureState(
+    process.env.RETAKE_PLUGIN_RUNTIME_FIXTURE_STATE,
   );
+  let record = installed.modules[0]!;
+  if (fixtureState === 'enabled') {
+    await runtime.grant({
+      permissions: [
+        'retake.asset.create',
+        'retake.asset.read.bound',
+        'retake.block.read.bound',
+      ],
+      pluginModuleId: 'retake.plugin.react-browser-fixture',
+    });
+    await runtime.trustUserCode('retake.plugin.react-browser-fixture');
+    record = await runtime.enable(
+      'retake.plugin.react-browser-fixture',
+    );
+  }
   const rendererBlockCount = await installRendererFixtureBlocks();
   process.stdout.write(`${JSON.stringify({
-    digest: enabled.packageLock.digest,
-    pluginModuleId: enabled.pluginModuleId,
+    digest: record.packageLock.digest,
+    pluginModuleId: record.pluginModuleId,
     rendererBlockCount,
-    status: enabled.status,
+    status: record.status,
     workspaceRoot: retakeRoot,
   })}\n`);
 } finally {
   await rm(temporaryRoot, { force: true, recursive: true });
+}
+
+function parseFixtureState(
+  value: string | undefined,
+): 'enabled' | 'installed' {
+  if (!value || value === 'enabled') return 'enabled';
+  if (value === 'installed') return 'installed';
+  throw new Error(
+    'RETAKE_PLUGIN_RUNTIME_FIXTURE_STATE must be enabled or installed.',
+  );
 }
 
 async function writeReactPluginSource(sourceRoot: string): Promise<void> {

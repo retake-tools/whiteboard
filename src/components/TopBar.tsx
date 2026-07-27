@@ -1,6 +1,7 @@
 import {
   Check,
   Bot,
+  Boxes,
   ChevronDown,
   ChevronRight,
   Cloud,
@@ -28,6 +29,7 @@ import {
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties, type MutableRefObject, type ReactElement } from 'react';
 import type { BoardSnapshot, WorkspaceSummary } from '../core/types';
+import type { PluginRuntimeControllerV1 } from '../core/pluginRuntimeManagementClient';
 import { loadUiPreferences, saveUiPreferences } from '../core/uiPreferences';
 import { useI18n, type Locale } from '../i18n';
 import { ProjectBoardMenu } from './ProjectBoardMenu';
@@ -36,6 +38,10 @@ import { TooltipIconButton, TooltipWrapper } from './Tooltip';
 const ExecutionProvidersSettings = lazy(async () => {
   const module = await import('./ExecutionProvidersSettings');
   return { default: module.ExecutionProvidersSettings };
+});
+const PluginRuntimeSettings = lazy(async () => {
+  const module = await import('./PluginRuntimeSettings');
+  return { default: module.PluginRuntimeSettings };
 });
 
 export type AutosaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -73,6 +79,7 @@ interface TopBarProps {
   onDuplicateSelection: () => void;
   onUndo: () => void;
   onRedo: () => void;
+  pluginRuntimeController?: PluginRuntimeControllerV1;
 }
 
 export function TopBar({
@@ -106,6 +113,7 @@ export function TopBar({
   onToggleAgentWorkspace,
   onUndo,
   onRedo,
+  pluginRuntimeController,
   isHistoryOpen,
   isAgentWorkspaceOpen,
 }: TopBarProps): ReactElement {
@@ -120,6 +128,7 @@ export function TopBar({
   const [keyboardShortcutsPosition, setKeyboardShortcutsPosition] = useState<{ left: number; top: number } | undefined>();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isExecutionSettingsOpen, setIsExecutionSettingsOpen] = useState(false);
+  const [isPluginSettingsOpen, setIsPluginSettingsOpen] = useState(false);
   const boardControlRef = useRef<HTMLDivElement | null>(null);
   const keyboardShortcutsRef = useRef<HTMLDivElement | null>(null);
   const settingsRef = useRef<HTMLDivElement | null>(null);
@@ -213,6 +222,15 @@ export function TopBar({
 
   const closeExecutionProviderSettings = useCallback((): void => {
     setIsExecutionSettingsOpen(false);
+  }, []);
+
+  const openPluginSettings = useCallback((): void => {
+    setIsSettingsOpen(false);
+    setIsPluginSettingsOpen(true);
+  }, []);
+
+  const closePluginSettings = useCallback((): void => {
+    setIsPluginSettingsOpen(false);
   }, []);
 
   return (
@@ -435,6 +453,9 @@ export function TopBar({
                 showGrid={showGrid}
                 onOpenExecutionProviders={openExecutionProviderSettings}
                 onOpenKeyboardShortcuts={openKeyboardShortcuts}
+                onOpenPlugins={pluginRuntimeController
+                  ? openPluginSettings
+                  : undefined}
                 onSelectLanguage={setLocale}
                 onToggleGrid={onToggleGrid}
               />
@@ -457,6 +478,14 @@ export function TopBar({
           />
         </Suspense>
       ) : null}
+      {isPluginSettingsOpen && pluginRuntimeController ? (
+        <Suspense fallback={<div className="execution-settings-backdrop" aria-busy="true" />}>
+          <PluginRuntimeSettings
+            controller={pluginRuntimeController}
+            onClose={closePluginSettings}
+          />
+        </Suspense>
+      ) : null}
     </>
   );
 }
@@ -465,6 +494,7 @@ function SettingsMenu({
   currentLocale,
   onOpenExecutionProviders,
   onOpenKeyboardShortcuts,
+  onOpenPlugins,
   showGrid,
   onSelectLanguage,
   onToggleGrid,
@@ -472,6 +502,7 @@ function SettingsMenu({
   currentLocale: Locale;
   onOpenExecutionProviders: () => void;
   onOpenKeyboardShortcuts: () => void;
+  onOpenPlugins?: () => void;
   showGrid: boolean;
   onSelectLanguage: (locale: Locale) => void;
   onToggleGrid: () => void;
@@ -486,6 +517,13 @@ function SettingsMenu({
           <span>{t('settings.executionProviders')}</span>
           <ChevronRight size={14} />
         </button>
+        {onOpenPlugins ? (
+          <button type="button" className="settings-menu-item" onClick={onOpenPlugins}>
+            <Boxes size={15} />
+            <span>{t('settings.plugins')}</span>
+            <ChevronRight size={14} />
+          </button>
+        ) : null}
       </div>
       <div className="settings-menu-group">
         <button type="button" className="settings-menu-item">

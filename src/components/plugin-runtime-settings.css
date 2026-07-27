@@ -1,0 +1,359 @@
+.plugin-runtime-settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 225;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgb(15 23 42 / 38%);
+  backdrop-filter: blur(4px);
+}
+
+.plugin-runtime-settings-dialog {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  width: min(920px, calc(100vw - 56px));
+  height: min(760px, calc(100vh - 56px));
+  overflow: hidden;
+  border: 1px solid #d7deea;
+  border-radius: 16px;
+  background: #f8fafc;
+  box-shadow: 0 32px 96px rgb(15 23 42 / 30%);
+}
+
+.plugin-runtime-settings-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 24px 26px 18px;
+  gap: 24px;
+  border-bottom: 1px solid #e3e8ef;
+  background: #fff;
+}
+
+.plugin-runtime-settings-header h2 {
+  margin: 5px 0 4px;
+  color: #172033;
+  font-size: 23px;
+  letter-spacing: -0.02em;
+}
+
+.plugin-runtime-settings-header p {
+  max-width: 650px;
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.plugin-runtime-settings-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--retake-accent-strong);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.plugin-runtime-settings-close {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #e0e6ef;
+  border-radius: 9px;
+  background: #fff;
+  color: #475467;
+  cursor: pointer;
+}
+
+.plugin-runtime-settings-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  padding: 14px 26px;
+  gap: 10px;
+  border-bottom: 1px solid #e3e8ef;
+  background: #fff;
+}
+
+.plugin-runtime-settings-controls > div {
+  display: grid;
+  gap: 3px;
+}
+
+.plugin-runtime-settings-controls strong {
+  color: #202938;
+  font-size: 13px;
+}
+
+.plugin-runtime-settings-controls small {
+  color: #667085;
+  font-size: 11px;
+}
+
+.plugin-runtime-settings-controls button,
+.plugin-runtime-module-card footer button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 11px;
+  gap: 6px;
+  border: 1px solid #d7deea;
+  border-radius: 8px;
+  background: #fff;
+  color: #344054;
+  font-size: 11px;
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.plugin-runtime-settings-controls button:disabled,
+.plugin-runtime-module-card footer button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.plugin-runtime-settings-controls button.is-danger.is-active {
+  border-color: #f04438;
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.plugin-runtime-settings-content {
+  overflow: auto;
+  padding: 20px 26px 28px;
+}
+
+.plugin-runtime-settings-error,
+.plugin-runtime-module-failure {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  gap: 7px;
+  border: 1px solid #fecdca;
+  border-radius: 9px;
+  background: #fef3f2;
+  color: #b42318;
+  font-size: 12px;
+}
+
+.plugin-runtime-settings-error {
+  margin-bottom: 14px;
+}
+
+.plugin-runtime-settings-empty {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  gap: 8px;
+  color: #667085;
+  text-align: center;
+}
+
+.plugin-runtime-settings-empty strong {
+  color: #344054;
+}
+
+.plugin-runtime-settings-empty span {
+  max-width: 420px;
+  font-size: 12px;
+}
+
+.plugin-runtime-module-list {
+  display: grid;
+  gap: 14px;
+}
+
+.plugin-runtime-module-card {
+  display: grid;
+  padding: 16px;
+  gap: 13px;
+  border: 1px solid #dce3ec;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 3px 10px rgb(15 23 42 / 4%);
+}
+
+.plugin-runtime-module-card > header {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.plugin-runtime-module-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
+}
+
+.plugin-runtime-module-card > header > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.plugin-runtime-module-card header strong {
+  overflow: hidden;
+  color: #202938;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-runtime-module-card header small,
+.plugin-runtime-module-card > p,
+.plugin-runtime-module-card dt,
+.plugin-runtime-module-card dd {
+  margin: 0;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.plugin-runtime-status {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #f2f4f7;
+  color: #475467;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 780;
+  white-space: nowrap;
+}
+
+.plugin-runtime-status.is-enabled {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.plugin-runtime-status.is-failed,
+.plugin-runtime-status.is-incompatible {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.plugin-runtime-status.is-installed {
+  background: #fffaeb;
+  color: #b54708;
+}
+
+.plugin-runtime-module-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  gap: 8px;
+}
+
+.plugin-runtime-module-card dl > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.plugin-runtime-module-card dd {
+  overflow: hidden;
+  color: #344054;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-runtime-module-card > section {
+  display: grid;
+  gap: 7px;
+}
+
+.plugin-runtime-module-card > section > strong {
+  color: #344054;
+  font-size: 11px;
+}
+
+.plugin-runtime-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.plugin-runtime-tags code,
+.plugin-runtime-tags span {
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: #f2f4f7;
+  color: #475467;
+  font-family: inherit;
+  font-size: 10px;
+}
+
+.plugin-runtime-module-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.plugin-runtime-module-card footer > span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  color: #667085;
+  font-size: 10px;
+}
+
+.plugin-runtime-module-card footer button.is-primary {
+  border-color: var(--retake-accent-strong);
+  background: var(--retake-accent-strong);
+  color: #fff;
+}
+
+.plugin-runtime-trust-warning {
+  color: #b54708;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.plugin-runtime-settings-dialog .is-spinning {
+  animation: plugin-runtime-spin 0.9s linear infinite;
+}
+
+@keyframes plugin-runtime-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 700px) {
+  .plugin-runtime-settings-backdrop {
+    padding: 12px;
+  }
+
+  .plugin-runtime-settings-dialog {
+    width: calc(100vw - 24px);
+    height: calc(100vh - 24px);
+  }
+
+  .plugin-runtime-settings-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .plugin-runtime-settings-controls button {
+    width: 100%;
+  }
+
+  .plugin-runtime-module-card dl {
+    grid-template-columns: 1fr;
+  }
+
+  .plugin-runtime-module-card footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

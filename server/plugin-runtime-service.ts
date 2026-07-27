@@ -9,6 +9,12 @@ import {
 import { LocalPackageManagerService } from './local-package-manager-service';
 import { PluginRuntimeStateStore } from './plugin-runtime-state-store';
 
+export type PluginRuntimeManagementActionV1 =
+  | 'disable'
+  | 'enable'
+  | 'grant'
+  | 'trust';
+
 export class PluginRuntimeService {
   readonly hostVersion: string;
   readonly manager: LocalPackageManagerService;
@@ -89,6 +95,38 @@ export class PluginRuntimeService {
 
   async setSafeMode(enabled: boolean): Promise<PluginRuntimeSnapshotV1> {
     return this.mutate((host) => host.setSafeMode(enabled));
+  }
+
+  async manageModule(
+    pluginModuleId: string,
+    action: PluginRuntimeManagementActionV1,
+  ): Promise<PluginRuntimeSnapshotV1> {
+    return this.mutate((host) => {
+      const record = host.list().find(
+        (entry) => entry.pluginModuleId === pluginModuleId,
+      );
+      if (!record) {
+        throw new Error(`PluginModule is not installed: ${pluginModuleId}`);
+      }
+      if (action === 'grant') {
+        host.grant({
+          grantId: randomUUID(),
+          permissions: [...record.manifest.permissions],
+          pluginModuleId,
+        });
+      } else if (action === 'trust') {
+        host.trust({
+          pluginModuleId,
+          trustChannel: 'user_trusted',
+          trustedBy: 'user',
+          trustId: randomUUID(),
+          updatePolicy: 'exact_digest',
+        });
+      } else {
+        host[action](pluginModuleId);
+      }
+      return host.snapshot();
+    });
   }
 
   async assertPermission(
