@@ -33,9 +33,23 @@ export function annotationDraftRestoreContext(
   const historyEvent = snapshot.historyEvents?.find(
     (event) => event.executionId === execution.executionId && event.type === 'operation_created',
   );
-  const manifest = readAnnotationManifest(execution.params?.annotationManifest) ??
-    readAnnotationManifest(operationBlock?.data.annotationManifest) ??
-    readAnnotationManifest(historyEvent?.detail?.annotationManifest);
+  const pluginParameters = execution.params?.pluginParameters;
+  const pluginManifest = (
+    pluginParameters
+    && typeof pluginParameters === 'object'
+    && !Array.isArray(pluginParameters)
+  )
+    ? (pluginParameters as Record<string, unknown>).manifest
+    : undefined;
+  const manifest = annotationManifestFromUnknown(
+    execution.params?.annotationManifest,
+  ) ?? annotationManifestFromUnknown(
+    pluginManifest,
+  ) ?? annotationManifestFromUnknown(
+    operationBlock?.data.annotationManifest,
+  ) ?? annotationManifestFromUnknown(
+    historyEvent?.detail?.annotationManifest,
+  );
   if (!manifest) return { state: 'manifest_missing' };
 
   const { sourceBlock } = executionSourceLineage(snapshot, execution);
@@ -79,7 +93,9 @@ function historicalSourceAssetId(
     : execution.inputAssetIds?.[0];
 }
 
-function readAnnotationManifest(value: unknown): AnnotationManifest | undefined {
+export function annotationManifestFromUnknown(
+  value: unknown,
+): AnnotationManifest | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const candidate = value as Record<string, unknown>;
   if (

@@ -32,7 +32,6 @@ const legacyCapabilityIds = [
   'text.generate',
   'image.text_to_image',
   'image.image_to_image',
-  'image.annotation_edit',
   'image.local_expand',
   'video.first_last_frame_to_video',
 ] as const;
@@ -130,11 +129,6 @@ assert.deepEqual(imageToImage.inputSlots.map((slot) => slot.slotId), ['prompt', 
 assert.deepEqual(requiredSlot(imageToImage, 'source_image').bindingKinds, ['block', 'asset', 'artifact_revision']);
 assert.equal(requiredSlot(imageToImage, 'source_image').required, true);
 assert.equal(requiredSlot(imageToImage, 'references').required, false);
-
-const annotationEdit = requiredDefinition('image.annotation_edit');
-assert.deepEqual(annotationEdit.inputSlots.map((slot) => slot.slotId), ['source', 'prompt', 'annotated_composite']);
-assert.deepEqual(requiredSlot(annotationEdit, 'prompt').bindingKinds, ['inline']);
-assert.deepEqual(requiredSlot(annotationEdit, 'annotated_composite').bindingKinds, ['asset']);
 
 const videoDefinition = requiredDefinition('video.first_last_frame_to_video');
 assert.deepEqual(videoDefinition.inputSlots.map((slot) => slot.slotId), ['prompt', 'first_frame', 'last_frame']);
@@ -284,6 +278,7 @@ assertHasIssue(
 
 console.log(JSON.stringify({
   ok: true,
+  annotationCapabilityOwnedByPlugin: true,
   validatedLegacyCapabilities: legacyCapabilityIds.length,
   requestContract: videoDefinition.capabilityId,
   providerCliBindingRequired: true,

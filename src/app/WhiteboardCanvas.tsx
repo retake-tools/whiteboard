@@ -15,7 +15,6 @@ import {
 import {
   PluginSelectionToolbarActions,
 } from '../components/PluginSelectionToolbarActions';
-import { createImageAssetFromDataUrl } from '../core/assetStore';
 import { maxBoardZoom, minBoardZoom } from '../core/boardViewStateStore';
 import type {
   PluginContributionRegistryV1,
@@ -24,7 +23,6 @@ import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
 import type { useI18n } from '../i18n';
 import { BlockNode } from '../nodes/BlockNode';
 import { downloadAsset } from './appHelpers';
-import type { useAnnotationController } from './useAnnotationController';
 import type { useBlockActions } from './useBlockActions';
 import type { useCanvasController } from './useCanvasController';
 import type { useGroupController } from './useGroupController';
@@ -36,11 +34,9 @@ const nodeTypes = { text: BlockNode, document: BlockNode, image: BlockNode, vide
 const edgeTypes = { executionOutput: ExecutionOutputEdge } satisfies EdgeTypes;
 
 interface WhiteboardCanvasProps {
-  annotations: ReturnType<typeof useAnnotationController>;
   blockActions: ReturnType<typeof useBlockActions>;
   canvas: ReturnType<typeof useCanvasController>;
   directImageImportInputRef: RefObject<HTMLInputElement | null>;
-  flushAnnotationDraftPersist: () => void;
   groups: ReturnType<typeof useGroupController>;
   imageOperations: ReturnType<typeof useImageOperationController>;
   isMiniMapVisible: boolean;
@@ -61,18 +57,15 @@ interface WhiteboardCanvasProps {
   setMiniMapVisible: Dispatch<SetStateAction<boolean>>;
   showGrid: boolean;
   snapshot: BoardSnapshot;
-  snapshotRef: RefObject<BoardSnapshot>;
   t: ReturnType<typeof useI18n>['t'];
   workflowRuntime: ReturnType<typeof useWorkflowRuntimeController>;
 }
 
 export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
   const {
-    annotations,
     blockActions,
     canvas,
     directImageImportInputRef,
-    flushAnnotationDraftPersist,
     groups,
     imageOperations,
     isMiniMapVisible,
@@ -90,7 +83,6 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
     setMiniMapVisible,
     showGrid,
     snapshot,
-    snapshotRef,
     t,
     workflowRuntime,
   } = props;
@@ -199,10 +191,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
         {selectedBlock?.type === 'image' && selectedImageUrl && !selectedBlockContentLocked ? (
           <NodeToolbar nodeId={selectedBlock.blockId} position={Position.Top} offset={12} isVisible>
             <ContextToolbar
-              annotationConnections={imageOperations.annotationConnections}
-              preferredAnnotationConnectionId={imageOperations.preferredAnnotationConnectionId}
               canvasZoom={canvas.canvasZoom}
-              annotationEditorOpenRequest={annotations.annotationEditorOpenRequest?.blockId === selectedBlock.blockId ? annotations.annotationEditorOpenRequest : undefined}
               pluginActions={selectedImageAsset ? (
                 <PluginImageToolbarActions
                   assetId={selectedImageAsset.assetId}
@@ -215,36 +204,12 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
               ) : null}
               selectedBlock={selectedBlock}
               selectedImageUrl={selectedImageUrl}
-              onAnnotationDraftChange={(draft) => annotations.updateAnnotationDraft(selectedBlock.blockId, draft)}
-              onAnnotationDraftFlush={flushAnnotationDraftPersist}
-              onAnnotationEditorOpenRequestHandled={() => annotations.setAnnotationEditorOpenRequest(undefined)}
               onCreateSimilar={() => imageOperations.createImageToImageDraftOperation(selectedBlock, 'create_similar')}
               onDownloadImage={() => { if (selectedImageAsset) downloadAsset(selectedImageAsset, selectedBlock.data.title); }}
               onReplaceImage={() => {
                 if (selectedBlock.data.sourceExecutionId || selectedBlock.data.operationBlockId) return;
                 pendingDirectImageImportBlockIdRef.current = selectedBlock.blockId;
                 directImageImportInputRef.current?.click();
-              }}
-              onRunAnnotationEdit={({ instruction, manifest, composite, connectionId, historical, variationCount }) => {
-                void createImageAssetFromDataUrl({
-                  projectId: snapshotRef.current.project.projectId,
-                  dataUrl: composite.dataUrl,
-                  fileName: `annotation-${selectedBlock.blockId}.png`,
-                  width: composite.width,
-                  height: composite.height,
-                }).then(async (annotatedCompositeAsset) => {
-                  const created = await imageOperations.startImageCodexOperation('annotation_edit', selectedBlock, instruction, {
-                    annotatedCompositeAsset,
-                    annotationManifest: { ...manifest, compositeAssetId: annotatedCompositeAsset.assetId },
-                    connectionId,
-                    generationParams: { variationCount },
-                  });
-                  if (!created) return;
-                  if (!historical) {
-                    annotations.updateAnnotationDraft(selectedBlock.blockId, { schemaVersion: 1, globalInstruction: '', marks: [] });
-                    flushAnnotationDraftPersist();
-                  }
-                });
               }}
               onRunQuickEdit={({ instruction }) => imageOperations.createImageToImageDraftOperation(selectedBlock, 'quick_edit', instruction)}
             />

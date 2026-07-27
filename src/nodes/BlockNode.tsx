@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } fr
 import { schemaForCapability } from '../core/capabilities';
 import type { SwitchableOperationMode } from '../core/imageOperations';
 import { operationDisplayState } from '../core/operationDisplay';
+import { pluginCapabilityDefinitionFor } from '../core/pluginCapabilityDefinitions';
 import { managedResultStatusMessageKey } from '../core/resultStatus';
 import { storyboardSheetCapabilityId } from '../core/storyboardSheetContracts';
 import { generationPreparationCapabilityId } from '../core/generationPreparationContracts';
@@ -13,7 +14,6 @@ import { TooltipIconButton } from '../components/Tooltip';
 import { InputRoleOptionList, inputRoleTitle } from '../components/InputRoleOptionList';
 import { PluginBlockRendererSlot } from '../components/PluginBlockRendererHost';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
-import { AnnotationOperationPreviewButton } from './AnnotationOperationPreviewButton';
 import { DocumentBlockBody } from './DocumentBlockBody';
 import { OperationInlineControls } from './OperationInlineControls';
 import { VideoBlockBody } from './VideoBlockBody';
@@ -40,6 +40,12 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
   const isStoryboardSheetOperation = blockType === 'operation' && data.capabilityId === storyboardSheetCapabilityId;
   const isGenerationPreparationOperation = blockType === 'operation'
     && data.capabilityId === generationPreparationCapabilityId;
+  const isPluginOwnedOperation = blockType === 'operation'
+    && typeof data.capabilityId === 'string'
+    && (
+      data.capabilityId === 'image.annotation_edit'
+      || pluginCapabilityDefinitionFor(data.capabilityId) !== undefined
+    );
   const hasWorkflowContinuation = blockType !== 'operation'
     && typeof data.artifactId === 'string'
     && typeof data.artifactRevisionId === 'string'
@@ -112,6 +118,7 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
         && !isLocalCanvasOperation
         && !isStoryboardSheetOperation
         && !isGenerationPreparationOperation
+        && !isPluginOwnedOperation
         ? <OperationInputQuickAdd data={data as BlockData} operationBlockId={id} />
         : null}
       {data.operationInputEdgeId ? (
@@ -128,6 +135,7 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
           && !isLocalCanvasOperation
           && !isStoryboardSheetOperation
           && !isGenerationPreparationOperation
+          && !isPluginOwnedOperation
           && data.capabilityId !== 'text.generate'
           ? <OperationCapabilityControl blockId={id} data={data as BlockData} />
           : null}
@@ -146,15 +154,6 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
           <span className="block-heading-status operation-dirty-status">
             {data.operationChangeCount} {t('operationStatus.changes')}
           </span>
-        ) : null}
-        {blockType === 'operation' && data.capabilityId === 'image.annotation_edit' && typeof data.sourceExecutionId === 'string' ? (
-          <AnnotationOperationPreviewButton
-            executionId={data.sourceExecutionId}
-            label={t('inspector.restoreAnnotationDraft')}
-            markCount={data.annotationMarkCount}
-            previewLabel={t('inspector.annotationPreview')}
-            previewUrl={data.annotatedCompositePreviewUrl}
-          />
         ) : null}
         {blockType === 'operation' && hasExecutionDetails(data as BlockData) ? (
           <ExecutionInfoButton

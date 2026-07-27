@@ -12,6 +12,9 @@ import {
 import { addImageCodexOperation } from '../core/imageOperations';
 import { isExecutionInputRole } from '../core/inputRoles';
 import { startCodexAppServerImage } from '../core/codexAppServerImageClient';
+import {
+  annotationManifestFromUnknown,
+} from '../core/restoreAnnotationDraft';
 import type {
   BlockRecord,
   BoardSnapshot,
@@ -124,8 +127,26 @@ export async function runConnectedPluginExecution(
     );
   }
   const sourceBlock = source.block;
+  const isAnnotationEdit = input.capabilityId === 'image.annotation_edit';
+  const annotatedComposite = bindings.find(
+    (binding) => binding.inputRole === 'annotated_composite',
+  );
+  const annotationManifest = isAnnotationEdit
+    ? annotationManifestFromUnknown(input.parameters.manifest)
+    : undefined;
+  if (
+    isAnnotationEdit
+    && (!annotatedComposite || !annotationManifest)
+  ) {
+    throw new Error(
+      'Annotation Plugin execution requires a valid manifest and annotated composite.',
+    );
+  }
   const additionalInputs = bindings.filter(
-    (binding) => binding !== source,
+    (binding) => (
+      binding !== source
+      && binding !== annotatedComposite
+    ),
   );
   if (additionalInputs.some((binding) => binding.inputRole === 'source')) {
     throw new Error(
@@ -197,7 +218,11 @@ export async function runConnectedPluginExecution(
         input.outputCount ?? 1,
       ),
       instruction: input.prompt.trim(),
-      operation: 'quick_edit',
+      ...(annotationManifest ? { annotationManifest } : {}),
+      ...(annotatedComposite
+        ? { annotatedCompositeAsset: annotatedComposite.asset }
+        : {}),
+      operation: isAnnotationEdit ? 'annotation_edit' : 'quick_edit',
       params: structuredClone(input.parameters),
       sourceBlockId: sourceBlock.blockId,
       taskTitle: definition.displayName,

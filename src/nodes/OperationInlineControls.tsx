@@ -25,11 +25,13 @@ import {
   type ImageComposerResolution,
 } from '../core/imageComposer';
 import { operationDisplayState } from '../core/operationDisplay';
+import { pluginCapabilityDefinitionFor } from '../core/pluginCapabilityDefinitions';
 import { skillUiDefinitionFor, skillsForCapability } from '../core/skillRegistry';
 import {
   normalizeStoryboardSheetGenerationParameters,
   storyboardSheetCapabilityId,
 } from '../core/storyboardSheetContracts';
+import { PluginOwnedOperationControls } from './PluginOwnedOperationControls';
 import type { BlockData } from '../core/types';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
@@ -58,6 +60,16 @@ const parameterKeys: GenerationParameterKey[] = [
 
 export function OperationInlineControls({ blockId, data }: { blockId: string; data: BlockData }): ReactElement {
   if (data.adapter === 'local_canvas') return <LocalCanvasOperationControls data={data} />;
+  const pluginDefinition = typeof data.capabilityId === 'string'
+    ? pluginCapabilityDefinitionFor(data.capabilityId)
+    : undefined;
+  if (pluginDefinition || data.capabilityId === 'image.annotation_edit') {
+    return (
+      <PluginOwnedOperationControls
+        capabilityName={pluginDefinition?.displayName ?? data.title}
+      />
+    );
+  }
   return <GenerationOperationInlineControls blockId={blockId} data={data} />;
 }
 

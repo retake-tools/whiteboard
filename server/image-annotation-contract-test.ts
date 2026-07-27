@@ -1,135 +1,94 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import {
-  annotationColorOptions,
-  annotationDraftContentEquals,
-  annotationDraftHasContent,
-  annotationDraftMatches,
-  annotationManifestFromDraft,
-  annotationMarksMissingIntent,
-  compileAnnotationInstruction,
-  hasExecutableAnnotationIntent,
-  nextAnnotationMarkId,
-  type AnnotationDraft,
-  type AnnotationManifest,
-} from '../src/core/imageAnnotations';
+import { access, readFile } from 'node:fs/promises';
 import {
   annotationEditControlsFromManifest,
   readAnnotationEditControlManifest,
 } from '../src/core/annotationEditControls';
-import { addImageCodexOperation, executeExistingImageOperationBlock } from '../src/core/imageOperations';
-import { schemaForCapability } from '../src/core/capabilities';
-import { generationParamsForSchema } from '../src/nodes/OperationInlineControls';
-import { createFlowNodes } from '../src/core/flowProjection';
+import type { AnnotationManifest } from '../src/core/imageAnnotations';
 import {
   annotationDraftRestoreContext,
+  annotationManifestFromUnknown,
 } from '../src/core/restoreAnnotationDraft';
+import { createFlowNodes } from '../src/core/flowProjection';
+import { pluginHostBoundScope } from '../src/core/pluginHostScope';
 import { defaultSnapshot } from '../src/core/sampleBoard';
-import type { AssetRecord, BlockRecord } from '../src/core/types';
+import type {
+  AssetRecord,
+  BlockRecord,
+  ExecutionRecord,
+} from '../src/core/types';
 
-assert.deepEqual(
-  annotationColorOptions.map((option) => option.name),
-  ['red', 'yellow', 'green', 'blue', 'purple'],
+const removedAuthoringFiles = [
+  'src/app/useAnnotationController.ts',
+  'src/components/ImageAnnotationControls.tsx',
+  'src/components/ImageAnnotationEditor.tsx',
+  'src/components/ImageAnnotationOverlay.tsx',
+  'src/components/imageAnnotationComposite.ts',
+  'src/components/imageAnnotationGeometry.ts',
+  'src/nodes/AnnotationOperationPreviewButton.tsx',
+  'src/styles/annotation-controls.css',
+  'src/styles/annotation-editor.css',
+];
+for (const path of removedAuthoringFiles) {
+  await assert.rejects(
+    access(path),
+    undefined,
+    `${path} must remain outside Whiteboard Core after P10.5D`,
+  );
+}
+
+const toolbarSource = await readFile(
+  'src/components/ContextToolbar.tsx',
+  'utf8',
 );
-assert.equal(new Set(annotationColorOptions.map((option) => option.value)).size, 5);
-assert.deepEqual(
-  generationParamsForSchema(
-    {
-      aspectRatioPreset: '9:16',
-      durationSeconds: 6,
-      motion: 'auto',
-      strength: 0.65,
-      targetAspectRatio: 9 / 16,
-      targetHeight: 2048,
-      targetResolution: '2K',
-      targetWidth: 1152,
-      variationCount: 2,
-    },
-    schemaForCapability('image.annotation_edit').paramsSchema,
-  ),
-  { variationCount: 2 },
+const canvasSource = await readFile(
+  'src/app/WhiteboardCanvas.tsx',
+  'utf8',
+);
+const blockNodeSource = await readFile(
+  'src/nodes/BlockNode.tsx',
+  'utf8',
+);
+const executionDetailSource = await readFile(
+  'src/components/ExecutionDetailContent.tsx',
+  'utf8',
+);
+const appEventBindingsSource = await readFile(
+  'src/app/useAppEventBindings.ts',
+  'utf8',
+);
+const capabilitySource = await readFile(
+  'src/core/capabilities.ts',
+  'utf8',
+);
+const annotationModelSource = await readFile(
+  'src/core/imageAnnotations.ts',
+  'utf8',
+);
+const pluginDraftSource = await readFile(
+  'src/app/usePluginDraftController.ts',
+  'utf8',
 );
 
-const editorSource = await readFile('src/components/ImageAnnotationEditor.tsx', 'utf8');
-const geometrySource = await readFile('src/components/imageAnnotationGeometry.ts', 'utf8');
-const compositeSource = await readFile('src/components/imageAnnotationComposite.ts', 'utf8');
-const overlaySource = await readFile('src/components/ImageAnnotationOverlay.tsx', 'utf8');
-const controlsSource = await readFile('src/components/ImageAnnotationControls.tsx', 'utf8');
-const annotationControllerSource = await readFile('src/app/useAnnotationController.ts', 'utf8');
-const toolbarSource = await readFile('src/components/ContextToolbar.tsx', 'utf8');
-const canvasSource = await readFile('src/app/WhiteboardCanvas.tsx', 'utf8');
-const blockNodeSource = await readFile('src/nodes/BlockNode.tsx', 'utf8');
-const annotationOperationPreviewSource = await readFile('src/nodes/AnnotationOperationPreviewButton.tsx', 'utf8');
-const operationControlsSource = await readFile('src/nodes/OperationInlineControls.tsx', 'utf8');
-const executionDetailSource = await readFile('src/components/ExecutionDetailContent.tsx', 'utf8');
-const executionInspectorSource = await readFile('src/components/ExecutionInspector.tsx', 'utf8');
-const historyPanelSource = await readFile('src/components/BoardHistoryPanel.tsx', 'utf8');
-const annotationEditorStylesSource = await readFile('src/styles/annotation-editor.css', 'utf8');
-const annotationControlStylesSource = await readFile('src/styles/annotation-controls.css', 'utf8');
+assert.doesNotMatch(toolbarSource, /annotation-edit|ImageAnnotationEditor/);
+assert.doesNotMatch(canvasSource, /onRunAnnotationEdit|annotationController/);
+assert.doesNotMatch(blockNodeSource, /AnnotationOperationPreviewButton/);
+assert.doesNotMatch(appEventBindingsSource, /retake:open-annotation-editor/);
 assert.doesNotMatch(
-  editorSource,
-  /annotation-current-color/,
-  'annotation colors should only be edited from the selected-mark controls',
+  capabilitySource,
+  /'image\.annotation_edit':\s*\{/,
+  'Whiteboard must not own an active Annotation Capability schema',
 );
-assert.match(editorSource, /fixedShapeYScale={renderMetrics\.displayWidth \/ renderMetrics\.displayHeight}/);
-assert.match(controlsSource, /disabled={!selectedMark}/);
-assert.match(controlsSource, /<textarea[\s\S]*?data-mark-id=\{mark\.id\}[\s\S]*?rows=\{2\}/);
-assert.match(editorSource, /onDraftChangeRef\.current/);
-assert.match(editorSource, /onInstructionChange\(''\)/);
-assert.match(editorSource, /hoveredMarkId/);
-assert.match(overlaySource, /function AnnotationQuickDelete/);
-assert.match(editorSource, /function selectMarkFromList/);
-assert.match(geometrySource, /function annotationMarkFocusPoint/);
-assert.match(controlsSource, /function markColorLabel/);
-assert.match(controlsSource, /aria-label={`\$\{markColorLabel\(option, t\)\} · \$\{option\}`}/);
-assert.match(editorSource, /setViewPan\(clampImageViewPan\(metrics, viewZoom, nextPan\)\)/);
-assert.match(overlaySource, /vectorEffect="non-scaling-stroke"/);
-assert.match(overlaySource, /startXEndY/);
-assert.match(editorSource, /function supportedInitialMarks/);
-assert.match(editorSource, /function annotationHoverPromptStyle/);
-assert.match(geometrySource, /function annotationBrushStrokeWidthPixels/);
-assert.match(editorSource, /brushStrokeWidth={annotationBrushStrokeWidthPixels\(/);
-assert.match(compositeSource, /context\.lineWidth = annotationBrushStrokeWidthPixels\(mark\.strokeSize, width, height\)/);
-assert.doesNotMatch(editorSource, /mark\.kind === 'brush' \? screenStrokeWidth \* 9/);
-assert.doesNotMatch(editorSource, /Math\.max\(context\.lineWidth \* 9/);
-assert.match(editorSource, /hoveredMark\?\.intent\.trim\(\)/);
-assert.match(editorSource, /className="annotation-result-count"/);
-assert.match(editorSource, /className="annotation-connection-select"/);
-assert.match(editorSource, /operationToolbar\.generator/);
-assert.match(editorSource, /connectionId/);
-assert.match(editorSource, /variationCount/);
-assert.match(canvasSource, /connectionId,[\s\S]*?generationParams: \{ variationCount \}/);
-assert.match(editorSource, /closest\('\.annotation-stage'\)/);
-assert.doesNotMatch(editorSource, /closest\('\.annotation-editor'\).*preventDefault/);
-assert.match(annotationEditorStylesSource, /\.annotation-hover-prompt \{[\s\S]*?pointer-events: none;/);
-assert.match(annotationControlStylesSource, /\.annotation-side-panel \{[\s\S]*?min-height: 0;[\s\S]*?overflow-y: auto;/);
-assert.match(annotationControlStylesSource, /\.annotation-run-controls > \.primary-popover-button \{[\s\S]*?background: var\(--retake-accent\);/);
-assert.doesNotMatch(editorSource, /diamondPath/);
-assert.doesNotMatch(editorSource, /handleStageDoubleClick|createMark\('text'|annotation-label-input|textMarkTool/);
-assert.match(annotationControllerSource, /function updateAnnotationDraft/);
-assert.match(annotationControllerSource, /scheduleAnnotationDraftPersist\(\)/);
-assert.match(toolbarSource, /initialDraft={annotationDraft}/);
-assert.doesNotMatch(toolbarSource, /codex_mcp/);
+assert.doesNotMatch(
+  annotationModelSource,
+  /compileAnnotationInstruction|nextAnnotationMarkId/,
+  'Whiteboard keeps legacy data types, not Annotation authoring behavior',
+);
 assert.match(executionDetailSource, /function AnnotationManifestDetail/);
-assert.match(executionDetailSource, /inspector\.restoreAnnotationDraft/);
-assert.match(executionInspectorSource, /onOpenAnnotationEditor\(context\.execution\.executionId\)/);
-assert.match(toolbarSource, /setActiveTool\('annotation-edit'\)/);
-assert.match(annotationControllerSource, /setAnnotationEditorOpenRequest\(/);
-assert.match(canvasSource, /updateAnnotationDraft\(selectedBlock\.blockId, \{ schemaVersion: 1, globalInstruction: '', marks: \[\] \}\)/);
-assert.match(blockNodeSource, /AnnotationOperationPreviewButton/);
-assert.match(annotationOperationPreviewSource, /retake:open-annotation-editor/);
-assert.match(operationControlsSource, /generationParamsForSchema\(nextParams, paramsSchema\)/);
-assert.match(operationControlsSource, /selectedConnection\.connectorId === 'codex-managed'/);
-assert.match(operationControlsSource, /operationToolbar\.generateImage/);
-assert.match(blockNodeSource, /onCompositionStart/);
-assert.match(blockNodeSource, /if \(!composingRef\.current\) dispatchPreviewTextBlock/);
-assert.doesNotMatch(annotationControllerSource, /window\.confirm\(t\('inspector\.annotationDraftRestoreConfirm'\)\)/);
-assert.match(toolbarSource, /historicalAnnotationDraft \?\? annotationDraftForBlock/);
-assert.match(toolbarSource, /if \(historicalAnnotationDraft\)[\s\S]*?setHistoricalAnnotationDraft/);
-assert.match(toolbarSource, /isHistoricalAnnotationSession=\{Boolean\(historicalAnnotationDraft\)\}/);
-assert.match(toolbarSource, /annotation-history-session-notice/);
-assert.match(toolbarSource, /context\.historicalAnnotationSessionBody/);
-assert.match(historyPanelSource, /onOpenAnnotationEditor/);
+assert.match(executionDetailSource, /PluginOperationInspectorActions/);
+assert.doesNotMatch(executionDetailSource, /onOpenAnnotationEditor/);
+assert.match(pluginDraftSource, /block\.data\.annotationDraft/);
+assert.match(pluginDraftSource, /legacy: true/);
 
 const manifest: AnnotationManifest = {
   schemaVersion: 1,
@@ -155,342 +114,200 @@ const manifest: AnnotationManifest = {
     },
   ],
 };
-
-const prompt = compileAnnotationInstruction(manifest);
-assert.match(prompt, /R1: red rectangle/);
-assert.match(prompt, /A1: blue directional arrow/);
-assert.match(prompt, /R1:[\s\S]*geometry: rectangle region; center \(x 30\.0%, y 45\.0%\)/);
-assert.match(
-  prompt,
-  /A1:[\s\S]*start \(x 40\.0%, y 50\.0%\); end \(x 70\.0%, y 50\.0%\); delta \(\+30\.0% x, \+0\.0% y\)/,
-);
-assert.match(prompt, /Geometry coordinates are normalized to the clean source image/);
-assert.match(prompt, /Replace the cup with a small green plant/);
-assert.match(prompt, /Keep the surrounding room unchanged/);
-assert.match(prompt, /Annotation colors identify marks only/);
-assert.match(prompt, /the tail is the start and the arrowhead is the destination or direction/);
-assert.match(prompt, /without annotation IDs/);
-assert.equal(hasExecutableAnnotationIntent(manifest), true);
-assert.deepEqual(annotationMarksMissingIntent(manifest), []);
-assert.equal(nextAnnotationMarkId(manifest.marks, 'rect'), 'R2');
-assert.equal(nextAnnotationMarkId(manifest.marks, 'brush'), 'B1');
+assert.deepEqual(annotationManifestFromUnknown(manifest), manifest);
+assert.equal(annotationManifestFromUnknown({
+  ...manifest,
+  marks: [{ ...manifest.marks[0], color: '#000000' }],
+}), undefined);
 
 const editControls = annotationEditControlsFromManifest(manifest);
-assert.equal(editControls.coordinateSpace, 'normalized_source_image');
-assert.deepEqual(editControls.controls[0], {
-  markId: 'R1',
-  sourceKind: 'rect',
-  controlType: 'region',
-  shape: 'rectangle',
-  bounds: { x: 0.2, y: 0.3, width: 0.2, height: 0.3 },
-  center: { x: 0.3, y: 0.45 },
-});
-assert.deepEqual(editControls.controls[1], {
-  markId: 'A1',
-  sourceKind: 'arrow',
-  controlType: 'vector',
-  start: { x: 0.4, y: 0.5 },
-  end: { x: 0.7, y: 0.5 },
-  delta: { x: 0.3, y: 0 },
-});
-assert.deepEqual(readAnnotationEditControlManifest(JSON.parse(JSON.stringify(editControls))), editControls);
-assert.equal(
-  readAnnotationEditControlManifest({ ...editControls, coordinateSpace: 'display_pixels' }),
-  undefined,
-);
-
-const mixedGeometryControls = annotationEditControlsFromManifest({
-  schemaVersion: 1,
-  globalInstruction: '',
-  marks: [
-    {
-      id: 'M1', kind: 'marker', color: '#facc15', strokeSize: 'm', intent: '',
-      point: { x: 0.1, y: 0.2 },
-    },
-    {
-      id: 'C1', kind: 'ellipse', color: '#22c55e', strokeSize: 'm', intent: '',
-      start: { x: 0.8, y: 0.7 }, end: { x: 0.4, y: 0.3 },
-    },
-    {
-      id: 'B1', kind: 'brush', color: '#a855f7', strokeSize: 'l', intent: '',
-      points: [{ x: 0.2, y: 0.4 }, { x: 0.5, y: 0.8 }],
-    },
-  ],
-});
+assert.deepEqual(editControls.controls.map(
+  (control) => control.controlType,
+), ['region', 'vector']);
 assert.deepEqual(
-  mixedGeometryControls.controls.map((control) => control.controlType),
-  ['point', 'region', 'region'],
+  readAnnotationEditControlManifest(
+    JSON.parse(JSON.stringify(editControls)),
+  ),
+  editControls,
 );
-assert.deepEqual(mixedGeometryControls.controls[1], {
-  markId: 'C1',
-  sourceKind: 'ellipse',
-  controlType: 'region',
-  shape: 'ellipse',
-  bounds: { x: 0.4, y: 0.3, width: 0.4, height: 0.4 },
-  center: { x: 0.6, y: 0.5 },
-});
-assert.deepEqual(mixedGeometryControls.controls[2], {
-  markId: 'B1',
-  sourceKind: 'brush',
-  controlType: 'region',
-  shape: 'brush',
-  bounds: { x: 0.2, y: 0.4, width: 0.3, height: 0.4 },
-  center: { x: 0.35, y: 0.6 },
-  points: [{ x: 0.2, y: 0.4 }, { x: 0.5, y: 0.8 }],
-  strokeSize: 'l',
-});
-
-const draft: AnnotationDraft = {
-  ...annotationManifestFromDraft(manifest),
-  sourceAssetId: 'asset_annotation_source',
-  updatedAt: '2026-07-17T00:00:00.000Z',
-};
-assert.equal(annotationDraftHasContent(draft), true);
-assert.equal(annotationDraftMatches(draft, draft.sourceAssetId), true);
-assert.equal(annotationDraftMatches(draft, 'asset_replaced'), false);
-assert.equal(annotationDraftContentEquals(draft, manifest), true);
-const frozenManifest = annotationManifestFromDraft(draft);
-draft.marks[0].intent = 'This later draft edit must not mutate the execution snapshot.';
-assert.notEqual(draft.marks[0].intent, frozenManifest.marks[0].intent);
-
-const incomplete: AnnotationManifest = {
-  schemaVersion: 1,
-  globalInstruction: '',
-  marks: [{ ...manifest.marks[0], intent: '' }],
-};
-assert.equal(hasExecutableAnnotationIntent(incomplete), false);
-assert.deepEqual(annotationMarksMissingIntent(incomplete), ['R1']);
-
-const addExactText: AnnotationManifest = {
-  schemaVersion: 1,
-  globalInstruction: '',
-  marks: [{
-    id: 'R2',
-    kind: 'rect',
-    color: '#a855f7',
-    strokeSize: 'm',
-    intent: 'Add the exact text "Retake Studio" inside this sign and preserve the sign material.',
-    start: { x: 0.35, y: 0.4 },
-    end: { x: 0.65, y: 0.6 },
-  }],
-};
-assert.equal(hasExecutableAnnotationIntent(addExactText), true);
-assert.match(compileAnnotationInstruction(addExactText), /Add the exact text "Retake Studio"/);
-assert.match(compileAnnotationInstruction(addExactText), /preserve the sign material/);
 
 const snapshot = structuredClone(defaultSnapshot);
-const sourceAsset: AssetRecord = {
-  assetId: 'asset_annotation_source',
-  projectId: snapshot.project.projectId,
-  kind: 'image',
-  mimeType: 'image/png',
-  storageProvider: 'local_mock',
-  storageKey: 'local-mock://annotation-source.png',
-  previewUrl: 'data:image/png;base64,source',
-  width: 800,
-  height: 600,
-  createdAt: '2026-07-16T00:00:00.000Z',
-};
-const compositeAsset: AssetRecord = {
-  ...sourceAsset,
-  assetId: 'asset_annotation_composite',
-  storageKey: 'local-mock://annotation-composite.png',
-  previewUrl: 'data:image/png;base64,composite',
-};
-const sourceBlock: BlockRecord = {
-  blockId: 'block_annotation_source',
+const createdAt = '2026-07-27T00:00:00.000Z';
+const sourceAsset = imageAsset(
+  snapshot.project.projectId,
+  'asset.annotation-source',
+  createdAt,
+);
+const compositeAsset = imageAsset(
+  snapshot.project.projectId,
+  'asset.annotation-composite',
+  createdAt,
+);
+const sourceBlock = imageBlock(
+  snapshot.board.boardId,
+  sourceAsset,
+  'block.annotation-source',
+  createdAt,
+);
+const operationBlock: BlockRecord = {
+  blockId: 'block.annotation-operation',
   boardId: snapshot.board.boardId,
-  type: 'image',
-  layerId: 'layer_default',
-  position: { x: 0, y: 0 },
-  size: { width: 320, height: 240 },
-  zIndex: 20,
-  data: { title: 'Source image', assetId: sourceAsset.assetId, annotationDraft: draft },
-  createdAt: sourceAsset.createdAt,
-  updatedAt: sourceAsset.createdAt,
-};
-snapshot.assets.unshift(sourceAsset);
-snapshot.blocks.push(sourceBlock);
-const nearbyBlocker: BlockRecord = {
-  blockId: 'block_annotation_result_blocker',
-  boardId: snapshot.board.boardId,
-  type: 'text',
-  layerId: 'layer_default',
-  position: { x: 760, y: -80 },
-  size: { width: 1100, height: 400 },
-  zIndex: 21,
-  data: { title: 'Nearby occupied area', body: '' },
-  createdAt: sourceAsset.createdAt,
-  updatedAt: sourceAsset.createdAt,
-};
-snapshot.blocks.push(nearbyBlocker);
-const persistedManifest = { ...frozenManifest, compositeAssetId: compositeAsset.assetId };
-const operation = addImageCodexOperation(snapshot, {
-  operation: 'annotation_edit',
-  sourceBlockId: sourceBlock.blockId,
-  instruction: prompt,
-  annotatedCompositeAsset: compositeAsset,
-  annotationManifest: persistedManifest,
-  generationParams: { variationCount: 3 },
-});
-assert.deepEqual(operation.operationBlock.data.annotationManifest, persistedManifest);
-assert.deepEqual(operation.execution.params?.annotationManifest, persistedManifest);
-assert.deepEqual(operation.execution.params?.annotationEditControls, editControls);
-assert.match(operation.execution.prompt ?? '', /R1: red rectangle/);
-assert.match(operation.prompt, /annotated composite/);
-assert.equal(operation.resultBlocks.length, 3);
-assert.equal(operation.execution.params?.generation && (operation.execution.params.generation as { variationCount?: number }).variationCount, 3);
-assert.equal(operation.resultBlock.data.body, 'Waiting for Codex to generate an image result.');
-assert.doesNotMatch(operation.resultBlock.data.body ?? '', /R1: red rectangle/);
-const annotationOperationNode = createFlowNodes(snapshot).find((node) => node.id === operation.operationBlock.blockId);
-assert.equal(annotationOperationNode?.data.annotatedCompositePreviewUrl, compositeAsset.previewUrl);
-assert.equal(annotationOperationNode?.data.annotationMarkCount, persistedManifest.marks.length);
-const operationResultGroup = snapshot.blocks.find(
-  (block) => block.type === 'group' && block.data.groupExecutionId === operation.execution.executionId,
-);
-assert.ok(operationResultGroup);
-assert.equal(rectanglesOverlap(operationResultGroup, nearbyBlocker, 28), false);
-
-const groupedSnapshot = structuredClone(defaultSnapshot);
-groupedSnapshot.blocks = [];
-groupedSnapshot.edges = [];
-groupedSnapshot.assets = [sourceAsset];
-groupedSnapshot.executions = [];
-groupedSnapshot.historyEvents = [];
-const sourceGroup: BlockRecord = {
-  blockId: 'block_annotation_source_group',
-  boardId: groupedSnapshot.board.boardId,
-  type: 'group',
-  layerId: 'layer_default',
-  position: { x: 200, y: 500 },
-  size: { width: 520, height: 360 },
-  zIndex: 10,
-  data: { title: 'Original image group', groupKind: 'manual', groupLayoutMode: 'free' },
-  createdAt: sourceAsset.createdAt,
-  updatedAt: sourceAsset.createdAt,
-};
-const groupedSourceBlock: BlockRecord = {
-  ...structuredClone(sourceBlock),
-  blockId: 'block_annotation_grouped_source',
-  boardId: groupedSnapshot.board.boardId,
-  parentGroupId: sourceGroup.blockId,
-  position: { x: 260, y: 570 },
-};
-const upperBlocker: BlockRecord = {
-  blockId: 'block_annotation_upper_blocker',
-  boardId: groupedSnapshot.board.boardId,
-  type: 'text',
-  layerId: 'layer_default',
-  position: { x: 200, y: 100 },
-  size: { width: 1200, height: 320 },
-  zIndex: 11,
-  data: { title: 'Occupied upper lane', body: '' },
-  createdAt: sourceAsset.createdAt,
-  updatedAt: sourceAsset.createdAt,
-};
-groupedSnapshot.blocks.push(sourceGroup, groupedSourceBlock, upperBlocker);
-const groupedAnnotation = addImageCodexOperation(groupedSnapshot, {
-  operation: 'annotation_edit',
-  sourceBlockId: groupedSourceBlock.blockId,
-  instruction: prompt,
-  annotatedCompositeAsset: compositeAsset,
-  annotationManifest: persistedManifest,
-  generationParams: { variationCount: 2 },
-});
-const groupedAnnotationResults = groupedSnapshot.blocks.find(
-  (block) => block.type === 'group' && block.data.groupExecutionId === groupedAnnotation.execution.executionId,
-);
-assert.equal(groupedAnnotation.operationBlock.parentGroupId, undefined);
-assert.ok(groupedAnnotationResults);
-assert.equal(groupedAnnotationResults.parentGroupId, undefined);
-assert.deepEqual(
-  groupedSnapshot.blocks.filter((block) => block.parentGroupId === sourceGroup.blockId).map((block) => block.blockId),
-  [groupedSourceBlock.blockId],
-);
-assert.equal(rectanglesOverlap(groupedAnnotation.operationBlock, sourceGroup, 28), false);
-assert.equal(rectanglesOverlap(groupedAnnotationResults, sourceGroup, 28), false);
-assert.equal(rectanglesOverlap(groupedAnnotation.operationBlock, upperBlocker, 28), false);
-assert.equal(rectanglesOverlap(groupedAnnotationResults, upperBlocker, 28), false);
-assert.equal(
-  Math.max(
-    groupedAnnotation.operationBlock.position.y + groupedAnnotation.operationBlock.size.height,
-    groupedAnnotationResults.position.y + groupedAnnotationResults.size.height,
-  ) < sourceGroup.position.y,
-  true,
-  'Grouped annotation branches should prefer free space above the source group.',
-);
-operation.operationBlock.data.status = 'succeeded';
-operation.execution.status = 'succeeded';
-operation.resultBlocks.forEach((resultBlock, index) => {
-  resultBlock.data.assetId = `asset_annotation_result_${index + 1}`;
-  resultBlock.data.status = 'succeeded';
-});
-const repeatedOperation = executeExistingImageOperationBlock(snapshot, {
-  operationBlockId: operation.operationBlock.blockId,
-  operation: 'text_to_image',
-  instruction: '',
-  generationParams: { variationCount: 2 },
-});
-assert.equal(repeatedOperation.execution.capabilityId, 'image.annotation_edit');
-assert.equal(repeatedOperation.resultBlocks.length, 2);
-assert.deepEqual(repeatedOperation.execution.inputBlockIds, [sourceBlock.blockId]);
-assert.deepEqual(repeatedOperation.execution.params?.annotationManifest, persistedManifest);
-assert.match(repeatedOperation.prompt, /annotated composite/);
-sourceBlock.data.annotationDraft!.marks[0].intent = 'Continue editing after execution.';
-assert.notEqual(
-  sourceBlock.data.annotationDraft!.marks[0].intent,
-  (operation.execution.params?.annotationManifest as AnnotationManifest).marks[0].intent,
-);
-
-const restoreContext = annotationDraftRestoreContext(snapshot, operation.execution);
-assert.equal(restoreContext.state, 'available');
-assert.equal(restoreContext.sourceBlock?.blockId, sourceBlock.blockId);
-const retiredTextExecution = structuredClone(operation.execution);
-retiredTextExecution.executionId = 'execution_retired_text_annotation';
-retiredTextExecution.params = {
-  ...retiredTextExecution.params,
-  operationBlockId: 'missing_operation_block',
-  annotationManifest: {
-    schemaVersion: 1,
-    globalInstruction: '',
-    marks: [{
-      id: 'T1',
-      kind: 'text',
-      color: '#dc2626',
-      strokeSize: 'm',
-      intent: 'Legacy text note',
-      point: { x: 0.5, y: 0.5 },
-      text: 'Legacy text note',
-      textMode: 'annotation_note',
-    }],
+  createdAt,
+  data: {
+    annotatedCompositeAssetId: compositeAsset.assetId,
+    annotationManifest: manifest,
+    annotationText: 'Compiled by Image Studio.',
+    capabilityId: 'image.annotation_edit',
+    sourceAssetId: sourceAsset.assetId,
+    sourceBlockId: sourceBlock.blockId,
+    sourceExecutionId: 'exec.annotation',
+    status: 'succeeded',
+    title: 'Annotation Edit',
   },
+  layerId: 'layer_default',
+  position: { x: 420, y: 0 },
+  size: { width: 320, height: 190 },
+  type: 'operation',
+  updatedAt: createdAt,
+  zIndex: 21,
 };
-assert.equal(annotationDraftRestoreContext(snapshot, retiredTextExecution).state, 'manifest_missing');
-const legacyManifestSnapshot = structuredClone(snapshot);
-delete legacyManifestSnapshot.executions[0].params!.annotationManifest;
-assert.equal(
-  annotationDraftRestoreContext(legacyManifestSnapshot, legacyManifestSnapshot.executions[0]).state,
-  'available',
+const execution: ExecutionRecord = {
+  adapter: 'mcp_agent',
+  boardId: snapshot.board.boardId,
+  capabilityId: 'image.annotation_edit',
+  executionId: 'exec.annotation',
+  inputAssetIds: [sourceAsset.assetId, compositeAsset.assetId],
+  inputBindingsSnapshot: [
+    {
+      slotId: 'source_image',
+      values: [{ blockId: sourceBlock.blockId, kind: 'block' }],
+    },
+    {
+      slotId: 'annotated_composite',
+      values: [{ assetId: compositeAsset.assetId, kind: 'asset' }],
+    },
+    {
+      slotId: 'prompt',
+      values: [{ kind: 'inline', value: 'Compiled by Image Studio.' }],
+    },
+  ],
+  inputBlockIds: [sourceBlock.blockId],
+  outputAssetIds: [],
+  outputBlockIds: [],
+  params: {
+    inputBindings: [
+      {
+        assetId: sourceAsset.assetId,
+        blockId: sourceBlock.blockId,
+        inputRole: 'source',
+      },
+      {
+        assetId: compositeAsset.assetId,
+        inputRole: 'annotated_composite',
+      },
+    ],
+    operationBlockId: operationBlock.blockId,
+    pluginParameters: { manifest },
+  },
+  projectId: snapshot.project.projectId,
+  startedAt: createdAt,
+  status: 'succeeded',
+};
+snapshot.assets.unshift(sourceAsset, compositeAsset);
+snapshot.blocks.push(sourceBlock, operationBlock);
+snapshot.executions.unshift(execution);
+snapshot.historyEvents = [{
+  actor: 'user',
+  assetIds: [sourceAsset.assetId, compositeAsset.assetId],
+  blockIds: [sourceBlock.blockId, operationBlock.blockId],
+  createdAt,
+  detail: {
+    capabilityId: execution.capabilityId,
+    operationBlockId: operationBlock.blockId,
+    sourceBlockId: sourceBlock.blockId,
+  },
+  eventId: 'history.annotation',
+  executionId: execution.executionId,
+  summary: 'Annotation Edit',
+  type: 'operation_created',
+}];
+
+const restore = annotationDraftRestoreContext(snapshot, execution);
+assert.equal(restore.state, 'available');
+assert.deepEqual(restore.manifest, manifest);
+
+const projectedOperation = createFlowNodes(snapshot).find(
+  (node) => node.id === operationBlock.blockId,
 );
-const restoreSnapshot = structuredClone(snapshot);
-const restoredSourceBlock = restoreSnapshot.blocks.find((block) => block.blockId === sourceBlock.blockId)!;
-restoredSourceBlock.data.assetId = 'asset_replaced_after_execution';
 assert.equal(
-  annotationDraftRestoreContext(restoreSnapshot, restoreSnapshot.executions[0]).state,
+  projectedOperation?.data.annotatedCompositePreviewUrl,
+  compositeAsset.previewUrl,
+);
+assert.equal(projectedOperation?.data.annotationMarkCount, 2);
+
+assert.deepEqual(
+  pluginHostBoundScope(
+    snapshot,
+    [operationBlock.blockId],
+  ),
+  {
+    boundAssetIds: [compositeAsset.assetId, sourceAsset.assetId].sort(),
+    boundBlockIds: [operationBlock.blockId, sourceBlock.blockId].sort(),
+    boundGroupIds: [],
+  },
+);
+
+sourceBlock.data.assetId = 'asset.replaced';
+assert.equal(
+  annotationDraftRestoreContext(snapshot, execution).state,
   'source_replaced',
 );
 
-function rectanglesOverlap(left: BlockRecord, right: BlockRecord, gap: number): boolean {
-  return !(
-    left.position.x + left.size.width + gap <= right.position.x ||
-    right.position.x + right.size.width + gap <= left.position.x ||
-    left.position.y + left.size.height + gap <= right.position.y ||
-    right.position.y + right.size.height + gap <= left.position.y
-  );
+process.stdout.write(`${JSON.stringify({
+  coreAnnotationAuthoringRemoved: true,
+  legacyAnnotationProjectionPreserved: true,
+  pluginHistoricalScopeIncludesFrozenInputs: true,
+  sourceReplacementBlocksHistoricalAuthoring: true,
+})}\n`);
+
+function imageAsset(
+  projectId: string,
+  assetId: string,
+  createdAt: string,
+): AssetRecord {
+  return {
+    assetId,
+    createdAt,
+    height: 400,
+    kind: 'image',
+    mimeType: 'image/png',
+    previewUrl: `data:image/png;base64,${assetId}`,
+    projectId,
+    storageKey: `local-mock://${assetId}`,
+    storageProvider: 'local_mock',
+    width: 640,
+  };
 }
 
-console.log({
-  markCount: manifest.marks.length,
-  persistedExecutionId: operation.execution.executionId,
-  promptLines: prompt.split('\n').length,
-});
+function imageBlock(
+  boardId: string,
+  asset: AssetRecord,
+  blockId: string,
+  createdAt: string,
+): BlockRecord {
+  return {
+    blockId,
+    boardId,
+    createdAt,
+    data: {
+      assetId: asset.assetId,
+      title: 'Annotation source',
+    },
+    layerId: 'layer_default',
+    position: { x: 0, y: 0 },
+    size: { width: 320, height: 200 },
+    type: 'image',
+    updatedAt: createdAt,
+    zIndex: 20,
+  };
+}

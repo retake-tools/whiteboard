@@ -47,43 +47,6 @@
     height: 110px !important;
   }
 
-  .annotation-editor {
-    min-width: 0;
-  }
-
-  .annotation-popover {
-    top: 12px;
-    width: calc(100vw - 20px);
-    height: calc(100vh - 24px);
-    max-height: calc(100vh - 24px);
-  }
-
-  .annotation-editor-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .annotation-stage {
-    width: 100%;
-    height: min(460px, 48vh);
-  }
-
-  .annotation-tool-strip {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-
-  .annotation-side-panel {
-    flex-direction: column;
-    flex-wrap: nowrap;
-  }
-
-  .annotation-swatch-row {
-    grid-template-columns: repeat(5, 16px);
-  }
-
-  .annotation-size-row {
-    grid-template-columns: repeat(5, minmax(30px, 1fr));
-  }
 }
 
 @media (max-width: 640px) {

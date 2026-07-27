@@ -382,6 +382,7 @@ export type TranslationKey =
   | 'operationToolbar.model'
   | 'operationToolbar.motion'
   | 'operationToolbar.params'
+  | 'operationToolbar.pluginOwned'
   | 'operationToolbar.referenceCompleteness'
   | 'operationToolbar.referenceCompletenessUnverified'
   | 'operationToolbar.parameterBestEffort'
@@ -1390,6 +1391,7 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.model': 'Model',
     'operationToolbar.motion': 'Motion',
     'operationToolbar.params': 'Params',
+    'operationToolbar.pluginOwned': 'Managed by Plugin',
     'operationToolbar.referenceCompleteness': 'Reference completeness',
     'operationToolbar.referenceCompletenessUnverified': 'Not verified',
     'operationToolbar.parameterBestEffort': 'Best effort',
@@ -2393,6 +2395,7 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.model': '模型',
     'operationToolbar.motion': '运动',
     'operationToolbar.params': '参数',
+    'operationToolbar.pluginOwned': '由插件管理',
     'operationToolbar.referenceCompleteness': 'Reference 完整性',
     'operationToolbar.referenceCompletenessUnverified': '未验证',
     'operationToolbar.parameterBestEffort': '尽力遵循',

@@ -215,20 +215,6 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
     promptSource: 'block',
     supportedAdapters: ['mcp_agent', 'direct_api', 'cli_agent', 'manual_import', 'mock'],
   },
-  'image.annotation_edit': {
-    capabilityId: 'image.annotation_edit',
-    defaultAdapter: 'mcp_agent',
-    displayNameKey: 'operation.annotationEdit.title',
-    inputContracts: [
-      { type: 'image', required: true, source: 'block', role: 'source', min: 1, max: 1 },
-      { type: 'text', required: true, source: 'inline' },
-      { type: 'image', required: true, source: 'generated_asset', role: 'annotated_composite', min: 1, max: 1 },
-    ],
-    outputContracts: [{ type: 'image' }],
-    paramsSchema: { count: true },
-    promptSource: 'inline',
-    supportedAdapters: ['mcp_agent', 'direct_api', 'cli_agent', 'manual_import'],
-  },
   'image.local_expand': {
     capabilityId: 'image.local_expand',
     defaultAdapter: 'manual_import',

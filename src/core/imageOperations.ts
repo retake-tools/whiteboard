@@ -224,6 +224,12 @@ export function addImageCodexOperation(
       assetId,
       inputRole: 'general_reference' as const,
     })),
+    ...(input.annotatedCompositeAsset
+      ? [{
+          assetId: input.annotatedCompositeAsset.assetId,
+          inputRole: 'annotated_composite' as const,
+        }]
+      : []),
     ...additionalInputBlocks.map(({ block, inputRole }) => ({
       assetId: block.data.assetId!,
       blockId: block.blockId,
@@ -275,6 +281,9 @@ export function addImageCodexOperation(
         input.operation === 'annotation_edit' ? input.annotatedCompositeAsset?.assetId : undefined,
       annotationManifest:
         input.operation === 'annotation_edit' ? input.annotationManifest : undefined,
+      pluginParameters: input.params
+        ? structuredClone(input.params)
+        : undefined,
       connectionId,
       generationParams,
       generationProfileId,

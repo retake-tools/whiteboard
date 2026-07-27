@@ -1,4 +1,4 @@
-import { ChevronRight, FileText, ImageIcon, MessageSquareText, RotateCcw, X } from 'lucide-react';
+import { ChevronRight, FileText, ImageIcon, RotateCcw, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useEffect, useState, type ReactElement } from 'react';
 import { inputRoleDefinition, isExecutionInputRole } from '../core/inputRoles';
@@ -77,7 +77,9 @@ interface ExecutionDetailContentProps {
   copyKey: string;
   copySource: ExecutionDetailCopySource;
   onSelectAsset?: (asset: AssetRecord) => void;
-  onOpenAnnotationEditor?: () => void;
+  onBeforePluginOperationAction?: (
+    operationBlockId: string,
+  ) => Promise<void> | void;
   onRestoreConfiguration?: () => void;
   onPluginFatalFailure?: (
     pluginModuleId: string,
@@ -110,7 +112,7 @@ export function ExecutionDetailContent({
   copyKey,
   copySource,
   onSelectAsset,
-  onOpenAnnotationEditor,
+  onBeforePluginOperationAction,
   onPluginFatalFailure,
   onRestoreConfiguration,
   onCopyPrompt,
@@ -210,8 +212,13 @@ export function ExecutionDetailContent({
         </button>
       ) : null}
       <PluginOperationInspectorActions
+        disabled={
+          execution.capabilityId === 'image.annotation_edit'
+          && annotationDraftRestoreState !== 'available'
+        }
         execution={execution}
         inputAssets={inputImages.map((input) => input.asset)}
+        onBeforeInvoke={onBeforePluginOperationAction}
         onFatalFailure={onPluginFatalFailure}
         operationBlock={context.operationBlock}
         registry={pluginContributionRegistry}
@@ -228,17 +235,6 @@ export function ExecutionDetailContent({
           sourceLabel={t('inspector.inputAssets')}
           title={t('inspector.imageComparison')}
         />
-      ) : null}
-      {annotationManifest && onOpenAnnotationEditor ? (
-        <button
-          type="button"
-          className="execution-restore-configuration"
-          disabled={annotationDraftRestoreState !== 'available'}
-          onClick={onOpenAnnotationEditor}
-        >
-          <MessageSquareText size={14} />
-          <span>{t('inspector.restoreAnnotationDraft')}</span>
-        </button>
       ) : null}
       <AnnotationText emptyLabel={t('inspector.none')} text={annotationText} title={t('inspector.annotationText')} />
       {annotationManifest ? (
