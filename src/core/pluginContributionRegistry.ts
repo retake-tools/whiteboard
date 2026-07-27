@@ -72,7 +72,36 @@ export interface RegisteredPluginBlockRendererV1 {
   supportedBlockTypes: readonly PluginRendererBlockTypeV1[];
 }
 
+export interface PluginImageToolbarActionContextV1 {
+  readonly block: {
+    readonly assetId: string;
+    readonly blockId: string;
+    readonly previewUrl?: string;
+    readonly title: string;
+    readonly type: 'image';
+  };
+  readonly host: PluginHostApiV1;
+}
+
+export interface PluginImageToolbarActionContributionValueV1 {
+  apiVersion: 1;
+  kind: 'action';
+  label: string;
+  placement: 'image.toolbar';
+  run(context: PluginImageToolbarActionContextV1): Promise<void> | void;
+}
+
+export interface RegisteredPluginImageToolbarActionV1 {
+  contributionId: string;
+  failure: string | null;
+  host: PluginHostApiV1;
+  label: string;
+  pluginModuleId: string;
+  run(context: PluginImageToolbarActionContextV1): Promise<void> | void;
+}
+
 export interface PluginContributionRegistryV1 {
+  getActionSnapshot(): readonly RegisteredPluginImageToolbarActionV1[];
   getSnapshot(): readonly RegisteredPluginPanelV1[];
   getRendererSnapshot(): readonly RegisteredPluginBlockRendererV1[];
   failModule(pluginModuleId: string, message: string): void;
@@ -86,19 +115,24 @@ export interface PluginContributionRegistryV1 {
 
 export function createPluginContributionRegistry():
 PluginContributionRegistryV1 {
+  let actions: readonly RegisteredPluginImageToolbarActionV1[] =
+    Object.freeze([]);
   let panels: readonly RegisteredPluginPanelV1[] = Object.freeze([]);
   let renderers: readonly RegisteredPluginBlockRendererV1[] = Object.freeze(
     [],
   );
   const listeners = new Set<() => void>();
   const update = (
+    nextActions: RegisteredPluginImageToolbarActionV1[],
     nextPanels: RegisteredPluginPanelV1[],
     nextRenderers: RegisteredPluginBlockRendererV1[],
   ) => {
     if (
-      samePanels(panels, nextPanels)
+      sameActions(actions, nextActions)
+      && samePanels(panels, nextPanels)
       && sameRenderers(renderers, nextRenderers)
     ) return;
+    actions = Object.freeze(nextActions);
     panels = Object.freeze(nextPanels);
     renderers = Object.freeze(nextRenderers);
     for (const listener of listeners) listener();
@@ -106,6 +140,11 @@ PluginContributionRegistryV1 {
   return {
     failModule(pluginModuleId, message) {
       update(
+        actions.map((action) => (
+          action.pluginModuleId === pluginModuleId
+            ? { ...action, failure: message }
+            : action
+        )),
         panels.map((panel) => (
           panel.pluginModuleId === pluginModuleId
             ? { ...panel, failure: message }
@@ -118,10 +157,14 @@ PluginContributionRegistryV1 {
         )),
       );
     },
+    getActionSnapshot: () => actions,
     getSnapshot: () => panels,
     getRendererSnapshot: () => renderers,
     removeModule(pluginModuleId) {
       update(
+        actions.filter((action) => (
+          action.pluginModuleId !== pluginModuleId
+        )),
         panels.filter((panel) => panel.pluginModuleId !== pluginModuleId),
         renderers.filter(
           (renderer) => renderer.pluginModuleId !== pluginModuleId,
@@ -130,11 +173,25 @@ PluginContributionRegistryV1 {
     },
     replace(sessions) {
       const failures: Array<{ error: string; pluginModuleId: string }> = [];
+      const nextActions: RegisteredPluginImageToolbarActionV1[] = [];
       const nextPanels: RegisteredPluginPanelV1[] = [];
       const nextRenderers: RegisteredPluginBlockRendererV1[] = [];
       for (const session of sessions) {
         try {
           for (const activated of session.activation.contributions) {
+            if (activated.contribution.kind === 'action') {
+              const value = parseImageToolbarActionContribution(
+                activated.value,
+              );
+              nextActions.push({
+                contributionId: activated.contribution.contributionId,
+                failure: null,
+                host: session.host,
+                label: value.label,
+                pluginModuleId: session.record.pluginModuleId,
+                run: value.run,
+              });
+            }
             if (activated.contribution.kind === 'panel') {
               const value = parsePanelContribution(activated.value);
               nextPanels.push({
@@ -174,6 +231,12 @@ PluginContributionRegistryV1 {
         failures.map((failure) => failure.pluginModuleId),
       );
       update(
+        nextActions
+          .filter((action) => !failedModules.has(action.pluginModuleId))
+          .sort((left, right) => compareText(
+            left.contributionId,
+            right.contributionId,
+          )),
         nextPanels
           .filter((panel) => !failedModules.has(panel.pluginModuleId))
           .sort((left, right) => compareText(
@@ -194,6 +257,25 @@ PluginContributionRegistryV1 {
       return () => listeners.delete(listener);
     },
   };
+}
+
+function parseImageToolbarActionContribution(
+  value: unknown,
+): PluginImageToolbarActionContributionValueV1 {
+  if (
+    typeof value !== 'object'
+    || value === null
+    || (value as { apiVersion?: unknown }).apiVersion !== 1
+    || (value as { kind?: unknown }).kind !== 'action'
+    || (value as { placement?: unknown }).placement !== 'image.toolbar'
+    || !isActionLabel((value as { label?: unknown }).label)
+    || typeof (value as { run?: unknown }).run !== 'function'
+  ) {
+    throw new Error(
+      'Plugin action contribution must use the Retake Image Toolbar Action V1 contract.',
+    );
+  }
+  return value as PluginImageToolbarActionContributionValueV1;
 }
 
 function parseRendererContribution(
@@ -256,6 +338,28 @@ function isBlockTypeArray(
     && value.length > 0
     && new Set(value).size === value.length
     && value.every((entry) => blockTypes.includes(entry));
+}
+
+function isActionLabel(value: unknown): value is string {
+  return typeof value === 'string'
+    && value.trim() === value
+    && value.length > 0
+    && value.length <= 80;
+}
+
+function sameActions(
+  left: readonly RegisteredPluginImageToolbarActionV1[],
+  right: readonly RegisteredPluginImageToolbarActionV1[],
+): boolean {
+  return left.length === right.length
+    && left.every((action, index) => (
+      action.contributionId === right[index]?.contributionId
+      && action.failure === right[index]?.failure
+      && action.host === right[index]?.host
+      && action.label === right[index]?.label
+      && action.pluginModuleId === right[index]?.pluginModuleId
+      && action.run === right[index]?.run
+    ));
 }
 
 function samePanels(

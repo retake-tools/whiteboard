@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactElement, RefObject } from 'react';
+import type { CSSProperties, PointerEvent as ReactPointerEvent, ReactElement, ReactNode, RefObject } from 'react';
 import {
   hasImageAdjustments,
   imageAdjustmentFilter,
@@ -42,6 +42,7 @@ interface ContextToolbarProps {
     draft: AnnotationDraft;
     requestId: number;
   };
+  pluginActions?: ReactNode;
   selectedBlock?: BlockRecord;
   selectedImageUrl?: string;
   onCreateLocalEdit: (input: {
@@ -72,6 +73,7 @@ export function ContextToolbar({
   preferredAnnotationConnectionId,
   canvasZoom,
   annotationEditorOpenRequest,
+  pluginActions,
   selectedBlock,
   selectedImageUrl,
   onAnnotationDraftChange,
@@ -243,6 +245,7 @@ export function ContextToolbar({
         <IconButton label={t('context.downloadImage')} onClick={onDownloadImage}>
           <Download size={16} />
         </IconButton>
+        {pluginActions}
         {canReplaceImage ? (
           <IconButton label={t('context.replaceImage')} onClick={onReplaceImage}>
             <ImageUp size={16} />
