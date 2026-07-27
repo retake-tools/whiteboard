@@ -111,6 +111,18 @@ export function createProviderImagePrompt(
     return `${command}Edit ${source} using ${composite} as the authoritative visual instruction layer. ${annotationInstructions} The colored marks, arrows, outlines, labels, and brush overlays are instructions only: do not retain them in the final image. Preserve the source subject, composition, style, and all unmentioned content unless an annotation or requested output canvas explicitly changes it.${inputContract}${geometry}${variant} Generate exactly one clean revised image.${toolRule}`;
   }
 
+  if (execution.capabilityId === 'image.masked_edit') {
+    const sourceIndex = attachmentIndex(inputAssignments, 'source');
+    const maskIndex = attachmentIndex(inputAssignments, 'inpaint_mask');
+    const source = sourceIndex
+      ? `attachment ${sourceIndex}`
+      : 'the attached source image';
+    const mask = maskIndex
+      ? `attachment ${maskIndex}`
+      : 'the attached inpaint mask';
+    return `${command}Edit ${source} according to this instruction: ${sentence(instruction)} Use ${mask} as an exact spatial constraint: white pixels are editable and black pixels must remain unchanged. Do not reproduce the mask in the result.${inputContract}${geometry} Preserve the source dimensions, subject, composition, and every unselected region.${variant} Generate exactly one clean revised image.${toolRule}`;
+  }
+
   if (execution.capabilityId === 'image.image_to_image') {
     const sourceIndex = attachmentIndex(inputAssignments, 'source');
     const source = sourceIndex ? `attachment ${sourceIndex}` : 'the attached source image';

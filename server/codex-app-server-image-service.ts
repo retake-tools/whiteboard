@@ -9,8 +9,12 @@ import {
   imageExecutionInputAssignments,
   type ImageExecutionInputAssignment,
 } from './image-execution-prompt';
-import { resolveAssetStoragePath } from './local-store/asset-files';
+import {
+  parseDataUrl,
+  resolveAssetStoragePath,
+} from './local-store/asset-files';
 import { createAssetFromDataUrl } from './local-store/asset-store';
+import { compositeMaskedImage } from './masked-image-compositor';
 import { listExecutionProviderSettings } from './local-store/execution-provider-store';
 import {
   failExecution,
@@ -93,6 +97,12 @@ async function executeCodexImageRun(
   const initial = await loadSnapshot(execution.projectId, execution.boardId);
   const inputAssignments = imageExecutionInputAssignments(execution);
   const localImagePaths = await executionInputImagePaths(initial, inputAssignments);
+  const localImagePathByRole = new Map(
+    inputAssignments.map((assignment, index) => [
+      assignment.inputRole,
+      localImagePaths[index],
+    ]),
+  );
   const storyboardContext = execution.capabilityId === storyboardSheetCapabilityId
     ? await storyboardSheetPromptContext(initial, execution)
     : '';
@@ -130,17 +140,24 @@ async function executeCodexImageRun(
     const image = result.image;
     await enqueueWrite(async () => {
       await assertExecutionRunning(execution);
-      const asset = image.savedPath
-        ? await importCodexImagePath(execution, image.savedPath)
-        : image.dataUrl
-          ? await createAssetFromDataUrl({
-            projectId: execution.projectId,
-            sourceExecutionId: execution.executionId,
-            dataUrl: image.dataUrl,
-            fileName: `codex-image-${index + 1}.png`,
-            kind: 'image',
-          })
-          : undefined;
+      const asset = execution.capabilityId === 'image.masked_edit'
+        ? await importMaskedCodexImage(
+          execution,
+          image,
+          localImagePathByRole,
+          index,
+        )
+        : image.savedPath
+          ? await importCodexImagePath(execution, image.savedPath)
+          : image.dataUrl
+            ? await createAssetFromDataUrl({
+              projectId: execution.projectId,
+              sourceExecutionId: execution.executionId,
+              dataUrl: image.dataUrl,
+              fileName: `codex-image-${index + 1}.png`,
+              kind: 'image',
+            })
+            : undefined;
       if (!asset) throw new Error('Codex App Server image result did not contain a saved path or image data.');
       await recordProviderResult(execution, {
         index,
@@ -155,9 +172,12 @@ async function executeCodexImageRun(
         executionId: execution.executionId,
         assetId: asset.assetId,
         resultBlockId,
-        title: execution.capabilityId === storyboardSheetCapabilityId
-          ? storyboardSheetResultTitle(execution, index)
-          : execution.outputBlockIds.length > 1 ? `Codex image ${index + 1}` : 'Codex image',
+        title: providerImageResultTitle(
+          initial,
+          execution,
+          resultBlockId,
+          index,
+        ),
         body: execution.capabilityId === storyboardSheetCapabilityId
           ? 'Generated as a same-unit Storyboard Sheet candidate through Codex App Server.'
           : 'Generated through Codex App Server and imported into Retake.',
@@ -171,6 +191,66 @@ async function executeCodexImageRun(
       ? failed.reason
       : new Error('Codex App Server image generation failed for one or more candidates.');
   }
+}
+
+async function importMaskedCodexImage(
+  execution: ExecutionRecord,
+  image: { dataUrl?: string; savedPath?: string },
+  localImagePathByRole: ReadonlyMap<string, string | undefined>,
+  index: number,
+) {
+  const sourcePath = localImagePathByRole.get('source');
+  const maskPath = localImagePathByRole.get('inpaint_mask');
+  if (!sourcePath || !maskPath) {
+    throw new Error(
+      'Masked image execution requires source and inpaint_mask image inputs.',
+    );
+  }
+  const candidateBytes = image.savedPath
+    ? await readCodexImagePath(image.savedPath)
+    : image.dataUrl
+      ? parseDataUrl(image.dataUrl).bytes
+      : undefined;
+  if (!candidateBytes) {
+    throw new Error(
+      'Codex App Server masked image result did not contain a saved path or image data.',
+    );
+  }
+  assertCodexRasterBytes(candidateBytes);
+  const composite = await compositeMaskedImage({
+    candidateBytes,
+    maskPath,
+    sourcePath,
+  });
+  return createAssetFromDataUrl({
+    projectId: execution.projectId,
+    sourceExecutionId: execution.executionId,
+    dataUrl: `data:image/png;base64,${composite.bytes.toString('base64')}`,
+    fileName: `codex-masked-image-${index + 1}.png`,
+    height: composite.height,
+    kind: 'image',
+    width: composite.width,
+  });
+}
+
+function providerImageResultTitle(
+  snapshot: BoardSnapshot,
+  execution: ExecutionRecord,
+  resultBlockId: string,
+  index: number,
+): string {
+  if (execution.capabilityId === storyboardSheetCapabilityId) {
+    return storyboardSheetResultTitle(execution, index);
+  }
+  if (isRecord(execution.params?.pluginParameters)) {
+    const declaredTitle = snapshot.blocks.find(
+      (block) => block.blockId === resultBlockId,
+    )?.data.title;
+    if (declaredTitle) return declaredTitle;
+  }
+  return execution.outputBlockIds.length > 1
+    ? `Codex image ${index + 1}`
+    : 'Codex image';
 }
 
 function storyboardSheetResultTitle(execution: ExecutionRecord, index: number): string {
@@ -256,6 +336,18 @@ async function executionInputImagePaths(
 }
 
 async function importCodexImagePath(execution: ExecutionRecord, sourcePath: string) {
+  const bytes = await readCodexImagePath(sourcePath);
+  const mimeType = rasterMimeType(bytes)!;
+  return createAssetFromDataUrl({
+    projectId: execution.projectId,
+    sourceExecutionId: execution.executionId,
+    dataUrl: `data:${mimeType};base64,${bytes.toString('base64')}`,
+    fileName: `codex-image${mimeType === 'image/jpeg' ? '.jpg' : mimeType === 'image/webp' ? '.webp' : '.png'}`,
+    kind: 'image',
+  });
+}
+
+async function readCodexImagePath(sourcePath: string): Promise<Buffer> {
   const resolvedPath = await realpath(sourcePath);
   const generatedImagesRoot = path.resolve(process.env.CODEX_HOME || path.join(homedir(), '.codex'), 'generated_images');
   if (!resolvedPath.startsWith(`${generatedImagesRoot}${path.sep}`)) {
@@ -266,15 +358,20 @@ async function importCodexImagePath(execution: ExecutionRecord, sourcePath: stri
     throw new Error('Codex App Server returned an invalid or oversized image file.');
   }
   const bytes = await readFile(resolvedPath);
-  const mimeType = rasterMimeType(bytes);
-  if (!mimeType) throw new Error('Codex App Server returned a file that is not a supported raster image.');
-  return createAssetFromDataUrl({
-    projectId: execution.projectId,
-    sourceExecutionId: execution.executionId,
-    dataUrl: `data:${mimeType};base64,${bytes.toString('base64')}`,
-    fileName: `codex-image${mimeType === 'image/jpeg' ? '.jpg' : mimeType === 'image/webp' ? '.webp' : '.png'}`,
-    kind: 'image',
-  });
+  assertCodexRasterBytes(bytes);
+  return bytes;
+}
+
+function assertCodexRasterBytes(bytes: Buffer): void {
+  if (
+    bytes.byteLength === 0
+    || bytes.byteLength > 100 * 1024 * 1024
+    || !rasterMimeType(bytes)
+  ) {
+    throw new Error(
+      'Codex App Server returned data that is not a supported raster image.',
+    );
+  }
 }
 
 function rasterMimeType(bytes: Buffer): 'image/jpeg' | 'image/png' | 'image/webp' | undefined {

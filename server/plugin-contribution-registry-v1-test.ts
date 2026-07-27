@@ -125,6 +125,40 @@ assert.equal(
   'fixture action crash',
 );
 
+const selectionActionFailures = registry.replace([
+  actionSession('retake.plugin.selection-action-fixture', {
+    apiVersion: 1,
+    kind: 'action',
+    label: 'Fixture selection action',
+    placement: 'selection.toolbar',
+    run: fixtureActionRun,
+    selectionCount: {
+      max: 2,
+      min: 2,
+    },
+  }),
+]);
+assert.deepEqual(selectionActionFailures, []);
+assert.equal(registry.getActionSnapshot().length, 1);
+assert.equal(
+  registry.getActionSnapshot()[0]?.placement,
+  'selection.toolbar',
+);
+assert.deepEqual(
+  registry.getActionSnapshot()[0]?.placement === 'selection.toolbar'
+    ? registry.getActionSnapshot()[0].selectionCount
+    : null,
+  { max: 2, min: 2 },
+);
+assert.equal(
+  Object.isFrozen(
+    registry.getActionSnapshot()[0]?.placement === 'selection.toolbar'
+      ? registry.getActionSnapshot()[0].selectionCount
+      : null,
+  ),
+  true,
+);
+
 const malformedAction = registry.replace([
   actionSession('retake.plugin.malformed-action', {
     apiVersion: 1,
@@ -135,7 +169,7 @@ const malformedAction = registry.replace([
   }),
 ]);
 assert.deepEqual(malformedAction, [{
-  error: 'Plugin action contribution must use the Retake Image Toolbar Action V1 contract.',
+  error: 'Plugin action contribution must use a Retake Toolbar Action V1 contract.',
   pluginModuleId: 'retake.plugin.malformed-action',
 }]);
 assert.equal(registry.getActionSnapshot().length, 0);
@@ -271,6 +305,7 @@ process.stdout.write(`${JSON.stringify({
   capabilityConflictDisablesAllProviders: true,
   capabilityRegistrationRequiresActiveProvider: true,
   imageToolbarActionContract: true,
+  imageSelectionToolbarActionContract: true,
   malformedPanelBecomesProtocolFailure: true,
   moduleFailureKeepsCoreFallbackDescriptor: true,
   moduleRemovalDetachesContributions: true,

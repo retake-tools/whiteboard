@@ -1,5 +1,6 @@
 import { useCallback, type RefObject } from 'react';
 import type {
+  PluginConnectedExecutionViewV1,
   PluginAssetV1,
   PluginExecutionViewV1,
 } from '@retake-tools/package-sdk';
@@ -20,9 +21,15 @@ import type {
   AssetRecord,
   BoardSnapshot,
 } from '../core/types';
+import {
+  runConnectedPluginExecution,
+} from './runConnectedPluginExecution';
 
 interface PluginExecutionControllerOptions {
-  persistSnapshot: (snapshot: BoardSnapshot) => Promise<void>;
+  persistSnapshot: (
+    snapshot: BoardSnapshot,
+    options?: { requireLocalApi?: boolean },
+  ) => Promise<void>;
   setSelectedBlock: (
     snapshot: BoardSnapshot,
     blockId: string,
@@ -63,17 +70,27 @@ export function usePluginExecutionController({
 }
 
 export async function runPluginExecution(
-  {
-    input,
-    signal,
-  }: PluginExecutionRunnerRequestV1,
+  request: PluginExecutionRunnerRequestV1,
   {
     persistSnapshot,
     setSelectedBlock,
     snapshotRef,
     updateSnapshot,
   }: PluginExecutionControllerOptions,
-): Promise<PluginExecutionViewV1> {
+): Promise<PluginConnectedExecutionViewV1 | PluginExecutionViewV1> {
+  if (request.kind === 'connected') {
+    return runConnectedPluginExecution(
+      request.input,
+      request.signal,
+      {
+        persistSnapshot,
+        setSelectedBlock,
+        snapshotRef,
+        updateSnapshot,
+      },
+    );
+  }
+  const { input, signal } = request;
   const definition = assertSupportedPluginImageExecution(input.capabilityId);
   if (input.inputBlockIds.length !== 1) {
     throw new Error(
