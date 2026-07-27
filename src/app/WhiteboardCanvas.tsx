@@ -9,6 +9,9 @@ import { GroupToolbar } from '../components/GroupToolbar';
 import {
   PluginBlockRendererProvider,
 } from '../components/PluginBlockRendererHost';
+import {
+  PluginImageToolbarActions,
+} from '../components/PluginImageToolbarActions';
 import { createImageAssetFromDataUrl } from '../core/assetStore';
 import { maxBoardZoom, minBoardZoom } from '../core/boardViewStateStore';
 import type {
@@ -163,6 +166,16 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
               preferredAnnotationConnectionId={imageOperations.preferredAnnotationConnectionId}
               canvasZoom={canvas.canvasZoom}
               annotationEditorOpenRequest={annotations.annotationEditorOpenRequest?.blockId === selectedBlock.blockId ? annotations.annotationEditorOpenRequest : undefined}
+              pluginActions={selectedImageAsset ? (
+                <PluginImageToolbarActions
+                  assetId={selectedImageAsset.assetId}
+                  blockId={selectedBlock.blockId}
+                  onFatalFailure={onPluginContributionFatalFailure}
+                  previewUrl={selectedImageUrl}
+                  registry={pluginContributionRegistry}
+                  title={selectedBlock.data.title}
+                />
+              ) : null}
               selectedBlock={selectedBlock}
               selectedImageUrl={selectedImageUrl}
               onAnnotationDraftChange={(draft) => annotations.updateAnnotationDraft(selectedBlock.blockId, draft)}

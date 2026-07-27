@@ -28,6 +28,7 @@ const host: PluginHostApiV1 = {
 };
 const FixturePanel = () => null;
 const FixtureRenderer = () => null;
+const fixtureActionRun = () => undefined;
 const registry = createPluginContributionRegistry();
 let notifications = 0;
 const unsubscribe = registry.subscribe(() => {
@@ -92,6 +93,45 @@ assert.equal(
   'fixture renderer crash',
 );
 
+const actionFailures = registry.replace([
+  actionSession('retake.plugin.action-fixture', {
+    apiVersion: 1,
+    kind: 'action',
+    label: 'Fixture action',
+    placement: 'image.toolbar',
+    run: fixtureActionRun,
+  }),
+]);
+assert.deepEqual(actionFailures, []);
+assert.equal(registry.getActionSnapshot().length, 1);
+assert.equal(
+  registry.getActionSnapshot()[0]!.run,
+  fixtureActionRun,
+);
+registry.failModule(
+  'retake.plugin.action-fixture',
+  'fixture action crash',
+);
+assert.equal(
+  registry.getActionSnapshot()[0]!.failure,
+  'fixture action crash',
+);
+
+const malformedAction = registry.replace([
+  actionSession('retake.plugin.malformed-action', {
+    apiVersion: 1,
+    kind: 'action',
+    label: '',
+    placement: 'image.toolbar',
+    run: fixtureActionRun,
+  }),
+]);
+assert.deepEqual(malformedAction, [{
+  error: 'Plugin action contribution must use the Retake Image Toolbar Action V1 contract.',
+  pluginModuleId: 'retake.plugin.malformed-action',
+}]);
+assert.equal(registry.getActionSnapshot().length, 0);
+
 const malformedRenderer = registry.replace([
   rendererSession('retake.plugin.malformed-renderer', {
     component: FixtureRenderer,
@@ -139,11 +179,13 @@ registry.replace([
   }),
 ]);
 registry.removeModule('retake.plugin.panel-fixture');
+assert.equal(registry.getActionSnapshot().length, 0);
 assert.equal(registry.getSnapshot().length, 0);
 assert.equal(registry.getRendererSnapshot().length, 0);
 unsubscribe();
 
 process.stdout.write(`${JSON.stringify({
+  imageToolbarActionContract: true,
   malformedPanelBecomesProtocolFailure: true,
   moduleFailureKeepsCoreFallbackDescriptor: true,
   moduleRemovalDetachesContributions: true,
@@ -168,6 +210,28 @@ function panelSession(
           definitionPath: null,
           exportName: 'fixturePanel',
           kind: 'panel',
+        },
+        value,
+      }],
+    },
+    host,
+    record: { pluginModuleId },
+  };
+}
+
+function actionSession(
+  pluginModuleId: string,
+  value: unknown,
+): PluginContributionSessionV1 {
+  return {
+    activation: {
+      contributions: [{
+        contribution: {
+          contributionId: `${pluginModuleId}.action`,
+          definitionHash: null,
+          definitionPath: null,
+          exportName: 'fixtureAction',
+          kind: 'action',
         },
         value,
       }],
