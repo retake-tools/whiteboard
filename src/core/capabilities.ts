@@ -229,16 +229,6 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
     promptSource: 'inline',
     supportedAdapters: ['mcp_agent', 'direct_api', 'cli_agent', 'manual_import'],
   },
-  'image.local_crop': {
-    capabilityId: 'image.local_crop',
-    defaultAdapter: 'manual_import',
-    displayNameKey: 'context.crop',
-    inputContracts: [{ type: 'image', required: true, source: 'block', role: 'source', min: 1, max: 1 }],
-    outputContracts: [{ type: 'image' }],
-    paramsSchema: { aspectRatio: true },
-    promptSource: 'inline',
-    supportedAdapters: ['manual_import', 'mock'],
-  },
   'image.local_expand': {
     capabilityId: 'image.local_expand',
     defaultAdapter: 'manual_import',

@@ -660,9 +660,8 @@ const replaceableToolbarMarkup = renderToStaticMarkup(
   </I18nProvider>,
 );
 assert.match(replaceableToolbarMarkup, /aria-label="Replace image"/);
-assert.match(replaceableToolbarMarkup, /aria-label="Crop · Not available yet"/);
+assert.doesNotMatch(replaceableToolbarMarkup, /aria-label="Crop/);
 assert.doesNotMatch(replaceableToolbarMarkup, /aria-label="Adjust"/);
-assert.match(replaceableToolbarMarkup, /disabled=""/);
 const resultToolbarMarkup = renderToStaticMarkup(
   <I18nProvider>
     <ContextToolbar

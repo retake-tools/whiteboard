@@ -105,7 +105,6 @@ export type TranslationKey =
   | 'context.close'
   | 'context.contrast'
   | 'context.createSimilar'
-  | 'context.crop'
   | 'context.deleteMark'
   | 'context.describeChange'
   | 'context.downloadImage'
@@ -1114,7 +1113,6 @@ const translations: Record<Locale, Translations> = {
     'context.close': 'Close',
     'context.contrast': 'Contrast',
     'context.createSimilar': 'Create similar',
-    'context.crop': 'Crop',
     'context.deleteMark': 'Delete',
     'context.describeChange': 'Describe the change...',
     'context.downloadImage': 'Download image',
@@ -2118,7 +2116,6 @@ const translations: Record<Locale, Translations> = {
     'context.close': '关闭',
     'context.contrast': '对比度',
     'context.createSimilar': '生成同款',
-    'context.crop': '裁剪',
     'context.deleteMark': '删除',
     'context.describeChange': '描述要修改的内容...',
     'context.downloadImage': '下载图片',
