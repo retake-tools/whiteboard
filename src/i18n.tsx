@@ -865,6 +865,30 @@ export type TranslationKey =
   | 'pluginSettings.title'
   | 'pluginSettings.trust'
   | 'pluginSettings.trustWarning'
+  | 'packageLibrary.close'
+  | 'packageLibrary.components'
+  | 'packageLibrary.confirmRemove'
+  | 'packageLibrary.confirmRollback'
+  | 'packageLibrary.dependencies'
+  | 'packageLibrary.dependency'
+  | 'packageLibrary.description'
+  | 'packageLibrary.empty'
+  | 'packageLibrary.emptyDescription'
+  | 'packageLibrary.install'
+  | 'packageLibrary.installHint'
+  | 'packageLibrary.installPlaceholder'
+  | 'packageLibrary.installSource'
+  | 'packageLibrary.kicker'
+  | 'packageLibrary.loading'
+  | 'packageLibrary.noPreviousVersion'
+  | 'packageLibrary.previousVersions'
+  | 'packageLibrary.refresh'
+  | 'packageLibrary.remove'
+  | 'packageLibrary.rollback'
+  | 'packageLibrary.root'
+  | 'packageLibrary.source'
+  | 'packageLibrary.title'
+  | 'packageLibrary.update'
   | 'settings.keyboardShortcuts'
   | 'settings.generationProfiles'
   | 'settings.generationProfileBuiltin'
@@ -927,6 +951,7 @@ export type TranslationKey =
   | 'settings.language'
   | 'settings.preferences'
   | 'settings.plugins'
+  | 'settings.packageLibrary'
   | 'settings.shortcutClose'
   | 'settings.shortcutRedo'
   | 'settings.shortcutUndo'
@@ -1852,6 +1877,30 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.title': 'Plugins',
     'pluginSettings.trust': 'Trust exact code',
     'pluginSettings.trustWarning': 'Trust runs this exact Package digest in the same page as the canvas. Review the source before continuing.',
+    'packageLibrary.close': 'Close Plugin library',
+    'packageLibrary.components': 'Contents',
+    'packageLibrary.confirmRemove': 'Remove this Root Package and recalculate its dependency closure:',
+    'packageLibrary.confirmRollback': 'Roll back to the most recently active cached installation:',
+    'packageLibrary.dependencies': 'Dependencies',
+    'packageLibrary.dependency': 'Dependency',
+    'packageLibrary.description': 'Install a Package from GitHub, another Git URL, or a path on this machine. Updates, rollbacks, and removals apply to this Workspace and reconcile the current page immediately.',
+    'packageLibrary.empty': 'No Packages installed',
+    'packageLibrary.emptyDescription': 'Install a Package source to add Skills, Workflows, Agent presets, or PluginModules.',
+    'packageLibrary.install': 'Install',
+    'packageLibrary.installHint': 'Remote network access happens only when you submit a Git source.',
+    'packageLibrary.installPlaceholder': 'github:owner/repo@ref or /path/to/package',
+    'packageLibrary.installSource': 'Install source',
+    'packageLibrary.kicker': 'Workspace Package Manager',
+    'packageLibrary.loading': 'Loading installed Packages…',
+    'packageLibrary.noPreviousVersion': 'No cached previous installation',
+    'packageLibrary.previousVersions': 'cached previous installation(s)',
+    'packageLibrary.refresh': 'Refresh',
+    'packageLibrary.remove': 'Remove',
+    'packageLibrary.rollback': 'Rollback',
+    'packageLibrary.root': 'Root Package',
+    'packageLibrary.source': 'Source',
+    'packageLibrary.title': 'Plugin library',
+    'packageLibrary.update': 'Update',
     'settings.keyboardShortcuts': 'Keyboard shortcuts',
     'settings.generationProfiles': 'Generation profiles',
     'settings.generationProfileBuiltin': 'Built-in · Read only',
@@ -1914,6 +1963,7 @@ const translations: Record<Locale, Translations> = {
     'settings.language': 'Language',
     'settings.preferences': 'Preferences',
     'settings.plugins': 'Plugins',
+    'settings.packageLibrary': 'Plugin library',
     'settings.shortcutClose': 'Close dialogs and panels',
     'settings.shortcutRedo': 'Redo',
     'settings.shortcutUndo': 'Undo',
@@ -2834,6 +2884,30 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.title': '插件',
     'pluginSettings.trust': '信任当前代码',
     'pluginSettings.trustWarning': '信任后会在画布所在页面执行当前 Package 摘要对应的代码，请先审阅源码。',
+    'packageLibrary.close': '关闭插件库',
+    'packageLibrary.components': '包含内容',
+    'packageLibrary.confirmRemove': '确定移除这个 Root Package 并重新计算依赖闭包吗：',
+    'packageLibrary.confirmRollback': '确定回滚到最近一次激活的本机缓存版本吗：',
+    'packageLibrary.dependencies': '依赖',
+    'packageLibrary.dependency': '依赖 Package',
+    'packageLibrary.description': '可从 GitHub、其他 Git URL 或本机路径安装 Package。更新、回滚和移除只作用于当前 Workspace，并会立即同步当前页面。',
+    'packageLibrary.empty': '尚未安装 Package',
+    'packageLibrary.emptyDescription': '安装一个 Package 来源，即可加入 Skill、Workflow、Agent preset 或 PluginModule。',
+    'packageLibrary.install': '安装',
+    'packageLibrary.installHint': '只有提交 Git 来源时才会发起远程网络访问。',
+    'packageLibrary.installPlaceholder': 'github:owner/repo@ref 或 /本机/package/路径',
+    'packageLibrary.installSource': '安装来源',
+    'packageLibrary.kicker': 'Workspace Package Manager',
+    'packageLibrary.loading': '正在读取已安装的 Package…',
+    'packageLibrary.noPreviousVersion': '没有可回滚的本机缓存版本',
+    'packageLibrary.previousVersions': '个本机缓存历史版本',
+    'packageLibrary.refresh': '刷新',
+    'packageLibrary.remove': '移除',
+    'packageLibrary.rollback': '回滚',
+    'packageLibrary.root': 'Root Package',
+    'packageLibrary.source': '来源',
+    'packageLibrary.title': '插件库',
+    'packageLibrary.update': '更新',
     'settings.keyboardShortcuts': '快捷键',
     'settings.generationProfiles': '生成配置',
     'settings.generationProfileBuiltin': '内置 · 只读',
@@ -2896,6 +2970,7 @@ const translations: Record<Locale, Translations> = {
     'settings.language': '语言',
     'settings.preferences': '偏好设置',
     'settings.plugins': '插件',
+    'settings.packageLibrary': '插件库',
     'settings.shortcutClose': '关闭弹窗和面板',
     'settings.shortcutRedo': '重做',
     'settings.shortcutUndo': '撤销',

@@ -30,6 +30,7 @@ import {
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties, type MutableRefObject, type ReactElement } from 'react';
 import type { BoardSnapshot, WorkspaceSummary } from '../core/types';
 import type { PluginRuntimeControllerV1 } from '../core/pluginRuntimeManagementClient';
+import type { PackageLifecycleControllerV1 } from '../core/packageLifecycleClient';
 import { loadUiPreferences, saveUiPreferences } from '../core/uiPreferences';
 import { useI18n, type Locale } from '../i18n';
 import { ProjectBoardMenu } from './ProjectBoardMenu';
@@ -42,6 +43,10 @@ const ExecutionProvidersSettings = lazy(async () => {
 const PluginRuntimeSettings = lazy(async () => {
   const module = await import('./PluginRuntimeSettings');
   return { default: module.PluginRuntimeSettings };
+});
+const PackageLibrarySettings = lazy(async () => {
+  const module = await import('./PackageLibrarySettings');
+  return { default: module.PackageLibrarySettings };
 });
 
 export type AutosaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -80,6 +85,7 @@ interface TopBarProps {
   onUndo: () => void;
   onRedo: () => void;
   pluginRuntimeController?: PluginRuntimeControllerV1;
+  packageLifecycleController?: PackageLifecycleControllerV1;
 }
 
 export function TopBar({
@@ -114,6 +120,7 @@ export function TopBar({
   onUndo,
   onRedo,
   pluginRuntimeController,
+  packageLifecycleController,
   isHistoryOpen,
   isAgentWorkspaceOpen,
 }: TopBarProps): ReactElement {
@@ -129,6 +136,7 @@ export function TopBar({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isExecutionSettingsOpen, setIsExecutionSettingsOpen] = useState(false);
   const [isPluginSettingsOpen, setIsPluginSettingsOpen] = useState(false);
+  const [isPackageLibraryOpen, setIsPackageLibraryOpen] = useState(false);
   const boardControlRef = useRef<HTMLDivElement | null>(null);
   const keyboardShortcutsRef = useRef<HTMLDivElement | null>(null);
   const settingsRef = useRef<HTMLDivElement | null>(null);
@@ -231,6 +239,15 @@ export function TopBar({
 
   const closePluginSettings = useCallback((): void => {
     setIsPluginSettingsOpen(false);
+  }, []);
+
+  const openPackageLibrary = useCallback((): void => {
+    setIsSettingsOpen(false);
+    setIsPackageLibraryOpen(true);
+  }, []);
+
+  const closePackageLibrary = useCallback((): void => {
+    setIsPackageLibraryOpen(false);
   }, []);
 
   return (
@@ -456,6 +473,9 @@ export function TopBar({
                 onOpenPlugins={pluginRuntimeController
                   ? openPluginSettings
                   : undefined}
+                onOpenPackageLibrary={packageLifecycleController
+                  ? openPackageLibrary
+                  : undefined}
                 onSelectLanguage={setLocale}
                 onToggleGrid={onToggleGrid}
               />
@@ -486,6 +506,14 @@ export function TopBar({
           />
         </Suspense>
       ) : null}
+      {isPackageLibraryOpen && packageLifecycleController ? (
+        <Suspense fallback={<div className="execution-settings-backdrop" aria-busy="true" />}>
+          <PackageLibrarySettings
+            controller={packageLifecycleController}
+            onClose={closePackageLibrary}
+          />
+        </Suspense>
+      ) : null}
     </>
   );
 }
@@ -495,6 +523,7 @@ function SettingsMenu({
   onOpenExecutionProviders,
   onOpenKeyboardShortcuts,
   onOpenPlugins,
+  onOpenPackageLibrary,
   showGrid,
   onSelectLanguage,
   onToggleGrid,
@@ -503,6 +532,7 @@ function SettingsMenu({
   onOpenExecutionProviders: () => void;
   onOpenKeyboardShortcuts: () => void;
   onOpenPlugins?: () => void;
+  onOpenPackageLibrary?: () => void;
   showGrid: boolean;
   onSelectLanguage: (locale: Locale) => void;
   onToggleGrid: () => void;
@@ -521,6 +551,13 @@ function SettingsMenu({
           <button type="button" className="settings-menu-item" onClick={onOpenPlugins}>
             <Boxes size={15} />
             <span>{t('settings.plugins')}</span>
+            <ChevronRight size={14} />
+          </button>
+        ) : null}
+        {onOpenPackageLibrary ? (
+          <button type="button" className="settings-menu-item" onClick={onOpenPackageLibrary}>
+            <Library size={15} />
+            <span>{t('settings.packageLibrary')}</span>
             <ChevronRight size={14} />
           </button>
         ) : null}

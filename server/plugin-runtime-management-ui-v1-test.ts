@@ -146,6 +146,7 @@ function renderSettings(snapshot: PluginRuntimeSnapshotV1): string {
     getSnapshot: () => snapshot,
     manageModule: async () => snapshot,
     refresh: async () => snapshot,
+    replace: async () => snapshot,
     setSafeMode: async () => snapshot,
     subscribe: () => () => {},
   };

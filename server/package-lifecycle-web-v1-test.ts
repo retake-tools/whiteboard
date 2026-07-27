@@ -1,0 +1,274 @@
+import assert from 'node:assert/strict';
+import {
+  mkdir,
+  mkdtemp,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import type {
+  DeclarativePackageManifest,
+} from '@retake-tools/package-contracts';
+import { PackageLibrarySettings } from '../src/components/PackageLibrarySettings';
+import type {
+  PackageLifecycleControllerV1,
+} from '../src/core/packageLifecycleClient';
+import {
+  createPackageLifecycleController,
+} from '../src/core/packageLifecycleClient';
+import type {
+  PackageLifecycleSnapshotV1,
+} from '../src/core/packageLifecycleContracts';
+import type {
+  PluginRuntimeControllerV1,
+} from '../src/core/pluginRuntimeManagementClient';
+import { I18nProvider } from '../src/i18n';
+import {
+  invalidateDefaultDeclarativePackageBootstrap,
+} from './declarative-package-bootstrap-service';
+import { handlePackageLifecycleRequest } from './package-lifecycle-api';
+import { PackageLifecycleService } from './package-lifecycle-service';
+
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
+  value: {
+    getItem: () => 'en',
+    setItem: () => {},
+  },
+});
+Object.defineProperty(globalThis, 'navigator', {
+  configurable: true,
+  value: { language: 'en-US' },
+});
+
+const temporaryRoot = await mkdtemp(
+  path.join(tmpdir(), 'retake-package-lifecycle-web-v1-'),
+);
+try {
+  const workspaceRoot = path.join(temporaryRoot, 'workspace');
+  const versionOne = await createPackage('1.0.0');
+  const versionTwo = await createPackage('1.1.0');
+  const service = new PackageLifecycleService({
+    hostVersion: '0.1.2',
+    workspaceRoot,
+  });
+
+  const initial = await service.read();
+  assert.equal(initial.schemaVersion, 1);
+  assert.equal(initial.packages.length, 2);
+
+  const installedOne = await service.mutate({
+    action: 'install',
+    source: versionOne,
+  });
+  const packageOne = requiredPackage(installedOne);
+  assert.equal(packageOne.version, '1.0.0');
+  assert.equal(packageOne.isRoot, true);
+  assert.equal(packageOne.source.kind, 'local_directory');
+  assert.equal(packageOne.source.label, path.basename(versionOne));
+  assert.equal(packageOne.source.label.includes(temporaryRoot), false);
+
+  const installedTwo = await service.mutate({
+    action: 'install',
+    source: versionTwo,
+  });
+  const packageTwo = requiredPackage(installedTwo);
+  assert.equal(packageTwo.version, '1.1.0');
+  assert.equal(packageTwo.history.length, 1);
+  assert.equal(packageTwo.history[0]!.version, '1.0.0');
+
+  const rolledBack = await service.mutate({
+    action: 'rollback',
+    packageId: 'test.package.lifecycle',
+  });
+  assert.equal(requiredPackage(rolledBack).version, '1.0.0');
+
+  await assert.rejects(
+    service.mutate({
+      action: 'update',
+      packageId: 'test.package.lifecycle',
+    }),
+    /not installed from Git/,
+  );
+
+  const removed = await service.mutate({
+    action: 'remove',
+    packageId: 'test.package.lifecycle',
+  });
+  assert.equal(
+    removed.packages.some(
+      (entry) => entry.packageId === 'test.package.lifecycle',
+    ),
+    false,
+  );
+
+  const invalidApi = await handlePackageLifecycleRequest({
+    method: 'POST',
+    pathname: '/package-lifecycle',
+    readBody: async () => ({ action: 'install', source: '  ' }),
+    service,
+  });
+  assert.deepEqual(invalidApi, {
+    handled: true,
+    statusCode: 400,
+    value: { error: 'Package source is invalid.' },
+  });
+
+  const markup = renderLibrary(installedTwo);
+  assert.match(markup, /Plugin library/);
+  assert.match(markup, /test\.package\.lifecycle/);
+  assert.match(markup, /Rollback/);
+  assert.match(markup, /Remove/);
+  assert.doesNotMatch(markup, new RegExp(escapeRegExp(temporaryRoot)));
+
+  const originalFetch = globalThis.fetch;
+  const calls: string[] = [];
+  const appliedRuntimeRevisions: number[] = [];
+  let releaseFirstRequest: (() => void) | undefined;
+  const firstRequest = new Promise<void>((resolve) => {
+    releaseFirstRequest = resolve;
+  });
+  let responseIndex = 0;
+  globalThis.fetch = async (request): Promise<Response> => {
+    calls.push(String(request));
+    const index = responseIndex++;
+    if (index === 0) await firstRequest;
+    return Response.json(index === 0 ? installedTwo : rolledBack);
+  };
+  try {
+    const runtimeController = pluginRuntimeController(
+      installedTwo,
+      appliedRuntimeRevisions,
+    );
+    const lifecycleController = createPackageLifecycleController({
+      pluginRuntimeController: runtimeController,
+    });
+    const refresh = lifecycleController.refresh();
+    const rollback = lifecycleController.mutate({
+      action: 'rollback',
+      packageId: 'test.package.lifecycle',
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(calls.length, 1);
+    releaseFirstRequest?.();
+    await Promise.all([refresh, rollback]);
+    assert.deepEqual(calls, [
+      '/api/local/package-lifecycle',
+      '/api/local/package-lifecycle',
+    ]);
+    assert.equal(appliedRuntimeRevisions.length, 2);
+    assert.equal(
+      lifecycleController.getSnapshot()?.lockRevision,
+      rolledBack.lockRevision,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  process.stdout.write(`${JSON.stringify({
+    browserMutationsSerialized: true,
+    currentPageSnapshotsReturnedAfterEveryMutation: true,
+    dependencyRemovalGuardOwnedByPackageManager: true,
+    localPathsProjectedWithoutDirectoryDisclosure: true,
+    localSourceInstallRollbackRemove: true,
+    sourceUpdateCapabilityIsExact: true,
+    webLibraryRendersLifecycleActions: true,
+  })}\n`);
+} finally {
+  invalidateDefaultDeclarativePackageBootstrap();
+  await rm(temporaryRoot, { force: true, recursive: true });
+}
+
+async function createPackage(version: string): Promise<string> {
+  const root = path.join(temporaryRoot, `package-${version}`);
+  await mkdir(root, { recursive: true });
+  const manifest: DeclarativePackageManifest = {
+    components: {
+      agentPresets: [],
+      pluginModules: [],
+      skills: [],
+      workflows: [],
+    },
+    dependencies: [],
+    description: `Lifecycle fixture ${version}.`,
+    entrypoints: [],
+    files: ['README.md'],
+    integrity: 'sha256:auto',
+    license: 'MIT',
+    name: 'Lifecycle fixture',
+    optionalDependencies: [],
+    packageId: 'test.package.lifecycle',
+    permissions: [],
+    publisher: {
+      name: 'Retake Test',
+      publisherId: 'test.publisher',
+    },
+    retakeHostCompatibility: '^0.1.0',
+    schemaVersion: 1,
+    signature: null,
+    version,
+  };
+  await writeFile(
+    path.join(root, 'retake.package.json'),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    'utf8',
+  );
+  await writeFile(
+    path.join(root, 'README.md'),
+    `${manifest.description}\n`,
+    'utf8',
+  );
+  return root;
+}
+
+function requiredPackage(snapshot: PackageLifecycleSnapshotV1) {
+  const record = snapshot.packages.find(
+    (entry) => entry.packageId === 'test.package.lifecycle',
+  );
+  assert.ok(record);
+  return record;
+}
+
+function renderLibrary(snapshot: PackageLifecycleSnapshotV1): string {
+  const controller: PackageLifecycleControllerV1 = {
+    getSnapshot: () => snapshot,
+    mutate: async () => snapshot,
+    refresh: async () => snapshot,
+    subscribe: () => () => {},
+  };
+  return renderToStaticMarkup(
+    createElement(
+      I18nProvider,
+      null,
+      createElement(PackageLibrarySettings, {
+        controller,
+        onClose: () => {},
+      }),
+    ),
+  );
+}
+
+function pluginRuntimeController(
+  snapshot: PackageLifecycleSnapshotV1,
+  appliedRuntimeRevisions: number[],
+): PluginRuntimeControllerV1 {
+  return {
+    getSnapshot: () => snapshot.pluginRuntime,
+    manageModule: async () => snapshot.pluginRuntime,
+    refresh: async () => snapshot.pluginRuntime,
+    replace: async (runtimeSnapshot) => {
+      appliedRuntimeRevisions.push(appliedRuntimeRevisions.length + 1);
+      return runtimeSnapshot;
+    },
+    setSafeMode: async () => snapshot.pluginRuntime,
+    subscribe: () => () => {},
+  };
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}

@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactElement,
   type Ref,
@@ -40,6 +41,10 @@ import { AgentWorkspaceComposer } from './AgentWorkspaceComposer';
 import { AgentSessionHistoryMenu } from './AgentSessionHistoryMenu';
 import { TooltipIconButton } from './Tooltip';
 import { WorkflowAgentTargetPicker } from './WorkflowAgentTargetPicker';
+import {
+  currentInstalledRuntimeRegistryRevision,
+  subscribeInstalledRuntimeRegistry,
+} from '../core/installedRuntimeRegistry';
 
 export function AgentWorkspace({
   binding,
@@ -100,6 +105,11 @@ export function AgentWorkspace({
   snapshot: BoardSnapshot;
 }): ReactElement {
   const { t } = useI18n();
+  useSyncExternalStore(
+    subscribeInstalledRuntimeRegistry,
+    currentInstalledRuntimeRegistryRevision,
+    currentInstalledRuntimeRegistryRevision,
+  );
   const runCardRef = useRef<HTMLElement>(null);
   const timelineEndRef = useRef<HTMLDivElement>(null);
   const messages = selectedSession ? messagesForSession(snapshot, selectedSession.agentSessionId) : [];

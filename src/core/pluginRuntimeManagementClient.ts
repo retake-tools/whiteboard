@@ -13,6 +13,9 @@ export interface PluginRuntimeControllerV1 {
     action: PluginRuntimeManagementActionV1,
   ): Promise<PluginRuntimeSnapshotV1>;
   refresh(): Promise<PluginRuntimeSnapshotV1>;
+  replace(
+    snapshot: PluginRuntimeSnapshotV1,
+  ): Promise<PluginRuntimeSnapshotV1>;
   setSafeMode(enabled: boolean): Promise<PluginRuntimeSnapshotV1>;
   subscribe(listener: () => void): () => void;
 }
@@ -53,6 +56,7 @@ export function createPluginRuntimeController(input: {
       { method: 'POST' },
     )),
     refresh: () => enqueue(() => requestSnapshot('/api/local/plugin-runtime')),
+    replace: (snapshot) => enqueue(async () => structuredClone(snapshot)),
     setSafeMode: (enabled) => enqueue(() => requestSnapshot(
       '/api/local/plugin-runtime/safe-mode',
       {
