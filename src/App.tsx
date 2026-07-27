@@ -36,7 +36,10 @@ import { useAgentWorkspaceController } from './app/useAgentWorkspaceController';
 import { useArtifactLibraryController } from './app/useArtifactLibraryController';
 import { useDomainVideoLaunchReviewController } from './app/useDomainVideoLaunchReviewController';
 import { WhiteboardCanvas } from './app/WhiteboardCanvas';
-import type { PluginHostReadSnapshotV1 } from '@retake-tools/package-sdk';
+import type {
+  PluginAssetV1,
+  PluginHostReadSnapshotV1,
+} from '@retake-tools/package-sdk';
 import { PluginPanelHost } from './components/PluginPanelHost';
 import type {
   PluginContributionRegistryV1,
@@ -61,7 +64,10 @@ export function App({
     pluginModuleId: string,
     message: string,
   ) => Promise<void> | void;
-  onPluginHostScopeChange?: (snapshot: PluginHostReadSnapshotV1) => void;
+  onPluginHostScopeChange?: (
+    snapshot: PluginHostReadSnapshotV1,
+    assets: readonly PluginAssetV1[],
+  ) => void;
   pluginContributionRegistry?: PluginContributionRegistryV1;
 } = {}): ReactElement {
   const { t } = useI18n();
@@ -101,7 +107,10 @@ function ReadyApp({
     pluginModuleId: string,
     message: string,
   ) => Promise<void> | void;
-  onPluginHostScopeChange?: (snapshot: PluginHostReadSnapshotV1) => void;
+  onPluginHostScopeChange?: (
+    snapshot: PluginHostReadSnapshotV1,
+    assets: readonly PluginAssetV1[],
+  ) => void;
   pluginContributionRegistry?: PluginContributionRegistryV1;
 }): ReactElement {
   const { t } = useI18n();
@@ -211,11 +220,12 @@ function ReadyApp({
     const selectedBlocks = snapshot.blocks.filter(
       (block) => selected.has(block.blockId),
     );
+    const boundAssetIds = [...new Set(selectedBlocks.flatMap((block) => (
+      typeof block.data.assetId === 'string' ? [block.data.assetId] : []
+    )))].sort();
     onPluginHostScopeChange({
       boardId: snapshot.board.boardId,
-      boundAssetIds: [...new Set(selectedBlocks.flatMap((block) => (
-        typeof block.data.assetId === 'string' ? [block.data.assetId] : []
-      )))].sort(),
+      boundAssetIds,
       boundBlockIds: selectedBlocks
         .filter((block) => block.type !== 'group')
         .map((block) => block.blockId)
@@ -227,12 +237,13 @@ function ReadyApp({
       projectId: snapshot.project.projectId,
       revision: `${snapshot.board.updatedAt}:selection:${selectedBlockScopeKey}`,
       selectedBlockIds: [...selectedBlockIds],
-    });
+    }, snapshot.assets.filter((asset) => boundAssetIds.includes(asset.assetId)));
   }, [
     onPluginHostScopeChange,
     selectedBlockScopeKey,
     snapshot.board.boardId,
     snapshot.board.updatedAt,
+    snapshot.assets,
     snapshot.project.projectId,
   ]);
   const imageOperationController = useImageOperationController({

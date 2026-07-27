@@ -8,6 +8,12 @@ import {
 } from '../src/core/pluginContributionRegistry';
 
 const host: PluginHostApiV1 = {
+  assets: {
+    getBound: () => null,
+    importImage: async () => {
+      throw new Error('Fixture does not import assets.');
+    },
+  },
   getReadSnapshot: () => ({
     boardId: 'board.fixture',
     boundAssetIds: [],
