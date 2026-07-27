@@ -15,6 +15,7 @@ import './components/input-reference-picker.css';
 import './components/project-board.css';
 import './components/plugin-panel-host.css';
 import './components/plugin-runtime-settings.css';
+import './components/package-library-settings.css';
 import './components/workflow-continuation.css';
 import './components/top-bar.css';
 import './nodes/block-node.css';
@@ -40,6 +41,10 @@ import {
   type PluginRuntimeControllerV1,
 } from './core/pluginRuntimeManagementClient';
 import type { PluginRuntimeSnapshotV1 } from '@retake-tools/package-sdk';
+import {
+  createPackageLifecycleController,
+  type PackageLifecycleControllerV1,
+} from './core/packageLifecycleClient';
 
 installPluginHostExternals();
 const root = createRoot(document.getElementById('root')!);
@@ -54,6 +59,7 @@ const pluginHostReadStore = createPluginHostReadStore({
   selectedBlockIds: [],
 });
 let pluginRuntimeController: PluginRuntimeControllerV1 | undefined;
+let packageLifecycleController: PackageLifecycleControllerV1 | undefined;
 
 async function applyPluginRuntimeSnapshot(
   snapshot: PluginRuntimeSnapshotV1,
@@ -94,6 +100,9 @@ void bootstrapInstalledRuntimeRegistry()
       applySnapshot: applyPluginRuntimeSnapshot,
       initialSnapshot: initialRuntimeSnapshot,
     });
+    packageLifecycleController = createPackageLifecycleController({
+      pluginRuntimeController,
+    });
     root.render(
       <StrictMode>
         <I18nProvider>
@@ -115,6 +124,7 @@ void bootstrapInstalledRuntimeRegistry()
             }}
             onPluginHostScopeChange={pluginHostReadStore.update}
             pluginContributionRegistry={pluginContributionRegistry}
+            packageLifecycleController={packageLifecycleController}
             pluginRuntimeController={pluginRuntimeController}
           />
         </I18nProvider>

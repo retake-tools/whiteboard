@@ -47,6 +47,9 @@ import type {
 import type {
   PluginRuntimeControllerV1,
 } from './core/pluginRuntimeManagementClient';
+import type {
+  PackageLifecycleControllerV1,
+} from './core/packageLifecycleClient';
 
 const DocumentReviewWorkspace = lazy(() => import('./components/DocumentReviewWorkspace').then((module) => ({
   default: module.DocumentReviewWorkspace,
@@ -62,6 +65,7 @@ export function App({
   onPluginContributionFatalFailure,
   onPluginHostScopeChange,
   pluginContributionRegistry,
+  packageLifecycleController,
   pluginRuntimeController,
 }: {
   onPluginContributionFatalFailure?: (
@@ -73,6 +77,7 @@ export function App({
     assets: readonly PluginAssetV1[],
   ) => void;
   pluginContributionRegistry?: PluginContributionRegistryV1;
+  packageLifecycleController?: PackageLifecycleControllerV1;
   pluginRuntimeController?: PluginRuntimeControllerV1;
 } = {}): ReactElement {
   const { t } = useI18n();
@@ -97,6 +102,7 @@ export function App({
       onPluginContributionFatalFailure={onPluginContributionFatalFailure}
       onPluginHostScopeChange={onPluginHostScopeChange}
       pluginContributionRegistry={pluginContributionRegistry}
+      packageLifecycleController={packageLifecycleController}
       pluginRuntimeController={pluginRuntimeController}
     />
   );
@@ -107,6 +113,7 @@ function ReadyApp({
   onPluginContributionFatalFailure,
   onPluginHostScopeChange,
   pluginContributionRegistry,
+  packageLifecycleController,
   pluginRuntimeController,
 }: {
   boardSession: ReadyBoardSession;
@@ -119,6 +126,7 @@ function ReadyApp({
     assets: readonly PluginAssetV1[],
   ) => void;
   pluginContributionRegistry?: PluginContributionRegistryV1;
+  packageLifecycleController?: PackageLifecycleControllerV1;
   pluginRuntimeController?: PluginRuntimeControllerV1;
 }): ReactElement {
   const { t } = useI18n();
@@ -547,6 +555,7 @@ function ReadyApp({
       />
       <TopBar
         agentWorkspaceButtonRef={agentWorkspaceButtonRef}
+        packageLifecycleController={packageLifecycleController}
         pluginRuntimeController={pluginRuntimeController}
         snapshot={snapshot}
         autosaveStatus={autosaveStatus}

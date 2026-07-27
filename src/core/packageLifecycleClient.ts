@@ -1,0 +1,90 @@
+import {
+  configureInstalledRuntimeRegistry,
+} from './installedRuntimeRegistry';
+import type {
+  PackageLifecycleMutationV1,
+  PackageLifecycleSnapshotV1,
+} from './packageLifecycleContracts';
+import type {
+  PluginRuntimeControllerV1,
+} from './pluginRuntimeManagementClient';
+
+export interface PackageLifecycleControllerV1 {
+  getSnapshot(): PackageLifecycleSnapshotV1 | undefined;
+  mutate(
+    mutation: PackageLifecycleMutationV1,
+  ): Promise<PackageLifecycleSnapshotV1>;
+  refresh(): Promise<PackageLifecycleSnapshotV1>;
+  subscribe(listener: () => void): () => void;
+}
+
+export function createPackageLifecycleController(input: {
+  pluginRuntimeController: PluginRuntimeControllerV1;
+}): PackageLifecycleControllerV1 {
+  let currentSnapshot: PackageLifecycleSnapshotV1 | undefined;
+  let queue: Promise<void> = Promise.resolve();
+  const listeners = new Set<() => void>();
+
+  const commit = async (
+    snapshot: PackageLifecycleSnapshotV1,
+  ): Promise<PackageLifecycleSnapshotV1> => {
+    configureInstalledRuntimeRegistry(snapshot.runtimeRegistry);
+    const pluginRuntime = await input.pluginRuntimeController.replace(
+      snapshot.pluginRuntime,
+    );
+    currentSnapshot = structuredClone({
+      ...snapshot,
+      pluginRuntime,
+    });
+    for (const listener of listeners) listener();
+    return currentSnapshot;
+  };
+
+  const enqueue = (
+    operation: () => Promise<PackageLifecycleSnapshotV1>,
+  ): Promise<PackageLifecycleSnapshotV1> => {
+    const result = queue.then(operation, operation).then(commit);
+    queue = result.then(() => undefined, () => undefined);
+    return result;
+  };
+
+  return {
+    getSnapshot: () => currentSnapshot,
+    mutate: (mutation) => enqueue(() => requestPackageLifecycleSnapshot({
+      body: JSON.stringify(mutation),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    })),
+    refresh: () => enqueue(() => requestPackageLifecycleSnapshot()),
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
+async function requestPackageLifecycleSnapshot(
+  init?: RequestInit,
+): Promise<PackageLifecycleSnapshotV1> {
+  const response = await fetch('/api/local/package-lifecycle', init);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { error?: unknown };
+    throw new Error(
+      typeof body.error === 'string' && body.error.length > 0
+        ? body.error
+        : `Package lifecycle request failed with HTTP ${response.status}.`,
+    );
+  }
+  const body = await response.json() as Partial<PackageLifecycleSnapshotV1>;
+  if (
+    body.schemaVersion !== 1
+    || !Number.isInteger(body.lockRevision)
+    || !Array.isArray(body.packages)
+    || !body.runtimeRegistry
+    || !body.pluginRuntime
+    || typeof body.updatedAt !== 'string'
+  ) {
+    throw new Error('Package lifecycle response is invalid.');
+  }
+  return structuredClone(body as PackageLifecycleSnapshotV1);
+}

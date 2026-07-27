@@ -20,6 +20,10 @@ import {
 } from './workflowRegistry';
 import { sha256Hex } from './sha256';
 
+let configuredSnapshotDigest = '';
+let configuredSnapshotRevision = 0;
+const configuredSnapshotListeners = new Set<() => void>();
+
 export interface InstalledRuntimeRegistrySnapshotV1 {
   agentPresets: AgentPresetDefinition[];
   lockRevision: number;
@@ -46,7 +50,23 @@ export function configureInstalledRuntimeRegistry(
     restoreRuntimeRegistry(previous);
     throw error;
   }
+  if (configuredSnapshotDigest !== snapshot.snapshotDigest) {
+    configuredSnapshotDigest = snapshot.snapshotDigest;
+    configuredSnapshotRevision += 1;
+    for (const listener of configuredSnapshotListeners) listener();
+  }
   return structuredClone(snapshot);
+}
+
+export function currentInstalledRuntimeRegistryRevision(): number {
+  return configuredSnapshotRevision;
+}
+
+export function subscribeInstalledRuntimeRegistry(
+  listener: () => void,
+): () => void {
+  configuredSnapshotListeners.add(listener);
+  return () => configuredSnapshotListeners.delete(listener);
 }
 
 export function currentRuntimeRegistrySnapshot(

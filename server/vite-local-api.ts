@@ -73,6 +73,10 @@ import { pluginHostExternalModuleSource } from './plugin-host-external-modules';
 import {
   handlePluginRuntimeManagementRequest,
 } from './plugin-runtime-management-api';
+import {
+  handlePackageLifecycleRequest,
+} from './package-lifecycle-api';
+import { PackageLifecycleService } from './package-lifecycle-service';
 
 type MiddlewareContainer = {
   use(
@@ -131,6 +135,21 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               res,
               pluginRuntimeManagement.value,
               pluginRuntimeManagement.statusCode,
+            );
+            return;
+          }
+
+          const packageLifecycle = await handlePackageLifecycleRequest({
+            method,
+            pathname: url.pathname,
+            readBody: () => readJson(req),
+            service: createPackageLifecycleService(),
+          });
+          if (packageLifecycle.handled) {
+            sendJson(
+              res,
+              packageLifecycle.value,
+              packageLifecycle.statusCode,
             );
             return;
           }
@@ -1110,6 +1129,13 @@ function ensurePackageBootstrap() {
 
 function createPluginRuntimeService(): PluginRuntimeService {
   return new PluginRuntimeService({
+    hostVersion: packageMetadata.version,
+    workspaceRoot: retakeRoot,
+  });
+}
+
+function createPackageLifecycleService(): PackageLifecycleService {
+  return new PackageLifecycleService({
     hostVersion: packageMetadata.version,
     workspaceRoot: retakeRoot,
   });

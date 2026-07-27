@@ -238,7 +238,7 @@ async function validateBootstrapArchive(
   return archiveRealPath;
 }
 
-function projectInstalledRuntimeRegistry(
+export function projectInstalledRuntimeRegistry(
   lockfile: WorkspacePackageLock,
   registry: InstalledDeclarativePackageRegistry,
 ): InstalledRuntimeRegistrySnapshotV1 {

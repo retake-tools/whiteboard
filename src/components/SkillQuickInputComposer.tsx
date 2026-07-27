@@ -5,6 +5,7 @@ import {
   useId,
   useRef,
   useState,
+  useSyncExternalStore,
   type Dispatch,
   type FormEvent,
   type KeyboardEvent,
@@ -55,6 +56,10 @@ import {
   type UnifiedComposerImageDraftInput,
 } from './UnifiedComposerProvider';
 import { ImageComposerControls } from './ImageComposerControls';
+import {
+  currentInstalledRuntimeRegistryRevision,
+  subscribeInstalledRuntimeRegistry,
+} from '../core/installedRuntimeRegistry';
 
 interface SkillQuickInputComposerProps {
   agentDisabled?: boolean;
@@ -114,8 +119,19 @@ export function SkillQuickInputComposer({
   } = useUnifiedComposerDraft();
   const [picker, setPicker] = useState<PickerState>();
   const [submitError, setSubmitError] = useState<string>();
-  const entrypoints = useMemo(() => listPackageEntryPoints().filter(isRunnableRegistration), []);
-  const recommended = useMemo(() => listRecommendedPackageEntryPoints().filter(isRunnableRegistration), []);
+  const registryRevision = useSyncExternalStore(
+    subscribeInstalledRuntimeRegistry,
+    currentInstalledRuntimeRegistryRevision,
+    currentInstalledRuntimeRegistryRevision,
+  );
+  const entrypoints = useMemo(
+    () => listPackageEntryPoints().filter(isRunnableRegistration),
+    [registryRevision],
+  );
+  const recommended = useMemo(
+    () => listRecommendedPackageEntryPoints().filter(isRunnableRegistration),
+    [registryRevision],
+  );
   const selectedEntryPoint = entrypoints.find((registration) => registration.entrypoint.entrypointId === entrypointId);
   const inlineInputOptions = useMemo(
     () => entrypointId ? listPackageComposerInlineInputOptions(entrypointId) : [],
