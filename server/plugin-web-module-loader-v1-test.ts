@@ -19,6 +19,10 @@ const readStore = createPluginHostReadStore({
   revision: 'revision-1',
   selectedBlockIds: ['block.fixture'],
 }, {
+  authorizeExecution: (pluginModuleId, capabilityId) => (
+    pluginModuleId === 'retake.plugin.loader-fixture'
+    && capabilityId === 'image.local_adjust'
+  ),
   async importImage(input) {
     assert.equal(input.projectId, 'project.fixture');
     return {
@@ -32,7 +36,7 @@ const readStore = createPluginHostReadStore({
     };
   },
 });
-const host = readStore.host(1);
+const host = readStore.host(1, 'retake.plugin.loader-fixture');
 assert.equal(host.getReadSnapshot(), host.getReadSnapshot());
 assert.equal(Object.isFrozen(host.getReadSnapshot()), true);
 assert.equal(Object.isFrozen(host.getReadSnapshot().selectedBlockIds), true);
@@ -63,6 +67,96 @@ readStore.update({
 assert.equal(host.assets.getBound('asset.missing'), null);
 assert.equal(host.assets.getBound('asset.bound')?.width, 640);
 assert.equal(Object.isFrozen(host.assets.getBound('asset.bound')), true);
+readStore.setExecutionRunner(async ({ input, signal }) => {
+  const output = await input.execute({
+    assets: [host.assets.getBound('asset.bound')!],
+    signal,
+  });
+  assert.equal(output.images.length, 1);
+  return {
+    capabilityId: input.capabilityId,
+    executionId: 'execution.fixture',
+    outputAssetIds: ['asset.result'],
+    outputBlockIds: ['block.result'],
+    status: 'succeeded',
+  };
+});
+const execution = await host.execution.run({
+  capabilityId: 'image.local_adjust',
+  execute: async ({ assets, signal }) => {
+    assert.equal(signal.aborted, false);
+    assert.equal(assets[0]?.assetId, 'asset.bound');
+    return {
+      images: [{
+        dataUrl: 'data:image/png;base64,AA==',
+        slotId: 'result_image',
+      }],
+    };
+  },
+  inputBlockIds: ['block.fixture'],
+  parameters: {
+    brightness: 10,
+    contrast: 0,
+    saturation: 0,
+  },
+});
+assert.equal(execution.executionId, 'execution.fixture');
+await assert.rejects(
+  host.execution.run({
+    capabilityId: 'image.local_adjust',
+    execute: async () => ({ images: [] }),
+    inputBlockIds: ['block.out-of-scope'],
+    parameters: {},
+  }),
+  /bound input Blocks/,
+);
+await assert.rejects(
+  readStore.host(
+    1,
+    'retake.plugin.unauthorized-fixture',
+  ).execution.run({
+    capabilityId: 'image.local_adjust',
+    execute: async () => ({ images: [] }),
+    inputBlockIds: ['block.fixture'],
+    parameters: {},
+  }),
+  /does not own/,
+);
+
+readStore.setExecutionRunner(async ({ signal }) => (
+  new Promise((_, reject) => {
+    signal.addEventListener('abort', () => {
+      reject(new DOMException('aborted', 'AbortError'));
+    }, { once: true });
+  })
+));
+const abortedExecution = host.execution.run({
+  capabilityId: 'image.local_adjust',
+  execute: async () => ({ images: [] }),
+  inputBlockIds: ['block.fixture'],
+  parameters: {},
+});
+readStore.update({
+  ...host.getReadSnapshot(),
+  boardId: 'board.other',
+  revision: 'revision-board-switch',
+});
+await assert.rejects(abortedExecution, /aborted/);
+readStore.update({
+  ...host.getReadSnapshot(),
+  boardId: 'board.fixture',
+  boundAssetIds: ['asset.bound'],
+  boundBlockIds: ['block.fixture'],
+  revision: 'revision-board-restored',
+}, [{
+  assetId: 'asset.bound',
+  createdAt: '2026-07-27T00:00:00.000Z',
+  height: 480,
+  kind: 'image',
+  mimeType: 'image/png',
+  previewUrl: '/api/local/assets/project.fixture/asset.bound/original.png',
+  width: 640,
+}]);
 const importedAsset = await host.assets.importImage({
   dataUrl: 'data:image/svg+xml,%3Csvg%3E%3C/svg%3E',
   fileName: 'fixture.svg',
@@ -214,6 +308,8 @@ process.stdout.write(`${JSON.stringify({
   activationFailureReportsFatalState: true,
   conditionalRuntimeChunk: true,
   exactDigestModuleCache: true,
+  executionAbortFollowsModuleLifecycle: true,
+  executionRequiresBoundBlocksAndCapabilityOwnership: true,
   fatalDisposalDetachesActivation: true,
   safeModeDisposesActivation: true,
   scopedReadSnapshotStableAndImmutable: true,

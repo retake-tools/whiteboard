@@ -18,6 +18,11 @@ const host: PluginHostApiV1 = {
       throw new Error('Action fixture does not import assets.');
     },
   },
+  execution: {
+    run: async () => {
+      throw new Error('Action fixture does not run executions.');
+    },
+  },
   getReadSnapshot: () => ({
     boardId: 'board.fixture',
     boundAssetIds: ['asset.fixture'],

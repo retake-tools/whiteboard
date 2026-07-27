@@ -20,6 +20,7 @@ import { useI18n } from './i18n';
 import { useWorkspaceController } from './app/useWorkspaceController';
 import { useBoardSession, type ReadyBoardSession } from './app/useBoardSession';
 import { useImageOperationController } from './app/useImageOperationController';
+import { usePluginExecutionController } from './app/usePluginExecutionController';
 import { useOperationInputController } from './app/useOperationInputController';
 import { useAnnotationController } from './app/useAnnotationController';
 import { useCanvasController } from './app/useCanvasController';
@@ -45,6 +46,9 @@ import type {
   PluginContributionRegistryV1,
 } from './core/pluginContributionRegistry';
 import type {
+  PluginExecutionRunnerV1,
+} from './core/pluginWebModuleLoader';
+import type {
   PluginRuntimeControllerV1,
 } from './core/pluginRuntimeManagementClient';
 import type {
@@ -63,6 +67,7 @@ const DomainVideoLaunchReviewDialog = lazy(() => import('./components/DomainVide
 
 export function App({
   onPluginContributionFatalFailure,
+  onPluginExecutionRunnerChange,
   onPluginHostScopeChange,
   pluginContributionRegistry,
   packageLifecycleController,
@@ -72,6 +77,9 @@ export function App({
     pluginModuleId: string,
     message: string,
   ) => Promise<void> | void;
+  onPluginExecutionRunnerChange?: (
+    runner: PluginExecutionRunnerV1 | undefined,
+  ) => void;
   onPluginHostScopeChange?: (
     snapshot: PluginHostReadSnapshotV1,
     assets: readonly PluginAssetV1[],
@@ -100,6 +108,7 @@ export function App({
     <ReadyApp
       boardSession={boardSession}
       onPluginContributionFatalFailure={onPluginContributionFatalFailure}
+      onPluginExecutionRunnerChange={onPluginExecutionRunnerChange}
       onPluginHostScopeChange={onPluginHostScopeChange}
       pluginContributionRegistry={pluginContributionRegistry}
       packageLifecycleController={packageLifecycleController}
@@ -111,6 +120,7 @@ export function App({
 function ReadyApp({
   boardSession,
   onPluginContributionFatalFailure,
+  onPluginExecutionRunnerChange,
   onPluginHostScopeChange,
   pluginContributionRegistry,
   packageLifecycleController,
@@ -121,6 +131,9 @@ function ReadyApp({
     pluginModuleId: string,
     message: string,
   ) => Promise<void> | void;
+  onPluginExecutionRunnerChange?: (
+    runner: PluginExecutionRunnerV1 | undefined,
+  ) => void;
   onPluginHostScopeChange?: (
     snapshot: PluginHostReadSnapshotV1,
     assets: readonly PluginAssetV1[],
@@ -229,6 +242,19 @@ function ReadyApp({
     selectedBlockIds.length === 1
       ? snapshot.blocks.find((block) => block.blockId === selectedBlockIds[0])
       : undefined;
+  const pluginExecutionRunner = usePluginExecutionController({
+    persistSnapshot,
+    setSelectedBlock,
+    snapshotRef,
+    updateSnapshot,
+  });
+  useEffect(() => {
+    onPluginExecutionRunnerChange?.(pluginExecutionRunner);
+    return () => onPluginExecutionRunnerChange?.(undefined);
+  }, [
+    onPluginExecutionRunnerChange,
+    pluginExecutionRunner,
+  ]);
   const selectedBlockScopeKey = selectedBlockIds.join('\u0000');
   useEffect(() => {
     if (!onPluginHostScopeChange) return;

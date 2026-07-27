@@ -5,6 +5,18 @@ import type {
 import type {
   ComponentType,
 } from 'react';
+import {
+  replacePluginCapabilityDefinitions,
+} from './pluginCapabilityDefinitions';
+import {
+  pluginCapabilityConflicts,
+  registeredPluginCapabilityFrom,
+  samePluginCapabilities,
+  type RegisteredPluginCapabilityV1,
+} from './pluginCapabilityContributions';
+export type {
+  RegisteredPluginCapabilityV1,
+} from './pluginCapabilityContributions';
 import type {
   BlockType,
 } from './types';
@@ -102,8 +114,10 @@ export interface RegisteredPluginImageToolbarActionV1 {
 
 export interface PluginContributionRegistryV1 {
   getActionSnapshot(): readonly RegisteredPluginImageToolbarActionV1[];
+  getCapabilitySnapshot(): readonly RegisteredPluginCapabilityV1[];
   getSnapshot(): readonly RegisteredPluginPanelV1[];
   getRendererSnapshot(): readonly RegisteredPluginBlockRendererV1[];
+  ownsCapability(pluginModuleId: string, capabilityId: string): boolean;
   failModule(pluginModuleId: string, message: string): void;
   removeModule(pluginModuleId: string): void;
   replace(sessions: readonly PluginContributionSessionV1[]): Array<{
@@ -117,6 +131,8 @@ export function createPluginContributionRegistry():
 PluginContributionRegistryV1 {
   let actions: readonly RegisteredPluginImageToolbarActionV1[] =
     Object.freeze([]);
+  let capabilities: readonly RegisteredPluginCapabilityV1[] =
+    Object.freeze([]);
   let panels: readonly RegisteredPluginPanelV1[] = Object.freeze([]);
   let renderers: readonly RegisteredPluginBlockRendererV1[] = Object.freeze(
     [],
@@ -124,17 +140,23 @@ PluginContributionRegistryV1 {
   const listeners = new Set<() => void>();
   const update = (
     nextActions: RegisteredPluginImageToolbarActionV1[],
+    nextCapabilities: RegisteredPluginCapabilityV1[],
     nextPanels: RegisteredPluginPanelV1[],
     nextRenderers: RegisteredPluginBlockRendererV1[],
   ) => {
     if (
       sameActions(actions, nextActions)
+      && samePluginCapabilities(capabilities, nextCapabilities)
       && samePanels(panels, nextPanels)
       && sameRenderers(renderers, nextRenderers)
     ) return;
     actions = Object.freeze(nextActions);
+    capabilities = Object.freeze(nextCapabilities);
     panels = Object.freeze(nextPanels);
     renderers = Object.freeze(nextRenderers);
+    replacePluginCapabilityDefinitions(
+      capabilities.map((capability) => capability.definition),
+    );
     for (const listener of listeners) listener();
   };
   return {
@@ -145,6 +167,11 @@ PluginContributionRegistryV1 {
             ? { ...action, failure: message }
             : action
         )),
+        capabilities.map((capability) => (
+          capability.pluginModuleId === pluginModuleId
+            ? { ...capability, failure: message }
+            : capability
+        )).filter((capability) => capability.failure === null),
         panels.map((panel) => (
           panel.pluginModuleId === pluginModuleId
             ? { ...panel, failure: message }
@@ -158,13 +185,24 @@ PluginContributionRegistryV1 {
       );
     },
     getActionSnapshot: () => actions,
+    getCapabilitySnapshot: () => capabilities,
     getSnapshot: () => panels,
     getRendererSnapshot: () => renderers,
+    ownsCapability: (pluginModuleId, capabilityId) => (
+      capabilities.some((capability) => (
+        capability.failure === null
+        && capability.pluginModuleId === pluginModuleId
+        && capability.definition.capabilityId === capabilityId
+      ))
+    ),
     removeModule(pluginModuleId) {
       update(
         actions.filter((action) => (
           action.pluginModuleId !== pluginModuleId
         )),
+        capabilities.filter(
+          (capability) => capability.pluginModuleId !== pluginModuleId,
+        ),
         panels.filter((panel) => panel.pluginModuleId !== pluginModuleId),
         renderers.filter(
           (renderer) => renderer.pluginModuleId !== pluginModuleId,
@@ -174,11 +212,18 @@ PluginContributionRegistryV1 {
     replace(sessions) {
       const failures: Array<{ error: string; pluginModuleId: string }> = [];
       const nextActions: RegisteredPluginImageToolbarActionV1[] = [];
+      const nextCapabilities: RegisteredPluginCapabilityV1[] = [];
       const nextPanels: RegisteredPluginPanelV1[] = [];
       const nextRenderers: RegisteredPluginBlockRendererV1[] = [];
       for (const session of sessions) {
         try {
           for (const activated of session.activation.contributions) {
+            if (activated.contribution.kind === 'capability') {
+              nextCapabilities.push(registeredPluginCapabilityFrom(
+                activated,
+                session.record.pluginModuleId,
+              ));
+            }
             if (activated.contribution.kind === 'action') {
               const value = parseImageToolbarActionContribution(
                 activated.value,
@@ -230,12 +275,28 @@ PluginContributionRegistryV1 {
       const failedModules = new Set(
         failures.map((failure) => failure.pluginModuleId),
       );
+      for (const conflict of pluginCapabilityConflicts(nextCapabilities)) {
+        failedModules.add(conflict.pluginModuleId);
+        failures.push(conflict);
+      }
+      failures.sort((left, right) => compareText(
+        left.pluginModuleId,
+        right.pluginModuleId,
+      ));
       update(
         nextActions
           .filter((action) => !failedModules.has(action.pluginModuleId))
           .sort((left, right) => compareText(
             left.contributionId,
             right.contributionId,
+          )),
+        nextCapabilities
+          .filter((capability) => (
+            !failedModules.has(capability.pluginModuleId)
+          ))
+          .sort((left, right) => compareText(
+            left.definition.capabilityId,
+            right.definition.capabilityId,
           )),
         nextPanels
           .filter((panel) => !failedModules.has(panel.pluginModuleId))
