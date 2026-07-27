@@ -182,7 +182,6 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
               onAnnotationDraftFlush={flushAnnotationDraftPersist}
               onAnnotationEditorOpenRequestHandled={() => annotations.setAnnotationEditorOpenRequest(undefined)}
               onCreateSimilar={() => imageOperations.createImageToImageDraftOperation(selectedBlock, 'create_similar')}
-              onCreateLocalEdit={(input) => { void imageOperations.createLocalImageEditOperation(selectedBlock, input); }}
               onDownloadImage={() => { if (selectedImageAsset) downloadAsset(selectedImageAsset, selectedBlock.data.title); }}
               onReplaceImage={() => {
                 if (selectedBlock.data.sourceExecutionId || selectedBlock.data.operationBlockId) return;

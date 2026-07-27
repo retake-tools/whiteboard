@@ -247,9 +247,9 @@ assert.deepEqual(
   ],
 );
 assert.equal(registry.getCapabilitySnapshot().length, 0);
-assert.notEqual(
-  capabilityDefinitionFor('image.local_adjust').definitionHash,
-  fixtureCapability.definition.definitionHash,
+assert.throws(
+  () => capabilityDefinitionFor('image.local_adjust'),
+  /Unknown legacy capability/,
 );
 
 registry.replace([
@@ -269,7 +269,7 @@ unsubscribe();
 
 process.stdout.write(`${JSON.stringify({
   capabilityConflictDisablesAllProviders: true,
-  capabilityRegistrationOverridesCoreFallback: true,
+  capabilityRegistrationRequiresActiveProvider: true,
   imageToolbarActionContract: true,
   malformedPanelBecomesProtocolFailure: true,
   moduleFailureKeepsCoreFallbackDescriptor: true,

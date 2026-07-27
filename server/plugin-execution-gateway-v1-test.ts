@@ -8,6 +8,7 @@ import {
 import {
   createPluginContributionRegistry,
 } from '../src/core/pluginContributionRegistry';
+import { capabilityDefinitionFor } from '../src/core/capabilityRegistry';
 import {
   createPluginHostReadStore,
 } from '../src/core/pluginWebModuleLoader';
@@ -143,7 +144,7 @@ assert.equal(execution.executionId, completed.executionId);
 assert.equal(execution.status, 'succeeded');
 assert.equal(execution.adapter, 'local_canvas');
 assert.deepEqual(execution.inputBlockIds, [sourceBlock.blockId]);
-assert.deepEqual(execution.params?.localEdit, {
+assert.deepEqual(execution.params?.pluginParameters, {
   brightness: 20,
   contrast: -10,
   saturation: 30,
@@ -204,6 +205,10 @@ await assert.rejects(
   /fixture processor failed/,
 );
 assert.equal(snapshotRef.current.executions[0]?.status, 'failed');
+assert.deepEqual(
+  snapshotRef.current.executions[0]?.resultSummary,
+  { requested: 1, succeeded: 0, failed: 1 },
+);
 assert.equal(
   snapshotRef.current.historyEvents?.[0]?.type,
   'execution_failed',
@@ -217,12 +222,28 @@ await assert.rejects(
     execute: async () => ({ images: [] }),
     inputBlockIds: [sourceBlock.blockId],
     parameters: {
-      brightness: 101,
+      brightness: Number.NaN,
       contrast: 0,
       saturation: 0,
     },
   }),
-  /outside -100..100/,
+  /JSON parameters/,
+);
+assert.equal(
+  snapshotRef.current.executions.length,
+  executionCountBeforeInvalidParameters,
+);
+
+const cyclicParameters: Record<string, unknown> = {};
+cyclicParameters.self = cyclicParameters;
+await assert.rejects(
+  host.execution.run({
+    capabilityId: 'image.local_adjust',
+    execute: async () => ({ images: [] }),
+    inputBlockIds: [sourceBlock.blockId],
+    parameters: cyclicParameters,
+  }),
+  /JSON parameters/,
 );
 assert.equal(
   snapshotRef.current.executions.length,
@@ -254,6 +275,10 @@ assert.equal(detachedFailure.executions[0]?.status, 'failed');
 assert.equal(selectedBlockIds.length, selectedBeforeBoardSwitch + 1);
 
 registry.removeModule(pluginModuleId);
+assert.throws(
+  () => capabilityDefinitionFor('image.local_adjust'),
+  /Unknown legacy capability/,
+);
 await assert.rejects(
   host.execution.run({
     capabilityId: 'image.local_adjust',
@@ -268,6 +293,7 @@ process.stdout.write(`${JSON.stringify({
   capabilityOwnershipRequired: true,
   detachedBoardExecutionPersistsFailureWithoutSelectionWrite: true,
   failedProcessorRecordsExecutionFailure: true,
+  imageStudioCapabilityHasNoCoreFallback: true,
   invalidParametersCreateNoExecution: true,
   sourceOperationResultLineage: true,
   succeededAssetUsesExecutionId: true,

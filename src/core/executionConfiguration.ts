@@ -1,4 +1,4 @@
-import { connectedInputBlocks, isLocalCanvasCapability, promptTextFromInputs } from './capabilities';
+import { connectedInputBlocks, promptTextFromInputs } from './capabilities';
 import { sourceImageAspectRatio } from './operationAspectRatio';
 import { recordLegacyExecutionContractSnapshot } from './executionContractSnapshot';
 import type {
@@ -34,11 +34,11 @@ export function currentOperationConfiguration(
     typeof operationBlock.data.capabilityId === 'string'
       ? operationBlock.data.capabilityId
       : 'image.text_to_image';
-  const storedGenerationParams = isRecord(operationBlock.data.generationParams)
-    ? operationBlock.data.generationParams
-    : isRecord(operationBlock.data.localEditParams)
-      ? operationBlock.data.localEditParams
-      : {};
+  const storedGenerationParams = firstRecord(
+    operationBlock.data.pluginParameters,
+    operationBlock.data.generationParams,
+    operationBlock.data.localEditParams,
+  );
   const sourceAspectRatio = sourceImageAspectRatio(snapshot, operationBlock.blockId);
   const sourceAwareGenerationParams =
     (capabilityId === 'image.image_to_image' || capabilityId === 'image.edit' || capabilityId === 'image.generate.similar') &&
@@ -81,7 +81,7 @@ export function currentOperationConfiguration(
         ? operationBlock.data.generationProfileId
         : undefined,
     imageInputs,
-    prompt: isLocalCanvasCapability(capabilityId)
+    prompt: operationBlock.data.adapter === 'local_canvas'
       ? ''
       : promptTextFromInputs(connectedInputBlocks(snapshot, operationBlock.blockId)) || operationBlock.data.body || '',
   });
@@ -124,11 +124,11 @@ export function recordExecutionConfiguration(
       title: block.data.title,
     }];
   });
-  const generationParams = isRecord(execution.params?.generation)
-    ? execution.params.generation
-    : isRecord(execution.params?.localEdit)
-      ? execution.params.localEdit
-      : {};
+  const generationParams = firstRecord(
+    execution.params?.pluginParameters,
+    execution.params?.generation,
+    execution.params?.localEdit,
+  );
   const configuration = normalizeConfiguration({
     capabilityId: execution.capabilityId,
     connectionId:
@@ -166,11 +166,11 @@ export function assignExecutionVersion(snapshot: BoardSnapshot, execution: Execu
 export function executionConfiguration(execution: ExecutionRecord): ExecutionConfigurationSnapshot {
   if (execution.configuration) return normalizeConfiguration(execution.configuration);
   const inputBindings = readInputBindings(execution.params?.inputBindings);
-  const generationParams = isRecord(execution.params?.generation)
-    ? execution.params.generation
-    : isRecord(execution.params?.localEdit)
-      ? execution.params.localEdit
-      : {};
+  const generationParams = firstRecord(
+    execution.params?.pluginParameters,
+    execution.params?.generation,
+    execution.params?.localEdit,
+  );
   return normalizeConfiguration({
     capabilityId: execution.capabilityId,
     connectionId: execution.connectionId ?? execution.generationProfile?.connectionId,
@@ -450,6 +450,13 @@ function stableStringify(value: unknown): string {
     return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
   }
   return JSON.stringify(value) ?? 'undefined';
+}
+
+function firstRecord(...values: unknown[]): Record<string, unknown> {
+  for (const value of values) {
+    if (isRecord(value)) return value;
+  }
+  return {};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

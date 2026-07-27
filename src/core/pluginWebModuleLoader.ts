@@ -363,22 +363,47 @@ function assertExecutionRunInput(
   }
 }
 
-function isJsonObject(value: unknown): boolean {
-  return typeof value === 'object'
-    && value !== null
-    && !Array.isArray(value)
-    && Object.values(value).every(isJsonValue);
+function isJsonObject(
+  value: unknown,
+  ancestors: WeakSet<object> = new WeakSet(),
+): boolean {
+  if (
+    typeof value !== 'object'
+    || value === null
+    || Array.isArray(value)
+    || ancestors.has(value)
+  ) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return false;
+
+  ancestors.add(value);
+  const valid = Object.values(value).every(
+    (entry) => isJsonValue(entry, ancestors),
+  );
+  ancestors.delete(value);
+  return valid;
 }
 
-function isJsonValue(value: unknown): boolean {
+function isJsonValue(
+  value: unknown,
+  ancestors: WeakSet<object>,
+): boolean {
   if (
     value === null
     || typeof value === 'boolean'
     || typeof value === 'string'
   ) return true;
   if (typeof value === 'number') return Number.isFinite(value);
-  if (Array.isArray(value)) return value.every(isJsonValue);
-  return isJsonObject(value);
+  if (Array.isArray(value)) {
+    if (ancestors.has(value)) return false;
+    ancestors.add(value);
+    const valid = value.every((entry) => isJsonValue(entry, ancestors));
+    ancestors.delete(value);
+    return valid;
+  }
+  return isJsonObject(value, ancestors);
 }
 
 function sameTextArray(

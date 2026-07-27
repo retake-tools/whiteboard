@@ -4,10 +4,46 @@ import {
   currentOperationConfiguration,
   executionConfiguration,
 } from '../src/core/executionConfiguration';
-import { addLocalImageOperation, completeLocalImageOperation, failLocalImageOperation } from '../src/core/imageOperations';
-import { hasImageAdjustments, imageAdjustmentFilter } from '../src/core/localImageTransforms';
+import {
+  addPluginImageOperation,
+  completePluginImageOperation,
+  failPluginImageOperation,
+} from '../src/core/imageOperations';
+import { capabilityDefinitionFor } from '../src/core/capabilityRegistry';
+import { replacePluginCapabilityDefinitions } from '../src/core/pluginCapabilityDefinitions';
 import { defaultSnapshot } from '../src/core/sampleBoard';
+import type { CapabilityDefinition } from '../src/core/capabilityContracts';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../src/core/types';
+
+const localAdjustDefinition = {
+  capabilityId: 'image.local_adjust',
+  category: 'image_editing',
+  definitionHash: 'sha256:image-local-adjust-v1',
+  displayName: 'Local image adjustment',
+  inputSlots: [{
+    artifactTypes: [],
+    bindingKinds: ['asset', 'block'],
+    cardinality: 'one',
+    dataTypes: ['image'],
+    required: true,
+    semanticRole: 'source',
+    slotId: 'source_image',
+  }],
+  outputSlots: [{
+    cardinality: 'one',
+    dataType: 'image',
+    projectionBlockTypes: ['image'],
+    semanticRole: 'adjusted_image',
+    slotId: 'result_image',
+  }],
+  parametersSchemaRef: 'definitions/image.local_adjust.parameters.json',
+  runtimeRequirements: ['browser.canvas_2d'],
+  schemaVersion: 1,
+  supportedAdapterClasses: ['local_canvas'],
+  version: '0.1.0',
+} satisfies CapabilityDefinition;
+
+replacePluginCapabilityDefinitions([localAdjustDefinition]);
 
 function snapshotWithSourceImage(): { snapshot: BoardSnapshot; sourceBlock: BlockRecord } {
   const snapshot = structuredClone(defaultSnapshot);
@@ -41,7 +77,7 @@ function snapshotWithSourceImage(): { snapshot: BoardSnapshot; sourceBlock: Bloc
 }
 
 const { snapshot, sourceBlock } = snapshotWithSourceImage();
-const started = addLocalImageOperation(snapshot, {
+const started = addPluginImageOperation(snapshot, {
   body: 'Adjust',
   capabilityId: 'image.local_adjust',
   params: { brightness: 20, contrast: -10, saturation: 30 },
@@ -75,14 +111,14 @@ const resultAsset: AssetRecord = {
   height: 600,
   createdAt: '2026-07-14T00:01:00.000Z',
 };
-const completed = completeLocalImageOperation(snapshot, {
+const completed = completePluginImageOperation(snapshot, {
   asset: resultAsset,
   executionId: started.execution.executionId,
 });
 
 assert.equal(completed.execution.status, 'succeeded');
 assert.deepEqual(completed.execution.outputAssetIds, [resultAsset.assetId]);
-assert.deepEqual(completed.execution.outputSlotResults, [{ slotId: 'images', assetIds: [resultAsset.assetId] }]);
+assert.deepEqual(completed.execution.outputSlotResults, [{ slotId: 'result_image', assetIds: [resultAsset.assetId] }]);
 assert.deepEqual(completed.execution.resultSummary, { requested: 1, succeeded: 1, failed: 0 });
 assert.equal(completed.operationBlock.data.status, 'succeeded');
 assert.equal(completed.resultBlock.data.status, 'succeeded');
@@ -92,14 +128,15 @@ assert.equal(snapshot.historyEvents?.[0]?.type, 'execution_succeeded');
 assert.equal(snapshot.historyEvents?.[1]?.type, 'result_block_updated');
 
 const failedFixture = snapshotWithSourceImage();
-const failedStart = addLocalImageOperation(failedFixture.snapshot, {
+const failedStart = addPluginImageOperation(failedFixture.snapshot, {
   body: 'Adjust',
   capabilityId: 'image.local_adjust',
   params: { brightness: 10, contrast: 0, saturation: 0 },
   sourceBlockId: failedFixture.sourceBlock.blockId,
   title: 'Adjust',
 });
-failLocalImageOperation(failedFixture.snapshot, {
+replacePluginCapabilityDefinitions([]);
+failPluginImageOperation(failedFixture.snapshot, {
   errorMessage: 'Canvas unavailable',
   executionId: failedStart.execution.executionId,
 });
@@ -108,16 +145,24 @@ assert.equal(failedStart.execution.errorMessage, 'Canvas unavailable');
 assert.equal(failedStart.operationBlock.data.status, 'failed');
 assert.equal(failedStart.resultBlock.data.status, 'failed');
 assert.equal(failedFixture.snapshot.historyEvents?.[0]?.type, 'execution_failed');
-
-assert.equal(
-  imageAdjustmentFilter({ brightness: 20, contrast: -10, saturation: 100 }),
-  'brightness(120%) contrast(90%) saturate(200%)',
+assert.deepEqual(
+  failedStart.execution.resultSummary,
+  { requested: 1, succeeded: 0, failed: 1 },
 );
-assert.equal(hasImageAdjustments({ brightness: 0, contrast: 0, saturation: 0 }), false);
-assert.equal(hasImageAdjustments({ brightness: 0, contrast: 1, saturation: 0 }), true);
+
+assert.throws(
+  () => capabilityDefinitionFor('image.local_adjust'),
+  /Unknown legacy capability/,
+);
+assert.equal(
+  currentOperationConfiguration(snapshot, started.operationBlock).prompt,
+  '',
+);
 
 console.log({
   adapter: completed.execution.adapter,
+  coreCapabilityRemoved: true,
+  historicalFallbackUsesStoredAdapter: true,
   outputAssetId: completed.execution.outputAssetIds[0],
   status: completed.execution.status,
 });

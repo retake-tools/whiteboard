@@ -437,5 +437,10 @@ function migrateOperationMode(block: LegacyBlockRecord): string {
     return 'image_to_image';
   }
 
+  if (typeof value === 'string' && value.trim()) return value;
+  if (typeof block.data.capabilityId === 'string' && block.data.capabilityId.trim()) {
+    return block.data.capabilityId;
+  }
+
   return 'text_to_image';
 }
