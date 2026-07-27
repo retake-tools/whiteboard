@@ -1,5 +1,4 @@
 import {
-  Crop,
   Download,
   History,
   ImagePlus,
@@ -220,9 +219,6 @@ export function ContextToolbar({
         </IconButton>
         <IconButton label={t('context.createSimilar')} onClick={() => toggleTool('create-similar')}>
           <ImagePlus size={16} />
-        </IconButton>
-        <IconButton disabled label={`${t('context.crop')} · ${t('context.unavailable')}`} onClick={() => undefined}>
-          <Crop size={16} />
         </IconButton>
         <IconButton label={t('context.downloadImage')} onClick={onDownloadImage}>
           <Download size={16} />
