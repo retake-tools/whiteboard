@@ -41,7 +41,7 @@ const packageJson = await readJson(path.join(repositoryRoot, 'package.json'));
 const packageLock = await readJson(path.join(repositoryRoot, 'package-lock.json'));
 
 assert.deepEqual(source, {
-  commit: 'e7d25cc8efbd22429e84e80aff13c653c59e2948',
+  commit: '539bbf5637703174f6fb384c55c4d03384329e17',
   repository: 'https://github.com/retake-tools/package',
   version: '0.1.0',
 });

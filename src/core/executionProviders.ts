@@ -109,7 +109,12 @@ const connectors: ExecutionConnectorDefinition[] = [
     installStatus: 'installed',
     connectionMode: 'fixed',
     requiresCredential: false,
-    supportedCapabilityIds: ['image.annotation_edit', 'image.image_to_image', 'image.text_to_image'],
+    supportedCapabilityIds: [
+      'image.annotation_edit',
+      'image.image_to_image',
+      'image.masked_edit',
+      'image.text_to_image',
+    ],
     defaultUseCases: ['image'],
   },
   {
@@ -125,6 +130,7 @@ const connectors: ExecutionConnectorDefinition[] = [
       ...codexTextDocumentCapabilityIds,
       'image.annotation_edit',
       'image.image_to_image',
+      'image.masked_edit',
       'image.text_to_image',
       'previs.storyboard_sheet.generate',
     ],

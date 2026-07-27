@@ -777,9 +777,10 @@ function displayBlockTitle(data: BlockData, type: BlockType, t: Translate): stri
     if (capabilityId === 'image.annotation_edit') return t('operation.annotationEdit.title');
     if (capabilityId === 'text.generate') return t('operation.generateText.title');
     if (capabilityId === 'image.text_to_image' || capabilityId === 'image.generate') return t('operation.generateImage.title');
-    if (operationMode === 'image_to_image') return t('operation.quickEdit.title');
     if (capabilityId === 'image.image_to_image' || capabilityId === 'image.edit') return data.title || t('operation.quickEdit.title');
     if (capabilityId === 'image.generate.similar') return t('operation.quickEdit.title');
+    if (capabilityId) return data.title;
+    if (operationMode === 'image_to_image') return t('operation.quickEdit.title');
     return data.title;
   }
 

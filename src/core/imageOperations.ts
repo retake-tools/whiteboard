@@ -59,8 +59,14 @@ export interface ImageGenerationParams {
 }
 
 interface ImageCodexOperationInput {
+  additionalInputBlocks?: Array<{
+    blockId: string;
+    inputRole: Exclude<ExecutionInputRole, 'source'>;
+  }>;
+  capabilityId?: string;
   connection?: ExecutionConnectionSummary;
   operation: ImageCodexOperation;
+  params?: Record<string, unknown>;
   sourceBlockId: string;
   instruction?: string;
   taskTitle?: string;
@@ -133,10 +139,29 @@ export function addImageCodexOperation(
   if (!sourceBlock || sourceBlock.type !== 'image') {
     throw new Error('Image operation requires a selected image block.');
   }
+  const additionalInputBlocks = (input.additionalInputBlocks ?? []).map(
+    (binding) => {
+      const block = snapshot.blocks.find(
+        (candidate) => candidate.blockId === binding.blockId,
+      );
+      if (
+        !block
+        || block.type !== 'image'
+        || typeof block.data.assetId !== 'string'
+        || block.blockId === sourceBlock.blockId
+      ) {
+        throw new Error(
+          'Additional image operation inputs require distinct Image Blocks with Assets.',
+        );
+      }
+      return { block, inputRole: binding.inputRole };
+    },
+  );
 
   const executionId = createId('exec');
   const createdAt = nowIso();
-  const capabilityId = capabilityForOperation(input.operation);
+  const capabilityId = input.capabilityId
+    ?? capabilityForOperation(input.operation);
   const directApi = input.connection?.connectorId === 'volcengine-ark';
   const codexAppServer = input.connection?.connectorId === 'codex-app-server';
   const automated = directApi || codexAppServer;
@@ -181,6 +206,11 @@ export function addImageCodexOperation(
     ...referenceAssetIds.map((assetId) => ({
       assetId,
       inputRole: 'general_reference' as const,
+    })),
+    ...additionalInputBlocks.map(({ block, inputRole }) => ({
+      assetId: block.data.assetId!,
+      blockId: block.blockId,
+      inputRole,
     })),
   ];
   const annotationEditControls = input.operation === 'annotation_edit' && input.annotationManifest
@@ -269,11 +299,15 @@ export function addImageCodexOperation(
     capabilityId,
     adapter,
     status: 'queued',
-    inputBlockIds: sourceInputRole ? [sourceBlock.blockId] : [],
+    inputBlockIds: [
+      sourceInputRole ? sourceBlock.blockId : undefined,
+      ...additionalInputBlocks.map(({ block }) => block.blockId),
+    ].filter((blockId): blockId is string => Boolean(blockId)),
     inputAssetIds: [
       sourceInputRole ? sourceBlock.data.assetId : undefined,
       input.annotatedCompositeAsset?.assetId,
       ...referenceAssetIds,
+      ...additionalInputBlocks.map(({ block }) => block.data.assetId),
     ].filter((assetId): assetId is string => typeof assetId === 'string'),
     outputBlockIds: resultBlocks.map((block) => block.blockId),
     outputAssetIds: [],
@@ -282,7 +316,9 @@ export function addImageCodexOperation(
     provider: automated ? input.connection?.providerLabel : undefined,
     model: automated ? input.connection?.modelId : undefined,
     connectionId,
-    skillId: skillForOperation(input.operation),
+    skillId: input.capabilityId
+      ? undefined
+      : skillForOperation(input.operation),
     generationProfile: {
       ...snapshotGenerationProfile(operationBlock.data.generationProfileId),
       connectionId,
@@ -300,6 +336,7 @@ export function addImageCodexOperation(
         : {}),
       ...(annotationEditControls ? { annotationEditControls } : {}),
       ...(inputBindings.length ? { inputBindings } : {}),
+      ...(input.params ? { pluginParameters: input.params } : {}),
     },
     startedAt: createdAt,
   };
@@ -314,6 +351,15 @@ export function addImageCodexOperation(
     kind: 'execution_input',
     inputRole: sourceInputRole,
   });
+  for (const { block, inputRole } of additionalInputBlocks) {
+    snapshot.edges.push({
+      edgeId: createId('edge'),
+      sourceBlockId: block.blockId,
+      targetBlockId: operationBlock.blockId,
+      kind: 'execution_input',
+      inputRole,
+    });
+  }
   for (const outputBlock of resultBlocks) {
     snapshot.edges.push({
       edgeId: createId('edge'),
@@ -363,11 +409,17 @@ export function addImageCodexOperation(
     createdAt,
     actor: 'user',
     executionId,
-    blockIds: [sourceBlock.blockId, operationBlock.blockId, ...resultBlocks.map((block) => block.blockId)],
+    blockIds: [
+      sourceBlock.blockId,
+      ...additionalInputBlocks.map(({ block }) => block.blockId),
+      operationBlock.blockId,
+      ...resultBlocks.map((block) => block.blockId),
+    ],
     assetIds: [
       sourceBlock.data.assetId,
       input.annotatedCompositeAsset?.assetId,
       ...referenceAssetIds,
+      ...additionalInputBlocks.map(({ block }) => block.data.assetId),
     ].filter((assetId): assetId is string => typeof assetId === 'string'),
     summary: title,
     detail: {
@@ -378,6 +430,7 @@ export function addImageCodexOperation(
       prompt,
       generationParams,
       operationBlockId: operationBlock.blockId,
+      pluginParameters: input.params,
       referenceAssetIds,
       resultBlockIds: resultBlocks.map((block) => block.blockId),
       sourceBlockId: sourceBlock.blockId,

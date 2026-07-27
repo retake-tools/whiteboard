@@ -67,6 +67,7 @@ assert.deepEqual(connection?.supportedCapabilityIds, [
   ...codexTextDocumentCapabilityIds,
   'image.annotation_edit',
   'image.image_to_image',
+  'image.masked_edit',
   'image.text_to_image',
   'previs.storyboard_sheet.generate',
 ]);
@@ -358,6 +359,44 @@ assert.match(roleAwareEditPrompt, /^\$imagegen Edit attachment 1/);
 assert.match(roleAwareEditPrompt, /attachment 2 \[style_reference\]/);
 assert.match(roleAwareEditPrompt, /Do not reassign these roles/);
 assert.match(roleAwareEditPrompt, /candidate 2 of 2/);
+
+const maskedEditExecution = structuredClone(roleAwareEditExecution);
+maskedEditExecution.capabilityId = 'image.masked_edit';
+maskedEditExecution.inputAssetIds = [
+  'asset_source_prompt_test',
+  'asset_mask_prompt_test',
+];
+maskedEditExecution.params = {
+  ...maskedEditExecution.params,
+  inputBindings: [
+    {
+      assetId: 'asset_source_prompt_test',
+      blockId: 'block_source_prompt_test',
+      inputRole: 'source',
+    },
+    {
+      assetId: 'asset_mask_prompt_test',
+      blockId: 'block_mask_prompt_test',
+      inputRole: 'inpaint_mask',
+    },
+  ],
+};
+const maskedAssignments = imageExecutionInputAssignments(maskedEditExecution);
+const maskedPrompt = createProviderImagePrompt(
+  maskedEditExecution,
+  maskedAssignments,
+  {
+    dialect: 'codex_imagegen',
+    variantCount: 1,
+    variantIndex: 0,
+  },
+);
+assert.match(maskedPrompt, /^\$imagegen Edit attachment 1/);
+assert.match(maskedPrompt, /attachment 2 \[inpaint_mask\]/);
+assert.match(maskedPrompt, /white pixels are editable/);
+assert.match(maskedPrompt, /black pixels must remain unchanged/);
+assert.match(maskedPrompt, /Do not reproduce the mask/);
+assert.match(maskedPrompt, /Preserve the source dimensions/);
 assert.doesNotMatch(roleAwareEditPrompt, /\.\./);
 
 const annotatedComposite = await createAssetFromDataUrl({

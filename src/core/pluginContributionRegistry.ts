@@ -95,6 +95,11 @@ export interface PluginImageToolbarActionContextV1 {
   readonly host: PluginHostApiV1;
 }
 
+export interface PluginImageSelectionToolbarActionContextV1 {
+  readonly blocks: readonly PluginImageToolbarActionContextV1['block'][];
+  readonly host: PluginHostApiV1;
+}
+
 export interface PluginImageToolbarActionContributionValueV1 {
   apiVersion: 1;
   kind: 'action';
@@ -103,17 +108,52 @@ export interface PluginImageToolbarActionContributionValueV1 {
   run(context: PluginImageToolbarActionContextV1): Promise<void> | void;
 }
 
-export interface RegisteredPluginImageToolbarActionV1 {
+export interface PluginImageSelectionToolbarActionContributionValueV1 {
+  apiVersion: 1;
+  kind: 'action';
+  label: string;
+  placement: 'selection.toolbar';
+  selectionCount: {
+    max: number;
+    min: number;
+  };
+  run(
+    context: PluginImageSelectionToolbarActionContextV1,
+  ): Promise<void> | void;
+}
+
+interface RegisteredPluginActionBaseV1 {
   contributionId: string;
   failure: string | null;
   host: PluginHostApiV1;
   label: string;
   pluginModuleId: string;
+}
+
+export interface RegisteredPluginImageToolbarActionV1
+  extends RegisteredPluginActionBaseV1 {
+  placement: 'image.toolbar';
   run(context: PluginImageToolbarActionContextV1): Promise<void> | void;
 }
 
+export interface RegisteredPluginImageSelectionToolbarActionV1
+  extends RegisteredPluginActionBaseV1 {
+  placement: 'selection.toolbar';
+  selectionCount: {
+    max: number;
+    min: number;
+  };
+  run(
+    context: PluginImageSelectionToolbarActionContextV1,
+  ): Promise<void> | void;
+}
+
+export type RegisteredPluginActionV1 =
+  | RegisteredPluginImageSelectionToolbarActionV1
+  | RegisteredPluginImageToolbarActionV1;
+
 export interface PluginContributionRegistryV1 {
-  getActionSnapshot(): readonly RegisteredPluginImageToolbarActionV1[];
+  getActionSnapshot(): readonly RegisteredPluginActionV1[];
   getCapabilitySnapshot(): readonly RegisteredPluginCapabilityV1[];
   getSnapshot(): readonly RegisteredPluginPanelV1[];
   getRendererSnapshot(): readonly RegisteredPluginBlockRendererV1[];
@@ -129,7 +169,7 @@ export interface PluginContributionRegistryV1 {
 
 export function createPluginContributionRegistry():
 PluginContributionRegistryV1 {
-  let actions: readonly RegisteredPluginImageToolbarActionV1[] =
+  let actions: readonly RegisteredPluginActionV1[] =
     Object.freeze([]);
   let capabilities: readonly RegisteredPluginCapabilityV1[] =
     Object.freeze([]);
@@ -139,7 +179,7 @@ PluginContributionRegistryV1 {
   );
   const listeners = new Set<() => void>();
   const update = (
-    nextActions: RegisteredPluginImageToolbarActionV1[],
+    nextActions: RegisteredPluginActionV1[],
     nextCapabilities: RegisteredPluginCapabilityV1[],
     nextPanels: RegisteredPluginPanelV1[],
     nextRenderers: RegisteredPluginBlockRendererV1[],
@@ -211,7 +251,7 @@ PluginContributionRegistryV1 {
     },
     replace(sessions) {
       const failures: Array<{ error: string; pluginModuleId: string }> = [];
-      const nextActions: RegisteredPluginImageToolbarActionV1[] = [];
+      const nextActions: RegisteredPluginActionV1[] = [];
       const nextCapabilities: RegisteredPluginCapabilityV1[] = [];
       const nextPanels: RegisteredPluginPanelV1[] = [];
       const nextRenderers: RegisteredPluginBlockRendererV1[] = [];
@@ -225,17 +265,30 @@ PluginContributionRegistryV1 {
               ));
             }
             if (activated.contribution.kind === 'action') {
-              const value = parseImageToolbarActionContribution(
+              const value = parsePluginActionContribution(
                 activated.value,
               );
-              nextActions.push({
+              const base = {
                 contributionId: activated.contribution.contributionId,
                 failure: null,
                 host: session.host,
                 label: value.label,
                 pluginModuleId: session.record.pluginModuleId,
-                run: value.run,
-              });
+              };
+              nextActions.push(value.placement === 'image.toolbar'
+                ? {
+                    ...base,
+                    placement: value.placement,
+                    run: value.run,
+                  }
+                : {
+                    ...base,
+                    placement: value.placement,
+                    run: value.run,
+                    selectionCount: Object.freeze({
+                      ...value.selectionCount,
+                    }),
+                  });
             }
             if (activated.contribution.kind === 'panel') {
               const value = parsePanelContribution(activated.value);
@@ -320,23 +373,36 @@ PluginContributionRegistryV1 {
   };
 }
 
-function parseImageToolbarActionContribution(
+function parsePluginActionContribution(
   value: unknown,
-): PluginImageToolbarActionContributionValueV1 {
+):
+  | PluginImageSelectionToolbarActionContributionValueV1
+  | PluginImageToolbarActionContributionValueV1 {
   if (
     typeof value !== 'object'
     || value === null
     || (value as { apiVersion?: unknown }).apiVersion !== 1
     || (value as { kind?: unknown }).kind !== 'action'
-    || (value as { placement?: unknown }).placement !== 'image.toolbar'
+    || (
+      (value as { placement?: unknown }).placement !== 'image.toolbar'
+      && (value as { placement?: unknown }).placement !== 'selection.toolbar'
+    )
     || !isActionLabel((value as { label?: unknown }).label)
     || typeof (value as { run?: unknown }).run !== 'function'
+    || (
+      (value as { placement?: unknown }).placement === 'selection.toolbar'
+      && !isSelectionCount(
+        (value as { selectionCount?: unknown }).selectionCount,
+      )
+    )
   ) {
     throw new Error(
-      'Plugin action contribution must use the Retake Image Toolbar Action V1 contract.',
+      'Plugin action contribution must use a Retake Toolbar Action V1 contract.',
     );
   }
-  return value as PluginImageToolbarActionContributionValueV1;
+  return value as
+    | PluginImageSelectionToolbarActionContributionValueV1
+    | PluginImageToolbarActionContributionValueV1;
 }
 
 function parseRendererContribution(
@@ -409,8 +475,8 @@ function isActionLabel(value: unknown): value is string {
 }
 
 function sameActions(
-  left: readonly RegisteredPluginImageToolbarActionV1[],
-  right: readonly RegisteredPluginImageToolbarActionV1[],
+  left: readonly RegisteredPluginActionV1[],
+  right: readonly RegisteredPluginActionV1[],
 ): boolean {
   return left.length === right.length
     && left.every((action, index) => (
@@ -418,9 +484,34 @@ function sameActions(
       && action.failure === right[index]?.failure
       && action.host === right[index]?.host
       && action.label === right[index]?.label
+      && action.placement === right[index]?.placement
+      && (
+        action.placement !== 'selection.toolbar'
+        || (
+          right[index]?.placement === 'selection.toolbar'
+          && action.selectionCount.min
+            === right[index].selectionCount.min
+          && action.selectionCount.max
+            === right[index].selectionCount.max
+        )
+      )
       && action.pluginModuleId === right[index]?.pluginModuleId
       && action.run === right[index]?.run
     ));
+}
+
+function isSelectionCount(value: unknown): value is {
+  max: number;
+  min: number;
+} {
+  if (
+    typeof value !== 'object'
+    || value === null
+    || !Number.isInteger((value as { min?: unknown }).min)
+    || !Number.isInteger((value as { max?: unknown }).max)
+  ) return false;
+  const { max, min } = value as { max: number; min: number };
+  return min >= 2 && max >= min && max <= 32;
 }
 
 function samePanels(

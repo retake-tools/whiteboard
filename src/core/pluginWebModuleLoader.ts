@@ -1,6 +1,8 @@
 import type {
   ActivatedPluginWebModuleV1,
   PluginAssetV1,
+  PluginConnectedExecutionRunInputV1,
+  PluginConnectedExecutionViewV1,
   PluginExecutionRunInputV1,
   PluginExecutionViewV1,
   PluginHostApiV1,
@@ -158,6 +160,37 @@ export function createPluginHostReadStore(
         },
       }),
       execution: Object.freeze({
+        async runConnected(input: PluginConnectedExecutionRunInputV1) {
+          assertConnectedExecutionRunInput(
+            input,
+            current,
+            pluginModuleId,
+            options.authorizeExecution,
+          );
+          if (!executionRunner) {
+            throw new Error(
+              'Plugin execution is unavailable before the active Board is ready.',
+            );
+          }
+          const controller = retainExecutionController(
+            executionControllers,
+            pluginModuleId,
+          );
+          try {
+            return await executionRunner({
+              input,
+              kind: 'connected',
+              pluginModuleId,
+              signal: controller.signal,
+            }) as PluginConnectedExecutionViewV1;
+          } finally {
+            releaseExecutionController(
+              executionControllers,
+              pluginModuleId,
+              controller,
+            );
+          }
+        },
         async run(input: PluginExecutionRunInputV1) {
           assertExecutionRunInput(
             input,
@@ -170,22 +203,23 @@ export function createPluginHostReadStore(
               'Plugin execution is unavailable before the active Board is ready.',
             );
           }
-          const controller = new AbortController();
-          const controllers = executionControllers.get(pluginModuleId)
-            ?? new Set<AbortController>();
-          controllers.add(controller);
-          executionControllers.set(pluginModuleId, controllers);
+          const controller = retainExecutionController(
+            executionControllers,
+            pluginModuleId,
+          );
           try {
             return await executionRunner({
               input,
+              kind: 'local',
               pluginModuleId,
               signal: controller.signal,
-            });
+            }) as PluginExecutionViewV1;
           } finally {
-            controllers.delete(controller);
-            if (controllers.size === 0) {
-              executionControllers.delete(pluginModuleId);
-            }
+            releaseExecutionController(
+              executionControllers,
+              pluginModuleId,
+              controller,
+            );
           }
         },
       }),
@@ -257,15 +291,23 @@ export interface PluginHostReadStore {
   ): void;
 }
 
-export interface PluginExecutionRunnerRequestV1 {
-  input: PluginExecutionRunInputV1;
-  pluginModuleId: string;
-  signal: AbortSignal;
-}
+export type PluginExecutionRunnerRequestV1 =
+  | {
+      input: PluginExecutionRunInputV1;
+      kind: 'local';
+      pluginModuleId: string;
+      signal: AbortSignal;
+    }
+  | {
+      input: PluginConnectedExecutionRunInputV1;
+      kind: 'connected';
+      pluginModuleId: string;
+      signal: AbortSignal;
+    };
 
 export type PluginExecutionRunnerV1 = (
   request: PluginExecutionRunnerRequestV1,
-) => Promise<PluginExecutionViewV1>;
+) => Promise<PluginConnectedExecutionViewV1 | PluginExecutionViewV1>;
 
 export async function disposePluginWebModule(
   pluginModuleId: string,
@@ -360,6 +402,85 @@ function assertExecutionRunInput(
     throw new Error(
       `PluginModule does not own the requested Capability: ${input.capabilityId}`,
     );
+  }
+}
+
+function assertConnectedExecutionRunInput(
+  input: PluginConnectedExecutionRunInputV1,
+  snapshot: PluginHostReadSnapshotV1,
+  pluginModuleId: string,
+  authorize: (
+    pluginModuleId: string,
+    capabilityId: string,
+  ) => boolean = () => false,
+): void {
+  if (
+    typeof input !== 'object'
+    || input === null
+    || typeof input.capabilityId !== 'string'
+    || input.capabilityId.trim() !== input.capabilityId
+    || input.capabilityId.length === 0
+    || (
+      input.connectionId !== undefined
+      && (
+        typeof input.connectionId !== 'string'
+        || input.connectionId.trim() !== input.connectionId
+        || input.connectionId.length === 0
+      )
+    )
+    || !Array.isArray(input.inputs)
+    || input.inputs.length === 0
+    || new Set(input.inputs.map((binding) => binding.slotId)).size
+      !== input.inputs.length
+    || input.inputs.some((binding) => (
+      typeof binding !== 'object'
+      || binding === null
+      || typeof binding.blockId !== 'string'
+      || !snapshot.boundBlockIds.includes(binding.blockId)
+      || typeof binding.slotId !== 'string'
+      || binding.slotId.trim() !== binding.slotId
+      || binding.slotId.length === 0
+    ))
+    || typeof input.prompt !== 'string'
+    || input.prompt.trim().length === 0
+    || input.prompt.length > 32_000
+    || !isJsonObject(input.parameters)
+  ) {
+    throw new Error(
+      'Connected Plugin execution requires an owned Capability, bound typed inputs, a prompt, and JSON parameters.',
+    );
+  }
+  if (!snapshot.projectId || !snapshot.boardId) {
+    throw new Error('Connected Plugin execution requires an active Board.');
+  }
+  if (!authorize(pluginModuleId, input.capabilityId)) {
+    throw new Error(
+      `PluginModule does not own the requested Capability: ${input.capabilityId}`,
+    );
+  }
+}
+
+function retainExecutionController(
+  controllersByModule: Map<string, Set<AbortController>>,
+  pluginModuleId: string,
+): AbortController {
+  const controller = new AbortController();
+  const controllers = controllersByModule.get(pluginModuleId)
+    ?? new Set<AbortController>();
+  controllers.add(controller);
+  controllersByModule.set(pluginModuleId, controllers);
+  return controller;
+}
+
+function releaseExecutionController(
+  controllersByModule: Map<string, Set<AbortController>>,
+  pluginModuleId: string,
+  controller: AbortController,
+): void {
+  const controllers = controllersByModule.get(pluginModuleId);
+  controllers?.delete(controller);
+  if (controllers?.size === 0) {
+    controllersByModule.delete(pluginModuleId);
   }
 }
 

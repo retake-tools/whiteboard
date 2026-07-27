@@ -13,7 +13,7 @@ import {
 const readStore = createPluginHostReadStore({
   boardId: 'board.fixture',
   boundAssetIds: [],
-  boundBlockIds: ['block.fixture'],
+  boundBlockIds: ['block.fixture', 'block.mask'],
   boundGroupIds: [],
   projectId: 'project.fixture',
   revision: 'revision-1',
@@ -21,7 +21,10 @@ const readStore = createPluginHostReadStore({
 }, {
   authorizeExecution: (pluginModuleId, capabilityId) => (
     pluginModuleId === 'retake.plugin.loader-fixture'
-    && capabilityId === 'image.local_adjust'
+    && (
+      capabilityId === 'image.local_adjust'
+      || capabilityId === 'image.masked_edit'
+    )
   ),
   async importImage(input) {
     assert.equal(input.projectId, 'project.fixture');
@@ -67,7 +70,11 @@ readStore.update({
 assert.equal(host.assets.getBound('asset.missing'), null);
 assert.equal(host.assets.getBound('asset.bound')?.width, 640);
 assert.equal(Object.isFrozen(host.assets.getBound('asset.bound')), true);
-readStore.setExecutionRunner(async ({ input, signal }) => {
+readStore.setExecutionRunner(async ({ input, kind, signal }) => {
+  assert.equal(kind, 'local');
+  if (kind !== 'local') {
+    throw new Error('Expected local fixture execution.');
+  }
   const output = await input.execute({
     assets: [host.assets.getBound('asset.bound')!],
     signal,
@@ -101,6 +108,62 @@ const execution = await host.execution.run({
   },
 });
 assert.equal(execution.executionId, 'execution.fixture');
+readStore.setExecutionRunner(async ({ input, kind, pluginModuleId, signal }) => {
+  assert.equal(kind, 'connected');
+  if (kind !== 'connected') {
+    throw new Error('Expected connected fixture execution.');
+  }
+  assert.equal(signal.aborted, false);
+  assert.equal(pluginModuleId, 'retake.plugin.loader-fixture');
+  assert.deepEqual(input.inputs, [
+    { blockId: 'block.fixture', slotId: 'source_image' },
+    { blockId: 'block.mask', slotId: 'inpaint_mask' },
+  ]);
+  return {
+    capabilityId: input.capabilityId,
+    connectionId: input.connectionId ?? 'codex-managed',
+    executionId: 'execution.connected-fixture',
+    outputBlockIds: ['block.connected-result'],
+    status: 'queued',
+  };
+});
+const connectedExecution = await host.execution.runConnected!({
+  capabilityId: 'image.masked_edit',
+  inputs: [
+    { blockId: 'block.fixture', slotId: 'source_image' },
+    { blockId: 'block.mask', slotId: 'inpaint_mask' },
+  ],
+  parameters: {
+    maskEncoding: 'grayscale_white_selected_v1',
+  },
+  prompt: 'Replace the selected pixels with blue fabric.',
+});
+assert.equal(
+  connectedExecution.executionId,
+  'execution.connected-fixture',
+);
+await assert.rejects(
+  host.execution.runConnected!({
+    capabilityId: 'image.masked_edit',
+    inputs: [
+      { blockId: 'block.out-of-scope', slotId: 'source_image' },
+    ],
+    parameters: {},
+    prompt: 'Edit',
+  }),
+  /bound typed inputs/,
+);
+await assert.rejects(
+  host.execution.runConnected!({
+    capabilityId: 'image.masked_edit',
+    inputs: [
+      { blockId: 'block.fixture', slotId: 'source_image' },
+    ],
+    parameters: {},
+    prompt: '',
+  }),
+  /bound typed inputs/,
+);
 await assert.rejects(
   host.execution.run({
     capabilityId: 'image.local_adjust',
@@ -146,7 +209,7 @@ readStore.update({
   ...host.getReadSnapshot(),
   boardId: 'board.fixture',
   boundAssetIds: ['asset.bound'],
-  boundBlockIds: ['block.fixture'],
+  boundBlockIds: ['block.fixture', 'block.mask'],
   revision: 'revision-board-restored',
 }, [{
   assetId: 'asset.bound',
@@ -309,6 +372,7 @@ process.stdout.write(`${JSON.stringify({
   conditionalRuntimeChunk: true,
   exactDigestModuleCache: true,
   executionAbortFollowsModuleLifecycle: true,
+  connectedExecutionUsesTypedBoundInputs: true,
   executionRequiresBoundBlocksAndCapabilityOwnership: true,
   fatalDisposalDetachesActivation: true,
   safeModeDisposesActivation: true,

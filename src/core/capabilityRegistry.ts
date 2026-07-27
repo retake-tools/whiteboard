@@ -522,6 +522,7 @@ export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
     'image.text_to_image',
     'image.image_to_image',
     'image.annotation_edit',
+    'image.masked_edit',
     'previs.storyboard_sheet.generate',
   ],
   inputProfiles: [
@@ -539,6 +540,11 @@ export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
       profileId: 'codex_annotation_edit',
       requiredSlots: ['prompt', 'source_image'],
       optionalSlots: ['references'],
+    },
+    {
+      profileId: 'codex_masked_edit',
+      requiredSlots: ['prompt', 'source_image', 'inpaint_mask'],
+      optionalSlots: [],
     },
     {
       profileId: 'storyboard_sheet_from_unit',

@@ -1,89 +1,73 @@
 import { Puzzle } from 'lucide-react';
 import {
   memo,
-  useMemo,
   useState,
   useSyncExternalStore,
   type ReactElement,
 } from 'react';
 import type {
   PluginContributionRegistryV1,
+  PluginImageToolbarActionContextV1,
   RegisteredPluginActionV1,
-  RegisteredPluginImageToolbarActionV1,
+  RegisteredPluginImageSelectionToolbarActionV1,
 } from '../core/pluginContributionRegistry';
 import { TooltipIconButton } from './Tooltip';
 
-const emptyActionList: readonly RegisteredPluginActionV1[] =
-  Object.freeze([]);
+const emptyActions: readonly RegisteredPluginActionV1[] = Object.freeze([]);
 
-export function PluginImageToolbarActions({
-  assetId,
-  blockId,
+export function PluginSelectionToolbarActions({
+  blocks,
   onFatalFailure,
-  previewUrl,
   registry,
-  title,
 }: {
-  assetId: string;
-  blockId: string;
+  blocks: readonly PluginImageToolbarActionContextV1['block'][];
   onFatalFailure?: (
     pluginModuleId: string,
     message: string,
   ) => Promise<void> | void;
-  previewUrl?: string;
   registry?: PluginContributionRegistryV1;
-  title: string;
 }): ReactElement | null {
-  const actionSnapshot = useSyncExternalStore(
+  const snapshot = useSyncExternalStore(
     registry?.subscribe ?? emptySubscribe,
-    registry?.getActionSnapshot ?? emptyActionSnapshot,
-    registry?.getActionSnapshot ?? emptyActionSnapshot,
+    registry?.getActionSnapshot ?? emptySnapshot,
+    registry?.getActionSnapshot ?? emptySnapshot,
   );
-  const actions = actionSnapshot.filter(
+  const actions = snapshot.filter(
     (
       action,
-    ): action is RegisteredPluginImageToolbarActionV1 => (
-      action.placement === 'image.toolbar'
+    ): action is RegisteredPluginImageSelectionToolbarActionV1 => (
+      action.placement === 'selection.toolbar'
+      && blocks.length >= action.selectionCount.min
+      && blocks.length <= action.selectionCount.max
     ),
   );
-  const block = useMemo(() => Object.freeze({
-    assetId,
-    blockId,
-    ...(previewUrl === undefined ? {} : { previewUrl }),
-    title,
-    type: 'image' as const,
-  }), [assetId, blockId, previewUrl, title]);
-
-  if (actions.length === 0) return null;
+  if (actions.length === 0 || blocks.length < 2) return null;
 
   return (
-    <>
+    <div
+      aria-label="Plugin selection actions"
+      className="context-toolbar plugin-selection-toolbar"
+    >
       {actions.map((action) => (
-        <PluginImageToolbarActionButton
+        <SelectionActionButton
           action={action}
-          block={block}
+          blocks={blocks}
           key={action.contributionId}
           onFatalFailure={onFatalFailure}
         />
       ))}
-    </>
+    </div>
   );
 }
 
-const PluginImageToolbarActionButton = memo(
-  function PluginImageToolbarActionButton({
+const SelectionActionButton = memo(
+  function SelectionActionButton({
     action,
-    block,
+    blocks,
     onFatalFailure,
   }: {
-    action: RegisteredPluginImageToolbarActionV1;
-    block: {
-      readonly assetId: string;
-      readonly blockId: string;
-      readonly previewUrl?: string;
-      readonly title: string;
-      readonly type: 'image';
-    };
+    action: RegisteredPluginImageSelectionToolbarActionV1;
+    blocks: readonly PluginImageToolbarActionContextV1['block'][];
     onFatalFailure?: (
       pluginModuleId: string,
       message: string,
@@ -97,7 +81,7 @@ const PluginImageToolbarActionButton = memo(
       setPending(true);
       try {
         await action.run(Object.freeze({
-          block,
+          blocks: Object.freeze([...blocks]),
           host: action.host,
         }));
       } catch (error) {
@@ -132,7 +116,6 @@ function emptySubscribe(): () => void {
   return () => undefined;
 }
 
-function emptyActionSnapshot():
-readonly RegisteredPluginActionV1[] {
-  return emptyActionList;
+function emptySnapshot(): readonly RegisteredPluginActionV1[] {
+  return emptyActions;
 }

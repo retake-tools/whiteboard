@@ -8,6 +8,9 @@ import {
   PluginImageToolbarActions,
 } from '../src/components/PluginImageToolbarActions';
 import {
+  PluginSelectionToolbarActions,
+} from '../src/components/PluginSelectionToolbarActions';
+import {
   createPluginContributionRegistry,
 } from '../src/core/pluginContributionRegistry';
 
@@ -84,8 +87,69 @@ const emptyMarkup = renderToStaticMarkup(
 );
 assert.equal(emptyMarkup, '');
 
+const selectionRegistry = createPluginContributionRegistry();
+assert.deepEqual(selectionRegistry.replace([{
+  activation: {
+    contributions: [{
+      contribution: {
+        contributionId: 'retake.contribution.selection-fixture',
+        definitionHash: null,
+        definitionPath: null,
+        exportName: 'fixtureSelectionAction',
+        kind: 'action',
+      },
+      value: {
+        apiVersion: 1,
+        kind: 'action',
+        label: 'Edit selected pair',
+        placement: 'selection.toolbar',
+        run: () => undefined,
+        selectionCount: { max: 2, min: 2 },
+      },
+    }],
+  },
+  host,
+  record: {
+    pluginModuleId: 'retake.plugin.selection-action-fixture',
+  },
+}]), []);
+const selectionMarkup = renderToStaticMarkup(
+  <PluginSelectionToolbarActions
+    blocks={[
+      {
+        assetId: 'asset.fixture',
+        blockId: 'block.fixture',
+        title: 'Source',
+        type: 'image',
+      },
+      {
+        assetId: 'asset.mask',
+        blockId: 'block.mask',
+        title: 'Mask',
+        type: 'image',
+      },
+    ]}
+    registry={selectionRegistry}
+  />,
+);
+assert.match(selectionMarkup, /aria-label="Plugin selection actions"/);
+assert.match(selectionMarkup, /aria-label="Edit selected pair"/);
+const wrongCountMarkup = renderToStaticMarkup(
+  <PluginSelectionToolbarActions
+    blocks={[{
+      assetId: 'asset.fixture',
+      blockId: 'block.fixture',
+      title: 'Source',
+      type: 'image',
+    }]}
+    registry={selectionRegistry}
+  />,
+);
+assert.equal(wrongCountMarkup, '');
+
 process.stdout.write(`${JSON.stringify({
   actionRendersInsideCoreImageToolbar: true,
   missingRegistryKeepsCoreToolbarOnly: true,
   neutralCoreActionIcon: true,
+  selectionActionRequiresDeclaredImageCount: true,
 })}\n`);

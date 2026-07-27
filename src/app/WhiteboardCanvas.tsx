@@ -12,6 +12,9 @@ import {
 import {
   PluginImageToolbarActions,
 } from '../components/PluginImageToolbarActions';
+import {
+  PluginSelectionToolbarActions,
+} from '../components/PluginSelectionToolbarActions';
 import { createImageAssetFromDataUrl } from '../core/assetStore';
 import { maxBoardZoom, minBoardZoom } from '../core/boardViewStateStore';
 import type {
@@ -92,6 +95,24 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
     workflowRuntime,
   } = props;
   const pointerIdleTimerRef = useRef<number | undefined>(undefined);
+  const selectedImageActionBlocks = canvas.selectedBlockIds.flatMap(
+    (blockId) => {
+      const block = snapshot.blocks.find(
+        (candidate) => candidate.blockId === blockId,
+      );
+      const asset = snapshot.assets.find(
+        (candidate) => candidate.assetId === block?.data.assetId,
+      );
+      if (!block || block.type !== 'image' || !asset) return [];
+      return [{
+        assetId: asset.assetId,
+        blockId: block.blockId,
+        previewUrl: asset.previewUrl,
+        title: block.data.title,
+        type: 'image' as const,
+      }];
+    },
+  );
 
   useEffect(() => () => {
     if (pointerIdleTimerRef.current !== undefined) window.clearTimeout(pointerIdleTimerRef.current);
@@ -159,6 +180,22 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
         selectionOnDrag={canvas.activeCanvasTool === 'select'}
         fitView={false}
       >
+        {canvas.selectedBlockIds.length >= 2
+          && selectedImageActionBlocks.length
+            === canvas.selectedBlockIds.length ? (
+          <NodeToolbar
+            nodeId={[...canvas.selectedBlockIds]}
+            position={Position.Top}
+            offset={12}
+            isVisible
+          >
+            <PluginSelectionToolbarActions
+              blocks={selectedImageActionBlocks}
+              onFatalFailure={onPluginContributionFatalFailure}
+              registry={pluginContributionRegistry}
+            />
+          </NodeToolbar>
+        ) : null}
         {selectedBlock?.type === 'image' && selectedImageUrl && !selectedBlockContentLocked ? (
           <NodeToolbar nodeId={selectedBlock.blockId} position={Position.Top} offset={12} isVisible>
             <ContextToolbar
