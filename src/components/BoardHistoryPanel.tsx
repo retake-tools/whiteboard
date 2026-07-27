@@ -319,7 +319,7 @@ function titleForExecution(execution: ExecutionRecord, t: ReturnType<typeof useI
   ) {
     return t('operation.createSimilar.title');
   }
-  if (execution.capabilityId === 'image.local_expand') return t('context.expand');
+  if (execution.capabilityId === 'image.outpaint') return t('context.expand');
   return execution.capabilityId || t('history.execution');
 }
 

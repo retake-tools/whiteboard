@@ -1,4 +1,5 @@
 import { inputRoleDefinition, isExecutionInputRole } from './inputRoles';
+import { readOutpaintParameters } from './outpaintContracts';
 import type { BlockRecord, BoardSnapshot, ExecutionInputRole, ExecutionRecord } from './types';
 import type { ImageGenerationParams } from './imageOperations';
 
@@ -33,6 +34,10 @@ export function createImageOperationPrompt(
   const resultBlock = resultBlocks[0];
   const asset = snapshot.assets.find((candidate) => candidate.assetId === sourceBlock.data.assetId);
   const isAnnotationEdit = execution.capabilityId === 'image.annotation_edit';
+  const isOutpaint = execution.capabilityId === 'image.outpaint';
+  const outpaint = isOutpaint
+    ? readOutpaintParameters(execution.params?.pluginParameters)
+    : undefined;
   const inputBindings = readInputBindings(execution.params?.inputBindings);
   const hasSourceInput = inputBindings.some((binding) => binding.inputRole === 'source');
   const isPromptGeneration = execution.capabilityId === 'image.text_to_image' && !hasSourceInput;
@@ -177,6 +182,23 @@ export function createImageOperationPrompt(
     isAnnotationEdit
       ? '- Generate a clean revised image. Do not include annotation text, arrows, freehand marks, selection outlines, or UI chrome in the output.'
       : undefined,
+    isOutpaint ? '' : undefined,
+    isOutpaint ? 'Authoritative outpaint geometry:' : undefined,
+    outpaint
+      ? `- Produce the exact ${outpaint.targetWidth} x ${outpaint.targetHeight} px target canvas.`
+      : undefined,
+    outpaint
+      ? `- Keep the source at natural size ${outpaint.sourceWidth} x ${outpaint.sourceHeight} px in rectangle x=${outpaint.sourceX}, y=${outpaint.sourceY}, width=${outpaint.sourceWidth}, height=${outpaint.sourceHeight}.`
+      : undefined,
+    isOutpaint
+      ? '- Do not crop, scale, rotate, redraw, or reposition the source rectangle. Generate only the surrounding expansion area.'
+      : undefined,
+    isOutpaint
+      ? '- Treat control_image as the target composition guide and inpaint_mask as black protected source / white expansion area.'
+      : undefined,
+    isOutpaint
+      ? '- Save a complete target-size candidate. retake_import_asset will normalize its size and deterministically copy the original source pixels back into the frozen rectangle.'
+      : undefined,
     '',
     'Suggested output file:',
     ...outputPaths.map((outputPath, index) =>
@@ -223,6 +245,8 @@ export function createImageOperationPrompt(
       ? `5. Produce ${resultBlocks.length} distinct variants using the assignments above. Prefer one subagent per variant; otherwise run them sequentially. Process completed variants immediately in completion order.`
       : isAnnotationEdit
       ? '5. Open the source asset local path and annotated composite local path above. Use the source as the clean base and the composite as the edit brief, then generate/edit the final clean image and save it to the suggested output file path when possible.'
+      : isOutpaint
+      ? '5. Open the source, control_image, and inpaint_mask local paths above. Generate only the white expansion area around the protected natural-size source, then save a complete exact-size candidate to the suggested output path.'
       : '5. Generate or edit the image according to the capabilityId, instruction, requested aspect ratio/output size, and reference images above, saving it to the suggested output file path when possible.',
     isMultiResult
       ? '6. As soon as each variant file is ready, call retake_import_asset with its assigned generated file and the existing executionId. Do not wait for all variants.'

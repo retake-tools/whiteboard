@@ -43,7 +43,7 @@
     "text-generation:test": "RETAKE_WORKSPACE_DIR=.retake-test-text-generation tsx server/text-generation-service-test.ts",
     "execution-events:test": "tsx server/execution-events-test.ts",
     "document:test": "tsx server/document-v0-contract-test.tsx",
-    "codex-app-server:test": "tsx server/masked-image-compositor-test.ts && RETAKE_WORKSPACE_DIR=.retake-test-codex-app-server tsx server/codex-app-server-adapter-test.ts",
+    "codex-app-server:test": "tsx server/masked-image-compositor-test.ts && tsx server/outpaint-image-compositor-test.ts && RETAKE_WORKSPACE_DIR=.retake-test-outpaint-mcp-import tsx server/outpaint-mcp-import-test.ts && RETAKE_WORKSPACE_DIR=.retake-test-codex-app-server tsx server/codex-app-server-adapter-test.ts",
     "providers:test": "RETAKE_WORKSPACE_DIR=.retake-test-providers tsx server/execution-provider-contract-test.ts",
     "annotation:test": "tsx server/image-annotation-contract-test.ts",
     "local-image:test": "tsx server/local-image-adjustment-contract-test.ts",

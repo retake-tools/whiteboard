@@ -41,6 +41,7 @@ import {
   promptTextFromInputs,
   schemaForCapability,
 } from './capabilities';
+import { outpaintCapabilityId } from './outpaintContracts';
 
 export type ImageCodexOperation = 'generate_image' | 'create_similar' | 'quick_edit' | 'annotation_edit';
 export type SwitchableOperationMode = 'text_to_image' | 'image_to_image';
@@ -182,17 +183,28 @@ export function addImageCodexOperation(
   const sourceInputRole: ExecutionInputRole | undefined =
     input.operation === 'generate_image' ? undefined : 'source';
   const generationProfileId = input.generationProfileId ?? defaultGenerationProfileId;
-  const generationParams = effectiveGenerationParams(
-    generationParamsForSourceImage(
-      snapshot,
-      sourceBlock,
-      generationParamsForTextToImage(input.generationParams, input.operation === 'generate_image'),
-      input.operation !== 'generate_image',
+  const requestedGenerationParams = generationParamsForSourceImage(
+    snapshot,
+    sourceBlock,
+    generationParamsForTextToImage(
+      input.generationParams,
+      input.operation === 'generate_image',
     ),
+    input.operation !== 'generate_image',
+  );
+  const effectiveParams = effectiveGenerationParams(
+    requestedGenerationParams,
     generationProfileId,
     capabilityId,
     input.connection,
   );
+  const generationParams = capabilityId === outpaintCapabilityId
+    ? {
+        ...effectiveParams,
+        targetHeight: requestedGenerationParams?.targetHeight,
+        targetWidth: requestedGenerationParams?.targetWidth,
+      }
+    : effectiveParams;
   if (
     input.annotatedCompositeAsset &&
     !snapshot.assets.some((asset) => asset.assetId === input.annotatedCompositeAsset?.assetId)
