@@ -324,6 +324,7 @@ export interface BlockData {
   annotatedCompositePreviewUrl?: string;
   annotationMarkCount?: number;
   previewUrl?: string;
+  rendererContributionId?: string;
   resultRetryMode?: 'codex_prompt' | 'direct_retry';
   reviewStatus?: 'selected';
   status?: ExecutionStatus;
