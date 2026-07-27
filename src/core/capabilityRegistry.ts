@@ -1,5 +1,11 @@
-import type { AdapterDefinition, CapabilityDefinition } from './capabilityContracts';
+import type {
+  AdapterDefinition,
+  CapabilityDefinition,
+} from './capabilityContracts';
 import { definitionForLegacyCapability } from './legacyCapabilityAdapter';
+import {
+  pluginCapabilityDefinitionFor,
+} from './pluginCapabilityDefinitions';
 
 export const textGenerateCapabilityDefinition: CapabilityDefinition = definitionForLegacyCapability('text.generate');
 
@@ -784,6 +790,8 @@ export const volcengineArkSeedreamImageAdapterDefinition: AdapterDefinition = {
 };
 
 export function capabilityDefinitionFor(capabilityId: string): CapabilityDefinition {
+  const pluginDefinition = pluginCapabilityDefinitionFor(capabilityId);
+  if (pluginDefinition) return pluginDefinition;
   const canonicalDefinition = canonicalCapabilityDefinitions.find(
     (definition) => definition.capabilityId === capabilityId,
   );

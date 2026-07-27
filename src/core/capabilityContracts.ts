@@ -6,7 +6,10 @@ export type CapabilityCardinality = 'one' | 'optional' | 'many';
 
 export type CapabilityBindingKind = 'inline' | 'block' | 'asset' | 'artifact_revision';
 
-export type CapabilityProjectionBlockType = BlockType | 'document' | 'audio';
+export type CapabilityProjectionBlockType =
+  | BlockType
+  | 'audio'
+  | 'extension';
 
 export interface CapabilityInputSlotDefinition {
   slotId: string;
@@ -225,6 +228,7 @@ const capabilityProjectionBlockTypes = new Set<CapabilityProjectionBlockType>([
   'image',
   'video',
   'audio',
+  'extension',
   'operation',
   'group',
 ]);

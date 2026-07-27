@@ -6,12 +6,20 @@ import {
   createPluginContributionRegistry,
   type PluginContributionSessionV1,
 } from '../src/core/pluginContributionRegistry';
+import {
+  capabilityDefinitionFor,
+} from '../src/core/capabilityRegistry';
 
 const host: PluginHostApiV1 = {
   assets: {
     getBound: () => null,
     importImage: async () => {
       throw new Error('Fixture does not import assets.');
+    },
+  },
+  execution: {
+    run: async () => {
+      throw new Error('Fixture does not run executions.');
     },
   },
   getReadSnapshot: () => ({
@@ -170,6 +178,80 @@ assert.deepEqual(malformed, [{
   pluginModuleId: 'retake.plugin.malformed-panel',
 }]);
 assert.equal(registry.getSnapshot().length, 0);
+
+const fixtureCapability = {
+  apiVersion: 1,
+  definition: {
+    capabilityId: 'image.local_adjust',
+    category: 'image_editing',
+    definitionHash: 'sha256:plugin-local-adjust-fixture-v1',
+    displayName: 'Plugin local adjustment',
+    inputSlots: [{
+      artifactTypes: [],
+      bindingKinds: ['asset', 'block'],
+      cardinality: 'one',
+      dataTypes: ['image'],
+      required: true,
+      semanticRole: 'source',
+      slotId: 'source_image',
+    }],
+    outputSlots: [{
+      cardinality: 'one',
+      dataType: 'image',
+      projectionBlockTypes: ['image'],
+      semanticRole: 'adjusted_image',
+      slotId: 'result_image',
+    }],
+    runtimeRequirements: ['browser.canvas_2d'],
+    schemaVersion: 1,
+    supportedAdapterClasses: ['local_canvas'],
+    version: '0.1.0',
+  },
+  kind: 'capability',
+};
+const capabilityFailures = registry.replace([
+  capabilitySession(
+    'retake.plugin.capability-fixture',
+    fixtureCapability,
+  ),
+]);
+assert.deepEqual(capabilityFailures, []);
+assert.equal(registry.getCapabilitySnapshot().length, 1);
+assert.equal(
+  registry.ownsCapability(
+    'retake.plugin.capability-fixture',
+    'image.local_adjust',
+  ),
+  true,
+);
+assert.equal(
+  capabilityDefinitionFor('image.local_adjust').definitionHash,
+  fixtureCapability.definition.definitionHash,
+);
+
+const capabilityConflictFailures = registry.replace([
+  capabilitySession(
+    'retake.plugin.capability-fixture-a',
+    fixtureCapability,
+  ),
+  capabilitySession(
+    'retake.plugin.capability-fixture-b',
+    fixtureCapability,
+  ),
+]);
+assert.deepEqual(
+  capabilityConflictFailures.map((failure) => failure.pluginModuleId),
+  [
+    'retake.plugin.capability-fixture-a',
+    'retake.plugin.capability-fixture-b',
+  ],
+);
+assert.equal(registry.getCapabilitySnapshot().length, 0);
+assert.notEqual(
+  capabilityDefinitionFor('image.local_adjust').definitionHash,
+  fixtureCapability.definition.definitionHash,
+);
+
 registry.replace([
   panelSession('retake.plugin.panel-fixture', {
     apiVersion: 1,
@@ -180,11 +262,14 @@ registry.replace([
 ]);
 registry.removeModule('retake.plugin.panel-fixture');
 assert.equal(registry.getActionSnapshot().length, 0);
+assert.equal(registry.getCapabilitySnapshot().length, 0);
 assert.equal(registry.getSnapshot().length, 0);
 assert.equal(registry.getRendererSnapshot().length, 0);
 unsubscribe();
 
 process.stdout.write(`${JSON.stringify({
+  capabilityConflictDisablesAllProviders: true,
+  capabilityRegistrationOverridesCoreFallback: true,
   imageToolbarActionContract: true,
   malformedPanelBecomesProtocolFailure: true,
   moduleFailureKeepsCoreFallbackDescriptor: true,
@@ -254,6 +339,28 @@ function rendererSession(
           definitionPath: null,
           exportName: 'fixtureRenderer',
           kind: 'renderer',
+        },
+        value,
+      }],
+    },
+    host,
+    record: { pluginModuleId },
+  };
+}
+
+function capabilitySession(
+  pluginModuleId: string,
+  value: typeof fixtureCapability,
+): PluginContributionSessionV1 {
+  return {
+    activation: {
+      contributions: [{
+        contribution: {
+          contributionId: `${pluginModuleId}.capability`,
+          definitionHash: value.definition.definitionHash,
+          definitionPath: 'definitions/image.local_adjust.json',
+          exportName: 'fixtureCapability',
+          kind: 'capability',
         },
         value,
       }],

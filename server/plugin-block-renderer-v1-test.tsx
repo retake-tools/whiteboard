@@ -19,6 +19,11 @@ const host: PluginHostApiV1 = {
       throw new Error('Renderer fixture does not import assets.');
     },
   },
+  execution: {
+    run: async () => {
+      throw new Error('Renderer fixture does not run executions.');
+    },
+  },
   getReadSnapshot: () => ({
     boardId: 'board.fixture',
     boundAssetIds: [],

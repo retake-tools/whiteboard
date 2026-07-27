@@ -95,6 +95,11 @@ try {
           throw new Error('Fixture does not import assets.');
         },
       },
+      execution: {
+        run: async () => {
+          throw new Error('Fixture does not run executions.');
+        },
+      },
       getReadSnapshot: () => ({
         boardId: 'board.fixture',
         boundAssetIds: [],
@@ -263,6 +268,37 @@ async function writePluginSource(
   },
 ): Promise<void> {
   await mkdir(path.join(sourceRoot, 'src'), { recursive: true });
+  await mkdir(
+    path.join(sourceRoot, 'definitions'),
+    { recursive: true },
+  );
+  const capabilityDefinition = {
+    capabilityId: 'image.runtime_fixture',
+    category: 'image_editing',
+    definitionHash:
+      `sha256:whiteboard-runtime-capability-${input.version}`,
+    displayName: 'Runtime fixture',
+    inputSlots: [{
+      artifactTypes: [],
+      bindingKinds: ['asset', 'block'],
+      cardinality: 'one',
+      dataTypes: ['image'],
+      required: true,
+      semanticRole: 'source',
+      slotId: 'source_image',
+    }],
+    outputSlots: [{
+      cardinality: 'one',
+      dataType: 'image',
+      projectionBlockTypes: ['image'],
+      semanticRole: 'result',
+      slotId: 'result_image',
+    }],
+    runtimeRequirements: ['browser.canvas_2d'],
+    schemaVersion: 1,
+    supportedAdapterClasses: ['local_canvas'],
+    version: input.version,
+  };
   await writeJson(path.join(sourceRoot, 'retake.package.json'), {
     build: {
       entrypoint: 'src/index.ts',
@@ -275,7 +311,7 @@ async function writePluginSource(
         definitionHash: input.definitionHash,
         definitionPath: 'retake.plugin.json',
         pluginModuleId: 'retake.plugin.whiteboard-runtime-fixture',
-        resourcePaths: [],
+        resourcePaths: ['definitions/image.runtime_fixture.json'],
         version: input.version,
       }],
       skills: [],
@@ -285,6 +321,7 @@ async function writePluginSource(
     description: 'Whiteboard Plugin Runtime fixture.',
     entrypoints: [],
     files: [
+      'definitions/image.runtime_fixture.json',
       'retake.plugin.json',
       'src/index.ts',
     ],
@@ -306,8 +343,8 @@ async function writePluginSource(
   await writeJson(path.join(sourceRoot, 'retake.plugin.json'), {
     contributions: [{
       contributionId: 'retake.contribution.whiteboard-runtime-fixture',
-      definitionHash: null,
-      definitionPath: null,
+      definitionHash: capabilityDefinition.definitionHash,
+      definitionPath: 'definitions/image.runtime_fixture.json',
       exportName: 'fixtureContribution',
       kind: 'capability',
     }],
@@ -327,10 +364,22 @@ async function writePluginSource(
     schemaVersion: 1,
     version: input.version,
   });
+  await writeJson(
+    path.join(
+      sourceRoot,
+      'definitions',
+      'image.runtime_fixture.json',
+    ),
+    capabilityDefinition,
+  );
   await writeFile(
     path.join(sourceRoot, 'src', 'index.ts'),
     [
-      'export const fixtureContribution = { kind: "capability" };',
+      `export const fixtureContribution = ${JSON.stringify({
+        apiVersion: 1,
+        definition: capabilityDefinition,
+        kind: 'capability',
+      })};`,
       'export function activate(context: { host: { getReadSnapshot(): { revision: string } } }) {',
       '  context.host.getReadSnapshot();',
       '  return { dispose() {} };',

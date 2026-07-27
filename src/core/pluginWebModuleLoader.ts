@@ -1,6 +1,8 @@
 import type {
   ActivatedPluginWebModuleV1,
   PluginAssetV1,
+  PluginExecutionRunInputV1,
+  PluginExecutionViewV1,
   PluginHostApiV1,
   PluginHostReadSnapshotV1,
   PluginImageImportV1,
@@ -111,6 +113,10 @@ export async function reconcilePluginWebModules(input: {
 export function createPluginHostReadStore(
   initial: PluginHostReadSnapshotV1,
   options: {
+    authorizeExecution?: (
+      pluginModuleId: string,
+      capabilityId: string,
+    ) => boolean;
     importImage?: (
       input: PluginImageImportV1 & { projectId: string },
     ) => Promise<PluginAssetV1>;
@@ -118,10 +124,21 @@ export function createPluginHostReadStore(
 ): PluginHostReadStore {
   let current = freezeReadSnapshot(initial);
   let boundAssets = new Map<string, PluginAssetV1>();
+  let executionRunner: PluginExecutionRunnerV1 | undefined;
+  const executionControllers = new Map<string, Set<AbortController>>();
+  let retainedModuleDigests = new Map<string, string>();
   const listeners = new Set<(snapshot: PluginHostReadSnapshotV1) => void>();
   const importImage = options.importImage ?? createImageAssetFromDataUrl;
   return {
-    host: (version) => ({
+    abortModuleExecutions(pluginModuleId) {
+      for (const controller of (
+        executionControllers.get(pluginModuleId) ?? []
+      )) {
+        controller.abort();
+      }
+      executionControllers.delete(pluginModuleId);
+    },
+    host: (version, pluginModuleId) => ({
       assets: Object.freeze({
         getBound(assetId: string) {
           if (!current.boundAssetIds.includes(assetId)) return null;
@@ -140,6 +157,38 @@ export function createPluginHostReadStore(
           }));
         },
       }),
+      execution: Object.freeze({
+        async run(input: PluginExecutionRunInputV1) {
+          assertExecutionRunInput(
+            input,
+            current,
+            pluginModuleId,
+            options.authorizeExecution,
+          );
+          if (!executionRunner) {
+            throw new Error(
+              'Plugin execution is unavailable before the active Board is ready.',
+            );
+          }
+          const controller = new AbortController();
+          const controllers = executionControllers.get(pluginModuleId)
+            ?? new Set<AbortController>();
+          controllers.add(controller);
+          executionControllers.set(pluginModuleId, controllers);
+          try {
+            return await executionRunner({
+              input,
+              pluginModuleId,
+              signal: controller.signal,
+            });
+          } finally {
+            controllers.delete(controller);
+            if (controllers.size === 0) {
+              executionControllers.delete(pluginModuleId);
+            }
+          }
+        },
+      }),
       getReadSnapshot: () => current,
       subscribeReadSnapshot(listener) {
         listeners.add(listener);
@@ -147,7 +196,40 @@ export function createPluginHostReadStore(
       },
       version,
     }),
+    retainModules(modules) {
+      const retained = new Map(
+        modules.map((module) => [
+          module.pluginModuleId,
+          module.packageDigest,
+        ]),
+      );
+      for (const pluginModuleId of executionControllers.keys()) {
+        if (
+          retained.get(pluginModuleId)
+          === retainedModuleDigests.get(pluginModuleId)
+        ) continue;
+        for (const controller of (
+          executionControllers.get(pluginModuleId) ?? []
+        )) {
+          controller.abort();
+        }
+        executionControllers.delete(pluginModuleId);
+      }
+      retainedModuleDigests = retained;
+    },
+    setExecutionRunner(runner) {
+      executionRunner = runner;
+    },
     update(snapshot, assets = []) {
+      if (
+        current.projectId !== snapshot.projectId
+        || current.boardId !== snapshot.boardId
+      ) {
+        for (const controllers of executionControllers.values()) {
+          for (const controller of controllers) controller.abort();
+        }
+        executionControllers.clear();
+      }
       const nextAssets = new Map(
         assets.map((asset) => [asset.assetId, freezePluginAsset(asset)]),
       );
@@ -162,12 +244,28 @@ export function createPluginHostReadStore(
 }
 
 export interface PluginHostReadStore {
-  host(version: number): PluginHostApiV1;
+  abortModuleExecutions(pluginModuleId: string): void;
+  host(version: number, pluginModuleId: string): PluginHostApiV1;
+  retainModules(modules: readonly {
+    packageDigest: string;
+    pluginModuleId: string;
+  }[]): void;
+  setExecutionRunner(runner: PluginExecutionRunnerV1 | undefined): void;
   update(
     snapshot: PluginHostReadSnapshotV1,
     assets?: readonly PluginAssetV1[],
   ): void;
 }
+
+export interface PluginExecutionRunnerRequestV1 {
+  input: PluginExecutionRunInputV1;
+  pluginModuleId: string;
+  signal: AbortSignal;
+}
+
+export type PluginExecutionRunnerV1 = (
+  request: PluginExecutionRunnerRequestV1,
+) => Promise<PluginExecutionViewV1>;
 
 export async function disposePluginWebModule(
   pluginModuleId: string,
@@ -224,6 +322,63 @@ function sameReadSnapshot(
     && sameTextArray(left.boundBlockIds, right.boundBlockIds)
     && sameTextArray(left.boundGroupIds, right.boundGroupIds)
     && sameTextArray(left.selectedBlockIds, right.selectedBlockIds);
+}
+
+function assertExecutionRunInput(
+  input: PluginExecutionRunInputV1,
+  snapshot: PluginHostReadSnapshotV1,
+  pluginModuleId: string,
+  authorize: (
+    pluginModuleId: string,
+    capabilityId: string,
+  ) => boolean = () => false,
+): void {
+  if (
+    typeof input !== 'object'
+    || input === null
+    || typeof input.capabilityId !== 'string'
+    || input.capabilityId.trim() !== input.capabilityId
+    || input.capabilityId.length === 0
+    || typeof input.execute !== 'function'
+    || !Array.isArray(input.inputBlockIds)
+    || input.inputBlockIds.length === 0
+    || new Set(input.inputBlockIds).size !== input.inputBlockIds.length
+    || input.inputBlockIds.some((blockId) => (
+      typeof blockId !== 'string'
+      || !snapshot.boundBlockIds.includes(blockId)
+    ))
+    || !isJsonObject(input.parameters)
+  ) {
+    throw new Error(
+      'Plugin execution requires a valid Capability, bound input Blocks, JSON parameters, and an executor.',
+    );
+  }
+  if (!snapshot.projectId || !snapshot.boardId) {
+    throw new Error('Plugin execution requires an active Board.');
+  }
+  if (!authorize(pluginModuleId, input.capabilityId)) {
+    throw new Error(
+      `PluginModule does not own the requested Capability: ${input.capabilityId}`,
+    );
+  }
+}
+
+function isJsonObject(value: unknown): boolean {
+  return typeof value === 'object'
+    && value !== null
+    && !Array.isArray(value)
+    && Object.values(value).every(isJsonValue);
+}
+
+function isJsonValue(value: unknown): boolean {
+  if (
+    value === null
+    || typeof value === 'boolean'
+    || typeof value === 'string'
+  ) return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  return isJsonObject(value);
 }
 
 function sameTextArray(

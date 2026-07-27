@@ -57,6 +57,13 @@ const pluginHostReadStore = createPluginHostReadStore({
   projectId: null,
   revision: 'unbound',
   selectedBlockIds: [],
+}, {
+  authorizeExecution: (pluginModuleId, capabilityId) => (
+    pluginContributionRegistry.ownsCapability(
+      pluginModuleId,
+      capabilityId,
+    )
+  ),
 });
 let pluginRuntimeController: PluginRuntimeControllerV1 | undefined;
 let packageLifecycleController: PackageLifecycleControllerV1 | undefined;
@@ -64,9 +71,20 @@ let packageLifecycleController: PackageLifecycleControllerV1 | undefined;
 async function applyPluginRuntimeSnapshot(
   snapshot: PluginRuntimeSnapshotV1,
 ): Promise<PluginRuntimeSnapshotV1> {
+  pluginHostReadStore.retainModules(
+    snapshot.safeMode
+      ? []
+      : snapshot.modules
+        .filter((record) => record.status === 'enabled')
+        .map((record) => ({
+          packageDigest: record.packageLock.digest,
+          pluginModuleId: record.pluginModuleId,
+        })),
+  );
   const pluginModules = await reconcilePluginWebModules({
     createHost: (record) => pluginHostReadStore.host(
       record.negotiatedHostApiVersion!,
+      record.pluginModuleId,
     ),
     onFatalFailure: reportPluginFatalFailure,
     snapshot,
@@ -79,6 +97,7 @@ async function applyPluginRuntimeSnapshot(
   );
   await Promise.all(contributionFailures.map(async (failure) => {
     pluginContributionRegistry.removeModule(failure.pluginModuleId);
+    pluginHostReadStore.abortModuleExecutions(failure.pluginModuleId);
     await disposePluginWebModule(failure.pluginModuleId)
       .catch(() => undefined);
     await reportPluginFatalFailure(
@@ -109,6 +128,7 @@ void bootstrapInstalledRuntimeRegistry()
           <App
             onPluginContributionFatalFailure={(pluginModuleId, message) => {
               pluginContributionRegistry.failModule(pluginModuleId, message);
+              pluginHostReadStore.abortModuleExecutions(pluginModuleId);
               void disposePluginWebModule(pluginModuleId)
                 .catch(() => undefined);
               return reportPluginFatalFailure(pluginModuleId, message)
@@ -122,6 +142,9 @@ void bootstrapInstalledRuntimeRegistry()
                   );
                 });
             }}
+            onPluginExecutionRunnerChange={
+              pluginHostReadStore.setExecutionRunner
+            }
             onPluginHostScopeChange={pluginHostReadStore.update}
             pluginContributionRegistry={pluginContributionRegistry}
             packageLifecycleController={packageLifecycleController}
