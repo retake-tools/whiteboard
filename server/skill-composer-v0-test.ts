@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
+  listGoalComposerMentionOptions,
   listPackageComposerMentionOptions,
   resolvePackageComposerInvocation,
   type PackageComposerInvocation,
@@ -37,8 +38,51 @@ const scene = documentBlock(snapshot, 'block_scene', 'Scene Bible', 'scene_bible
 snapshot.blocks.push(brief, screenplay, character, scene);
 snapshot.assets.push(documentAsset(snapshot, 'asset_screenplay'), documentAsset(snapshot, 'asset_character'), documentAsset(snapshot, 'asset_scene'));
 
+const historicalPluginImage: BlockRecord = {
+  blockId: 'block_historical_plugin_image',
+  boardId: snapshot.board.boardId,
+  type: 'image',
+  layerId: 'layer_default',
+  position: { x: 0, y: 0 },
+  size: { width: 214, height: 380 },
+  zIndex: 1,
+  data: {
+    title: 'Historical Plugin Image',
+    assetId: 'asset_historical_plugin_image',
+    sourceExecutionId: 'exec_historical_plugin',
+  },
+  createdAt: '2026-07-22T00:00:00.000Z',
+  updatedAt: '2026-07-22T00:00:00.000Z',
+};
+snapshot.blocks.push(historicalPluginImage);
+snapshot.assets.push({
+  assetId: 'asset_historical_plugin_image',
+  projectId: snapshot.project.projectId,
+  kind: 'image',
+  mimeType: 'image/png',
+  storageProvider: 'local',
+  storageKey: 'assets/asset_historical_plugin_image/result.png',
+  previewUrl: '/api/local/assets/proj_demo_retake/asset_historical_plugin_image/result.png',
+  sourceExecutionId: 'exec_historical_plugin',
+  createdAt: '2026-07-22T00:00:00.000Z',
+});
+snapshot.executions.push({
+  executionId: 'exec_historical_plugin',
+  projectId: snapshot.project.projectId,
+  boardId: snapshot.board.boardId,
+  capabilityId: 'image.removed_plugin_capability',
+  adapter: 'local_canvas',
+  status: 'succeeded',
+  inputBlockIds: [],
+  outputBlockIds: [historicalPluginImage.blockId],
+  outputAssetIds: ['asset_historical_plugin_image'],
+  startedAt: '2026-07-22T00:00:00.000Z',
+  completedAt: '2026-07-22T00:00:01.000Z',
+});
+
 const normalizeOptions = listPackageComposerMentionOptions(snapshot, 'skill:retake.screenplay.normalize');
 assert.equal(normalizeOptions.some((option) => option.kind === 'block' && option.blockId === screenplay.blockId && option.slotId === 'source_screenplay'), true);
+assert.doesNotThrow(() => listGoalComposerMentionOptions(snapshot));
 const storyboardOptions = listPackageComposerMentionOptions(snapshot, 'skill:retake.storyboard-plan.from-production-design');
 assert.equal(storyboardOptions.some((option) => option.kind === 'block' && option.blockId === character.blockId && option.slotId === 'character_bible'), true);
 assert.equal(storyboardOptions.some((option) => option.kind === 'block' && option.blockId === scene.blockId && option.slotId === 'scene_bible'), true);
@@ -149,6 +193,7 @@ console.log(JSON.stringify({
   documentAssetMentionProjected: true,
   instructionPopulatesSkillInput: true,
   instructionPopulatesWorkflowInput: true,
+  removedPluginHistoryRemainsComposable: true,
   workflowDoesNotCreateExecution: true,
   workflowInputConflictRejected: true,
 }));

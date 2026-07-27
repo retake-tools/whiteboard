@@ -1,4 +1,7 @@
-import { capabilityDefinitionFor } from './capabilityRegistry';
+import {
+  capabilityDefinitionFor,
+  tryCapabilityDefinitionFor,
+} from './capabilityRegistry';
 import type { CapabilityCardinality, CapabilityDataType } from './capabilityContracts';
 import {
   listPackageEntryPoints,
@@ -395,7 +398,11 @@ function artifactTypeForExecutionOutput(
     ? snapshot.executions.find((candidate) => candidate.executionId === executionId)
     : undefined;
   if (!execution) return undefined;
-  const definition = capabilityDefinitionFor(execution.capabilityId);
+  // A removed Plugin must not make its historical output unusable as a
+  // generic Block or Asset. Its richer artifact type is unavailable until
+  // the owning Capability is installed again.
+  const definition = tryCapabilityDefinitionFor(execution.capabilityId);
+  if (!definition) return undefined;
   const index = blockId
     ? execution.outputBlockIds.indexOf(blockId)
     : assetId

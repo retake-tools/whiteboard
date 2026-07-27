@@ -6,7 +6,10 @@ import type {
   CapabilityInputSlotDefinition,
   CapabilityBindingValue,
 } from './capabilityContracts';
-import { capabilityDefinitionFor } from './capabilityRegistry';
+import {
+  capabilityDefinitionFor,
+  tryCapabilityDefinitionFor,
+} from './capabilityRegistry';
 import { createBlockRecord, touchBoard } from './blockFactory';
 import { createId, nowIso } from './id';
 import type {
@@ -79,7 +82,10 @@ export function compatibleArtifactInputSlots(
     || operation.data.status === 'running'
   ) return [];
   const dataTypes = dataTypesForAssetKind(item.primaryAsset.kind);
-  const definition = capabilityDefinitionFor(operation.data.capabilityId);
+  // Historical Plugin operations remain inspectable after the Package is
+  // removed, but cannot accept new typed inputs without their definition.
+  const definition = tryCapabilityDefinitionFor(operation.data.capabilityId);
+  if (!definition) return [];
   const assignedSlotIds = new Set(
     snapshot.edges
       .filter(
