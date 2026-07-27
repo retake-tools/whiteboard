@@ -9,7 +9,7 @@ import type {
   DeclarativePackageManifest,
   DeclarativeSkillDefinition,
   DeclarativeWorkflowDefinition,
-  RetakePluginModuleManifestV1,
+  RetakePluginModuleManifestV2,
   RetakePackageEntryPoint,
 } from '@retake-tools/package-contracts';
 
@@ -50,7 +50,7 @@ export interface InstalledDeclarativePackageRegistry {
     };
   }>;
   packages: DeclarativePackageManifest[];
-  pluginModules: Map<string, InstalledDefinition<RetakePluginModuleManifestV1>>;
+  pluginModules: Map<string, InstalledDefinition<RetakePluginModuleManifestV2>>;
   skills: Map<string, InstalledDefinition<DeclarativeSkillDefinition>>;
   workflows: Map<string, InstalledDefinition<DeclarativeWorkflowDefinition>>;
 }

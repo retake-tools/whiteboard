@@ -33,6 +33,12 @@ import {
   ExecutionPromptDetails,
   type ExecutionDetailCopySource,
 } from './ExecutionPromptDetails';
+import {
+  PluginOperationInspectorActions,
+} from './PluginOperationInspectorActions';
+import type {
+  PluginContributionRegistryV1,
+} from '../core/pluginContributionRegistry';
 
 export type { ExecutionDetailCopySource } from './ExecutionPromptDetails';
 
@@ -73,6 +79,11 @@ interface ExecutionDetailContentProps {
   onSelectAsset?: (asset: AssetRecord) => void;
   onOpenAnnotationEditor?: () => void;
   onRestoreConfiguration?: () => void;
+  onPluginFatalFailure?: (
+    pluginModuleId: string,
+    message: string,
+  ) => Promise<void> | void;
+  pluginContributionRegistry?: PluginContributionRegistryV1;
   onCopyPrompt: (input: {
     blockIds?: string[];
     copyKey: string;
@@ -100,8 +111,10 @@ export function ExecutionDetailContent({
   copySource,
   onSelectAsset,
   onOpenAnnotationEditor,
+  onPluginFatalFailure,
   onRestoreConfiguration,
   onCopyPrompt,
+  pluginContributionRegistry,
 }: ExecutionDetailContentProps): ReactElement {
   const { locale, t } = useI18n();
   const [previewImage, setPreviewImage] = useState<PreviewImage | undefined>();
@@ -196,6 +209,14 @@ export function ExecutionDetailContent({
           <span>{t('inspector.restoreConfiguration')}</span>
         </button>
       ) : null}
+      <PluginOperationInspectorActions
+        execution={execution}
+        inputAssets={inputImages.map((input) => input.asset)}
+        onFatalFailure={onPluginFatalFailure}
+        operationBlock={context.operationBlock}
+        registry={pluginContributionRegistry}
+        sourceBlock={context.sourceBlock}
+      />
 
       {annotatedCompositeAsset || inputImages.length ? (
         <ImageComparison

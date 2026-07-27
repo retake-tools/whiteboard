@@ -1,8 +1,10 @@
 import {
-  retakeCapabilityContributionV1Schema,
+  resolvePluginLocalizedTextV2,
+  retakeCapabilityContributionV2Schema,
+  type PluginLocalizedTextV2,
 } from '@retake-tools/package-contracts';
 import type {
-  ActivatedPluginContributionV1,
+  ActivatedPluginContributionV2,
 } from '@retake-tools/package-sdk';
 import {
   assertValidCapabilityDefinition,
@@ -13,23 +15,33 @@ export interface RegisteredPluginCapabilityV1 {
   contributionId: string;
   definition: CapabilityDefinition;
   failure: string | null;
+  localizedDisplayName: PluginLocalizedTextV2;
   pluginModuleId: string;
 }
 
 export function registeredPluginCapabilityFrom(
-  activated: ActivatedPluginContributionV1,
+  activated: ActivatedPluginContributionV2,
   pluginModuleId: string,
+  locale: string,
 ): RegisteredPluginCapabilityV1 {
-  const parsed = retakeCapabilityContributionV1Schema.safeParse(
+  const parsed = retakeCapabilityContributionV2Schema.safeParse(
     activated.value,
   );
   if (!parsed.success) {
     throw new Error(
-      'Plugin capability contribution must use the Retake Capability Contribution V1 contract.',
+      'Plugin capability contribution must use the Retake Capability Contribution V2 contract.',
     );
   }
   const value = parsed.data;
-  assertValidCapabilityDefinition(value.definition);
+  const definition: CapabilityDefinition = {
+    ...structuredClone(value.definition),
+    displayName: resolvePluginLocalizedTextV2(
+      value.definition.displayName,
+      locale,
+    ),
+    schemaVersion: 1,
+  };
+  assertValidCapabilityDefinition(definition);
   if (
     activated.contribution.definitionHash
     !== value.definition.definitionHash
@@ -40,11 +52,28 @@ export function registeredPluginCapabilityFrom(
   }
   return {
     contributionId: activated.contribution.contributionId,
-    definition: structuredClone(
-      value.definition,
-    ) as CapabilityDefinition,
+    definition,
     failure: null,
+    localizedDisplayName: structuredClone(value.definition.displayName),
     pluginModuleId,
+  };
+}
+
+export function localizeRegisteredPluginCapability(
+  capability: RegisteredPluginCapabilityV1,
+  locale: string,
+): RegisteredPluginCapabilityV1 {
+  const displayName = resolvePluginLocalizedTextV2(
+    capability.localizedDisplayName,
+    locale,
+  );
+  if (displayName === capability.definition.displayName) return capability;
+  return {
+    ...capability,
+    definition: {
+      ...capability.definition,
+      displayName,
+    },
   };
 }
 
@@ -59,7 +88,11 @@ export function samePluginCapabilities(
         === right[index]?.definition.capabilityId
       && capability.definition.definitionHash
         === right[index]?.definition.definitionHash
+      && capability.definition.displayName
+        === right[index]?.definition.displayName
       && capability.failure === right[index]?.failure
+      && JSON.stringify(capability.localizedDisplayName)
+        === JSON.stringify(right[index]?.localizedDisplayName)
       && capability.pluginModuleId === right[index]?.pluginModuleId
     ));
 }

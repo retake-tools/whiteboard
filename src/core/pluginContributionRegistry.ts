@@ -1,7 +1,18 @@
 import type {
-  ActivatedPluginContributionV1,
-  PluginHostApiV1,
+  PluginLocalizedTextV2,
+} from '@retake-tools/package-contracts';
+import {
+  pluginLocalizedTextV2Schema,
+} from '@retake-tools/package-contracts';
+import type {
+  ActivatedPluginContributionV2,
+  PluginHostApiV2,
+  PluginOperationActionContextV2,
+  PluginOperationInspectorActionV2,
 } from '@retake-tools/package-sdk';
+import {
+  parsePluginOperationInspectorActionV2,
+} from '@retake-tools/plugin-runtime';
 import type {
   ComponentType,
 } from 'react';
@@ -10,6 +21,7 @@ import {
 } from './pluginCapabilityDefinitions';
 import {
   pluginCapabilityConflicts,
+  localizeRegisteredPluginCapability,
   registeredPluginCapabilityFrom,
   samePluginCapabilities,
   type RegisteredPluginCapabilityV1,
@@ -25,16 +37,16 @@ export type PluginRendererBlockTypeV1 = Exclude<BlockType, 'group'>;
 
 export interface PluginContributionSessionV1 {
   activation: {
-    contributions: ActivatedPluginContributionV1[];
+    contributions: ActivatedPluginContributionV2[];
   };
-  host: PluginHostApiV1;
+  host: PluginHostApiV2;
   record: {
     pluginModuleId: string;
   };
 }
 
 export interface PluginPanelComponentPropsV1 {
-  host: PluginHostApiV1;
+  host: PluginHostApiV2;
 }
 
 export interface PluginPanelContributionValueV1 {
@@ -48,7 +60,7 @@ export interface RegisteredPluginPanelV1 {
   component: ComponentType<PluginPanelComponentPropsV1>;
   contributionId: string;
   failure: string | null;
-  host: PluginHostApiV1;
+  host: PluginHostApiV2;
   pluginModuleId: string;
 }
 
@@ -63,7 +75,7 @@ export interface PluginRendererBlockViewV1 {
 
 export interface PluginBlockRendererComponentPropsV1 {
   block: PluginRendererBlockViewV1;
-  host: PluginHostApiV1;
+  host: PluginHostApiV2;
   selected: boolean;
 }
 
@@ -79,7 +91,7 @@ export interface RegisteredPluginBlockRendererV1 {
   component: ComponentType<PluginBlockRendererComponentPropsV1>;
   contributionId: string;
   failure: string | null;
-  host: PluginHostApiV1;
+  host: PluginHostApiV2;
   pluginModuleId: string;
   supportedBlockTypes: readonly PluginRendererBlockTypeV1[];
 }
@@ -92,26 +104,26 @@ export interface PluginImageToolbarActionContextV1 {
     readonly title: string;
     readonly type: 'image';
   };
-  readonly host: PluginHostApiV1;
+  readonly host: PluginHostApiV2;
 }
 
 export interface PluginImageSelectionToolbarActionContextV1 {
   readonly blocks: readonly PluginImageToolbarActionContextV1['block'][];
-  readonly host: PluginHostApiV1;
+  readonly host: PluginHostApiV2;
 }
 
 export interface PluginImageToolbarActionContributionValueV1 {
-  apiVersion: 1;
+  apiVersion: 2;
   kind: 'action';
-  label: string;
+  label: PluginLocalizedTextV2;
   placement: 'image.toolbar';
   run(context: PluginImageToolbarActionContextV1): Promise<void> | void;
 }
 
 export interface PluginImageSelectionToolbarActionContributionValueV1 {
-  apiVersion: 1;
+  apiVersion: 2;
   kind: 'action';
-  label: string;
+  label: PluginLocalizedTextV2;
   placement: 'selection.toolbar';
   selectionCount: {
     max: number;
@@ -125,8 +137,8 @@ export interface PluginImageSelectionToolbarActionContributionValueV1 {
 interface RegisteredPluginActionBaseV1 {
   contributionId: string;
   failure: string | null;
-  host: PluginHostApiV1;
-  label: string;
+  host: PluginHostApiV2;
+  label: PluginLocalizedTextV2;
   pluginModuleId: string;
 }
 
@@ -148,9 +160,17 @@ export interface RegisteredPluginImageSelectionToolbarActionV1
   ): Promise<void> | void;
 }
 
+export interface RegisteredPluginOperationInspectorActionV2
+  extends RegisteredPluginActionBaseV1 {
+  placement: 'operation.inspector';
+  run(context: PluginOperationActionContextV2): Promise<void> | void;
+  supportedCapabilityIds: readonly string[];
+}
+
 export type RegisteredPluginActionV1 =
   | RegisteredPluginImageSelectionToolbarActionV1
-  | RegisteredPluginImageToolbarActionV1;
+  | RegisteredPluginImageToolbarActionV1
+  | RegisteredPluginOperationInspectorActionV2;
 
 export interface PluginContributionRegistryV1 {
   getActionSnapshot(): readonly RegisteredPluginActionV1[];
@@ -164,11 +184,13 @@ export interface PluginContributionRegistryV1 {
     error: string;
     pluginModuleId: string;
   }>;
+  setLocale(locale: string): void;
   subscribe(listener: () => void): () => void;
 }
 
 export function createPluginContributionRegistry():
 PluginContributionRegistryV1 {
+  let locale = 'en';
   let actions: readonly RegisteredPluginActionV1[] =
     Object.freeze([]);
   let capabilities: readonly RegisteredPluginCapabilityV1[] =
@@ -262,12 +284,20 @@ PluginContributionRegistryV1 {
               nextCapabilities.push(registeredPluginCapabilityFrom(
                 activated,
                 session.record.pluginModuleId,
+                locale,
               ));
             }
             if (activated.contribution.kind === 'action') {
-              const value = parsePluginActionContribution(
-                activated.value,
+              const isOperationAction = (
+                typeof activated.value === 'object'
+                && activated.value !== null
+                && (
+                  activated.value as { placement?: unknown }
+                ).placement === 'operation.inspector'
               );
+              const value = isOperationAction
+                ? parsePluginOperationInspectorActionV2(activated.value)
+                : parsePluginActionContribution(activated.value);
               const base = {
                 contributionId: activated.contribution.contributionId,
                 failure: null,
@@ -281,14 +311,23 @@ PluginContributionRegistryV1 {
                     placement: value.placement,
                     run: value.run,
                   }
-                : {
+                : value.placement === 'selection.toolbar'
+                  ? {
                     ...base,
                     placement: value.placement,
                     run: value.run,
                     selectionCount: Object.freeze({
                       ...value.selectionCount,
                     }),
-                  });
+                  }
+                  : {
+                      ...base,
+                      placement: value.placement,
+                      run: value.run,
+                      supportedCapabilityIds: Object.freeze([
+                        ...value.supportedCapabilityIds,
+                      ]),
+                    });
             }
             if (activated.contribution.kind === 'panel') {
               const value = parsePanelContribution(activated.value);
@@ -366,6 +405,18 @@ PluginContributionRegistryV1 {
       );
       return failures;
     },
+    setLocale(nextLocale) {
+      if (nextLocale === locale) return;
+      locale = nextLocale;
+      update(
+        [...actions],
+        capabilities.map((capability) => (
+          localizeRegisteredPluginCapability(capability, locale)
+        )),
+        [...panels],
+        [...renderers],
+      );
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -381,7 +432,7 @@ function parsePluginActionContribution(
   if (
     typeof value !== 'object'
     || value === null
-    || (value as { apiVersion?: unknown }).apiVersion !== 1
+    || (value as { apiVersion?: unknown }).apiVersion !== 2
     || (value as { kind?: unknown }).kind !== 'action'
     || (
       (value as { placement?: unknown }).placement !== 'image.toolbar'
@@ -397,7 +448,7 @@ function parsePluginActionContribution(
     )
   ) {
     throw new Error(
-      'Plugin action contribution must use a Retake Toolbar Action V1 contract.',
+      'Plugin action contribution must use a Retake Toolbar Action V2 contract.',
     );
   }
   return value as
@@ -467,11 +518,20 @@ function isBlockTypeArray(
     && value.every((entry) => blockTypes.includes(entry));
 }
 
-function isActionLabel(value: unknown): value is string {
-  return typeof value === 'string'
-    && value.trim() === value
-    && value.length > 0
-    && value.length <= 80;
+function isActionLabel(value: unknown): value is PluginLocalizedTextV2 {
+  const parsed = pluginLocalizedTextV2Schema.safeParse(value);
+  if (!parsed.success) return false;
+  const values = typeof parsed.data === 'string'
+    ? [parsed.data]
+    : [
+        parsed.data.default,
+        ...Object.values(parsed.data.locales ?? {}),
+      ];
+  return values.every((entry) => (
+    entry.trim() === entry
+    && entry.length > 0
+    && entry.length <= 80
+  ));
 }
 
 function sameActions(
@@ -483,7 +543,7 @@ function sameActions(
       action.contributionId === right[index]?.contributionId
       && action.failure === right[index]?.failure
       && action.host === right[index]?.host
-      && action.label === right[index]?.label
+      && JSON.stringify(action.label) === JSON.stringify(right[index]?.label)
       && action.placement === right[index]?.placement
       && (
         action.placement !== 'selection.toolbar'
@@ -493,6 +553,16 @@ function sameActions(
             === right[index].selectionCount.min
           && action.selectionCount.max
             === right[index].selectionCount.max
+        )
+      )
+      && (
+        action.placement !== 'operation.inspector'
+        || (
+          right[index]?.placement === 'operation.inspector'
+          && sameTextArray(
+            action.supportedCapabilityIds,
+            right[index].supportedCapabilityIds,
+          )
         )
       )
       && action.pluginModuleId === right[index]?.pluginModuleId

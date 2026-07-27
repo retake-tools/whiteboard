@@ -64,6 +64,7 @@ function PluginPanel({
       className="plugin-panel-host__panel"
       data-retake-plugin-contribution={panel.contributionId}
       data-retake-plugin-module={panel.pluginModuleId}
+      data-retake-plugin-ui="panel"
     >
       {createElement(panel.component, { host: panel.host })}
     </div>

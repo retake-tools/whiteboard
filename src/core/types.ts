@@ -23,6 +23,7 @@ import type {
   ChangeDecisionRecord,
   ChangeProposalRecord,
 } from './agentSessionContracts';
+import type { PluginJsonValueV2 } from '@retake-tools/package-sdk';
 
 export type BlockType = 'text' | 'document' | 'image' | 'video' | 'operation' | 'group';
 
@@ -320,6 +321,7 @@ export interface BlockData {
   documentOutline?: string[];
   managedDocumentResult?: boolean;
   annotationDraft?: AnnotationDraft;
+  retakePluginDrafts?: RetakePluginDraftRecord[];
   annotatedCompositeAssetId?: string;
   annotatedCompositePreviewUrl?: string;
   annotationMarkCount?: number;
@@ -383,6 +385,15 @@ export interface BlockData {
   workflowStepId?: string;
   workflowStepRunFreshness?: WorkflowStepRunFreshness;
   workflowStepRunStatus?: WorkflowStepRunStatus;
+}
+
+export interface RetakePluginDraftRecord {
+  capabilityId: string;
+  pluginModuleId: string;
+  revision: string;
+  schemaVersion: 1;
+  updatedAt: string;
+  value: PluginJsonValueV2;
 }
 
 export interface BlockRecord {

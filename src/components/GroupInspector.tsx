@@ -27,6 +27,9 @@ import {
 } from './ExecutionDetailContent';
 import { TooltipIconButton } from './Tooltip';
 import { WorkflowAgentTargetPicker } from './WorkflowAgentTargetPicker';
+import type {
+  PluginContributionRegistryV1,
+} from '../core/pluginContributionRegistry';
 
 interface CopyPromptInput {
   blockIds?: string[];
@@ -64,6 +67,11 @@ interface GroupInspectorProps {
   onPauseAgentRun: (agentRunId: string) => void;
   onResumeAgentRun: (agentRunId: string) => void;
   onSelectWorkflowOutput: (stepRunId: string, assetId: string, expectedStepRunVersion: number) => void;
+  onPluginFatalFailure?: (
+    pluginModuleId: string,
+    message: string,
+  ) => Promise<void> | void;
+  pluginContributionRegistry?: PluginContributionRegistryV1;
 }
 
 export function GroupInspector({
@@ -81,8 +89,10 @@ export function GroupInspector({
   onDecideWorkflowApproval,
   onDownloadAll,
   onPauseAgentRun,
+  onPluginFatalFailure,
   onResumeAgentRun,
   onSelectWorkflowOutput,
+  pluginContributionRegistry,
 }: GroupInspectorProps): ReactElement | null {
   const { t } = useI18n();
   const [selectedBlockId, setSelectedBlockId] = useState<string | undefined>();
@@ -269,10 +279,12 @@ export function GroupInspector({
                 copyKey={`group-inspector:${executionContext.execution.executionId}`}
                 copySource="group_inspector"
                 onCopyPrompt={onCopyPrompt}
+                onPluginFatalFailure={onPluginFatalFailure}
                 onSelectAsset={(asset) => {
                   const item = mediaItems.find((candidate) => candidate.asset.assetId === asset.assetId);
                   if (item) setSelectedBlockId(item.block.blockId);
                 }}
+                pluginContributionRegistry={pluginContributionRegistry}
               />
             ) : null}
           </aside>

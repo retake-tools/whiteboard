@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import type {
-  PluginHostApiV1,
+  PluginHostApiV2,
 } from '@retake-tools/package-sdk';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -12,16 +12,34 @@ import {
   createPluginContributionRegistry,
 } from '../src/core/pluginContributionRegistry';
 
-const host: PluginHostApiV1 = {
+const host: PluginHostApiV2 = {
   assets: {
     getBound: () => null,
     importImage: async () => {
       throw new Error('Renderer fixture does not import assets.');
     },
   },
+  drafts: {
+    getBound: () => null,
+    saveBound: async () => null,
+  },
+  environment: {
+    getSnapshot: () => ({
+      colorScheme: 'light',
+      direction: 'ltr',
+      locale: 'en',
+      reducedMotion: false,
+      revision: 'fixture',
+    }),
+    subscribe: () => () => undefined,
+  },
   execution: {
+    listConnections: () => [],
     run: async () => {
       throw new Error('Renderer fixture does not run executions.');
+    },
+    runConnected: async () => {
+      throw new Error('Renderer fixture does not run connected executions.');
     },
   },
   getReadSnapshot: () => ({
@@ -34,7 +52,7 @@ const host: PluginHostApiV1 = {
     selectedBlockIds: [],
   }),
   subscribeReadSnapshot: () => () => undefined,
-  version: 1,
+  version: 2,
 };
 const registry = createPluginContributionRegistry();
 const Renderer = ({
@@ -86,6 +104,7 @@ assert.match(
   pluginMarkup,
   /data-retake-plugin-renderer="retake\.contribution\.renderer-fixture"/,
 );
+assert.match(pluginMarkup, /data-retake-plugin-ui="renderer"/);
 assert.match(pluginMarkup, /data-block-frozen="true"/);
 assert.match(pluginMarkup, /data-block-id="block\.fixture"/);
 assert.doesNotMatch(pluginMarkup, /data-core-fallback/);
