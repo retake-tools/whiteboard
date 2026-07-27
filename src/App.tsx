@@ -762,7 +762,11 @@ function ReadyApp({
         groups={groupController}
         imageOperations={imageOperationController}
         isMiniMapVisible={isMiniMapVisible}
+        onPluginContributionFatalFailure={
+          onPluginContributionFatalFailure
+        }
         pendingDirectImageImportBlockIdRef={pendingDirectImageImportBlockIdRef}
+        pluginContributionRegistry={pluginContributionRegistry}
         selectedBlock={selectedBlock}
         selectedBlockContentLocked={selectedBlockContentLocked}
         selectedGroupInheritedLocked={selectedGroupInheritedLocked}

@@ -11,6 +11,7 @@ import type { BlockData, BlockType, ExecutionConfigurationChangeKind, ExecutionI
 import { useI18n } from '../i18n';
 import { TooltipIconButton } from '../components/Tooltip';
 import { InputRoleOptionList, inputRoleTitle } from '../components/InputRoleOptionList';
+import { PluginBlockRendererSlot } from '../components/PluginBlockRendererHost';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { AnnotationOperationPreviewButton } from './AnnotationOperationPreviewButton';
 import { DocumentBlockBody } from './DocumentBlockBody';
@@ -182,7 +183,20 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
           </button>
         ) : null}
       </div>
-      <BlockBody blockId={id} data={data as BlockData} title={title} type={blockType} />
+      <PluginBlockRendererSlot
+        blockId={id}
+        coreFallback={(
+          <BlockBody
+            blockId={id}
+            data={data as BlockData}
+            title={title}
+            type={blockType}
+          />
+        )}
+        data={data as BlockData}
+        selected={selected}
+        type={blockType}
+      />
       <Handle type="source" position={Position.Right} />
     </div>
   );

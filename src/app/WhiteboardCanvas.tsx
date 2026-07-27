@@ -6,8 +6,14 @@ import { ContextToolbar } from '../components/ContextToolbar';
 import { ExecutionOutputEdge } from '../components/ExecutionOutputEdge';
 import { GroupDrawOverlay } from '../components/GroupDrawOverlay';
 import { GroupToolbar } from '../components/GroupToolbar';
+import {
+  PluginBlockRendererProvider,
+} from '../components/PluginBlockRendererHost';
 import { createImageAssetFromDataUrl } from '../core/assetStore';
 import { maxBoardZoom, minBoardZoom } from '../core/boardViewStateStore';
+import type {
+  PluginContributionRegistryV1,
+} from '../core/pluginContributionRegistry';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
 import type { useI18n } from '../i18n';
 import { BlockNode } from '../nodes/BlockNode';
@@ -32,7 +38,12 @@ interface WhiteboardCanvasProps {
   groups: ReturnType<typeof useGroupController>;
   imageOperations: ReturnType<typeof useImageOperationController>;
   isMiniMapVisible: boolean;
+  onPluginContributionFatalFailure?: (
+    pluginModuleId: string,
+    message: string,
+  ) => Promise<void> | void;
   pendingDirectImageImportBlockIdRef: RefObject<string | undefined>;
+  pluginContributionRegistry?: PluginContributionRegistryV1;
   selectedBlock?: BlockRecord;
   selectedBlockContentLocked: boolean;
   selectedGroupInheritedLocked: boolean;
@@ -59,7 +70,9 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
     groups,
     imageOperations,
     isMiniMapVisible,
+    onPluginContributionFatalFailure,
     pendingDirectImageImportBlockIdRef,
+    pluginContributionRegistry,
     selectedBlock,
     selectedBlockContentLocked,
     selectedGroupInheritedLocked,
@@ -107,7 +120,11 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
       onPointerMoveCapture={handleCanvasPointerMove}
       onPointerLeave={handleCanvasPointerLeave}
     >
-      <ReactFlow
+      <PluginBlockRendererProvider
+        onFatalFailure={onPluginContributionFatalFailure}
+        registry={pluginContributionRegistry}
+      >
+        <ReactFlow
         nodes={canvas.nodes}
         edges={canvas.edges}
         edgeTypes={edgeTypes}
@@ -214,7 +231,8 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
         {showGrid ? <Background /> : null}
         {isMiniMapVisible ? <CanvasMiniMap onSelectBlock={canvas.selectBlock} /> : null}
         <CanvasViewportControls isMiniMapVisible={isMiniMapVisible} onToggleMiniMap={() => setMiniMapVisible((current) => !current)} />
-      </ReactFlow>
+        </ReactFlow>
+      </PluginBlockRendererProvider>
       {canvas.activeCanvasTool === 'group' ? (
         <GroupDrawOverlay getCandidateCount={groups.groupDrawCandidateCount} onCancel={() => canvas.setActiveCanvasTool('pan')} onComplete={groups.completeGroupDraw} />
       ) : null}

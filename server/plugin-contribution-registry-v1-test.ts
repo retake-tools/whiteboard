@@ -27,6 +27,7 @@ const host: PluginHostApiV1 = {
   version: 1,
 };
 const FixturePanel = () => null;
+const FixtureRenderer = () => null;
 const registry = createPluginContributionRegistry();
 let notifications = 0;
 const unsubscribe = registry.subscribe(() => {
@@ -60,6 +61,64 @@ assert.equal(
   'fixture render crash',
 );
 
+const rendererFailures = registry.replace([
+  rendererSession('retake.plugin.renderer-fixture', {
+    apiVersion: 1,
+    component: FixtureRenderer,
+    kind: 'renderer',
+    placement: 'block.body',
+    supportedBlockTypes: ['image'],
+  }),
+]);
+assert.deepEqual(rendererFailures, []);
+assert.equal(registry.getSnapshot().length, 0);
+assert.equal(registry.getRendererSnapshot().length, 1);
+assert.equal(
+  registry.getRendererSnapshot()[0]!.component,
+  FixtureRenderer,
+);
+assert.equal(
+  Object.isFrozen(
+    registry.getRendererSnapshot()[0]!.supportedBlockTypes,
+  ),
+  true,
+);
+registry.failModule(
+  'retake.plugin.renderer-fixture',
+  'fixture renderer crash',
+);
+assert.equal(
+  registry.getRendererSnapshot()[0]!.failure,
+  'fixture renderer crash',
+);
+
+const malformedRenderer = registry.replace([
+  rendererSession('retake.plugin.malformed-renderer', {
+    component: FixtureRenderer,
+    kind: 'renderer',
+  }),
+]);
+assert.deepEqual(malformedRenderer, [{
+  error: 'Plugin renderer contribution must use the Retake Block Renderer V1 contract.',
+  pluginModuleId: 'retake.plugin.malformed-renderer',
+}]);
+assert.equal(registry.getRendererSnapshot().length, 0);
+
+const unsupportedGroupRenderer = registry.replace([
+  rendererSession('retake.plugin.group-renderer', {
+    apiVersion: 1,
+    component: FixtureRenderer,
+    kind: 'renderer',
+    placement: 'block.body',
+    supportedBlockTypes: ['group'],
+  }),
+]);
+assert.deepEqual(unsupportedGroupRenderer, [{
+  error: 'Plugin renderer contribution must use the Retake Block Renderer V1 contract.',
+  pluginModuleId: 'retake.plugin.group-renderer',
+}]);
+assert.equal(registry.getRendererSnapshot().length, 0);
+
 const malformed = registry.replace([
   panelSession('retake.plugin.malformed-panel', {
     component: FixturePanel,
@@ -81,6 +140,7 @@ registry.replace([
 ]);
 registry.removeModule('retake.plugin.panel-fixture');
 assert.equal(registry.getSnapshot().length, 0);
+assert.equal(registry.getRendererSnapshot().length, 0);
 unsubscribe();
 
 process.stdout.write(`${JSON.stringify({
@@ -88,6 +148,9 @@ process.stdout.write(`${JSON.stringify({
   moduleFailureKeepsCoreFallbackDescriptor: true,
   moduleRemovalDetachesContributions: true,
   nativePanelContract: 'workspace.overlay',
+  nativeRendererContract: 'block.body',
+  rendererCannotReplaceCoreGroupShell: true,
+  rendererFailureKeepsCoreBlockFallback: true,
   repeatedRegistrySnapshotDeduplicated: true,
   registryUsesExternalStoreSubscription: true,
 })}\n`);
@@ -105,6 +168,28 @@ function panelSession(
           definitionPath: null,
           exportName: 'fixturePanel',
           kind: 'panel',
+        },
+        value,
+      }],
+    },
+    host,
+    record: { pluginModuleId },
+  };
+}
+
+function rendererSession(
+  pluginModuleId: string,
+  value: unknown,
+): PluginContributionSessionV1 {
+  return {
+    activation: {
+      contributions: [{
+        contribution: {
+          contributionId: `${pluginModuleId}.renderer`,
+          definitionHash: null,
+          definitionPath: null,
+          exportName: 'fixtureRenderer',
+          kind: 'renderer',
         },
         value,
       }],

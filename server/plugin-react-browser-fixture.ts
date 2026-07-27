@@ -9,7 +9,16 @@ import path from 'node:path';
 import {
   retakeWebPluginV1Toolchain,
 } from '@retake-tools/package-sdk';
+import {
+  createBlockRecord,
+  touchBoard,
+} from '../src/core/blockFactory';
 import { retakeRoot } from './local-store/context';
+import {
+  createAssetFromDataUrl,
+  ensureDefaultSnapshot,
+  saveSnapshot,
+} from './local-store';
 import { LocalPackageManagerService } from './local-package-manager-service';
 import { PluginRuntimeService } from './plugin-runtime-service';
 
@@ -51,9 +60,11 @@ try {
   const enabled = await runtime.enable(
     'retake.plugin.react-browser-fixture',
   );
+  const rendererBlockCount = await installRendererFixtureBlocks();
   process.stdout.write(`${JSON.stringify({
     digest: enabled.packageLock.digest,
     pluginModuleId: enabled.pluginModuleId,
+    rendererBlockCount,
     status: enabled.status,
     workspaceRoot: retakeRoot,
   })}\n`);
@@ -104,13 +115,22 @@ async function writeReactPluginSource(sourceRoot: string): Promise<void> {
     version: '0.1.0',
   });
   await writeJson(path.join(sourceRoot, 'retake.plugin.json'), {
-    contributions: [{
-      contributionId: 'retake.contribution.react-browser-fixture-panel',
-      definitionHash: null,
-      definitionPath: null,
-      exportName: 'fixturePanel',
-      kind: 'panel',
-    }],
+    contributions: [
+      {
+        contributionId: 'retake.contribution.react-browser-fixture-panel',
+        definitionHash: null,
+        definitionPath: null,
+        exportName: 'fixturePanel',
+        kind: 'panel',
+      },
+      {
+        contributionId: 'retake.contribution.react-browser-fixture-renderer',
+        definitionHash: null,
+        definitionPath: null,
+        exportName: 'fixtureRenderer',
+        kind: 'renderer',
+      },
+    ],
     definitionHash: 'sha256:react-browser-fixture-v1',
     description: 'Disposable React Host singleton browser fixture.',
     name: 'React browser fixture',
@@ -181,6 +201,30 @@ async function writeReactPluginSource(sourceRoot: string): Promise<void> {
       '  placement: "workspace.overlay",',
       '});',
       '',
+      'export function ReactBrowserFixtureRenderer({ block, selected }: {',
+      '  block: { blockId: string; previewUrl?: string; title: string; type: string };',
+      '  selected: boolean;',
+      '}) {',
+      '  if (globalThis.retakeReactPluginBrowserFixture?.crashRenderer) {',
+      '    throw new Error("fixture renderer crash");',
+      '  }',
+      '  if (globalThis.retakeReactPluginBrowserFixture) {',
+      '    globalThis.retakeReactPluginBrowserFixture.rendererRenderCount = (globalThis.retakeReactPluginBrowserFixture.rendererRenderCount ?? 0) + 1;',
+      '  }',
+      '  return <figure data-plugin-renderer-block={block.blockId} data-selected={selected ? "true" : "false"}>',
+      '    {block.previewUrl ? <img alt={block.title} src={block.previewUrl} /> : null}',
+      '    <figcaption>{`Plugin renderer: ${block.title}`}</figcaption>',
+      '  </figure>;',
+      '}',
+      '',
+      'export const fixtureRenderer = definePluginContribution({',
+      '  apiVersion: 1,',
+      '  component: ReactBrowserFixtureRenderer,',
+      '  kind: "renderer",',
+      '  placement: "block.body",',
+      '  supportedBlockTypes: ["image"],',
+      '});',
+      '',
       'export function activate(context: { host: {',
       '  assets: {',
       '    getBound(assetId: string): { assetId: string; previewUrl: string } | null;',
@@ -191,6 +235,7 @@ async function writeReactPluginSource(sourceRoot: string): Promise<void> {
       '} }) {',
       '  const hostReact = globalThis.retakePluginHostExternalsV1.react;',
       '  globalThis.retakeReactPluginBrowserFixture = {',
+      '    activationCount: 1,',
       '    createElementIdentity: React.createElement === hostReact.createElement,',
       '    createPortalType: typeof createPortal,',
       '    createRootType: typeof createRoot,',
@@ -213,6 +258,64 @@ async function writeReactPluginSource(sourceRoot: string): Promise<void> {
       '',
     ].join('\n'),
   );
+}
+
+async function installRendererFixtureBlocks(): Promise<number> {
+  const rendererBlockCount = parseRendererBlockCount(
+    process.env.RETAKE_PLUGIN_RENDERER_BLOCK_COUNT,
+  );
+  const snapshot = await ensureDefaultSnapshot();
+  const asset = await createAssetFromDataUrl({
+    dataUrl: [
+      'data:image/svg+xml,',
+      '%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 ',
+      'width=%22320%22 height=%22200%22%3E',
+      '%3Crect width=%22320%22 height=%22200%22 fill=%22%230f172a%22/%3E',
+      '%3Ccircle cx=%22160%22 cy=%22100%22 r=%2260%22 fill=%22%2314b8a6%22/%3E',
+      '%3C/svg%3E',
+    ].join(''),
+    fileName: 'plugin-renderer-fixture.svg',
+    height: 200,
+    kind: 'image',
+    projectId: snapshot.project.projectId,
+    width: 320,
+  });
+  snapshot.assets.push(asset);
+  for (let index = 0; index < rendererBlockCount; index += 1) {
+    const block = createBlockRecord(snapshot, 'image');
+    block.blockId = index === 0
+      ? 'block_plugin_renderer_fixture'
+      : `block_plugin_renderer_fixture_${index + 1}`;
+    block.position = {
+      x: 340 + (index % 10) * 340,
+      y: -150 + Math.floor(index / 10) * 280,
+    };
+    block.size = { width: 320, height: 260 };
+    block.data = {
+      assetId: asset.assetId,
+      previewUrl: asset.previewUrl,
+      rendererContributionId:
+        'retake.contribution.react-browser-fixture-renderer',
+      title: index === 0
+        ? 'Native Plugin Renderer'
+        : `Native Plugin Renderer ${index + 1}`,
+    };
+    snapshot.blocks.push(block);
+  }
+  touchBoard(snapshot);
+  await saveSnapshot(snapshot);
+  return rendererBlockCount;
+}
+
+function parseRendererBlockCount(value: string | undefined): number {
+  if (value === undefined) return 1;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 500) {
+    throw new Error(
+      'RETAKE_PLUGIN_RENDERER_BLOCK_COUNT must be between 1 and 500.',
+    );
+  }
+  return parsed;
 }
 
 async function writeJson(filePath: string, value: unknown): Promise<void> {
