@@ -44,6 +44,9 @@ import { PluginPanelHost } from './components/PluginPanelHost';
 import type {
   PluginContributionRegistryV1,
 } from './core/pluginContributionRegistry';
+import type {
+  PluginRuntimeControllerV1,
+} from './core/pluginRuntimeManagementClient';
 
 const DocumentReviewWorkspace = lazy(() => import('./components/DocumentReviewWorkspace').then((module) => ({
   default: module.DocumentReviewWorkspace,
@@ -59,6 +62,7 @@ export function App({
   onPluginContributionFatalFailure,
   onPluginHostScopeChange,
   pluginContributionRegistry,
+  pluginRuntimeController,
 }: {
   onPluginContributionFatalFailure?: (
     pluginModuleId: string,
@@ -69,6 +73,7 @@ export function App({
     assets: readonly PluginAssetV1[],
   ) => void;
   pluginContributionRegistry?: PluginContributionRegistryV1;
+  pluginRuntimeController?: PluginRuntimeControllerV1;
 } = {}): ReactElement {
   const { t } = useI18n();
   const boardSession = useBoardSession(t);
@@ -92,6 +97,7 @@ export function App({
       onPluginContributionFatalFailure={onPluginContributionFatalFailure}
       onPluginHostScopeChange={onPluginHostScopeChange}
       pluginContributionRegistry={pluginContributionRegistry}
+      pluginRuntimeController={pluginRuntimeController}
     />
   );
 }
@@ -101,6 +107,7 @@ function ReadyApp({
   onPluginContributionFatalFailure,
   onPluginHostScopeChange,
   pluginContributionRegistry,
+  pluginRuntimeController,
 }: {
   boardSession: ReadyBoardSession;
   onPluginContributionFatalFailure?: (
@@ -112,6 +119,7 @@ function ReadyApp({
     assets: readonly PluginAssetV1[],
   ) => void;
   pluginContributionRegistry?: PluginContributionRegistryV1;
+  pluginRuntimeController?: PluginRuntimeControllerV1;
 }): ReactElement {
   const { t } = useI18n();
   const {
@@ -539,6 +547,7 @@ function ReadyApp({
       />
       <TopBar
         agentWorkspaceButtonRef={agentWorkspaceButtonRef}
+        pluginRuntimeController={pluginRuntimeController}
         snapshot={snapshot}
         autosaveStatus={autosaveStatus}
         canUndo={canUndo}
