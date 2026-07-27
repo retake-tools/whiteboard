@@ -109,7 +109,11 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
           }
 
           if (method === 'GET' && url.pathname === '/package-registry/bootstrap') {
-            sendJson(res, await ensurePackageBootstrap());
+            const bootstrap = await ensurePackageBootstrap();
+            sendJson(res, {
+              ...bootstrap,
+              pluginRuntime: await createPluginRuntimeService().reconcile(),
+            });
             return;
           }
 
