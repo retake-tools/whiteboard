@@ -11,6 +11,7 @@ import {
 } from '../src/core/imageOperations';
 import { capabilityDefinitionFor } from '../src/core/capabilityRegistry';
 import { replacePluginCapabilityDefinitions } from '../src/core/pluginCapabilityDefinitions';
+import { imageMimeTypeFromDataUrl } from '../src/core/assetStore';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import type { CapabilityDefinition } from '../src/core/capabilityContracts';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../src/core/types';
@@ -44,6 +45,19 @@ const localAdjustDefinition = {
 } satisfies CapabilityDefinition;
 
 replacePluginCapabilityDefinitions([localAdjustDefinition]);
+
+assert.equal(
+  imageMimeTypeFromDataUrl('data:image/jpeg;base64,AA=='),
+  'image/jpeg',
+);
+assert.equal(
+  imageMimeTypeFromDataUrl('data:image/webp;base64,AA=='),
+  'image/webp',
+);
+assert.throws(
+  () => imageMimeTypeFromDataUrl('data:text/plain;base64,AA=='),
+  /image data URL/,
+);
 
 function snapshotWithSourceImage(): { snapshot: BoardSnapshot; sourceBlock: BlockRecord } {
   const snapshot = structuredClone(defaultSnapshot);

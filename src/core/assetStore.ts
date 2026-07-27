@@ -87,19 +87,37 @@ export async function createImageAssetFromDataUrl(input: {
     // Browser-only fallback for static preview builds.
   }
 
+  const mimeType = imageMimeTypeFromDataUrl(input.dataUrl);
+  const extension = imageExtensionForMime(mimeType);
   return {
     assetId: createId('asset'),
     projectId: input.projectId,
     kind: 'image',
-    mimeType: 'image/png',
+    mimeType,
     storageProvider: 'local_mock',
-    storageKey: `local-mock://annotation-composite/${nowIso()}.png`,
+    storageKey: `local-mock://image-result/${nowIso()}${extension}`,
     previewUrl: input.dataUrl,
     width: input.width,
     height: input.height,
     sourceExecutionId: input.sourceExecutionId,
     createdAt: nowIso(),
   };
+}
+
+export function imageMimeTypeFromDataUrl(dataUrl: string): string {
+  const match = /^data:([^;,]+)[;,]/.exec(dataUrl);
+  const mimeType = match?.[1]?.toLowerCase();
+  if (!mimeType?.startsWith('image/')) {
+    throw new Error('Expected an image data URL.');
+  }
+  return mimeType;
+}
+
+function imageExtensionForMime(mimeType: string): string {
+  if (mimeType === 'image/jpeg') return '.jpg';
+  if (mimeType === 'image/webp') return '.webp';
+  if (mimeType === 'image/svg+xml') return '.svg';
+  return '.png';
 }
 
 export function getAssetPreviewUrl(assets: AssetRecord[], assetId?: string): string | undefined {
