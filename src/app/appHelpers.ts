@@ -133,7 +133,9 @@ export function sameBlockSelection(left: readonly string[], right: readonly stri
 }
 
 export function isEditableNodeTarget(target: HTMLElement): boolean {
-  return Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+  return Boolean(target.closest(
+    'input, textarea, select, [contenteditable="true"], [data-retake-plugin-ui]',
+  ));
 }
 
 export function applyOperationInputRoleBadges(

@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict';
+import { PluginHostErrorV2 } from '@retake-tools/package-sdk';
+import {
+  listConnectedPluginExecutionConnections,
+} from '../src/app/runConnectedPluginExecution';
 import {
   runPluginExecution,
 } from '../src/app/usePluginExecutionController';
@@ -20,7 +24,7 @@ import type {
 
 const pluginModuleId = 'design.retake.image-studio.connected-fixture';
 const capability = {
-  apiVersion: 1,
+  apiVersion: 2,
   definition: {
     capabilityId: 'image.masked_edit',
     category: 'image_editing',
@@ -64,7 +68,7 @@ const capability = {
     }],
     parametersSchemaRef: 'definitions/image.masked_edit.parameters.json',
     runtimeRequirements: ['durable_asset_output', 'image_generation'],
-    schemaVersion: 1,
+    schemaVersion: 2,
     supportedAdapterClasses: ['agent_runtime.media'],
     version: '0.1.0',
   },
@@ -94,7 +98,7 @@ const hostStore = createPluginHostReadStore({
     registry.ownsCapability(candidateModuleId, capabilityId)
   ),
 });
-const host = hostStore.host(1, pluginModuleId);
+const host = hostStore.host(2, pluginModuleId);
 hostStore.update(host.getReadSnapshot(), [sourceAsset, maskAsset]);
 assert.deepEqual(registry.replace([{
   activation: {
@@ -135,6 +139,18 @@ cacheExecutionProviderSettings(snapshot.project.projectId, {
   projectDefaults: [],
   workspaceDefaults: [],
 });
+hostStore.setConnectionLister(listConnectedPluginExecutionConnections);
+const connectionViews = host.execution.listConnections({
+  capabilityId: 'image.masked_edit',
+});
+assert.deepEqual(connectionViews, [{
+  connectionId: 'codex-managed',
+  displayName: 'Codex MCP',
+  providerLabel: 'Codex',
+  selectedByDefault: true,
+}]);
+assert.equal('baseUrl' in connectionViews[0]!, false);
+assert.equal('hasCredential' in connectionViews[0]!, false);
 
 const snapshotRef = { current: snapshot };
 const persisted: BoardSnapshot[] = [];
@@ -162,12 +178,14 @@ const started = await host.execution.runConnected!({
   parameters: {
     maskEncoding: 'grayscale_white_selected_v1',
   },
+  outputCount: 2,
   prompt: 'Change only the selected jacket to dark blue.',
 });
 assert.equal(started.status, 'queued');
 assert.equal(started.connectionId, 'codex-managed');
 assert.equal(persisted.length, 1);
 assert.equal(selectedBlockIds.length, 1);
+assert.equal(started.outputBlockIds.length, 2);
 
 const execution = snapshotRef.current.executions.find(
   (candidate) => candidate.executionId === started.executionId,
@@ -206,6 +224,52 @@ assert.equal(
   true,
 );
 
+const importedMask = await host.assets.importImage({
+  dataUrl: 'data:image/png;base64,AA==',
+  fileName: 'imported-mask.png',
+  height: sourceAsset.height,
+  width: sourceAsset.width,
+});
+const importedStarted = await host.execution.runConnected({
+  capabilityId: 'image.masked_edit',
+  inputs: [
+    { blockId: source.blockId, slotId: 'source_image' },
+    { assetId: importedMask.assetId, slotId: 'inpaint_mask' },
+  ],
+  parameters: {
+    maskEncoding: 'grayscale_white_selected_v1',
+  },
+  prompt: 'Apply the imported mask.',
+});
+const importedExecution = snapshotRef.current.executions.find(
+  (candidate) => candidate.executionId === importedStarted.executionId,
+)!;
+assert.deepEqual(importedExecution.inputBlockIds, [source.blockId]);
+assert.equal(
+  (
+    importedExecution.params?.inputBindings as Array<{
+      assetId: string;
+      blockId?: string;
+      inputRole: string;
+    }>
+  ).some((binding) => (
+    binding.assetId === importedMask.assetId
+    && binding.blockId === undefined
+    && binding.inputRole === 'inpaint_mask'
+  )),
+  true,
+);
+assert.equal(
+  snapshotRef.current.assets.some(
+    (asset) => asset.assetId === importedMask.assetId,
+  ),
+  true,
+);
+assert.match(
+  importedExecution.agentPrompt ?? '',
+  new RegExp(`inpaint_mask.*${importedMask.assetId}`, 's'),
+);
+
 const executionCount = snapshotRef.current.executions.length;
 await assert.rejects(
   host.execution.runConnected!({
@@ -219,7 +283,12 @@ await assert.rejects(
     },
     prompt: 'Invalid role order.',
   }),
-  /PNG Mask Assets/,
+  (error: unknown) => (
+    error instanceof PluginHostErrorV2
+    && error.code === 'internal'
+    && error.cause instanceof Error
+    && /PNG Mask Assets/.test(error.cause.message)
+  ),
 );
 assert.equal(snapshotRef.current.executions.length, executionCount);
 
@@ -228,7 +297,9 @@ registry.removeModule(pluginModuleId);
 process.stdout.write(`${JSON.stringify({
   connectedExecutionUsesCurrentRetakeConnection: true,
   credentialsStayOutsidePluginHost: true,
+  importedAssetInputCreatesNoIntermediateBlock: true,
   maskGeometryValidatedBeforeOperation: true,
+  multipleResultsShareOneExecution: true,
   typedInputsPersistedToExecutionAndEdges: true,
 })}\n`);
 

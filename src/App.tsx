@@ -21,6 +21,10 @@ import { useWorkspaceController } from './app/useWorkspaceController';
 import { useBoardSession, type ReadyBoardSession } from './app/useBoardSession';
 import { useImageOperationController } from './app/useImageOperationController';
 import { usePluginExecutionController } from './app/usePluginExecutionController';
+import {
+  pluginDraftViewsForBlocks,
+  usePluginDraftController,
+} from './app/usePluginDraftController';
 import { useOperationInputController } from './app/useOperationInputController';
 import { useAnnotationController } from './app/useAnnotationController';
 import { useCanvasController } from './app/useCanvasController';
@@ -38,16 +42,21 @@ import { useArtifactLibraryController } from './app/useArtifactLibraryController
 import { useDomainVideoLaunchReviewController } from './app/useDomainVideoLaunchReviewController';
 import { WhiteboardCanvas } from './app/WhiteboardCanvas';
 import type {
-  PluginAssetV1,
-  PluginHostReadSnapshotV1,
+  PluginAssetV2,
+  PluginHostEnvironmentSnapshotV2,
+  PluginHostReadSnapshotV2,
 } from '@retake-tools/package-sdk';
 import { PluginPanelHost } from './components/PluginPanelHost';
 import type {
   PluginContributionRegistryV1,
 } from './core/pluginContributionRegistry';
 import type {
-  PluginExecutionRunnerV1,
+  PluginDraftRunnerV2,
+  PluginExecutionRunnerV2,
 } from './core/pluginWebModuleLoader';
+import type {
+  PluginHostDraftRecordV2,
+} from './core/pluginDrafts';
 import type {
   PluginRuntimeControllerV1,
 } from './core/pluginRuntimeManagementClient';
@@ -67,7 +76,9 @@ const DomainVideoLaunchReviewDialog = lazy(() => import('./components/DomainVide
 
 export function App({
   onPluginContributionFatalFailure,
+  onPluginDraftRunnerChange,
   onPluginExecutionRunnerChange,
+  onPluginHostEnvironmentChange,
   onPluginHostScopeChange,
   pluginContributionRegistry,
   packageLifecycleController,
@@ -77,12 +88,19 @@ export function App({
     pluginModuleId: string,
     message: string,
   ) => Promise<void> | void;
+  onPluginDraftRunnerChange?: (
+    runner: PluginDraftRunnerV2 | undefined,
+  ) => void;
   onPluginExecutionRunnerChange?: (
-    runner: PluginExecutionRunnerV1 | undefined,
+    runner: PluginExecutionRunnerV2 | undefined,
   ) => void;
   onPluginHostScopeChange?: (
-    snapshot: PluginHostReadSnapshotV1,
-    assets: readonly PluginAssetV1[],
+    snapshot: PluginHostReadSnapshotV2,
+    assets: readonly PluginAssetV2[],
+    drafts: readonly PluginHostDraftRecordV2[],
+  ) => void;
+  onPluginHostEnvironmentChange?: (
+    snapshot: PluginHostEnvironmentSnapshotV2,
   ) => void;
   pluginContributionRegistry?: PluginContributionRegistryV1;
   packageLifecycleController?: PackageLifecycleControllerV1;
@@ -108,7 +126,9 @@ export function App({
     <ReadyApp
       boardSession={boardSession}
       onPluginContributionFatalFailure={onPluginContributionFatalFailure}
+      onPluginDraftRunnerChange={onPluginDraftRunnerChange}
       onPluginExecutionRunnerChange={onPluginExecutionRunnerChange}
+      onPluginHostEnvironmentChange={onPluginHostEnvironmentChange}
       onPluginHostScopeChange={onPluginHostScopeChange}
       pluginContributionRegistry={pluginContributionRegistry}
       packageLifecycleController={packageLifecycleController}
@@ -120,7 +140,9 @@ export function App({
 function ReadyApp({
   boardSession,
   onPluginContributionFatalFailure,
+  onPluginDraftRunnerChange,
   onPluginExecutionRunnerChange,
+  onPluginHostEnvironmentChange,
   onPluginHostScopeChange,
   pluginContributionRegistry,
   packageLifecycleController,
@@ -131,18 +153,25 @@ function ReadyApp({
     pluginModuleId: string,
     message: string,
   ) => Promise<void> | void;
+  onPluginDraftRunnerChange?: (
+    runner: PluginDraftRunnerV2 | undefined,
+  ) => void;
   onPluginExecutionRunnerChange?: (
-    runner: PluginExecutionRunnerV1 | undefined,
+    runner: PluginExecutionRunnerV2 | undefined,
   ) => void;
   onPluginHostScopeChange?: (
-    snapshot: PluginHostReadSnapshotV1,
-    assets: readonly PluginAssetV1[],
+    snapshot: PluginHostReadSnapshotV2,
+    assets: readonly PluginAssetV2[],
+    drafts: readonly PluginHostDraftRecordV2[],
+  ) => void;
+  onPluginHostEnvironmentChange?: (
+    snapshot: PluginHostEnvironmentSnapshotV2,
   ) => void;
   pluginContributionRegistry?: PluginContributionRegistryV1;
   packageLifecycleController?: PackageLifecycleControllerV1;
   pluginRuntimeController?: PluginRuntimeControllerV1;
 }): ReactElement {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const {
     applyLoadedSnapshot,
     autosaveStatus,
@@ -170,6 +199,27 @@ function ReadyApp({
   const [isAgentWorkspaceOpen, setIsAgentWorkspaceOpen] = useState(false);
   const [isArtifactLibraryOpen, setIsArtifactLibraryOpen] = useState(false);
   const [reviewDocumentBlockId, setReviewDocumentBlockId] = useState<string | undefined>();
+  const [pluginReducedMotion, setPluginReducedMotion] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setPluginReducedMotion(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  useEffect(() => {
+    onPluginHostEnvironmentChange?.({
+      colorScheme: 'light',
+      direction: 'ltr',
+      locale: locale === 'zh' ? 'zh-CN' : 'en',
+      reducedMotion: pluginReducedMotion,
+      revision: `${locale}:light:${pluginReducedMotion ? 'reduce' : 'motion'}`,
+    });
+  }, [
+    locale,
+    onPluginHostEnvironmentChange,
+    pluginReducedMotion,
+  ]);
   useEffect(() => {
     void loadExecutionProviderSettings(snapshot.project.projectId).catch(() => undefined);
   }, [snapshot.project.projectId]);
@@ -248,6 +298,15 @@ function ReadyApp({
     snapshotRef,
     updateSnapshot,
   });
+  const pluginDraftRunner = usePluginDraftController({
+    persistSnapshot,
+    snapshotRef,
+    updateSnapshot,
+  });
+  useEffect(() => {
+    onPluginDraftRunnerChange?.(pluginDraftRunner);
+    return () => onPluginDraftRunnerChange?.(undefined);
+  }, [onPluginDraftRunnerChange, pluginDraftRunner]);
   useEffect(() => {
     onPluginExecutionRunnerChange?.(pluginExecutionRunner);
     return () => onPluginExecutionRunnerChange?.(undefined);
@@ -265,13 +324,14 @@ function ReadyApp({
     const boundAssetIds = [...new Set(selectedBlocks.flatMap((block) => (
       typeof block.data.assetId === 'string' ? [block.data.assetId] : []
     )))].sort();
+    const boundBlockIds = selectedBlocks
+      .filter((block) => block.type !== 'group')
+      .map((block) => block.blockId)
+      .sort();
     onPluginHostScopeChange({
       boardId: snapshot.board.boardId,
       boundAssetIds,
-      boundBlockIds: selectedBlocks
-        .filter((block) => block.type !== 'group')
-        .map((block) => block.blockId)
-        .sort(),
+      boundBlockIds,
       boundGroupIds: [...new Set(selectedBlocks.flatMap((block) => [
         ...(block.type === 'group' ? [block.blockId] : []),
         ...(block.parentGroupId ? [block.parentGroupId] : []),
@@ -279,7 +339,9 @@ function ReadyApp({
       projectId: snapshot.project.projectId,
       revision: `${snapshot.board.updatedAt}:selection:${selectedBlockScopeKey}`,
       selectedBlockIds: [...selectedBlockIds],
-    }, snapshot.assets.filter((asset) => boundAssetIds.includes(asset.assetId)));
+    }, snapshot.assets.filter(
+      (asset) => boundAssetIds.includes(asset.assetId),
+    ), pluginDraftViewsForBlocks(snapshot, new Set(boundBlockIds)));
   }, [
     onPluginHostScopeChange,
     selectedBlockScopeKey,
@@ -708,7 +770,9 @@ function ReadyApp({
         onClose={() => setInspectorBlockId(undefined)}
         onCopyPrompt={copyPromptWithHistory}
         onOpenAnnotationEditor={openHistoricalAnnotationVersion}
+        onPluginFatalFailure={onPluginContributionFatalFailure}
         onRestoreConfiguration={restoreConfigurationVersion}
+        pluginContributionRegistry={pluginContributionRegistry}
       />
       <GroupInspector
         copiedPromptKey={copiedPromptKey}
@@ -725,8 +789,10 @@ function ReadyApp({
         onCreateWorkflowSliceAgentRun={agentRuntimeController.createWorkflowSliceAgentRun}
         onCreateWorkflowStageSliceAgentRun={agentRuntimeController.createWorkflowStageSliceAgentRun}
         onPauseAgentRun={agentRuntimeController.pauseAgentRun}
+        onPluginFatalFailure={onPluginContributionFatalFailure}
         onResumeAgentRun={agentRuntimeController.resumeAgentRun}
         onSelectWorkflowOutput={workflowRuntimeController.acceptWorkflowOutput}
+        pluginContributionRegistry={pluginContributionRegistry}
       />
       {isArtifactLibraryOpen ? (
         <Suspense fallback={null}>
@@ -752,6 +818,8 @@ function ReadyApp({
           onCopyPrompt={copyPromptWithHistory}
           onLocateBlock={locateBlock}
           onOpenAnnotationEditor={openHistoricalAnnotationVersion}
+          onPluginFatalFailure={onPluginContributionFatalFailure}
+          pluginContributionRegistry={pluginContributionRegistry}
         />
       ) : null}
       {isAgentWorkspaceOpen ? (

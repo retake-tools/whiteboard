@@ -12,6 +12,9 @@ import {
 } from './ExecutionDetailContent';
 import { SafeMarkdown } from './SafeMarkdown';
 import { TooltipIconButton } from './Tooltip';
+import type {
+  PluginContributionRegistryV1,
+} from '../core/pluginContributionRegistry';
 
 interface CopyPromptInput {
   blockIds?: string[];
@@ -34,6 +37,11 @@ interface ExecutionInspectorProps {
   onCopyPrompt: (input: CopyPromptInput) => void | Promise<void>;
   onOpenAnnotationEditor: (executionId: string) => void;
   onRestoreConfiguration: (executionId: string) => void;
+  onPluginFatalFailure?: (
+    pluginModuleId: string,
+    message: string,
+  ) => Promise<void> | void;
+  pluginContributionRegistry?: PluginContributionRegistryV1;
 }
 
 export function ExecutionInspector({
@@ -43,7 +51,9 @@ export function ExecutionInspector({
   snapshot,
   onCopyPrompt,
   onOpenAnnotationEditor,
+  onPluginFatalFailure,
   onRestoreConfiguration,
+  pluginContributionRegistry,
 }: ExecutionInspectorProps): ReactElement | null {
   const { t } = useI18n();
   const [selectedAssetId, setSelectedAssetId] = useState<string | undefined>();
@@ -198,6 +208,7 @@ export function ExecutionInspector({
               copyKey={`inspector:${context.execution.executionId}`}
               copySource="execution_inspector"
               onCopyPrompt={onCopyPrompt}
+              onPluginFatalFailure={onPluginFatalFailure}
               onOpenAnnotationEditor={
                 context.annotationManifest
                   ? () => onOpenAnnotationEditor(context.execution.executionId)
@@ -209,6 +220,7 @@ export function ExecutionInspector({
                   : undefined
               }
               onSelectAsset={(asset) => setSelectedAssetId(asset.assetId)}
+              pluginContributionRegistry={pluginContributionRegistry}
             />
           </aside>
         </div>

@@ -188,15 +188,15 @@ function runtimeSnapshot(input: Pick<
         runtime: {
           entrypoint: 'dist/index.js',
           hostApi: {
-            maximumVersion: 1,
-            minimumVersion: 1,
+            maximumVersion: 2,
+            minimumVersion: 2,
           },
           kind: 'web_module',
         },
-        schemaVersion: 1,
+        schemaVersion: 2,
         version: '0.1.0',
       },
-      negotiatedHostApiVersion: 1,
+      negotiatedHostApiVersion: 2,
       packageLock: {
         digest: `sha256:${'a'.repeat(64)}`,
         installationId: 'installation.runtime-management-fixture',

@@ -1,4 +1,5 @@
 import { Puzzle } from 'lucide-react';
+import { resolvePluginLocalizedTextV2 } from '@retake-tools/package-contracts';
 import {
   memo,
   useMemo,
@@ -90,6 +91,11 @@ const PluginImageToolbarActionButton = memo(
     ) => Promise<void> | void;
   }): ReactElement | null {
     const [pending, setPending] = useState(false);
+    const environment = useSyncExternalStore(
+      action.host.environment.subscribe,
+      action.host.environment.getSnapshot,
+      action.host.environment.getSnapshot,
+    );
     if (action.failure) return null;
 
     async function invoke(): Promise<void> {
@@ -117,7 +123,10 @@ const PluginImageToolbarActionButton = memo(
       <TooltipIconButton
         className="icon-button plugin-image-toolbar-action"
         disabled={pending}
-        label={action.label}
+        label={resolvePluginLocalizedTextV2(
+          action.label,
+          environment.locale,
+        )}
         onClick={() => {
           void invoke();
         }}

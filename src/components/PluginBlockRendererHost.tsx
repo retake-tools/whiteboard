@@ -115,6 +115,7 @@ export function PluginBlockRendererSlot({
       <div
         className="plugin-block-renderer"
         data-retake-plugin-renderer={renderer.contributionId}
+        data-retake-plugin-ui="renderer"
       >
         <MemoizedPluginBlockRenderer
           assetId={

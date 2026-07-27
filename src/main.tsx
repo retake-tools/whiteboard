@@ -45,6 +45,9 @@ import {
   createPackageLifecycleController,
   type PackageLifecycleControllerV1,
 } from './core/packageLifecycleClient';
+import {
+  listConnectedPluginExecutionConnections,
+} from './app/runConnectedPluginExecution';
 
 installPluginHostExternals();
 const root = createRoot(document.getElementById('root')!);
@@ -65,6 +68,9 @@ const pluginHostReadStore = createPluginHostReadStore({
     )
   ),
 });
+pluginHostReadStore.setConnectionLister(
+  listConnectedPluginExecutionConnections,
+);
 let pluginRuntimeController: PluginRuntimeControllerV1 | undefined;
 let packageLifecycleController: PackageLifecycleControllerV1 | undefined;
 
@@ -85,6 +91,7 @@ async function applyPluginRuntimeSnapshot(
     createHost: (record) => pluginHostReadStore.host(
       record.negotiatedHostApiVersion!,
       record.pluginModuleId,
+      record.manifest.permissions,
     ),
     onFatalFailure: reportPluginFatalFailure,
     snapshot,
@@ -142,8 +149,15 @@ void bootstrapInstalledRuntimeRegistry()
                   );
                 });
             }}
+            onPluginDraftRunnerChange={pluginHostReadStore.setDraftRunner}
             onPluginExecutionRunnerChange={
               pluginHostReadStore.setExecutionRunner
+            }
+            onPluginHostEnvironmentChange={
+              (environment) => {
+                pluginHostReadStore.updateEnvironment(environment);
+                pluginContributionRegistry.setLocale(environment.locale);
+              }
             }
             onPluginHostScopeChange={pluginHostReadStore.update}
             pluginContributionRegistry={pluginContributionRegistry}

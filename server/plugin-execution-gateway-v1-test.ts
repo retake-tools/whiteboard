@@ -1,7 +1,5 @@
 import assert from 'node:assert/strict';
-import type {
-  PluginHostApiV1,
-} from '@retake-tools/package-sdk';
+import { PluginHostErrorV2 } from '@retake-tools/package-sdk';
 import {
   runPluginExecution,
 } from '../src/app/usePluginExecutionController';
@@ -23,7 +21,7 @@ const pluginModuleId = 'design.retake.image-studio.fixture';
 const onePixelPng =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 const capability = {
-  apiVersion: 1,
+  apiVersion: 2,
   definition: {
     capabilityId: 'image.local_adjust',
     category: 'image_editing',
@@ -46,7 +44,7 @@ const capability = {
       slotId: 'result_image',
     }],
     runtimeRequirements: ['browser.canvas_2d'],
-    schemaVersion: 1,
+    schemaVersion: 2,
     supportedAdapterClasses: ['local_canvas'],
     version: '0.1.0',
   },
@@ -74,7 +72,7 @@ const hostStore = createPluginHostReadStore({
     registry.ownsCapability(candidateModuleId, capabilityId)
   ),
 });
-const host = hostStore.host(1, pluginModuleId);
+const host = hostStore.host(2, pluginModuleId);
 hostStore.update(host.getReadSnapshot(), [sourceAsset]);
 assert.deepEqual(registry.replace([{
   activation: {
@@ -202,7 +200,12 @@ await assert.rejects(
       saturation: 0,
     },
   }),
-  /fixture processor failed/,
+  (error: unknown) => (
+    error instanceof PluginHostErrorV2
+    && error.code === 'internal'
+    && error.cause instanceof Error
+    && error.cause.message === 'fixture processor failed'
+  ),
 );
 assert.equal(snapshotRef.current.executions[0]?.status, 'failed');
 assert.deepEqual(

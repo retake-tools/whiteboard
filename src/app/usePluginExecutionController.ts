@@ -1,8 +1,8 @@
 import { useCallback, type RefObject } from 'react';
 import type {
-  PluginConnectedExecutionViewV1,
-  PluginAssetV1,
-  PluginExecutionViewV1,
+  PluginConnectedExecutionViewV2,
+  PluginAssetV2,
+  PluginExecutionViewV2,
 } from '@retake-tools/package-sdk';
 import { createImageAssetFromDataUrl } from '../core/assetStore';
 import {
@@ -14,8 +14,8 @@ import {
   failPluginImageOperation,
 } from '../core/imageOperations';
 import type {
-  PluginExecutionRunnerRequestV1,
-  PluginExecutionRunnerV1,
+  PluginExecutionRunnerRequestV2,
+  PluginExecutionRunnerV2,
 } from '../core/pluginWebModuleLoader';
 import type {
   AssetRecord,
@@ -50,9 +50,9 @@ export function usePluginExecutionController({
   setSelectedBlock,
   snapshotRef,
   updateSnapshot,
-}: PluginExecutionControllerOptions): PluginExecutionRunnerV1 {
+}: PluginExecutionControllerOptions): PluginExecutionRunnerV2 {
   return useCallback(
-    (request: PluginExecutionRunnerRequestV1) => (
+    (request: PluginExecutionRunnerRequestV2) => (
       runPluginExecution(request, {
         persistSnapshot,
         setSelectedBlock,
@@ -70,14 +70,14 @@ export function usePluginExecutionController({
 }
 
 export async function runPluginExecution(
-  request: PluginExecutionRunnerRequestV1,
+  request: PluginExecutionRunnerRequestV2,
   {
     persistSnapshot,
     setSelectedBlock,
     snapshotRef,
     updateSnapshot,
   }: PluginExecutionControllerOptions,
-): Promise<PluginConnectedExecutionViewV1 | PluginExecutionViewV1> {
+): Promise<PluginConnectedExecutionViewV2 | PluginExecutionViewV2> {
   if (request.kind === 'connected') {
     return runConnectedPluginExecution(
       request.input,
@@ -88,6 +88,7 @@ export async function runPluginExecution(
         snapshotRef,
         updateSnapshot,
       },
+      request.importedAssets,
     );
   }
   const { input, signal } = request;
@@ -324,7 +325,7 @@ function isCurrentExecutionScope(
     && snapshot.project.projectId === scope.projectId;
 }
 
-function toPluginAsset(asset: AssetRecord): PluginAssetV1 {
+function toPluginAsset(asset: AssetRecord): PluginAssetV2 {
   return Object.freeze({
     assetId: asset.assetId,
     createdAt: asset.createdAt,

@@ -16,6 +16,9 @@ import {
   type ExecutionDetailCopySource,
 } from './ExecutionDetailContent';
 import { TooltipIconButton } from './Tooltip';
+import type {
+  PluginContributionRegistryV1,
+} from '../core/pluginContributionRegistry';
 
 interface CopyPromptInput {
   blockIds?: string[];
@@ -32,6 +35,11 @@ interface BoardHistoryPanelProps {
   onCopyPrompt: (input: CopyPromptInput) => void | Promise<void>;
   onLocateBlock: (blockId: string) => void;
   onOpenAnnotationEditor: (executionId: string) => void;
+  onPluginFatalFailure?: (
+    pluginModuleId: string,
+    message: string,
+  ) => Promise<void> | void;
+  pluginContributionRegistry?: PluginContributionRegistryV1;
 }
 
 interface HistoryEntry {
@@ -53,6 +61,8 @@ export function BoardHistoryPanel({
   onCopyPrompt,
   onLocateBlock,
   onOpenAnnotationEditor,
+  onPluginFatalFailure,
+  pluginContributionRegistry,
   snapshot,
 }: BoardHistoryPanelProps): ReactElement {
   const { locale, t } = useI18n();
@@ -148,10 +158,14 @@ export function BoardHistoryPanel({
                       copyKey={copyKey}
                       copySource="history_panel"
                       onCopyPrompt={onCopyPrompt}
+                      onPluginFatalFailure={onPluginFatalFailure}
                       onOpenAnnotationEditor={
                         detailContext.annotationManifest
                           ? () => onOpenAnnotationEditor(detailContext.execution.executionId)
                           : undefined
+                      }
+                      pluginContributionRegistry={
+                        pluginContributionRegistry
                       }
                     />
                   </div>

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import type {
-  PluginHostApiV1,
+  PluginHostApiV2,
 } from '@retake-tools/package-sdk';
 import {
   createPluginContributionRegistry,
@@ -10,16 +10,34 @@ import {
   capabilityDefinitionFor,
 } from '../src/core/capabilityRegistry';
 
-const host: PluginHostApiV1 = {
+const host: PluginHostApiV2 = {
   assets: {
     getBound: () => null,
     importImage: async () => {
       throw new Error('Fixture does not import assets.');
     },
   },
+  drafts: {
+    getBound: () => null,
+    saveBound: async () => null,
+  },
+  environment: {
+    getSnapshot: () => ({
+      colorScheme: 'light',
+      direction: 'ltr',
+      locale: 'en',
+      reducedMotion: false,
+      revision: 'fixture',
+    }),
+    subscribe: () => () => {},
+  },
   execution: {
+    listConnections: () => [],
     run: async () => {
       throw new Error('Fixture does not run executions.');
+    },
+    runConnected: async () => {
+      throw new Error('Fixture does not run connected executions.');
     },
   },
   getReadSnapshot: () => ({
@@ -32,7 +50,7 @@ const host: PluginHostApiV1 = {
     selectedBlockIds: [],
   }),
   subscribeReadSnapshot: () => () => {},
-  version: 1,
+  version: 2,
 };
 const FixturePanel = () => null;
 const FixtureRenderer = () => null;
@@ -103,7 +121,7 @@ assert.equal(
 
 const actionFailures = registry.replace([
   actionSession('retake.plugin.action-fixture', {
-    apiVersion: 1,
+    apiVersion: 2,
     kind: 'action',
     label: 'Fixture action',
     placement: 'image.toolbar',
@@ -127,7 +145,7 @@ assert.equal(
 
 const selectionActionFailures = registry.replace([
   actionSession('retake.plugin.selection-action-fixture', {
-    apiVersion: 1,
+    apiVersion: 2,
     kind: 'action',
     label: 'Fixture selection action',
     placement: 'selection.toolbar',
@@ -161,7 +179,7 @@ assert.equal(
 
 const malformedAction = registry.replace([
   actionSession('retake.plugin.malformed-action', {
-    apiVersion: 1,
+    apiVersion: 2,
     kind: 'action',
     label: '',
     placement: 'image.toolbar',
@@ -169,7 +187,7 @@ const malformedAction = registry.replace([
   }),
 ]);
 assert.deepEqual(malformedAction, [{
-  error: 'Plugin action contribution must use a Retake Toolbar Action V1 contract.',
+  error: 'Plugin action contribution must use a Retake Toolbar Action V2 contract.',
   pluginModuleId: 'retake.plugin.malformed-action',
 }]);
 assert.equal(registry.getActionSnapshot().length, 0);
@@ -214,12 +232,17 @@ assert.deepEqual(malformed, [{
 assert.equal(registry.getSnapshot().length, 0);
 
 const fixtureCapability = {
-  apiVersion: 1,
+  apiVersion: 2,
   definition: {
     capabilityId: 'image.local_adjust',
     category: 'image_editing',
     definitionHash: 'sha256:plugin-local-adjust-fixture-v1',
-    displayName: 'Plugin local adjustment',
+    displayName: {
+      default: 'Plugin local adjustment',
+      locales: {
+        'zh-CN': '插件局部调整',
+      },
+    },
     inputSlots: [{
       artifactTypes: [],
       bindingKinds: ['asset', 'block'],
@@ -237,7 +260,7 @@ const fixtureCapability = {
       slotId: 'result_image',
     }],
     runtimeRequirements: ['browser.canvas_2d'],
-    schemaVersion: 1,
+    schemaVersion: 2,
     supportedAdapterClasses: ['local_canvas'],
     version: '0.1.0',
   },
@@ -261,6 +284,33 @@ assert.equal(
 assert.equal(
   capabilityDefinitionFor('image.local_adjust').definitionHash,
   fixtureCapability.definition.definitionHash,
+);
+registry.setLocale('zh-CN');
+assert.equal(
+  capabilityDefinitionFor('image.local_adjust').displayName,
+  '插件局部调整',
+);
+const operationActionFailures = registry.replace([
+  capabilitySession(
+    'retake.plugin.operation-action-fixture',
+    fixtureCapability,
+  ),
+  actionSession('retake.plugin.operation-action-fixture', {
+    apiVersion: 2,
+    kind: 'action',
+    label: {
+      default: 'Reopen edit',
+      locales: { 'zh-CN': '重新编辑' },
+    },
+    placement: 'operation.inspector',
+    run: fixtureActionRun,
+    supportedCapabilityIds: ['image.local_adjust'],
+  }),
+]);
+assert.deepEqual(operationActionFailures, []);
+assert.equal(
+  registry.getActionSnapshot()[0]?.placement,
+  'operation.inspector',
 );
 
 const capabilityConflictFailures = registry.replace([

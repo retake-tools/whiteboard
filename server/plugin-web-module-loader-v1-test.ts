@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import type {
-  ActivatedPluginWebModuleV1,
+  ActivatedPluginWebModuleV2,
   PluginModuleRuntimeRecordV1,
   PluginRuntimeSnapshotV1,
 } from '@retake-tools/package-sdk';
@@ -35,11 +35,14 @@ const readStore = createPluginHostReadStore({
       kind: 'image',
       mimeType: 'image/svg+xml',
       previewUrl: '/api/local/assets/project.fixture/asset.imported/fixture.svg',
+      projectId: input.projectId,
+      storageKey: 'assets/asset.imported/fixture.svg',
+      storageProvider: 'local',
       width: input.width,
     };
   },
 });
-const host = readStore.host(1, 'retake.plugin.loader-fixture');
+const host = readStore.host(2, 'retake.plugin.loader-fixture');
 assert.equal(host.getReadSnapshot(), host.getReadSnapshot());
 assert.equal(Object.isFrozen(host.getReadSnapshot()), true);
 assert.equal(Object.isFrozen(host.getReadSnapshot().selectedBlockIds), true);
@@ -65,6 +68,9 @@ readStore.update({
   kind: 'image',
   mimeType: 'image/png',
   previewUrl: '/api/local/assets/project.fixture/asset.bound/original.png',
+  projectId: 'project.fixture',
+  storageKey: 'assets/asset.bound/original.png',
+  storageProvider: 'local',
   width: 640,
 }]);
 assert.equal(host.assets.getBound('asset.missing'), null);
@@ -175,7 +181,7 @@ await assert.rejects(
 );
 await assert.rejects(
   readStore.host(
-    1,
+    2,
     'retake.plugin.unauthorized-fixture',
   ).execution.run({
     capabilityId: 'image.local_adjust',
@@ -218,6 +224,9 @@ readStore.update({
   kind: 'image',
   mimeType: 'image/png',
   previewUrl: '/api/local/assets/project.fixture/asset.bound/original.png',
+  projectId: 'project.fixture',
+  storageKey: 'assets/asset.bound/original.png',
+  storageProvider: 'local',
   width: 640,
 }]);
 const importedAsset = await host.assets.importImage({
@@ -230,7 +239,7 @@ assert.equal(importedAsset.assetId, 'asset.imported');
 assert.equal(Object.isFrozen(importedAsset), true);
 await assert.rejects(
   host.assets.importImage({ dataUrl: 'data:text/plain,not-an-image' }),
-  /requires an image data URL/,
+  /requires an image Data URL/i,
 );
 unsubscribe();
 
@@ -257,15 +266,15 @@ const record = {
     runtime: {
       entrypoint: 'dist/index.js',
       hostApi: {
-        maximumVersion: 1,
-        minimumVersion: 1,
+        maximumVersion: 2,
+        minimumVersion: 2,
       },
       kind: 'web_module',
     },
-    schemaVersion: 1,
+    schemaVersion: 2,
     version: '0.1.0',
   },
-  negotiatedHostApiVersion: 1,
+  negotiatedHostApiVersion: 2,
   packageLock: {
     digest: `sha256:${'1'.repeat(64)}`,
     installationId: 'installation.fixture',
@@ -291,7 +300,7 @@ const record = {
 } satisfies PluginModuleRuntimeRecordV1;
 let activationCalls = 0;
 let disposalCalls = 0;
-const activate = async (): Promise<ActivatedPluginWebModuleV1> => {
+const activate = async (): Promise<ActivatedPluginWebModuleV2> => {
   activationCalls += 1;
   return {
     contributions: [],

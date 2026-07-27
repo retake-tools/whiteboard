@@ -95,9 +95,27 @@ try {
           throw new Error('Fixture does not import assets.');
         },
       },
+      drafts: {
+        getBound: () => null,
+        saveBound: async () => null,
+      },
+      environment: {
+        getSnapshot: () => ({
+          colorScheme: 'light',
+          direction: 'ltr',
+          locale: 'en',
+          reducedMotion: false,
+          revision: 'fixture',
+        }),
+        subscribe: () => () => {},
+      },
       execution: {
+        listConnections: () => [],
         run: async () => {
           throw new Error('Fixture does not run executions.');
+        },
+        runConnected: async () => {
+          throw new Error('Fixture does not run connected executions.');
         },
       },
       getReadSnapshot: () => ({
@@ -110,7 +128,7 @@ try {
         selectedBlockIds: ['block.fixture'],
       }),
       subscribeReadSnapshot: () => () => {},
-      version: enabled.negotiatedHostApiVersion!,
+      version: 2,
     },
     manifest: enabled.manifest,
     module: moduleNamespace,
@@ -295,7 +313,7 @@ async function writePluginSource(
       slotId: 'result_image',
     }],
     runtimeRequirements: ['browser.canvas_2d'],
-    schemaVersion: 1,
+    schemaVersion: 2,
     supportedAdapterClasses: ['local_canvas'],
     version: input.version,
   };
@@ -357,11 +375,11 @@ async function writePluginSource(
       entrypoint: 'dist/index.js',
       hostApi: {
         maximumVersion: 2,
-        minimumVersion: 1,
+        minimumVersion: 2,
       },
       kind: 'web_module',
     },
-    schemaVersion: 1,
+    schemaVersion: 2,
     version: input.version,
   });
   await writeJson(
@@ -376,7 +394,7 @@ async function writePluginSource(
     path.join(sourceRoot, 'src', 'index.ts'),
     [
       `export const fixtureContribution = ${JSON.stringify({
-        apiVersion: 1,
+        apiVersion: 2,
         definition: capabilityDefinition,
         kind: 'capability',
       })};`,

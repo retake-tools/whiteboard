@@ -1,6 +1,7 @@
 import type {
-  PluginConnectedExecutionRunInputV1,
-  PluginConnectedExecutionViewV1,
+  PluginConnectedExecutionRunInputV2,
+  PluginConnectedExecutionViewV2,
+  PluginExecutionConnectionViewV2,
 } from '@retake-tools/package-sdk';
 import { loadBoardSnapshot } from '../core/boardStore';
 import { capabilityDefinitionFor } from '../core/capabilityRegistry';
@@ -38,10 +39,11 @@ interface ConnectedPluginExecutionOptions {
 }
 
 export async function runConnectedPluginExecution(
-  input: PluginConnectedExecutionRunInputV1,
+  input: PluginConnectedExecutionRunInputV2,
   signal: AbortSignal,
   options: ConnectedPluginExecutionOptions,
-): Promise<PluginConnectedExecutionViewV1> {
+  importedAssets: readonly import('../core/types').AssetRecord[] = [],
+): Promise<PluginConnectedExecutionViewV2> {
   throwIfAborted(signal);
   const definition = capabilityDefinitionFor(input.capabilityId);
   if (
@@ -59,22 +61,43 @@ export async function runConnectedPluginExecution(
     const slot = definition.inputSlots.find(
       (candidate) => candidate.slotId === binding.slotId,
     );
-    const block = initial.blocks.find(
-      (candidate) => candidate.blockId === binding.blockId,
-    );
+    const block = binding.blockId
+      ? initial.blocks.find(
+          (candidate) => candidate.blockId === binding.blockId,
+        )
+      : undefined;
+    const asset = binding.assetId
+      ? (
+          initial.assets.find(
+            (candidate) => candidate.assetId === binding.assetId,
+          )
+          ?? importedAssets.find(
+            (candidate) => candidate.assetId === binding.assetId,
+          )
+        )
+      : initial.assets.find(
+          (candidate) => candidate.assetId === block?.data.assetId,
+        );
     if (
       !slot
       || slot.cardinality !== 'one'
       || !slot.dataTypes.includes('image')
-      || !block
-      || block.type !== 'image'
-      || typeof block.data.assetId !== 'string'
+      || !asset
+      || asset.kind !== 'image'
+      || (
+        block !== undefined
+        && (
+          block.type !== 'image'
+          || typeof block.data.assetId !== 'string'
+        )
+      )
     ) {
       throw new Error(
         `Connected Plugin input does not match an Image slot: ${binding.slotId}`,
       );
     }
     return {
+      asset,
       block,
       inputRole: inputRoleForSlot(slot.slotId, slot.semanticRole),
       slotId: slot.slotId,
@@ -95,11 +118,12 @@ export async function runConnectedPluginExecution(
   const source = bindings.find(
     (binding) => binding.inputRole === 'source',
   );
-  if (!source) {
+  if (!source?.block) {
     throw new Error(
-      'Connected Plugin image execution requires one source image.',
+      'Connected Plugin image execution requires a source Image Block.',
     );
   }
+  const sourceBlock = source.block;
   const additionalInputs = bindings.filter(
     (binding) => binding !== source,
   );
@@ -108,7 +132,15 @@ export async function runConnectedPluginExecution(
       'Connected Plugin image execution accepts only one source image.',
     );
   }
-  assertMaskGeometry(initial, source.block, additionalInputs);
+  assertMaskGeometry(
+    initial,
+    sourceBlock,
+    additionalInputs.filter(
+      (binding): binding is typeof binding & { block: BlockRecord } => (
+        binding.block !== undefined
+      ),
+    ),
+  );
 
   const preference = resolveExecutionConnectionPreference({
     capabilityId: input.capabilityId,
@@ -139,21 +171,35 @@ export async function runConnectedPluginExecution(
   const queued = options.updateSnapshot((current) => {
     const result = addImageCodexOperation(current, {
       additionalInputBlocks: additionalInputs.map(
-        ({ block, inputRole }) => ({
+        ({ block, inputRole }) => block ? ({
           blockId: block.blockId,
           inputRole: inputRole as Exclude<
             ExecutionInputRole,
             'source'
           >,
-        }),
-      ),
+        }) : undefined,
+      ).filter((binding): binding is NonNullable<typeof binding> => (
+        binding !== undefined
+      )),
+      additionalInputAssets: additionalInputs.map(
+        ({ asset, block, inputRole }) => !block ? ({
+          asset,
+          inputRole: inputRole as Exclude<ExecutionInputRole, 'source'>,
+        }) : undefined,
+      ).filter((binding): binding is NonNullable<typeof binding> => (
+        binding !== undefined
+      )),
       capabilityId: input.capabilityId,
       connection,
-      generationParams: sourceGenerationParams(current, source.block),
+      generationParams: sourceGenerationParams(
+        current,
+        sourceBlock,
+        input.outputCount ?? 1,
+      ),
       instruction: input.prompt.trim(),
       operation: 'quick_edit',
       params: structuredClone(input.parameters),
-      sourceBlockId: source.block.blockId,
+      sourceBlockId: sourceBlock.blockId,
       taskTitle: definition.displayName,
       waitingBody: 'Waiting for the connected image editor.',
     });
@@ -202,6 +248,39 @@ export async function runConnectedPluginExecution(
     outputBlockIds: [...started.execution.outputBlockIds],
     status: 'running',
   };
+}
+
+export function listConnectedPluginExecutionConnections(input: {
+  capabilityId: string;
+  projectId: string;
+}): readonly PluginExecutionConnectionViewV2[] {
+  const definition = capabilityDefinitionFor(input.capabilityId);
+  if (!definition.supportedAdapterClasses.includes('agent_runtime.media')) {
+    return [];
+  }
+  const settings = currentExecutionProviderSettings();
+  if (!settings) return [];
+  const preferred = resolveExecutionConnectionPreference({
+    capabilityId: input.capabilityId,
+    initialConnectionId: 'codex-managed',
+    projectId: input.projectId,
+    settings,
+    useCase: 'image',
+  }).connectionId;
+  return settings.connections
+    .filter((connection) => (
+      connection.enabled
+      && connection.status === 'ready'
+      && connection.enabledUseCases.includes('image')
+      && connection.supportedCapabilityIds.includes(input.capabilityId)
+    ))
+    .map((connection) => Object.freeze({
+      connectionId: connection.connectionId,
+      displayName: connection.displayName,
+      ...(connection.modelId ? { modelLabel: connection.modelId } : {}),
+      providerLabel: connection.providerLabel,
+      selectedByDefault: connection.connectionId === preferred,
+    }));
 }
 
 function inputRoleForSlot(
@@ -260,6 +339,7 @@ function assertMaskGeometry(
 function sourceGenerationParams(
   snapshot: BoardSnapshot,
   sourceBlock: BlockRecord,
+  variationCount: 1 | 2 | 3 | 4,
 ): {
   targetHeight?: number;
   targetWidth?: number;
@@ -271,7 +351,7 @@ function sourceGenerationParams(
   return {
     ...(asset?.height ? { targetHeight: asset.height } : {}),
     ...(asset?.width ? { targetWidth: asset.width } : {}),
-    variationCount: 1,
+    variationCount,
   };
 }
 

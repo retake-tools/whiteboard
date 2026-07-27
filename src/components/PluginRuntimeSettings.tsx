@@ -17,6 +17,9 @@ import {
 import type {
   PluginModuleRuntimeRecordV1,
 } from '@retake-tools/package-sdk';
+import {
+  resolvePluginLocalizedTextV2,
+} from '@retake-tools/package-contracts';
 import type {
   PluginRuntimeControllerV1,
   PluginRuntimeManagementActionV1,
@@ -30,7 +33,7 @@ export function PluginRuntimeSettings({
   controller: PluginRuntimeControllerV1;
   onClose: () => void;
 }): ReactElement {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const snapshot = useSyncExternalStore(
     controller.subscribe,
     controller.getSnapshot,
@@ -147,6 +150,7 @@ export function PluginRuntimeSettings({
                 <PluginRuntimeModuleCard
                   key={record.pluginModuleId}
                   busyId={busyId}
+                  locale={locale}
                   record={record}
                   safeMode={snapshot.safeMode}
                   t={t}
@@ -166,12 +170,14 @@ export function PluginRuntimeSettings({
 
 function PluginRuntimeModuleCard({
   busyId,
+  locale,
   onAction,
   record,
   safeMode,
   t,
 }: {
   busyId?: string;
+  locale: string;
   onAction: (action: PluginRuntimeManagementActionV1) => void;
   record: PluginModuleRuntimeRecordV1;
   safeMode: boolean;
@@ -188,7 +194,12 @@ function PluginRuntimeModuleCard({
             : <Boxes size={18} />}
         </span>
         <span>
-          <strong>{record.manifest.name}</strong>
+          <strong>
+            {resolvePluginLocalizedTextV2(
+              record.manifest.name,
+              locale === 'zh' ? 'zh-CN' : 'en',
+            )}
+          </strong>
           <small>
             {record.pluginModuleId} · v{record.manifest.version}
           </small>
@@ -198,7 +209,12 @@ function PluginRuntimeModuleCard({
         </em>
       </header>
 
-      <p>{record.manifest.description}</p>
+      <p>
+        {resolvePluginLocalizedTextV2(
+          record.manifest.description,
+          locale === 'zh' ? 'zh-CN' : 'en',
+        )}
+      </p>
       <dl>
         <div>
           <dt>{t('pluginSettings.publisher')}</dt>

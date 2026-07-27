@@ -59,6 +59,10 @@ export interface ImageGenerationParams {
 }
 
 interface ImageCodexOperationInput {
+  additionalInputAssets?: Array<{
+    asset: AssetRecord;
+    inputRole: Exclude<ExecutionInputRole, 'source'>;
+  }>;
   additionalInputBlocks?: Array<{
     blockId: string;
     inputRole: Exclude<ExecutionInputRole, 'source'>;
@@ -157,6 +161,12 @@ export function addImageCodexOperation(
       return { block, inputRole: binding.inputRole };
     },
   );
+  const additionalInputAssets = (input.additionalInputAssets ?? []).map(
+    ({ asset, inputRole }) => ({
+      asset: structuredClone(asset),
+      inputRole,
+    }),
+  );
 
   const executionId = createId('exec');
   const createdAt = nowIso();
@@ -194,6 +204,13 @@ export function addImageCodexOperation(
       snapshot.assets.unshift(referenceAsset);
     }
   }
+  for (const { asset } of additionalInputAssets) {
+    if (!snapshot.assets.some(
+      (candidate) => candidate.assetId === asset.assetId,
+    )) {
+      snapshot.assets.unshift(asset);
+    }
+  }
   const referenceAssetIds = input.referenceAssets?.map((asset) => asset.assetId) ?? [];
   const inputBindings = [
     ...(sourceInputRole && sourceBlock.data.assetId
@@ -210,6 +227,10 @@ export function addImageCodexOperation(
     ...additionalInputBlocks.map(({ block, inputRole }) => ({
       assetId: block.data.assetId!,
       blockId: block.blockId,
+      inputRole,
+    })),
+    ...additionalInputAssets.map(({ asset, inputRole }) => ({
+      assetId: asset.assetId,
       inputRole,
     })),
   ];
@@ -308,6 +329,7 @@ export function addImageCodexOperation(
       input.annotatedCompositeAsset?.assetId,
       ...referenceAssetIds,
       ...additionalInputBlocks.map(({ block }) => block.data.assetId),
+      ...additionalInputAssets.map(({ asset }) => asset.assetId),
     ].filter((assetId): assetId is string => typeof assetId === 'string'),
     outputBlockIds: resultBlocks.map((block) => block.blockId),
     outputAssetIds: [],
@@ -420,6 +442,7 @@ export function addImageCodexOperation(
       input.annotatedCompositeAsset?.assetId,
       ...referenceAssetIds,
       ...additionalInputBlocks.map(({ block }) => block.data.assetId),
+      ...additionalInputAssets.map(({ asset }) => asset.assetId),
     ].filter((assetId): assetId is string => typeof assetId === 'string'),
     summary: title,
     detail: {

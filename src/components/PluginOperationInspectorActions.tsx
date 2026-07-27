@@ -1,0 +1,244 @@
+import { Puzzle } from 'lucide-react';
+import { resolvePluginLocalizedTextV2 } from '@retake-tools/package-contracts';
+import type {
+  PluginAssetV2,
+  PluginJsonValueV2,
+  PluginOperationInspectorViewV2,
+} from '@retake-tools/package-sdk';
+import {
+  useState,
+  useSyncExternalStore,
+  type ReactElement,
+} from 'react';
+import type {
+  PluginContributionRegistryV1,
+  RegisteredPluginActionV1,
+  RegisteredPluginOperationInspectorActionV2,
+} from '../core/pluginContributionRegistry';
+import type {
+  AssetRecord,
+  BlockRecord,
+  ExecutionRecord,
+} from '../core/types';
+
+const emptyActions: readonly RegisteredPluginActionV1[] = Object.freeze([]);
+
+export function PluginOperationInspectorActions({
+  execution,
+  inputAssets,
+  onFatalFailure,
+  operationBlock,
+  registry,
+  sourceBlock,
+}: {
+  execution: ExecutionRecord;
+  inputAssets: readonly AssetRecord[];
+  onFatalFailure?: (
+    pluginModuleId: string,
+    message: string,
+  ) => Promise<void> | void;
+  operationBlock?: BlockRecord;
+  registry?: PluginContributionRegistryV1;
+  sourceBlock?: BlockRecord;
+}): ReactElement | null {
+  const snapshot = useSyncExternalStore(
+    registry?.subscribe ?? emptySubscribe,
+    registry?.getActionSnapshot ?? emptySnapshot,
+    registry?.getActionSnapshot ?? emptySnapshot,
+  );
+  const actions = snapshot.filter(
+    (
+      action,
+    ): action is RegisteredPluginOperationInspectorActionV2 => (
+      action.placement === 'operation.inspector'
+      && action.supportedCapabilityIds.includes(execution.capabilityId)
+    ),
+  );
+  if (actions.length === 0 || !operationBlock) return null;
+
+  const operation = projectPluginOperationInspectorView({
+    execution,
+    inputAssets,
+    operationBlock,
+    sourceBlock,
+  });
+  return (
+    <div
+      className="execution-plugin-actions"
+      data-retake-plugin-ui="operation-inspector"
+    >
+      {actions.map((action) => (
+        <PluginOperationActionButton
+          action={action}
+          key={action.contributionId}
+          onFatalFailure={onFatalFailure}
+          operation={operation}
+        />
+      ))}
+    </div>
+  );
+}
+
+function PluginOperationActionButton({
+  action,
+  onFatalFailure,
+  operation,
+}: {
+  action: RegisteredPluginOperationInspectorActionV2;
+  onFatalFailure?: (
+    pluginModuleId: string,
+    message: string,
+  ) => Promise<void> | void;
+  operation: PluginOperationInspectorViewV2;
+}): ReactElement | null {
+  const [pending, setPending] = useState(false);
+  const environment = useSyncExternalStore(
+    action.host.environment.subscribe,
+    action.host.environment.getSnapshot,
+    action.host.environment.getSnapshot,
+  );
+  if (action.failure) return null;
+
+  const invoke = async (): Promise<void> => {
+    if (pending) return;
+    setPending(true);
+    try {
+      await action.run(Object.freeze({
+        host: action.host,
+        operation,
+      }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await onFatalFailure?.(
+        action.pluginModuleId,
+        `Plugin operation action ${action.contributionId} failed: ${message}`,
+      );
+    } finally {
+      setPending(false);
+    }
+  };
+  return (
+    <button
+      className="execution-restore-configuration"
+      disabled={pending}
+      type="button"
+      onClick={() => void invoke()}
+    >
+      <Puzzle aria-hidden="true" size={14} />
+      <span>
+        {resolvePluginLocalizedTextV2(action.label, environment.locale)}
+      </span>
+    </button>
+  );
+}
+
+export function projectPluginOperationInspectorView(input: {
+  execution: ExecutionRecord;
+  inputAssets: readonly AssetRecord[];
+  operationBlock: BlockRecord;
+  sourceBlock?: BlockRecord;
+}): PluginOperationInspectorViewV2 {
+  const sourceAsset = input.inputAssets.find(
+    (asset) => asset.assetId === input.sourceBlock?.data.assetId,
+  );
+  return Object.freeze({
+    capabilityId: input.execution.capabilityId,
+    executionId: input.execution.executionId,
+    inputAssets: Object.freeze(input.inputAssets.map(toPluginAsset)),
+    operationBlockId: input.operationBlock.blockId,
+    parameters: pluginParameters(input.execution),
+    source: input.sourceBlock?.type === 'image' && sourceAsset
+      ? Object.freeze({
+          assetId: sourceAsset.assetId,
+          blockId: input.sourceBlock.blockId,
+          title: input.sourceBlock.data.title,
+          type: 'image' as const,
+        })
+      : null,
+    status: input.execution.status,
+  });
+}
+
+function pluginParameters(
+  execution: ExecutionRecord,
+): Readonly<Record<string, PluginJsonValueV2>> {
+  const parameters = execution.params?.pluginParameters;
+  return pluginJsonRecord(
+    parameters && typeof parameters === 'object' && !Array.isArray(parameters)
+      ? parameters
+      : execution.params ?? {},
+  );
+}
+
+function pluginJsonRecord(
+  value: object,
+): Readonly<Record<string, PluginJsonValueV2>> {
+  const output: Record<string, PluginJsonValueV2> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    const projected = pluginJsonValue(entry, new WeakSet());
+    if (projected !== undefined) output[key] = projected;
+  }
+  return Object.freeze(output);
+}
+
+function pluginJsonValue(
+  value: unknown,
+  ancestors: WeakSet<object>,
+): PluginJsonValueV2 | undefined {
+  if (
+    value === null
+    || typeof value === 'string'
+    || typeof value === 'boolean'
+  ) return value;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined;
+  }
+  if (!value || typeof value !== 'object' || ancestors.has(value)) {
+    return undefined;
+  }
+  ancestors.add(value);
+  if (Array.isArray(value)) {
+    const entries = value.map((entry) => pluginJsonValue(entry, ancestors));
+    ancestors.delete(value);
+    return entries.every(
+      (entry): entry is PluginJsonValueV2 => entry !== undefined,
+    ) ? Object.freeze(entries) : undefined;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    ancestors.delete(value);
+    return undefined;
+  }
+  const record: Record<string, PluginJsonValueV2> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    const projected = pluginJsonValue(entry, ancestors);
+    if (projected === undefined) {
+      ancestors.delete(value);
+      return undefined;
+    }
+    record[key] = projected;
+  }
+  ancestors.delete(value);
+  return Object.freeze(record);
+}
+
+function toPluginAsset(asset: AssetRecord): PluginAssetV2 {
+  return Object.freeze({
+    assetId: asset.assetId,
+    createdAt: asset.createdAt,
+    ...(asset.duration === undefined ? {} : { duration: asset.duration }),
+    ...(asset.height === undefined ? {} : { height: asset.height }),
+    kind: asset.kind,
+    mimeType: asset.mimeType,
+    previewUrl: asset.previewUrl,
+    ...(asset.width === undefined ? {} : { width: asset.width }),
+  });
+}
+
+function emptySubscribe(): () => void {
+  return () => undefined;
+}
+
+function emptySnapshot(): readonly RegisteredPluginActionV1[] {
+  return emptyActions;
+}
