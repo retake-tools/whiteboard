@@ -4,10 +4,6 @@ import {
 } from './capabilityRegistry';
 import type { CapabilityCardinality, CapabilityDataType } from './capabilityContracts';
 import { skillDefinitionFor } from './skillRegistry';
-import storyToStoryboardSource from '../../packages/builtin/story-production-starter/workflows/workflow-story-to-storyboard/retake.workflow.json';
-import storyboardUnitToSheetSource from '../../packages/builtin/story-production-starter/workflows/workflow-storyboard-unit-to-sheet/retake.workflow.json';
-import storyboardUnitToGenerationPackageSource from '../../packages/builtin/story-production-starter/workflows/workflow-storyboard-unit-to-generation-package/retake.workflow.json';
-import approvedGenerationPackageToVideoSource from '../../packages/builtin/story-production-starter/workflows/workflow-approved-generation-package-to-video/retake.workflow.json';
 
 export type WorkflowStepType = 'capability';
 export type WorkflowRunPolicy = 'manual';
@@ -117,19 +113,7 @@ export interface ResolvedWorkflowUiDefinition {
   name: string;
 }
 
-export const storyToStoryboardWorkflow = storyToStoryboardSource as unknown as WorkflowDefinition;
-export const storyboardUnitToSheetWorkflow = storyboardUnitToSheetSource as unknown as WorkflowDefinition;
-export const storyboardUnitToGenerationPackageWorkflow = storyboardUnitToGenerationPackageSource as unknown as WorkflowDefinition;
-export const approvedGenerationPackageToVideoWorkflow = approvedGenerationPackageToVideoSource as unknown as WorkflowDefinition;
-
-const builtInWorkflows = [
-  storyToStoryboardWorkflow,
-  storyboardUnitToSheetWorkflow,
-  storyboardUnitToGenerationPackageWorkflow,
-  approvedGenerationPackageToVideoWorkflow,
-] as const;
-
-let activeWorkflows: WorkflowDefinition[] = structuredClone([...builtInWorkflows]);
+let activeWorkflows: WorkflowDefinition[] = [];
 
 export function listWorkflows(): WorkflowDefinition[] {
   return structuredClone(activeWorkflows);

@@ -13,17 +13,30 @@ import {
 } from '@retake-tools/plugin-runtime';
 import { LocalPackageManagerService } from './local-package-manager-service';
 import { PluginRuntimeStateStore } from './plugin-runtime-state-store';
+import {
+  OfficialPackagePreferenceStore,
+  officialDefaultPluginModuleIds,
+} from './official-package-preference-store';
 
 export type PluginRuntimeManagementActionV1 =
   | 'disable'
   | 'enable'
   | 'grant'
+  | 'revoke'
   | 'trust';
+
+export interface OfficialPluginRuntimeDefaultV1 {
+  packageDigest: string;
+  packageId: string;
+  permissions: RetakePluginPermission[];
+  pluginModuleId: string;
+}
 
 export class PluginRuntimeService {
   readonly hostVersion: string;
   readonly manager: LocalPackageManagerService;
   readonly development: LinkedPackageDevelopmentManager;
+  readonly officialPreferences: OfficialPackagePreferenceStore;
   readonly stateStore: PluginRuntimeStateStore;
   readonly workspaceRoot: string;
 
@@ -33,13 +46,20 @@ export class PluginRuntimeService {
     this.hostVersion = this.manager.hostVersion;
     this.workspaceRoot = this.manager.workspaceRoot;
     this.stateStore = new PluginRuntimeStateStore(this.manager.packagesRoot);
+    this.officialPreferences = new OfficialPackagePreferenceStore(
+      this.manager.packagesRoot,
+    );
   }
 
   async reconcile(input: {
+    officialDefaults?: OfficialPluginRuntimeDefaultV1[];
     safeMode?: boolean;
   } = {}): Promise<PluginRuntimeSnapshotV1> {
     return this.stateStore.withMutationLock(async () => {
       const host = await this.loadHost(input.safeMode);
+      if (input.officialDefaults) {
+        await this.applyOfficialDefaults(host, input.officialDefaults);
+      }
       const snapshot = host.snapshot();
       await this.stateStore.write(snapshot);
       return snapshot;
@@ -108,7 +128,7 @@ export class PluginRuntimeService {
     pluginModuleId: string,
     action: PluginRuntimeManagementActionV1,
   ): Promise<PluginRuntimeSnapshotV1> {
-    return this.mutate((host) => {
+    const snapshot = await this.mutate((host) => {
       const record = host.list().find(
         (entry) => entry.pluginModuleId === pluginModuleId,
       );
@@ -121,6 +141,8 @@ export class PluginRuntimeService {
           permissions: [...record.manifest.permissions],
           pluginModuleId,
         });
+      } else if (action === 'revoke') {
+        host.revoke(pluginModuleId);
       } else if (action === 'trust') {
         host.trust({
           pluginModuleId,
@@ -134,6 +156,22 @@ export class PluginRuntimeService {
       }
       return host.snapshot();
     });
+    if (officialDefaultPluginModuleIds.includes(
+      pluginModuleId as typeof officialDefaultPluginModuleIds[number],
+    )) {
+      if (action === 'disable' || action === 'enable') {
+        await this.officialPreferences.setPluginDisabled(
+          pluginModuleId,
+          action === 'disable',
+        );
+      } else if (action === 'grant' || action === 'revoke') {
+        await this.officialPreferences.setPluginGrantRevoked(
+          pluginModuleId,
+          action === 'revoke',
+        );
+      }
+    }
+    return snapshot;
   }
 
   async assertPermission(
@@ -280,6 +318,45 @@ export class PluginRuntimeService {
         left.manifest.pluginModuleId,
         right.manifest.pluginModuleId,
       ));
+  }
+
+  private async applyOfficialDefaults(
+    host: PluginRuntimeHost,
+    defaults: OfficialPluginRuntimeDefaultV1[],
+  ): Promise<void> {
+    const preferences = await this.officialPreferences.read();
+    const safeMode = host.snapshot().safeMode;
+    for (const policy of defaults) {
+      const record = host.list().find((entry) => (
+        entry.pluginModuleId === policy.pluginModuleId
+        && entry.packageLock.packageId === policy.packageId
+        && entry.packageLock.digest === policy.packageDigest
+        && entry.publisherId === 'retake.publisher.official'
+      ));
+      if (!record) continue;
+      const grantRevoked = preferences.revokedGrantPluginModuleIds.includes(
+        policy.pluginModuleId,
+      );
+      if (!grantRevoked) {
+        host.grant({
+          grantId: `official:${policy.packageDigest}`,
+          permissions: [...policy.permissions],
+          pluginModuleId: policy.pluginModuleId,
+        });
+      }
+      host.trust({
+        pluginModuleId: policy.pluginModuleId,
+        trustChannel: 'official',
+        trustedBy: 'host',
+        trustId: `official:${policy.packageDigest}`,
+        updatePolicy: 'trusted_publisher',
+      });
+      if (!preferences.disabledPluginModuleIds.includes(
+        policy.pluginModuleId,
+      ) && !grantRevoked && !safeMode) {
+        host.enable(policy.pluginModuleId);
+      }
+    }
   }
 }
 

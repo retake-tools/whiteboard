@@ -7,10 +7,12 @@ import {
   listPackageEntryPoints,
   listPackages,
   resolvePackageEntryPoint,
-  storyProductionAgentPackage,
-  storyProductionStarterPackage,
   validatePackageManifest,
 } from '../src/core/packageRegistry';
+import {
+  storyProductionAgentPackage,
+  storyProductionStarterPackage,
+} from './studio-domain-test-fixtures';
 import { createDraftSkillOperation, type TextGenerationLabels } from '../src/core/textOperations';
 import type { BoardSnapshot } from '../src/core/types';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
@@ -32,7 +34,7 @@ assert.match(appSource, /packageEntryPointController\.invokeEntryPoint/);
 assert.match(controllerSource, /resolvePackageComposerInvocation/);
 
 assert.deepEqual(validatePackageManifest(storyProductionStarterPackage), []);
-assert.equal(listPackages().length, 2);
+assert.equal(listPackages().length, 1);
 assert.equal(storyProductionStarterPackage.components.skills.length, 8);
 assert.equal(storyProductionStarterPackage.components.workflows.length, 4);
 assert.deepEqual(listPackageEntryPoints().map(({ entrypoint }) => entrypoint.entrypointId), [

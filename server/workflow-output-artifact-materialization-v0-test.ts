@@ -13,8 +13,8 @@ import {
 import {
   configureWorkflowRegistry,
   listWorkflows,
-  storyToStoryboardWorkflow,
 } from '../src/core/workflowRegistry';
+import { storyToStoryboardWorkflow } from './studio-domain-test-fixtures';
 import { readProjectArtifactLibrary } from './artifact-library-service';
 import { createAssetFromDataUrl } from './local-store/asset-store';
 import { readProjectArtifacts } from './local-store/artifact-store';

@@ -13,7 +13,7 @@ import { executeExistingTextGenerationOperation, type TextGenerationLabels } fro
 import type { AssetRecord, BlockRecord, BoardSnapshot, ExecutionRecord } from '../src/core/types';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import { decideWorkflowApproval, workflowGateViewsForRun } from '../src/core/workflowGateRuntime';
-import { storyToStoryboardWorkflow } from '../src/core/workflowRegistry';
+import { storyToStoryboardWorkflow } from './studio-domain-test-fixtures';
 import { createWorkflowRunForGroup, reconcileWorkflowRuntime, workflowRunViewForId } from '../src/core/workflowRuntime';
 import { resetWorkspace } from './local-store/snapshot-store';
 

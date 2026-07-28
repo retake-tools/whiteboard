@@ -4,7 +4,6 @@ import {
   agentPresetDefinitionFor,
   createAgentPresetRegistry,
   listAgentPresets,
-  storyProductionDirectorPreset,
   validateAgentPresetDefinition,
 } from '../src/core/agentPresetRegistry';
 import { assertAgentPresetSnapshotForRun } from '../src/core/agentPresetApplication';
@@ -26,11 +25,14 @@ import {
 } from '../src/core/packageEntrypointAgentLaunchApplication';
 import {
   resolvePackageEntryPoint,
-  storyProductionAgentPackage,
   validatePackageManifest,
 } from '../src/core/packageRegistry';
 import type { BoardSnapshot } from '../src/core/types';
 import { resetWorkspace } from './local-store/snapshot-store';
+import {
+  storyProductionAgentPackage,
+  storyProductionDirectorPreset,
+} from './studio-domain-test-fixtures';
 
 const presetId = 'retake.agent.story-production-director';
 const presetEntrypointId = 'agent:retake.agent.story-production-director';

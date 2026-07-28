@@ -7,7 +7,6 @@ import type {
 } from './agentPresetContracts';
 import { tryCapabilityDefinitionFor } from './capabilityRegistry';
 import { skillDefinitionFor } from './skillRegistry';
-import storyProductionDirectorSource from '../../packages/builtin/story-production-agent/agents/agent-story-production-director/retake.agent.json';
 
 export interface AgentPresetRegistry {
   definitions: AgentPresetDefinition[];
@@ -30,12 +29,7 @@ const reviewResponsibilities = new Set([
   'stage_handoff',
 ] as const);
 
-export const storyProductionDirectorPreset = storyProductionDirectorSource as unknown as AgentPresetDefinition;
-
-export const builtInAgentPresetRegistry = createAgentPresetRegistry([
-  storyProductionDirectorPreset,
-]);
-let activeAgentPresetRegistry = builtInAgentPresetRegistry;
+let activeAgentPresetRegistry = createAgentPresetRegistry([]);
 
 export function createAgentPresetRegistry(
   definitions: AgentPresetDefinition[],

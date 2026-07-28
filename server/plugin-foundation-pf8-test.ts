@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { CapabilityDefinition } from '../src/core/capabilityContracts';
@@ -39,6 +38,7 @@ import type {
   AgentPresetDefinition,
 } from '../src/core/agentPresetContracts';
 import {
+  readMaterializedPackageArchive,
   validateDeclarativePackage,
 } from './declarative-package-service';
 import { defaultSnapshot } from '../src/core/sampleBoard';
@@ -52,14 +52,12 @@ const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
 );
-const packageRoot = path.join(
+const packageArchive = path.join(
   repositoryRoot,
   'packages',
-  'examples',
-  'image-guided-workflow',
+  'bootstrap',
+  'image-studio-0.10.0.retakepkg',
 );
-const imageStudioRoot = process.env.RETAKE_IMAGE_STUDIO_PLUGIN_DIR
-  ?? path.resolve(repositoryRoot, '..', 'image-studio', 'plugin');
 const entrypointId = 'workflow:retake.workflow.guided-image-review';
 const original = {
   agents: listAgentPresets(),
@@ -69,43 +67,30 @@ const original = {
 };
 
 try {
-  const inspected = await validateDeclarativePackage(packageRoot);
+  const inspected = await validateDeclarativePackage(packageArchive);
+  const materialized = await readMaterializedPackageArchive(packageArchive);
   assert.deepEqual(inspected.components, {
     agentPresets: 1,
-    pluginModules: 0,
+    pluginModules: 1,
     skills: 1,
     workflows: 1,
   });
-  assert.deepEqual(inspected.manifest.dependencies, [{
-    packageId: 'design.retake.image-studio',
-    range: '^0.9.0',
-  }]);
+  assert.deepEqual(inspected.manifest.dependencies, []);
 
-  const [skill, workflow, agent, capabilitySource] = await Promise.all([
-    readJson(path.join(
-      packageRoot,
-      'skills',
-      'guided-image-edit',
-      'retake.skill.json',
-    )),
-    readJson(path.join(
-      packageRoot,
-      'workflows',
-      'guided-image-review',
-      'retake.workflow.json',
-    )),
-    readJson(path.join(
-      packageRoot,
-      'agents',
-      'guided-image-operator',
-      'retake.agent.json',
-    )),
-    readOptionalJson(path.join(
-      imageStudioRoot,
-      'definitions',
-      'image.guided_edit.json',
-    )),
-  ]);
+  const skill = materialized.definitions.skills.get(
+    'retake.image.guided-edit',
+  );
+  const workflow = materialized.definitions.workflows.get(
+    'retake.workflow.guided-image-review',
+  );
+  const agent = materialized.definitions.agentPresets.get(
+    'retake.agent.guided-image-operator',
+  );
+  const capabilityBytes = materialized.files.get(
+    'definitions/image.guided_edit.json',
+  );
+  assert.ok(skill && workflow && agent && capabilityBytes);
+  const capabilitySource = JSON.parse(capabilityBytes.toString('utf8'));
   const capabilityFixture = capabilityDefinitionFromWorkflow(workflow);
   if (capabilitySource) {
     assert.deepEqual(
@@ -166,7 +151,11 @@ try {
     name: manifest.name,
     packageId: manifest.packageId,
     schemaVersion: 1,
-    source: { kind: 'builtin' },
+    source: {
+      archiveDigest: inspected.archiveDigest,
+      installationId: 'test-fixture-image-studio-0.10.0',
+      kind: 'installed',
+    },
     version: manifest.version,
   };
 
@@ -305,19 +294,6 @@ try {
   configureWorkflowRegistry(original.workflows);
   configureAgentPresetRegistry(original.agents);
   configurePackageRegistry(original.packages);
-}
-
-async function readJson(filePath: string): Promise<any> {
-  return JSON.parse(await readFile(filePath, 'utf8'));
-}
-
-async function readOptionalJson(filePath: string): Promise<any | undefined> {
-  try {
-    return await readJson(filePath);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
-    throw error;
-  }
 }
 
 function capabilityDefinitionFromWorkflow(workflow: any): CapabilityDefinition {

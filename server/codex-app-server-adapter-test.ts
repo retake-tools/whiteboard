@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import './studio-domain-test-fixtures';
 import { readFile, rm } from 'node:fs/promises';
 import { addImageCodexOperation, createDraftTextToImageOperation, executeExistingImageOperationBlock } from '../src/core/imageOperations';
 import {

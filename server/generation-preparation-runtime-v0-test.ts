@@ -29,9 +29,11 @@ import {
   workflowRunViewForId,
 } from '../src/core/workflowRuntime';
 import {
-  storyboardUnitToGenerationPackageWorkflow,
   validateWorkflowDefinition,
 } from '../src/core/workflowRegistry';
+import {
+  storyboardUnitToGenerationPackageWorkflow,
+} from './studio-domain-test-fixtures';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import { workflowGateViewsForRun } from '../src/core/workflowGateRuntime';
 import { storyboardSheetArtifactMetadata } from '../src/core/storyboardSheetContracts';

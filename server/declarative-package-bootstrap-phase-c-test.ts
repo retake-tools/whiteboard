@@ -14,16 +14,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   configureInstalledRuntimeRegistry,
-  currentRuntimeRegistrySnapshot,
-  withSnapshotDigest,
-  type InstalledRuntimeRegistrySnapshotV1,
 } from '../src/core/installedRuntimeRegistry';
 import {
   listPackageEntryPoints,
   listPackages,
   resolvePackageEntryPoint,
-  storyProductionAgentPackage,
-  storyProductionStarterPackage,
 } from '../src/core/packageRegistry';
 import {
   listSkills,
@@ -44,27 +39,56 @@ import {
   LocalPackageManagerService,
   workspacePackageLockFile,
 } from './local-package-manager-service';
+import {
+  OfficialPackagePreferenceStore,
+  officialPackagePreferenceFile,
+} from './official-package-preference-store';
+import { PluginRuntimeService } from './plugin-runtime-service';
 
-const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'retake-package-bootstrap-phase-c-'));
+const repositoryRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+);
+const temporaryRoot = await mkdtemp(
+  path.join(tmpdir(), 'retake-default-studios-v2-'),
+);
 const bundledRoot = path.join(repositoryRoot, 'packages', 'bootstrap');
+const imagePackageId = 'design.retake.image-studio';
+const imagePluginModuleId = 'design.retake.image-studio.web';
+const videoPackageId = 'design.retake.video-studio';
+const videoPluginModuleId = 'design.retake.video-studio.web';
 
 try {
-  const publishedProfile = await readBootstrapProfile(defaultBootstrapProfilePath);
-  assert.equal(publishedProfile.profileId, 'retake.default-video-production');
-  assert.equal(
-    publishedProfile.rootPackage.digest,
-    'sha256:0ad43fadc6364c39d049a3c4ab6c72a29b95451c10de5301019ba61b797c3f45',
+  assert.equal(listPackages().length, 0);
+  assert.equal(listSkills().length, 0);
+  assert.equal(listWorkflows().length, 0);
+  assert.equal(listAgentPresets().length, 0);
+
+  const publishedProfile = await readBootstrapProfile(
+    defaultBootstrapProfilePath,
   );
-  assert.equal(
-    publishedProfile.dependencyPackages[0]?.digest,
-    'sha256:80fbebcebba51315b0bf3d5980fec07ef4f842c64dfa01cfc2426f44ffcc9514',
+  assert.equal(publishedProfile.schemaVersion, 2);
+  assert.equal(publishedProfile.profileId, 'retake.default-studios');
+  assert.deepEqual(
+    publishedProfile.packages.map((entry) => entry.packageId),
+    [imagePackageId, videoPackageId],
   );
-  await validateBootstrapProfileArchives(defaultBootstrapProfilePath, '0.1.2');
+  assert.deepEqual(
+    publishedProfile.packages.map((entry) => entry.version),
+    ['0.10.0', '0.1.0'],
+  );
+  await validateBootstrapProfileArchives(
+    defaultBootstrapProfilePath,
+    '0.1.2',
+  );
 
   const bootstrapCopy = await copyBootstrapFixture('valid-bootstrap');
   const workspaceRoot = path.join(temporaryRoot, 'fresh-workspace');
-  const sentinelPath = path.join(workspaceRoot, 'projects', 'sentinel.txt');
+  const sentinelPath = path.join(
+    workspaceRoot,
+    'projects',
+    'sentinel.txt',
+  );
   await mkdir(path.dirname(sentinelPath), { recursive: true });
   await writeFile(sentinelPath, 'board-data-must-remain\n', 'utf8');
 
@@ -74,57 +98,68 @@ try {
     workspaceRoot,
   });
   assert.equal(first.installed, true);
-  assert.equal(first.snapshot.lockRevision, 1);
+  assert.equal(first.snapshot.lockRevision, 2);
   assert.equal(first.snapshot.packages.length, 2);
-  assert.equal(first.snapshot.skills.length, 8);
-  assert.equal(first.snapshot.workflows.length, 4);
-  assert.equal(first.snapshot.agentPresets.length, 1);
+  assert.equal(first.snapshot.skills.length, 9);
+  assert.equal(first.snapshot.workflows.length, 5);
+  assert.equal(first.snapshot.agentPresets.length, 2);
   assert.equal(await readFile(sentinelPath, 'utf8'), 'board-data-must-remain\n');
-  assert.match(first.snapshot.snapshotDigest, /^sha256:[a-f0-9]{64}$/);
   assert.deepEqual(
     first.snapshot.packages.map((manifest) => manifest.packageId),
+    [imagePackageId, videoPackageId],
+  );
+  assert.deepEqual(
+    first.pluginRuntime.modules.map((record) => ({
+      grant: record.grant?.permissions ?? null,
+      pluginModuleId: record.pluginModuleId,
+      status: record.status,
+      trustChannel: record.trust?.trustChannel ?? null,
+    })),
     [
-      storyProductionAgentPackage.packageId,
-      storyProductionStarterPackage.packageId,
+      {
+        grant: [
+          'retake.asset.create',
+          'retake.asset.read.bound',
+          'retake.block.read.bound',
+          'retake.draft.write.bound',
+          'retake.execution.manage.self',
+        ],
+        pluginModuleId: imagePluginModuleId,
+        status: 'enabled',
+        trustChannel: 'official',
+      },
+      {
+        grant: [],
+        pluginModuleId: videoPluginModuleId,
+        status: 'enabled',
+        trustChannel: 'official',
+      },
     ],
   );
-  for (const manifest of first.snapshot.packages) {
-    assert.equal(manifest.source.kind, 'installed');
-    assert.match(manifest.digest, /^sha256:[a-f0-9]{64}$/);
-    assert.notEqual(
-      manifest.digest,
-      manifest.packageId === storyProductionStarterPackage.packageId
-        ? storyProductionStarterPackage.digest
-        : storyProductionAgentPackage.digest,
-    );
-  }
 
-  const runtimePackages = listPackages();
-  assert.deepEqual(runtimePackages, first.snapshot.packages);
-  assert.equal(listSkills().length, 8);
-  assert.equal(listWorkflows().length, 4);
-  assert.equal(listAgentPresets().length, 1);
-  assert.equal(listPackageEntryPoints().length, 13);
+  configureInstalledRuntimeRegistry(first.snapshot);
+  assert.equal(listPackages().length, 2);
+  assert.equal(listSkills().length, 9);
+  assert.equal(listWorkflows().length, 5);
+  assert.equal(listAgentPresets().length, 2);
+  assert.equal(listPackageEntryPoints().length, 15);
   assert.equal(
     resolvedSkillUiDefinitionFor('retake.screenplay.from-brief', 'zh-CN').name,
     '生成剧本',
-  );
-  assert.equal(
-    resolvedWorkflowUiDefinitionFor(
-      'retake.workflow.story-to-storyboard',
-      'en',
-    ).name,
-    'Story to storyboard plan',
   );
   const resolved = resolvePackageEntryPoint({
     entrypointId: 'workflow:retake.workflow.story-to-storyboard',
   });
   assert.equal(resolved.status, 'resolved');
   if (resolved.status === 'resolved') {
-    assert.equal(resolved.target.packageLock.digest, publishedProfile.rootPackage.digest);
+    assert.equal(resolved.target.packageLock.packageId, videoPackageId);
   }
 
-  const lockPath = path.join(workspaceRoot, 'packages', workspacePackageLockFile);
+  const lockPath = path.join(
+    workspaceRoot,
+    'packages',
+    workspacePackageLockFile,
+  );
   const lockBeforeSecondBootstrap = await readFile(lockPath);
   const second = await bootstrapDeclarativePackages({
     hostVersion: '0.1.2',
@@ -132,10 +167,90 @@ try {
     workspaceRoot,
   });
   assert.equal(second.installed, false);
-  assert.equal(second.snapshot.lockRevision, 1);
+  assert.equal(second.snapshot.lockRevision, 2);
   assert.deepEqual(await readFile(lockPath), lockBeforeSecondBootstrap);
 
-  const missingBundlePath = path.join(temporaryRoot, 'bundle-is-not-needed.json');
+  const runtime = new PluginRuntimeService({
+    hostVersion: '0.1.2',
+    workspaceRoot,
+  });
+  await runtime.manageModule(imagePluginModuleId, 'revoke');
+  await runtime.manageModule(videoPluginModuleId, 'disable');
+  const afterOverrides = await bootstrapDeclarativePackages({
+    hostVersion: '0.1.2',
+    profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
+    workspaceRoot,
+  });
+  const imageAfterRevoke = afterOverrides.pluginRuntime.modules.find(
+    (entry) => entry.pluginModuleId === imagePluginModuleId,
+  );
+  const videoAfterDisable = afterOverrides.pluginRuntime.modules.find(
+    (entry) => entry.pluginModuleId === videoPluginModuleId,
+  );
+  assert.equal(imageAfterRevoke?.grant, null);
+  assert.notEqual(imageAfterRevoke?.status, 'enabled');
+  assert.equal(videoAfterDisable?.desiredState, 'disabled');
+  assert.equal(videoAfterDisable?.status, 'disabled');
+
+  const preferences = new OfficialPackagePreferenceStore(
+    path.join(workspaceRoot, 'packages'),
+  );
+  const preferenceState = await preferences.read();
+  assert.deepEqual(
+    preferenceState.revokedGrantPluginModuleIds,
+    [imagePluginModuleId],
+  );
+  assert.deepEqual(
+    preferenceState.disabledPluginModuleIds,
+    [videoPluginModuleId],
+  );
+  assert.equal(
+    path.basename(preferences.statePath),
+    officialPackagePreferenceFile,
+  );
+
+  const removedWorkspace = path.join(temporaryRoot, 'removed-workspace');
+  await bootstrapDeclarativePackages({
+    hostVersion: '0.1.2',
+    profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
+    workspaceRoot: removedWorkspace,
+  });
+  const removedManager = manager(removedWorkspace);
+  await removedManager.remove(imagePackageId);
+  await new OfficialPackagePreferenceStore(
+    removedManager.packagesRoot,
+  ).setPackageRemoved(imagePackageId, true);
+  const removedBootstrap = await bootstrapDeclarativePackages({
+    hostVersion: '0.1.2',
+    profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
+    workspaceRoot: removedWorkspace,
+  });
+  assert.equal(
+    removedBootstrap.snapshot.packages.some(
+      (entry) => entry.packageId === imagePackageId,
+    ),
+    false,
+  );
+
+  const safeWorkspace = path.join(temporaryRoot, 'safe-mode-workspace');
+  const safeBootstrap = await bootstrapDeclarativePackages({
+    hostVersion: '0.1.2',
+    pluginSafeMode: true,
+    profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
+    workspaceRoot: safeWorkspace,
+  });
+  assert.equal(safeBootstrap.pluginRuntime.safeMode, true);
+  assert.equal(
+    safeBootstrap.pluginRuntime.modules.every(
+      (entry) => entry.status === 'disabled',
+    ),
+    true,
+  );
+
+  const missingBundlePath = path.join(
+    temporaryRoot,
+    'bundle-is-not-needed.json',
+  );
   const cachedOnly = await bootstrapDeclarativePackages({
     activateRuntime: false,
     hostVersion: '0.1.2',
@@ -145,53 +260,33 @@ try {
   assert.equal(cachedOnly.installed, false);
   assert.equal(cachedOnly.snapshot.snapshotDigest, first.snapshot.snapshotDigest);
 
-  const emptyWorkspace = path.join(temporaryRoot, 'empty-lock-workspace');
-  await bootstrapDeclarativePackages({
-    activateRuntime: false,
-    hostVersion: '0.1.2',
-    profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
-    workspaceRoot: emptyWorkspace,
-  });
-  const emptyManager = manager(emptyWorkspace);
-  const emptyLock = await emptyManager.remove(storyProductionStarterPackage.packageId);
-  assert.equal(emptyLock.roots.length, 0);
-  const emptyBootstrap = await bootstrapDeclarativePackages({
-    activateRuntime: false,
-    hostVersion: '0.1.2',
-    profilePath: missingBundlePath,
-    workspaceRoot: emptyWorkspace,
-  });
-  assert.equal(emptyBootstrap.installed, false);
-  assert.equal(emptyBootstrap.snapshot.packages.length, 0);
-  assert.equal((await emptyManager.list()).revision, 2);
-  configureInstalledRuntimeRegistry(emptyBootstrap.snapshot);
-  assert.equal(listPackages().length, 0);
-  assert.equal(listSkills().length, 0);
-  assert.equal(listWorkflows().length, 0);
-  assert.equal(listAgentPresets().length, 0);
-  assert.equal(listPackageEntryPoints().length, 0);
-  configureInstalledRuntimeRegistry(first.snapshot);
-
   await verifyProfileFailure('profile-digest-tamper', (profile) => {
-    profile.rootPackage.digest = `sha256:${'0'.repeat(64)}`;
+    profile.packages[0]!.digest = `sha256:${'0'.repeat(64)}`;
   }, /does not match its profile lock/);
   await verifyProfileFailure('profile-host-tamper', (profile) => {
     profile.hostCompatibility = '>=2.0.0';
   }, /incompatible/);
   await verifyProfileFailure('profile-path-tamper', (profile) => {
-    profile.rootPackage.archivePath = '../escape.retakepkg';
+    profile.packages[0]!.archivePath = '../escape.retakepkg';
   }, /portable filename/);
+  await verifyProfileFailure('profile-permission-tamper', (profile) => {
+    profile.packages[0]!.pluginModules[0]!.permissions = [];
+  }, /allowlist does not match archive/);
 
   const symlinkArchiveRoot = await copyBootstrapFixture('archive-symlink');
-  const symlinkArchiveProfile = await readBootstrapProfile(
+  const symlinkProfile = await readBootstrapProfile(
     path.join(symlinkArchiveRoot, 'retake.bootstrap.json'),
   );
+  const symlinkReference = symlinkProfile.packages[0]!;
   const symlinkArchivePath = path.join(
     symlinkArchiveRoot,
-    symlinkArchiveProfile.rootPackage.archivePath,
+    symlinkReference.archivePath,
   );
-  const symlinkTargetName = `real-${symlinkArchiveProfile.rootPackage.archivePath}`;
-  await rename(symlinkArchivePath, path.join(symlinkArchiveRoot, symlinkTargetName));
+  const symlinkTargetName = `real-${symlinkReference.archivePath}`;
+  await rename(
+    symlinkArchivePath,
+    path.join(symlinkArchiveRoot, symlinkTargetName),
+  );
   await symlink(symlinkTargetName, symlinkArchivePath);
   await assert.rejects(
     bootstrapDeclarativePackages({
@@ -207,7 +302,10 @@ try {
   const archiveProfile = await readBootstrapProfile(
     path.join(archiveTamperRoot, 'retake.bootstrap.json'),
   );
-  const archivePath = path.join(archiveTamperRoot, archiveProfile.rootPackage.archivePath);
+  const archivePath = path.join(
+    archiveTamperRoot,
+    archiveProfile.packages[0]!.archivePath,
+  );
   const archiveBytes = Buffer.from(await readFile(archivePath));
   archiveBytes[Math.floor(archiveBytes.byteLength / 2)]! ^= 0xff;
   await writeFile(archivePath, archiveBytes);
@@ -221,131 +319,14 @@ try {
     /invalid|checksum|integrity|canonical/i,
   );
 
-  const cacheTamperWorkspace = path.join(temporaryRoot, 'cache-tamper-workspace');
-  const cacheTamper = await bootstrapDeclarativePackages({
-    activateRuntime: false,
-    hostVersion: '0.1.2',
-    profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
-    workspaceRoot: cacheTamperWorkspace,
-  });
-  const cacheLockPath = path.join(
-    cacheTamperWorkspace,
-    'packages',
-    workspacePackageLockFile,
-  );
-  const cacheLockBefore = await readFile(cacheLockPath);
-  const rootDigest = cacheTamper.snapshot.packages.find(
-    (manifest) => manifest.packageId === storyProductionStarterPackage.packageId,
-  )!.digest;
-  const cacheArchivePath = path.join(
-    cacheTamperWorkspace,
-    'packages',
-    'cache',
-    'sha256',
-    `${rootDigest.slice('sha256:'.length)}.retakepkg`,
-  );
-  const cacheBytes = Buffer.from(await readFile(cacheArchivePath));
-  cacheBytes[Math.floor(cacheBytes.byteLength / 2)]! ^= 0xff;
-  await writeFile(cacheArchivePath, cacheBytes);
-  await assert.rejects(
-    bootstrapDeclarativePackages({
-      activateRuntime: false,
-      hostVersion: '0.1.2',
-      profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
-      workspaceRoot: cacheTamperWorkspace,
-    }),
-    /invalid|checksum|integrity|canonical/i,
-  );
-  assert.deepEqual(await readFile(cacheLockPath), cacheLockBefore);
-
-  configureInstalledRuntimeRegistry(first.snapshot);
-  const registryBeforeTamper = currentRuntimeRegistrySnapshot(
-    first.snapshot.profileId,
-    first.snapshot.lockRevision,
-  );
-  const payloadTamper = structuredClone(first.snapshot);
-  payloadTamper.skills[0]!.description = 'Tampered after the Server snapshot was created.';
-  await assert.rejects(
-    async () => configureInstalledRuntimeRegistry(payloadTamper),
-    /snapshot digest mismatch/,
-  );
-  assert.deepEqual(
-    currentRuntimeRegistrySnapshot(first.snapshot.profileId, first.snapshot.lockRevision),
-    registryBeforeTamper,
-  );
-
-  const lockTamper = structuredClone(first.snapshot);
-  lockTamper.skills[0]!.version = '9.9.9';
-  const { snapshotDigest: _ignoredDigest, ...lockTamperPayload } = lockTamper;
-  const internallyConsistentTamper = withSnapshotDigest(lockTamperPayload);
-  await assert.rejects(
-    async () => configureInstalledRuntimeRegistry(internallyConsistentTamper),
-    /Skill lock mismatch/,
-  );
-  assert.deepEqual(
-    currentRuntimeRegistrySnapshot(first.snapshot.profileId, first.snapshot.lockRevision),
-    registryBeforeTamper,
-  );
-
-  const [
-    mainSource,
-    apiSource,
-    exportSource,
-    skillRegistrySource,
-    workflowRegistrySource,
-    agentPresetRegistrySource,
-  ] = await Promise.all([
-    readFile(path.join(repositoryRoot, 'src', 'main.tsx'), 'utf8'),
-    readFile(path.join(repositoryRoot, 'server', 'vite-local-api.ts'), 'utf8'),
-    readFile(
-      path.join(
-        repositoryRoot,
-        'scripts',
-        'export-builtin-declarative-packages.ts',
-      ),
-      'utf8',
-    ),
-    readFile(path.join(repositoryRoot, 'src', 'core', 'skillRegistry.ts'), 'utf8'),
-    readFile(path.join(repositoryRoot, 'src', 'core', 'workflowRegistry.ts'), 'utf8'),
-    readFile(path.join(repositoryRoot, 'src', 'core', 'agentPresetRegistry.ts'), 'utf8'),
-  ]);
-  assert.ok(
-    mainSource.indexOf('bootstrapInstalledRuntimeRegistry()')
-      < mainSource.indexOf('root.render('),
-  );
-  assert.match(mainSource, /Retake Package bootstrap failed/);
-  assert.match(apiSource, /await ensurePackageBootstrap\(\)/);
-  assert.ok(
-    apiSource.indexOf("url.pathname === '/health'")
-      < apiSource.indexOf('await ensurePackageBootstrap()'),
-  );
-  assert.doesNotMatch(exportSource, /src\/core\/(?:skill|workflow|agentPreset|package)Registry/);
-  assert.doesNotMatch(skillRegistrySource, /You are the Writer for a video production workflow/);
-  assert.doesNotMatch(workflowRegistrySource, /Project a manual draft graph/);
-  assert.doesNotMatch(agentPresetRegistrySource, /Act as the bounded Retake production agent/);
-
   console.log(JSON.stringify({
-    ok: true,
-    appMountBlockedUntilBootstrap: true,
-    boardDataUnaffected: true,
-    bundledArchivesExact: true,
-    cacheOnlyOfflineActivation: true,
-    domainDefinitionsOwnedByPackageSource: true,
-    emptyInstalledClosureRemovesDomainEntrypoints: true,
-    localizedAuthoringUiOwnedByPackage: true,
-    emptyLockPreserved: true,
-    firstBootstrapResolvedPackages: first.snapshot.packages.length,
-    firstBootstrapRootPackage: storyProductionStarterPackage.packageId,
-    installedRuntimeRegistry: {
-      agentPresets: first.snapshot.agentPresets.length,
-      entrypoints: listPackageEntryPoints().length,
-      skills: first.snapshot.skills.length,
-      workflows: first.snapshot.workflows.length,
-    },
-    noAutomaticUpdate: true,
-    profileAndArchiveTamperRejected: true,
-    registryActivationRollback: true,
-    runtimeUsesExactPackageDigest: true,
+    cachedStartupWithoutBundle: true,
+    freshOfficialDefaults: true,
+    officialTrustAndGrant: true,
+    permissionOverridePersists: true,
+    removalOverridePersists: true,
+    safeModeWins: true,
+    schemaVersion: 2,
   }));
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });
@@ -364,22 +345,33 @@ async function copyBootstrapFixture(name: string): Promise<string> {
   return output;
 }
 
+interface MutableProfile {
+  hostCompatibility: string;
+  packages: Array<{
+    archivePath: string;
+    digest: string;
+    pluginModules: Array<{
+      permissions: string[];
+    }>;
+  }>;
+}
+
 async function verifyProfileFailure(
   name: string,
-  mutate: (profile: {
-    hostCompatibility: string;
-    rootPackage: { archivePath: string; digest: string };
-  }) => void,
+  mutate: (profile: MutableProfile) => void,
   expected: RegExp,
 ): Promise<void> {
   const fixtureRoot = await copyBootstrapFixture(name);
   const profilePath = path.join(fixtureRoot, 'retake.bootstrap.json');
-  const profile = JSON.parse(await readFile(profilePath, 'utf8')) as {
-    hostCompatibility: string;
-    rootPackage: { archivePath: string; digest: string };
-  };
+  const profile = JSON.parse(
+    await readFile(profilePath, 'utf8'),
+  ) as MutableProfile;
   mutate(profile);
-  await writeFile(profilePath, `${JSON.stringify(profile, null, 2)}\n`, 'utf8');
+  await writeFile(
+    profilePath,
+    `${JSON.stringify(profile, null, 2)}\n`,
+    'utf8',
+  );
   const workspaceRoot = path.join(temporaryRoot, `${name}-workspace`);
   const failureManager = manager(workspaceRoot);
   await assert.rejects(

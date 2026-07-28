@@ -17,6 +17,7 @@ import {
 } from '../src/core/packageEntrypointAgentLaunchApplication';
 import type { BoardSnapshot, ExecutionRecord } from '../src/core/types';
 import { resetWorkspace } from './local-store/snapshot-store';
+import './studio-domain-test-fixtures';
 
 const skill = await appliedProposal({
   content: '一只快递猫要在日出前把最后一卷胶片送到影院。',

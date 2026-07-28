@@ -27,6 +27,7 @@ import {
 import { listPackageEntryPoints } from '../src/core/packageRegistry';
 import { listSkills, skillsForCapability } from '../src/core/skillRegistry';
 import { definitionForLegacyCapability } from '../src/core/legacyCapabilityAdapter';
+import './studio-domain-test-fixtures';
 
 const legacyCapabilityIds = [
   'text.generate',

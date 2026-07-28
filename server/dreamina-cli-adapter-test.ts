@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import './studio-domain-test-fixtures';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

@@ -11,6 +11,7 @@ import { resolvedSkillUiDefinitionFor } from '../src/core/skillRegistry';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../src/core/types';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import { resetWorkspace } from './local-store/snapshot-store';
+import './studio-domain-test-fixtures';
 
 const [composerSource, toolbarSource, controllerSource] = await Promise.all([
   readFile(new URL('../src/components/SkillQuickInputComposer.tsx', import.meta.url), 'utf8'),

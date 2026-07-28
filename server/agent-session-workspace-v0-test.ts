@@ -19,6 +19,7 @@ import { createDraftSkillOperation } from '../src/core/textOperations';
 import type { BoardSnapshot } from '../src/core/types';
 import { loadSnapshot, resetWorkspace, saveSnapshot } from './local-store/snapshot-store';
 import { agentRuntimeDecisionSchema, parseAgentRuntimeDecision } from './agent-runtime-port';
+import './studio-domain-test-fixtures';
 
 const [portSource, workspaceSource, composerSource, sharedComposerSource, controllerSource, appServerSource, apiSource, runtimeClientSource] = await Promise.all([
   readFile(new URL('./agent-runtime-port.ts', import.meta.url), 'utf8'),

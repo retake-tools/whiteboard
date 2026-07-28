@@ -12,6 +12,7 @@ import {
 } from '../src/core/packageComposer';
 import type { BlockRecord, BoardSnapshot } from '../src/core/types';
 import { resetWorkspace } from './local-store/snapshot-store';
+import './studio-domain-test-fixtures';
 
 const [
   appSource,

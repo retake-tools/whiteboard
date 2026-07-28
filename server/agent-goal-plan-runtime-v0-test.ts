@@ -21,6 +21,7 @@ import { listGoalPlanWorkflowOptions } from '../src/core/goalPlanRegistry';
 import type { BlockRecord, BoardSnapshot } from '../src/core/types';
 import { parseAgentRuntimeDecision } from './agent-runtime-port';
 import { resetWorkspace } from './local-store/snapshot-store';
+import './studio-domain-test-fixtures';
 
 const workflowEntryPointId = 'workflow:retake.workflow.story-to-storyboard';
 const presetEntryPointId = 'agent:retake.agent.story-production-director';

@@ -27,8 +27,6 @@ import {
   type GenerationReferenceManifest,
 } from '../src/core/generationPreparationContracts';
 import { resolvePackageComposerInvocation } from '../src/core/packageComposer';
-import { storyProductionStarterPackage } from '../src/core/packageRegistry';
-import { videoGenerationFromApprovedPackageSkill } from '../src/core/skillRegistry';
 import { storyboardSheetArtifactMetadata } from '../src/core/storyboardSheetContracts';
 import type { AssetRecord, BoardSnapshot } from '../src/core/types';
 import { operationReadinessFor } from '../src/core/capabilities';
@@ -39,9 +37,13 @@ import {
   workflowRunViewForId,
 } from '../src/core/workflowRuntime';
 import {
-  approvedGenerationPackageToVideoWorkflow,
   validateWorkflowDefinition,
 } from '../src/core/workflowRegistry';
+import {
+  approvedGenerationPackageToVideoWorkflow,
+  storyProductionStarterPackage,
+  videoGenerationFromApprovedPackageSkill,
+} from './studio-domain-test-fixtures';
 import { authorizeAndStartDomainVideoGeneration } from './domain-video-generation-service';
 import { reviewDomainVideoLaunch } from './domain-video-launch-review-service';
 import { createAssetFromDataUrl } from './local-store/asset-store';
@@ -288,7 +290,7 @@ assert.equal(approvedGenerationPackageToVideoWorkflow.gates[0]?.gateId, 'video_g
 assert.equal(mockVideoAdapterDefinition.version, '0.2.0');
 assert.equal(seedanceModelArkAdapterDefinition.version, '0.2.0');
 assert.equal(dreaminaCliAdapterDefinition.version, '0.2.0');
-assert.equal(storyProductionStarterPackage.version, '0.5.0');
+assert.equal(storyProductionStarterPackage.version, '0.1.0');
 
 const composer = resolvePackageComposerInvocation(snapshot, {
   entrypointId: `workflow:${domainVideoGenerationWorkflowId}`,

@@ -8,7 +8,7 @@ import {
 import type { ExecutionConnectionSummary } from '../src/core/executionProviders';
 import type { BoardSnapshot } from '../src/core/types';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
-import { storyToStoryboardWorkflow } from '../src/core/workflowRegistry';
+import { storyToStoryboardWorkflow } from './studio-domain-test-fixtures';
 import { createWorkflowRunForGroup } from '../src/core/workflowRuntime';
 import { resetWorkspace } from './local-store/snapshot-store';
 
