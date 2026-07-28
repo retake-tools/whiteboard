@@ -61,6 +61,7 @@ import type {
 } from './core/pluginDrafts';
 import { pluginHostBoundScope } from './core/pluginHostScope';
 import type {
+  PluginActivationDemandV1,
   PluginRuntimeControllerV1,
 } from './core/pluginRuntimeManagementClient';
 import type {
@@ -83,6 +84,7 @@ export function App({
   onPluginExecutionRunnerChange,
   onPluginHostEnvironmentChange,
   onPluginHostScopeChange,
+  onPluginManagerOpenChange,
   pluginContributionRegistry,
   packageLifecycleController,
   pluginRuntimeController,
@@ -101,7 +103,9 @@ export function App({
     snapshot: PluginHostReadSnapshotV2,
     assets: readonly PluginAssetV2[],
     drafts: readonly PluginHostDraftRecordV2[],
+    demand: PluginActivationDemandV1,
   ) => void;
+  onPluginManagerOpenChange?: (open: boolean) => void;
   onPluginHostEnvironmentChange?: (
     snapshot: PluginHostEnvironmentSnapshotV2,
   ) => void;
@@ -133,6 +137,7 @@ export function App({
       onPluginExecutionRunnerChange={onPluginExecutionRunnerChange}
       onPluginHostEnvironmentChange={onPluginHostEnvironmentChange}
       onPluginHostScopeChange={onPluginHostScopeChange}
+      onPluginManagerOpenChange={onPluginManagerOpenChange}
       pluginContributionRegistry={pluginContributionRegistry}
       packageLifecycleController={packageLifecycleController}
       pluginRuntimeController={pluginRuntimeController}
@@ -147,6 +152,7 @@ function ReadyApp({
   onPluginExecutionRunnerChange,
   onPluginHostEnvironmentChange,
   onPluginHostScopeChange,
+  onPluginManagerOpenChange,
   pluginContributionRegistry,
   packageLifecycleController,
   pluginRuntimeController,
@@ -166,7 +172,9 @@ function ReadyApp({
     snapshot: PluginHostReadSnapshotV2,
     assets: readonly PluginAssetV2[],
     drafts: readonly PluginHostDraftRecordV2[],
+    demand: PluginActivationDemandV1,
   ) => void;
+  onPluginManagerOpenChange?: (open: boolean) => void;
   onPluginHostEnvironmentChange?: (
     snapshot: PluginHostEnvironmentSnapshotV2,
   ) => void;
@@ -340,7 +348,15 @@ function ReadyApp({
       selectedBlockIds: [...selectedBlockIds],
     }, snapshot.assets.filter(
       (asset) => boundAssetIds.includes(asset.assetId),
-    ), pluginDraftViewsForBlocks(snapshot, new Set(boundBlockIds)));
+    ), pluginDraftViewsForBlocks(snapshot, new Set(boundBlockIds)), {
+      boardBound: true,
+      hasBlocks: snapshot.blocks.length > 0,
+      hasOperationBlocks: snapshot.blocks.some(
+        (block) => block.type === 'operation',
+      ),
+      managerOpen: false,
+      selectedBlockCount: selectedBlockIds.length,
+    });
   }, [
     onPluginHostScopeChange,
     inspectorBlockId,
@@ -638,6 +654,7 @@ function ReadyApp({
       <TopBar
         agentWorkspaceButtonRef={agentWorkspaceButtonRef}
         packageLifecycleController={packageLifecycleController}
+        onPluginManagerOpenChange={onPluginManagerOpenChange}
         pluginRuntimeController={pluginRuntimeController}
         snapshot={snapshot}
         autosaveStatus={autosaveStatus}

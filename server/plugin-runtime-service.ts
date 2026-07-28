@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
+  LinkedPackageDevelopmentManager,
   PluginRuntimeHost,
   type InstalledPluginModule,
   type PluginModuleRuntimeRecordV1,
@@ -22,11 +23,13 @@ export type PluginRuntimeManagementActionV1 =
 export class PluginRuntimeService {
   readonly hostVersion: string;
   readonly manager: LocalPackageManagerService;
+  readonly development: LinkedPackageDevelopmentManager;
   readonly stateStore: PluginRuntimeStateStore;
   readonly workspaceRoot: string;
 
   constructor(input: { hostVersion: string; workspaceRoot: string }) {
     this.manager = new LocalPackageManagerService(input);
+    this.development = new LinkedPackageDevelopmentManager(input);
     this.hostVersion = this.manager.hostVersion;
     this.workspaceRoot = this.manager.workspaceRoot;
     this.stateStore = new PluginRuntimeStateStore(this.manager.packagesRoot);
@@ -202,14 +205,49 @@ export class PluginRuntimeService {
   private async loadHost(
     safeMode?: boolean,
   ): Promise<PluginRuntimeHost> {
-    const [installedModules, previousSnapshot] = await Promise.all([
+    const [installedModules, previousSnapshot, development] = await Promise.all([
       this.installedModules(),
       this.stateStore.read(),
+      this.development.list(),
     ]);
-    return new PluginRuntimeHost({
+    const base = new PluginRuntimeHost({
       installedModules,
       previousSnapshot,
       ...(safeMode === undefined ? {} : { safeMode }),
+    }).snapshot();
+    for (const link of development.links) {
+      const active = link.candidate ?? {
+        identity: link.identity,
+        lastGood: link.lastGood,
+      };
+      for (const identity of active.identity.pluginModules) {
+        const record = base.modules.find((entry) => (
+          entry.pluginModuleId === identity.pluginModuleId
+          && entry.packageLock.packageId === active.identity.packageId
+          && entry.packageLock.installationId === active.lastGood.installationId
+          && JSON.stringify(entry.manifest.permissions)
+            === JSON.stringify(identity.permissions)
+        ));
+        if (!record) continue;
+        record.trust = {
+          definitionHash: record.definitionHash,
+          packageDigest: record.packageLock.digest,
+          pluginModuleId: record.pluginModuleId,
+          publisherId: record.publisherId,
+          schemaVersion: 1,
+          trustChannel: 'linked_source',
+          trustedAt: link.trustedAt,
+          trustedBy: 'user',
+          trustId: `linked:${link.linkId}`,
+          updatePolicy: 'exact_digest',
+        };
+        record.failure = null;
+        if (record.status === 'failed') record.status = 'installed';
+      }
+    }
+    return new PluginRuntimeHost({
+      installedModules,
+      previousSnapshot: base,
     });
   }
 

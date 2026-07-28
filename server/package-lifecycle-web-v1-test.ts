@@ -143,6 +143,10 @@ try {
   assert.doesNotMatch(markup, /Plugin library/);
   assert.doesNotMatch(markup, new RegExp(escapeRegExp(temporaryRoot)));
   assert.match(renderManager(installedTwo, 'add'), /Install source/);
+  assert.match(
+    renderManager(installedTwo, 'development'),
+    /Linked development/,
+  );
 
   const originalFetch = globalThis.fetch;
   const calls: string[] = [];
@@ -256,12 +260,30 @@ function requiredPackage(snapshot: PackageLifecycleSnapshotV1) {
 
 function renderManager(
   snapshot: PackageLifecycleSnapshotV1,
-  initialTab: 'add' | 'installed' = 'installed',
+  initialTab: 'add' | 'development' | 'installed' = 'installed',
 ): string {
   const packageController: PackageLifecycleControllerV1 = {
+    getDevelopmentSnapshot: () => ({
+      links: [],
+      revision: 0,
+      schemaVersion: 1,
+      updatedAt: snapshot.updatedAt,
+    }),
     getSnapshot: () => snapshot,
     mutate: async () => snapshot,
+    mutateDevelopment: async () => ({
+      links: [],
+      revision: 0,
+      schemaVersion: 1,
+      updatedAt: snapshot.updatedAt,
+    }),
     refresh: async () => snapshot,
+    refreshDevelopment: async () => ({
+      links: [],
+      revision: 0,
+      schemaVersion: 1,
+      updatedAt: snapshot.updatedAt,
+    }),
     subscribe: () => () => {},
   };
   const runtimeController = pluginRuntimeController(snapshot, []);
@@ -285,6 +307,13 @@ function pluginRuntimeController(
 ): PluginRuntimeControllerV1 {
   const profile = emptyPluginProfileStateV1();
   return {
+    getDemand: () => ({
+      boardBound: false,
+      hasBlocks: false,
+      hasOperationBlocks: false,
+      managerOpen: false,
+      selectedBlockCount: 0,
+    }),
     getProfileProjection: () => projectPluginRuntimeForProfileV1({
       boardId: null,
       profile,
@@ -301,6 +330,7 @@ function pluginRuntimeController(
       return runtimeSnapshot;
     },
     setSafeMode: async () => snapshot.pluginRuntime,
+    setDemand: async () => snapshot.pluginRuntime,
     setScope: async () => snapshot.pluginRuntime,
     subscribe: () => () => {},
     updateProfile: async () => snapshot.pluginRuntime,

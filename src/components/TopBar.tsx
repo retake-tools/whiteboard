@@ -82,6 +82,7 @@ interface TopBarProps {
   onRedo: () => void;
   pluginRuntimeController?: PluginRuntimeControllerV1;
   packageLifecycleController?: PackageLifecycleControllerV1;
+  onPluginManagerOpenChange?: (open: boolean) => void;
 }
 
 export function TopBar({
@@ -117,6 +118,7 @@ export function TopBar({
   onRedo,
   pluginRuntimeController,
   packageLifecycleController,
+  onPluginManagerOpenChange,
   isHistoryOpen,
   isAgentWorkspaceOpen,
 }: TopBarProps): ReactElement {
@@ -140,6 +142,10 @@ export function TopBar({
   const nextLocale = locale === 'zh' ? 'en' : 'zh';
   const languageTitle =
     locale === 'zh' ? `${t('language.label')}: ${t('language.english')}` : `${t('language.label')}: ${t('language.chinese')}`;
+
+  useEffect(() => {
+    onPluginManagerOpenChange?.(isPluginManagerOpen);
+  }, [isPluginManagerOpen, onPluginManagerOpenChange]);
 
   useEffect(() => {
     function onPointerDown(event: PointerEvent): void {

@@ -60,6 +60,12 @@ export interface ActivatedPluginWebModuleSession {
 
 export interface PluginWebModuleReconcileResult {
   activated: ActivatedPluginWebModuleV2[];
+  fallbacks: Array<{
+    error: string;
+    pluginModuleId: string;
+    rejectedDigest: string;
+    retainedDigest: string;
+  }>;
   failures: Array<{ error: string; pluginModuleId: string }>;
   sessions: ActivatedPluginWebModuleSession[];
 }
@@ -75,6 +81,9 @@ export async function reconcilePluginWebModules(input: {
     message: string,
   ) => Promise<void> | void;
   snapshot: PluginRuntimeSnapshotV1;
+  validateSessions?: (
+    sessions: ActivatedPluginWebModuleSession[],
+  ) => Array<{ error: string; pluginModuleId: string }>;
 }): Promise<PluginWebModuleReconcileResult> {
   const enabled = input.snapshot.safeMode
     ? []
@@ -85,21 +94,13 @@ export async function reconcilePluginWebModules(input: {
       && record.trust !== null
       && record.negotiatedHostApiVersion !== null
     ));
-  const enabledKeys = new Set(enabled.map(moduleCacheKey));
-  const stale = [...activatedModules.entries()].filter(
-    ([key]) => !enabledKeys.has(key),
-  );
-  await Promise.all(stale.map(async ([key, activation]) => {
-    activatedModules.delete(key);
-    try {
-      await (await activation).activation.dispose();
-    } catch {
-      // A stale module is already detached; fatal disposal is reported by Host telemetry later.
-    }
-  }));
-
   const settled = await Promise.all(enabled.map(async (record): Promise<
-    | { ok: true; session: ActivatedPluginWebModuleSession }
+    | {
+      cacheKey: string;
+      fallback?: PluginWebModuleReconcileResult['fallbacks'][number];
+      ok: true;
+      session: ActivatedPluginWebModuleSession;
+    }
     | { error: string; ok: false; pluginModuleId: string }
   > => {
     const key = moduleCacheKey(record);
@@ -115,10 +116,33 @@ export async function reconcilePluginWebModules(input: {
       activatedModules.set(key, session);
     }
     try {
-      return { ok: true, session: await session };
+      return { cacheKey: key, ok: true, session: await session };
     } catch (error) {
       activatedModules.delete(key);
       const message = error instanceof Error ? error.message : String(error);
+      const fallback = [...activatedModules.entries()].find(
+        ([fallbackKey]) => (
+          fallbackKey !== key
+          && fallbackKey.startsWith(`${record.pluginModuleId}@`)
+        ),
+      );
+      if (fallback) {
+        try {
+          return {
+            cacheKey: fallback[0],
+            fallback: {
+              error: message,
+              pluginModuleId: record.pluginModuleId,
+              rejectedDigest: record.packageLock.digest,
+              retainedDigest: (await fallback[1]).record.packageLock.digest,
+            },
+            ok: true,
+            session: await fallback[1],
+          };
+        } catch {
+          activatedModules.delete(fallback[0]);
+        }
+      }
       try {
         await input.onFatalFailure?.(record.pluginModuleId, message);
       } catch {
@@ -131,16 +155,115 @@ export async function reconcilePluginWebModules(input: {
       };
     }
   }));
+  let resolved = settled;
+  const validationFailures = input.validateSessions?.(
+    resolved.flatMap((entry) => entry.ok ? [entry.session] : []),
+  ) ?? [];
+  if (validationFailures.length > 0) {
+    resolved = await Promise.all(resolved.map(async (entry) => {
+      if (!entry.ok) return entry;
+      const failure = validationFailures.find(
+        (candidate) => (
+          candidate.pluginModuleId === entry.session.record.pluginModuleId
+        ),
+      );
+      if (!failure) return entry;
+      activatedModules.delete(entry.cacheKey);
+      await entry.session.activation.dispose().catch(() => undefined);
+      const fallback = [...activatedModules.entries()].find(
+        ([fallbackKey]) => fallbackKey.startsWith(
+          `${failure.pluginModuleId}@`,
+        ),
+      );
+      if (fallback) {
+        try {
+          const session = await fallback[1];
+          return {
+            cacheKey: fallback[0],
+            fallback: {
+              error: failure.error,
+              pluginModuleId: failure.pluginModuleId,
+              rejectedDigest: entry.session.record.packageLock.digest,
+              retainedDigest: session.record.packageLock.digest,
+            },
+            ok: true as const,
+            session,
+          };
+        } catch {
+          activatedModules.delete(fallback[0]);
+        }
+      }
+      try {
+        await input.onFatalFailure?.(
+          failure.pluginModuleId,
+          failure.error,
+        );
+      } catch {
+        // Validation already detached the candidate; reporting is best effort.
+      }
+      return {
+        error: failure.error,
+        ok: false as const,
+        pluginModuleId: failure.pluginModuleId,
+      };
+    }));
+    const restoredFailures = input.validateSessions?.(
+      resolved.flatMap((entry) => entry.ok ? [entry.session] : []),
+    ) ?? [];
+    for (const failure of restoredFailures) {
+      const entry = resolved.find((candidate) => (
+        candidate.ok
+        && candidate.session.record.pluginModuleId === failure.pluginModuleId
+      ));
+      if (!entry?.ok) continue;
+      activatedModules.delete(entry.cacheKey);
+      await entry.session.activation.dispose().catch(() => undefined);
+      try {
+        await input.onFatalFailure?.(
+          failure.pluginModuleId,
+          failure.error,
+        );
+      } catch {
+        // Validation already detached the fallback; reporting is best effort.
+      }
+      resolved = resolved.map((candidate) => (
+        candidate === entry
+          ? {
+            error: failure.error,
+            ok: false as const,
+            pluginModuleId: failure.pluginModuleId,
+          }
+          : candidate
+      ));
+    }
+  }
+  const retainedKeys = new Set(
+    resolved.flatMap((entry) => entry.ok ? [entry.cacheKey] : []),
+  );
+  const stale = [...activatedModules.entries()].filter(
+    ([key]) => !retainedKeys.has(key),
+  );
+  await Promise.all(stale.map(async ([key, activation]) => {
+    activatedModules.delete(key);
+    try {
+      await (await activation).activation.dispose();
+    } catch {
+      // A stale module is already detached; fatal disposal is reported by Host telemetry later.
+    }
+  }));
   return {
-    activated: settled.flatMap((entry) => (
+    activated: resolved.flatMap((entry) => (
       entry.ok ? [entry.session.activation] : []
     )),
-    failures: settled.flatMap((entry) => (
+    fallbacks: resolved.flatMap((entry) => (
+      entry.ok && entry.fallback ? [entry.fallback] : []
+    )),
+    failures: resolved.flatMap((entry) => (
       !entry.ok
         ? [{ error: entry.error, pluginModuleId: entry.pluginModuleId }]
         : []
     )),
-    sessions: settled.flatMap((entry) => (
+    sessions: resolved.flatMap((entry) => (
       entry.ok ? [entry.session] : []
     )),
   };

@@ -79,6 +79,12 @@ import {
 } from './package-lifecycle-api';
 import { PackageLifecycleService } from './package-lifecycle-service';
 import {
+  handlePackageDevelopmentRequest,
+} from './package-development-api';
+import {
+  PackageDevelopmentService,
+} from './package-development-service';
+import {
   handlePluginFoundationConfigRequest,
 } from './plugin-foundation-config-api';
 import {
@@ -114,6 +120,11 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
   const pluginProfileStore = new PluginProfileStore(
     path.join(retakeRoot, 'packages'),
   );
+  const packageDevelopmentService = new PackageDevelopmentService({
+    hostVersion: packageMetadata.version,
+    onChange: invalidateDefaultDeclarativePackageBootstrap,
+    workspaceRoot: retakeRoot,
+  });
   middlewares.use('/api/local', async (req, res, next) => {
         try {
           const url = new URL(req.url ?? '/', 'http://localhost');
@@ -187,6 +198,21 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               res,
               packageLifecycle.value,
               packageLifecycle.statusCode,
+            );
+            return;
+          }
+
+          const packageDevelopment = await handlePackageDevelopmentRequest({
+            method,
+            pathname: url.pathname,
+            readBody: () => readJson(req),
+            service: packageDevelopmentService,
+          });
+          if (packageDevelopment.handled) {
+            sendJson(
+              res,
+              packageDevelopment.value,
+              packageDevelopment.statusCode,
             );
             return;
           }

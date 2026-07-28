@@ -37,6 +37,7 @@ import {
 import {
   createPluginRuntimeController,
   loadPluginRuntimeSnapshot,
+  type PluginActivationDemandV1,
   type PluginRuntimeControllerV1,
 } from './core/pluginRuntimeManagementClient';
 import type {
@@ -46,6 +47,9 @@ import {
   createPackageLifecycleController,
   type PackageLifecycleControllerV1,
 } from './core/packageLifecycleClient';
+import type {
+  PackageDevelopmentSnapshotV1,
+} from './core/packageLifecycleContracts';
 import {
   listConnectedPluginExecutionConnections,
 } from './app/runConnectedPluginExecution';
@@ -53,6 +57,9 @@ import {
   loadPluginExperience,
   loadPluginProfile,
 } from './core/pluginFoundationConfigClient';
+import {
+  resolveCandidateActivationDecision,
+} from './core/pluginDevelopmentActivation';
 
 installPluginHostExternals();
 const root = createRoot(document.getElementById('root')!);
@@ -79,6 +86,51 @@ pluginHostReadStore.setConnectionLister(
 let pluginRuntimeController: PluginRuntimeControllerV1 | undefined;
 let packageLifecycleController: PackageLifecycleControllerV1 | undefined;
 let pluginProfileScopeKey = '';
+let pluginActivationContextKey = '';
+let pluginActivationProjectId = '';
+let pluginActivationBoardId = '';
+let pluginActivationDemand: PluginActivationDemandV1 = {
+  boardBound: false,
+  hasBlocks: false,
+  hasOperationBlocks: false,
+  managerOpen: false,
+  selectedBlockCount: 0,
+};
+
+function reconcilePluginActivationContext(
+  projectId: string,
+  boardId: string,
+  demand: PluginActivationDemandV1,
+): void {
+  const scopeKey = `${projectId}:${boardId}`;
+  const contextKey = `${scopeKey}:${JSON.stringify(demand)}`;
+  if (contextKey === pluginActivationContextKey) return;
+  const scopeChanged = scopeKey !== pluginProfileScopeKey;
+  pluginProfileScopeKey = scopeKey;
+  pluginActivationContextKey = contextKey;
+  pluginActivationProjectId = projectId;
+  pluginActivationBoardId = boardId;
+  pluginActivationDemand = structuredClone(demand);
+  if (scopeChanged) pluginContributionRegistry.replace([]);
+  void pluginRuntimeController?.setScope({
+    boardId,
+    demand,
+    projectId,
+  }).catch((error: unknown) => {
+    if (pluginActivationContextKey === contextKey) {
+      pluginActivationContextKey = '';
+      if (scopeChanged) {
+        pluginProfileScopeKey = '';
+        pluginActivationProjectId = '';
+        pluginActivationBoardId = '';
+      }
+    }
+    console.error(
+      'Retake Plugin activation context update failed.',
+      error,
+    );
+  });
+}
 
 function unboundPluginRuntimeSnapshot(
   snapshot: PluginRuntimeSnapshotV1,
@@ -96,6 +148,12 @@ async function applyPluginRuntimeSnapshot(
   baseSnapshot: PluginRuntimeSnapshotV1,
   effectiveSnapshot: PluginRuntimeSnapshotV1,
 ): Promise<PluginRuntimeSnapshotV1> {
+  const development = await loadPackageDevelopmentSnapshot();
+  const candidateModuleIds = new Set(development.links.flatMap((link) => (
+    link.candidate?.identity.pluginModules.map(
+      (identity) => identity.pluginModuleId,
+    ) ?? []
+  )));
   pluginHostReadStore.retainModules(
     effectiveSnapshot.safeMode
       ? []
@@ -112,25 +170,26 @@ async function applyPluginRuntimeSnapshot(
       record.pluginModuleId,
       record.manifest.permissions,
     ),
-    onFatalFailure: reportPluginFatalFailure,
+    onFatalFailure: async (pluginModuleId, message) => {
+      pluginContributionRegistry.removeModule(pluginModuleId);
+      pluginHostReadStore.abortModuleExecutions(pluginModuleId);
+      if (!candidateModuleIds.has(pluginModuleId)) {
+        await reportPluginFatalFailure(pluginModuleId, message);
+      }
+    },
     snapshot: effectiveSnapshot,
+    validateSessions: (sessions) => (
+      pluginContributionRegistry.replace(sessions)
+    ),
   });
   if (pluginModules.failures.length > 0) {
     console.error('Retake Plugin activation failed.', pluginModules.failures);
   }
-  const contributionFailures = pluginContributionRegistry.replace(
-    pluginModules.sessions,
+  const rejectedCandidate = await resolveLinkedDevelopmentCandidates(
+    development,
+    effectiveSnapshot,
+    pluginModules,
   );
-  await Promise.all(contributionFailures.map(async (failure) => {
-    pluginContributionRegistry.removeModule(failure.pluginModuleId);
-    pluginHostReadStore.abortModuleExecutions(failure.pluginModuleId);
-    await disposePluginWebModule(failure.pluginModuleId)
-      .catch(() => undefined);
-    await reportPluginFatalFailure(
-      failure.pluginModuleId,
-      failure.error,
-    ).catch(() => undefined);
-  }));
   await pluginHostReadStore.setSettingsDefinitions(
     pluginContributionRegistry.getSettingsSnapshot()
       .filter((entry) => entry.failure === null)
@@ -139,9 +198,60 @@ async function applyPluginRuntimeSnapshot(
         pluginModuleId: entry.pluginModuleId,
       })),
   );
-  return pluginModules.failures.length > 0 || contributionFailures.length > 0
+  return pluginModules.failures.length > 0 || rejectedCandidate
     ? loadPluginRuntimeSnapshot()
     : baseSnapshot;
+}
+
+async function loadPackageDevelopmentSnapshot(): Promise<
+  PackageDevelopmentSnapshotV1
+> {
+  const response = await fetch('/api/local/package-development');
+  if (!response.ok) {
+    throw new Error(
+      `Package development request failed with HTTP ${response.status}.`,
+    );
+  }
+  return response.json() as Promise<PackageDevelopmentSnapshotV1>;
+}
+
+async function resolveLinkedDevelopmentCandidates(
+  development: PackageDevelopmentSnapshotV1,
+  effectiveSnapshot: PluginRuntimeSnapshotV1,
+  result: Awaited<ReturnType<typeof reconcilePluginWebModules>>,
+): Promise<boolean> {
+  let rejected = false;
+  for (const link of development.links) {
+    const candidate = link.candidate;
+    if (!candidate) continue;
+    const decision = resolveCandidateActivationDecision({
+      effectiveSnapshot,
+      link,
+      result,
+    });
+    const response = await fetch('/api/local/package-development', {
+      body: JSON.stringify({
+        action: decision.accept ? 'accept_candidate' : 'reject_candidate',
+        digest: candidate.lastGood.digest,
+        ...(decision.accept ? {} : { error: decision.error }),
+        linkId: link.linkId,
+      }),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({})) as {
+        error?: unknown;
+      };
+      throw new Error(
+        typeof body.error === 'string'
+          ? body.error
+          : `Candidate resolution failed with HTTP ${response.status}.`,
+      );
+    }
+    rejected ||= !decision.accept;
+  }
+  return rejected;
 }
 
 void bootstrapInstalledRuntimeRegistry()
@@ -192,25 +302,30 @@ void bootstrapInstalledRuntimeRegistry()
                 pluginContributionRegistry.setLocale(environment.locale);
               }
             }
-            onPluginHostScopeChange={(snapshot, assets, drafts) => {
+            onPluginHostScopeChange={(snapshot, assets, drafts, demand) => {
               pluginHostReadStore.update(snapshot, assets, drafts);
               if (!snapshot.projectId || !snapshot.boardId) return;
-              const scopeKey = `${snapshot.projectId}:${snapshot.boardId}`;
-              if (scopeKey === pluginProfileScopeKey) return;
-              pluginProfileScopeKey = scopeKey;
-              pluginContributionRegistry.replace([]);
-              void pluginRuntimeController?.setScope({
-                boardId: snapshot.boardId,
-                projectId: snapshot.projectId,
-              }).catch((error: unknown) => {
-                if (pluginProfileScopeKey === scopeKey) {
-                  pluginProfileScopeKey = '';
-                }
-                console.error(
-                  'Retake Plugin Profile scope update failed.',
-                  error,
-                );
-              });
+              reconcilePluginActivationContext(
+                snapshot.projectId,
+                snapshot.boardId,
+                {
+                  ...demand,
+                  managerOpen: pluginActivationDemand.managerOpen,
+                },
+              );
+            }}
+            onPluginManagerOpenChange={(managerOpen) => {
+              if (pluginActivationDemand.managerOpen === managerOpen) return;
+              pluginActivationDemand = {
+                ...pluginActivationDemand,
+                managerOpen,
+              };
+              if (!pluginActivationProjectId || !pluginActivationBoardId) return;
+              reconcilePluginActivationContext(
+                pluginActivationProjectId,
+                pluginActivationBoardId,
+                pluginActivationDemand,
+              );
             }}
             pluginContributionRegistry={pluginContributionRegistry}
             packageLifecycleController={packageLifecycleController}

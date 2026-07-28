@@ -53,6 +53,64 @@ export interface PackageLifecycleSnapshotV1 {
   updatedAt: string;
 }
 
+export interface PackageDevelopmentLinkV1 {
+  candidate: {
+    identity: PackageDevelopmentLinkV1['identity'];
+    lastGood: PackageDevelopmentLinkV1['lastGood'];
+  } | null;
+  error: string | null;
+  identity: {
+    packageId: string;
+    pluginModules: Array<{
+      permissions: string[];
+      pluginModuleId: string;
+    }>;
+  };
+  lastGood: {
+    buildDurationMs: number;
+    builtAt: string;
+    digest: string;
+    installationId: string;
+    outputDigest: string;
+    sourceDigest: string;
+  };
+  linkId: string;
+  sourceLabel: string;
+  status: 'failed' | 'idle' | 'needs_confirmation' | 'ready';
+  trustedAt: string;
+  updatedAt: string;
+  watching: boolean;
+}
+
+export interface PackageDevelopmentSnapshotV1 {
+  links: PackageDevelopmentLinkV1[];
+  revision: number;
+  schemaVersion: 1;
+  updatedAt: string;
+}
+
+export type PackageDevelopmentMutationV1 =
+  | {
+    action: 'link';
+    confirmTrust: true;
+    sourceRoot: string;
+  }
+  | {
+    action: 'confirm_identity' | 'rebuild' | 'unwatch' | 'watch';
+    linkId: string;
+  }
+  | {
+    action: 'accept_candidate' | 'reject_candidate';
+    digest: string;
+    error?: string;
+    linkId: string;
+  }
+  | {
+    action: 'unlink';
+    disposition: 'remove' | 'retain';
+    linkId: string;
+  };
+
 export type PackageLifecycleMutationV1 =
   | {
     action: 'install';
