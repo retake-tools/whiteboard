@@ -211,6 +211,7 @@ function ReadyApp({
   useEffect(() => {
     onPluginHostEnvironmentChange?.({
       colorScheme: 'light',
+      contrast: 'normal',
       direction: 'ltr',
       locale: locale === 'zh' ? 'zh-CN' : 'en',
       reducedMotion: pluginReducedMotion,

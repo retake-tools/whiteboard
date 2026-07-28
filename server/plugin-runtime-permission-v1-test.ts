@@ -102,6 +102,7 @@ try {
       environment: {
         getSnapshot: () => ({
           colorScheme: 'light',
+          contrast: 'normal',
           direction: 'ltr',
           locale: 'en',
           reducedMotion: false,
@@ -116,6 +117,13 @@ try {
         },
         runConnected: async () => {
           throw new Error('Fixture does not run connected executions.');
+        },
+      },
+      settings: {
+        getSnapshot: () => null,
+        subscribe: () => () => {},
+        update: async () => {
+          throw new Error('Fixture does not update settings.');
         },
       },
       getReadSnapshot: () => ({

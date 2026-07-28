@@ -9,6 +9,7 @@ export function createPluginHostEnvironment(): {
 } {
   let current: PluginHostEnvironmentSnapshotV2 = Object.freeze({
     colorScheme: 'light',
+    contrast: 'normal',
     direction: 'ltr',
     locale: 'en',
     reducedMotion: false,

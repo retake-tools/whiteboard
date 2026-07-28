@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import path from 'node:path';
 import type { Plugin } from 'vite';
 import {
   completeExecution,
@@ -77,6 +78,12 @@ import {
   handlePackageLifecycleRequest,
 } from './package-lifecycle-api';
 import { PackageLifecycleService } from './package-lifecycle-service';
+import {
+  handlePluginFoundationConfigRequest,
+} from './plugin-foundation-config-api';
+import {
+  PluginFoundationConfigStore,
+} from './plugin-foundation-config-store';
 
 type MiddlewareContainer = {
   use(
@@ -98,6 +105,9 @@ export function localApiPlugin(): Plugin {
 }
 
 function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
+  const pluginFoundationConfigStore = new PluginFoundationConfigStore(
+    path.join(retakeRoot, 'packages'),
+  );
   middlewares.use('/api/local', async (req, res, next) => {
         try {
           const url = new URL(req.url ?? '/', 'http://localhost');
@@ -126,6 +136,22 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
           }
 
           await ensurePackageBootstrap();
+
+          const pluginFoundationConfig =
+            await handlePluginFoundationConfigRequest({
+              method,
+              pathname: url.pathname,
+              readBody: () => readJson(req),
+              store: pluginFoundationConfigStore,
+            });
+          if (pluginFoundationConfig.handled) {
+            sendJson(
+              res,
+              pluginFoundationConfig.value,
+              pluginFoundationConfig.statusCode,
+            );
+            return;
+          }
 
           const pluginRuntimeManagement =
             await handlePluginRuntimeManagementRequest({
@@ -160,7 +186,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
 
           if (
             method === 'GET'
-            && url.pathname.startsWith('/plugin-runtime/externals/v2/')
+            && url.pathname.startsWith('/plugin-runtime/externals/v3/')
           ) {
             const source = pluginHostExternalModuleSource(url.pathname);
             if (!source) {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   PluginHostErrorV2,
+  type PluginSettingsV1,
   type PluginConnectedExecutionRunInputV2,
 } from '@retake-tools/package-sdk';
 import {
@@ -29,6 +30,11 @@ const sourceAsset = snapshot.assets.find(
 )!;
 let current = snapshot;
 let persistCount = 0;
+let settingsState = {
+  entries: [],
+  revision: 0,
+  schemaVersion: 1 as const,
+};
 const store = createPluginHostReadStore({
   boardId: snapshot.board.boardId,
   boundAssetIds: [sourceAsset.assetId],
@@ -56,6 +62,30 @@ const store = createPluginHostReadStore({
       width: input.width,
     };
   },
+  loadSettingsState: async () => settingsState,
+  updateSettingsState: async (input) => {
+    settingsState = {
+      entries: [
+        ...settingsState.entries.filter((entry) => !(
+          entry.pluginModuleId === input.pluginModuleId
+          && entry.settingsId === input.definition.settingsId
+          && entry.scope === input.scope
+          && entry.scopeId === input.scopeId
+        )),
+        {
+          pluginModuleId: input.pluginModuleId,
+          schemaVersion: input.definition.schemaVersion,
+          scope: input.scope,
+          scopeId: input.scopeId,
+          settingsId: input.definition.settingsId,
+          values: input.values,
+        },
+      ],
+      revision: settingsState.revision + 1,
+      schemaVersion: 1,
+    };
+    return settingsState;
+  },
 });
 store.retainModules([{
   packageDigest: 'sha256:host-v2-fixture-1',
@@ -63,6 +93,7 @@ store.retainModules([{
 }]);
 const host = store.host(2, pluginModuleId, [
   'retake.draft.write.bound',
+  'retake.settings.write.self',
 ]);
 store.update(
   host.getReadSnapshot(),
@@ -168,6 +199,7 @@ const unsubscribeEnvironment = host.environment.subscribe(() => {
 });
 store.updateEnvironment({
   colorScheme: 'light',
+  contrast: 'normal',
   direction: 'ltr',
   locale: 'zh-CN',
   reducedMotion: true,
@@ -177,6 +209,60 @@ assert.equal(host.environment.getSnapshot().locale, 'zh-CN');
 assert.equal(host.environment.getSnapshot().reducedMotion, true);
 assert.equal(environmentNotifications, 1);
 unsubscribeEnvironment();
+
+const pluginSettings = {
+  apiVersion: 1,
+  fields: {
+    compactMode: {
+      default: false,
+      label: 'Compact mode',
+      scope: 'workspace',
+      type: 'boolean',
+    },
+    outputQuality: {
+      default: 90,
+      label: 'Output quality',
+      maximum: 100,
+      minimum: 1,
+      scope: 'project',
+      type: 'number',
+    },
+  },
+  kind: 'settings',
+  schemaVersion: 1,
+  settingsId: 'design.retake.host-v2-fixture.settings',
+} satisfies PluginSettingsV1;
+await store.setSettingsDefinitions([{
+  definition: pluginSettings,
+  pluginModuleId,
+}]);
+assert.deepEqual(
+  host.settings.getSnapshot(pluginSettings.settingsId)?.values,
+  { compactMode: false, outputQuality: 90 },
+);
+let settingsNotifications = 0;
+const unsubscribeSettings = host.settings.subscribe(() => {
+  settingsNotifications += 1;
+});
+const updatedSettings = await host.settings.update({
+  scope: 'project',
+  settingsId: pluginSettings.settingsId,
+  values: { outputQuality: 80 },
+});
+assert.deepEqual(updatedSettings.values, {
+  compactMode: false,
+  outputQuality: 80,
+});
+assert.equal(settingsNotifications, 1);
+await assert.rejects(
+  noDraftPermissionHost.settings.update({
+    scope: 'workspace',
+    settingsId: pluginSettings.settingsId,
+    values: { compactMode: true },
+  }),
+  (error: unknown) => hostError(error, 'not_authorized'),
+);
+unsubscribeSettings();
 
 store.setConnectionLister(({ capabilityId: requestedCapabilityId }) => {
   assert.equal(requestedCapabilityId, capabilityId);

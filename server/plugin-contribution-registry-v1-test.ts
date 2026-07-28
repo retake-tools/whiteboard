@@ -24,6 +24,7 @@ const host: PluginHostApiV2 = {
   environment: {
     getSnapshot: () => ({
       colorScheme: 'light',
+      contrast: 'normal',
       direction: 'ltr',
       locale: 'en',
       reducedMotion: false,
@@ -38,6 +39,13 @@ const host: PluginHostApiV2 = {
     },
     runConnected: async () => {
       throw new Error('Fixture does not run connected executions.');
+    },
+  },
+  settings: {
+    getSnapshot: () => null,
+    subscribe: () => () => {},
+    update: async () => {
+      throw new Error('Fixture does not update settings.');
     },
   },
   getReadSnapshot: () => ({
@@ -247,12 +255,36 @@ assert.equal(
 registry.setCommandExperience([{
   commandId: 'retake.plugin.selection-command-fixture.command',
   hidden: true,
+  surfaceId: 'selection.context-toolbar',
 }]);
 assert.equal(
   registry.commandsForSurface('selection.context-toolbar').length,
   0,
 );
 registry.setCommandExperience([]);
+
+const settingsFailures = registry.replace([
+  settingsSession('retake.plugin.settings-fixture', {
+    apiVersion: 1,
+    fields: {
+      quality: {
+        default: 'preview',
+        enum: ['preview', 'production'],
+        label: 'Quality',
+        scope: 'project',
+        type: 'string',
+      },
+    },
+    kind: 'settings',
+    schemaVersion: 1,
+    settingsId: 'retake.plugin.settings-fixture.settings',
+  }),
+]);
+assert.deepEqual(settingsFailures, []);
+assert.equal(
+  registry.getSettingsSnapshot()[0]?.definition.settingsId,
+  'retake.plugin.settings-fixture.settings',
+);
 
 const malformedCommand = registry.replace([
   commandSession('retake.plugin.malformed-command', {
@@ -518,6 +550,26 @@ function rendererSession(
           contributionId: `${pluginModuleId}.renderer`,
           exportName: 'fixtureRenderer',
           kind: 'renderer',
+        },
+        value,
+      }],
+    },
+    host,
+    record: { pluginModuleId },
+  };
+}
+
+function settingsSession(
+  pluginModuleId: string,
+  value: unknown,
+): PluginContributionSessionV1 {
+  return {
+    activation: {
+      contributions: [{
+        contribution: {
+          contributionId: `${pluginModuleId}.settings`,
+          exportName: 'fixtureSettings',
+          kind: 'settings',
         },
         value,
       }],

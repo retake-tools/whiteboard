@@ -50,7 +50,7 @@ const reactNamespace = await import(
 );
 assert.equal(
   reactNamespace.createElement,
-  globalThis.retakePluginHostExternalsV2!.react.createElement,
+  globalThis.retakePluginHostExternalsV3!.react.createElement,
 );
 
 const pluginApiSource = pluginHostExternalModuleSource(
@@ -74,10 +74,21 @@ for (const helper of [
 ] as const) {
   assert.equal(pluginApi[helper](contribution), contribution);
 }
-assert.equal(pluginApi.pluginApiVersion, 2);
-assert.equal(pluginApi.version, 2);
 assert.equal(
-  pluginHostExternalModuleSource('/plugin-runtime/externals/v2/missing.js'),
+  pluginApi.createPluginTranslator(
+    { greeting: { default: 'Hello', locales: { 'zh-CN': '你好' } } },
+    'zh-CN',
+  ).t('greeting'),
+  '你好',
+);
+assert.equal(
+  pluginApi.pluginThemeVariable('motion.duration.fast'),
+  'var(--retake-motion-duration-fast)',
+);
+assert.equal(pluginApi.pluginApiVersion, 3);
+assert.equal(pluginApi.version, 3);
+assert.equal(
+  pluginHostExternalModuleSource('/plugin-runtime/externals/v3/missing.js'),
   undefined,
 );
 
