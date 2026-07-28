@@ -25,6 +25,55 @@
     "Persist exact request and reference mapping before any Provider action.",
     "Never treat Provider completion as user selection or Human Gate approval."
   ],
+  "ui": {
+    "description": {
+      "default": "Generate video candidates from one current, approved Generation Package revision.",
+      "locales": {
+        "zh": "基于一个当前且已通过审阅的生成包修订生成视频候选。"
+      }
+    },
+    "inputLabel": {
+      "default": "Approved Generation Package",
+      "locales": {
+        "zh": "已批准生成包"
+      }
+    },
+    "inputSlots": [
+      {
+        "label": {
+          "default": "Approved Generation Package",
+          "locales": {
+            "zh": "已批准生成包"
+          }
+        },
+        "placeholder": {
+          "default": "Connect the current V2 Generation Package revision that passed review...",
+          "locales": {
+            "zh": "连接当前且已通过审阅的 V2 视频生成包修订..."
+          }
+        },
+        "slotId": "generation_package"
+      }
+    ],
+    "name": {
+      "default": "Generate video from approved package",
+      "locales": {
+        "zh": "从已批准生成包生成视频"
+      }
+    },
+    "operationTitle": {
+      "default": "Generate approved package video",
+      "locales": {
+        "zh": "从已批准生成包生成视频"
+      }
+    },
+    "placeholder": {
+      "default": "Connect the current V2 Generation Package revision that passed review...",
+      "locales": {
+        "zh": "连接当前且已通过审阅的 V2 视频生成包修订..."
+      }
+    }
+  },
   "source": {
     "kind": "catmeme_migration",
     "paths": [

@@ -26,6 +26,85 @@
     "Preserve the supplied visual references without inventing missing approved assets.",
     "Use the locked panel count, grid layout, panel aspect ratio, render mode, and candidate count."
   ],
+  "ui": {
+    "description": {
+      "default": "Generate visual panel-grid candidates for one explicitly selected storyboard unit.",
+      "locales": {
+        "zh": "为一个明确选择的分镜 Unit 生成可审核的视觉网格候选。"
+      }
+    },
+    "inputLabel": {
+      "default": "Storyboard Plan",
+      "locales": {
+        "zh": "故事板计划"
+      }
+    },
+    "inputSlots": [
+      {
+        "label": {
+          "default": "Storyboard Plan",
+          "locales": {
+            "zh": "故事板计划"
+          }
+        },
+        "placeholder": {
+          "default": "Connect the authoritative Storyboard Plan...",
+          "locales": {
+            "zh": "连接作为依据的故事板计划..."
+          }
+        },
+        "slotId": "storyboard_plan"
+      },
+      {
+        "label": {
+          "default": "Unit ID",
+          "locales": {
+            "zh": "Unit ID"
+          }
+        },
+        "placeholder": {
+          "default": "Enter the exact storyboard Unit ID...",
+          "locales": {
+            "zh": "输入故事板计划中的精确 Unit ID..."
+          }
+        },
+        "slotId": "unit_id"
+      },
+      {
+        "label": {
+          "default": "Image references",
+          "locales": {
+            "zh": "图片参考"
+          }
+        },
+        "placeholder": {
+          "default": "Connect character, scene, prop, or storyboard references...",
+          "locales": {
+            "zh": "连接角色、场景、道具或故事板图片参考..."
+          }
+        },
+        "slotId": "references"
+      }
+    ],
+    "name": {
+      "default": "Generate storyboard sheet",
+      "locales": {
+        "zh": "生成分镜图"
+      }
+    },
+    "operationTitle": {
+      "default": "Generate storyboard sheet",
+      "locales": {
+        "zh": "生成分镜图"
+      }
+    },
+    "placeholder": {
+      "default": "Connect the authoritative Storyboard Plan...",
+      "locales": {
+        "zh": "连接作为依据的故事板计划..."
+      }
+    }
+  },
   "source": {
     "kind": "catmeme_migration",
     "paths": [

@@ -28,6 +28,100 @@
     "List storyboard sheets and media assets only as needed or proposed; never present them as generated, approved, submitted, or added to a library.",
     "End with screenplay coverage, continuity coverage, design gaps, unresolved questions, and upstream return points."
   ],
+  "ui": {
+    "description": {
+      "default": "Turn a screenplay and production design bibles into a shot-level storyboard plan.",
+      "locales": {
+        "zh": "将剧本、角色设定与场景设定整理为镜头级故事板计划。"
+      }
+    },
+    "inputLabel": {
+      "default": "Screenplay",
+      "locales": {
+        "zh": "剧本"
+      }
+    },
+    "inputSlots": [
+      {
+        "label": {
+          "default": "Screenplay",
+          "locales": {
+            "zh": "剧本"
+          }
+        },
+        "placeholder": {
+          "default": "Connect or paste the authoritative screenplay...",
+          "locales": {
+            "zh": "连接或粘贴作为剧情依据的剧本..."
+          }
+        },
+        "slotId": "screenplay"
+      },
+      {
+        "label": {
+          "default": "Character Bible",
+          "locales": {
+            "zh": "角色设定"
+          }
+        },
+        "placeholder": {
+          "default": "Connect or paste the approved character design and continuity constraints...",
+          "locales": {
+            "zh": "连接或粘贴已确认的角色设计与连续性约束..."
+          }
+        },
+        "slotId": "character_bible"
+      },
+      {
+        "label": {
+          "default": "Scene Bible",
+          "locales": {
+            "zh": "场景设定"
+          }
+        },
+        "placeholder": {
+          "default": "Connect or paste the approved scene, spatial, lighting, and continuity constraints...",
+          "locales": {
+            "zh": "连接或粘贴已确认的场景、空间、灯光与连续性约束..."
+          }
+        },
+        "slotId": "scene_bible"
+      },
+      {
+        "label": {
+          "default": "Additional direction / references",
+          "locales": {
+            "zh": "补充要求 / 参考资料"
+          }
+        },
+        "placeholder": {
+          "default": "Add optional direction or reference material...",
+          "locales": {
+            "zh": "补充可选要求或参考资料..."
+          }
+        },
+        "slotId": "references"
+      }
+    ],
+    "name": {
+      "default": "Generate storyboard plan",
+      "locales": {
+        "zh": "生成故事板计划"
+      }
+    },
+    "operationTitle": {
+      "default": "Generate storyboard plan",
+      "locales": {
+        "zh": "生成故事板计划"
+      }
+    },
+    "placeholder": {
+      "default": "Connect or paste the authoritative screenplay...",
+      "locales": {
+        "zh": "连接或粘贴作为剧情依据的剧本..."
+      }
+    }
+  },
   "source": {
     "kind": "catmeme_migration",
     "paths": [

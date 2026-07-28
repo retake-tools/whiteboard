@@ -20,6 +20,7 @@ export const defaultSnapshot: BoardSnapshot = {
     name: 'Video 001 Board',
     createdAt,
     updatedAt: createdAt,
+    background: { kind: 'default' },
   },
   layers: [
     {

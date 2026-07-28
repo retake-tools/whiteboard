@@ -2,7 +2,6 @@ import { capabilityDefinitionFor } from './capabilityRegistry';
 import {
   agentPresetDefinitionFor,
   agentPresetDefinitionLock,
-  storyProductionDirectorPreset,
 } from './agentPresetRegistry';
 import type {
   PackageAgentPresetEntryPoint,
@@ -14,6 +13,9 @@ import type {
 } from './packageContracts';
 import { skillDefinitionFor } from './skillRegistry';
 import { workflowDefinitionFor } from './workflowRegistry';
+import type { DeclarativePackageManifest } from './declarativePackageContracts';
+import storyProductionStarterSource from '../../packages/builtin/story-production-starter/retake.package.json';
+import storyProductionAgentSource from '../../packages/builtin/story-production-agent/retake.package.json';
 
 export interface RegisteredPackageEntryPoint {
   entrypoint: RetakePackageEntryPoint;
@@ -75,240 +77,38 @@ export interface PackageEntryPointQuery {
   refId?: string;
 }
 
-export const storyProductionStarterPackage: RetakePackageManifest = {
-  schemaVersion: 1,
-  packageId: 'retake.package.story-production-starter',
-  version: '0.5.0',
-  digest: 'sha256:retake-package-story-production-starter-domain-video-v1',
-  name: 'Retake Story Production Starter',
-  description: 'Built-in screenplay, production-design, storyboard, and provider-neutral generation-preparation methods.',
-  source: { kind: 'builtin' },
-  components: {
-    skills: [
-      {
-        skillId: 'retake.screenplay.from-brief',
-        version: '0.1.0',
-        definitionHash: 'sha256:retake-screenplay-from-brief-catmeme-v1',
-      },
-      {
-        skillId: 'retake.screenplay.normalize',
-        version: '0.1.0',
-        definitionHash: 'sha256:retake-screenplay-normalize-catmeme-v1',
-      },
-      {
-        skillId: 'retake.character-bible.from-screenplay',
-        version: '0.1.0',
-        definitionHash: 'sha256:retake-character-bible-from-screenplay-catmeme-v1',
-      },
-      {
-        skillId: 'retake.scene-bible.from-screenplay',
-        version: '0.1.0',
-        definitionHash: 'sha256:retake-scene-bible-from-screenplay-catmeme-v1',
-      },
-      {
-        skillId: 'retake.storyboard-plan.from-production-design',
-        version: '0.1.0',
-        definitionHash: 'sha256:retake-storyboard-plan-from-production-design-catmeme-v1',
-      },
-      {
-        skillId: 'retake.storyboard-sheet.from-unit-plan',
-        version: '0.1.0',
-        definitionHash: 'sha256:retake-storyboard-sheet-from-unit-plan-catmeme-v1',
-      },
-      {
-        skillId: 'retake.video-generation-package.from-approved-storyboard',
-        version: '0.2.0',
-        definitionHash: 'sha256:retake-video-generation-package-from-approved-storyboard-manifest-v2',
-      },
-      {
-        skillId: 'retake.video-generation.from-approved-package',
-        version: '0.1.0',
-        definitionHash: 'sha256:retake-video-generation-from-approved-package-v1',
-      },
-    ],
-    workflows: [
-      {
-        workflowDefinitionId: 'retake.workflow.story-to-storyboard',
-        version: '0.2.0',
-        definitionHash: 'sha256:retake-workflow-story-to-storyboard-stage-runtime-v2',
-      },
-      {
-        workflowDefinitionId: 'retake.workflow.storyboard-unit-to-sheet',
-        version: '0.1.0',
-        definitionHash: 'sha256:retake-workflow-storyboard-unit-to-sheet-v1',
-      },
-      {
-        workflowDefinitionId: 'retake.workflow.storyboard-unit-to-generation-package',
-        version: '0.2.0',
-        definitionHash: 'sha256:retake-workflow-storyboard-unit-to-generation-package-manifest-v2',
-      },
-      {
-        workflowDefinitionId: 'retake.workflow.approved-generation-package-to-video',
-        version: '0.1.0',
-        definitionHash: 'sha256:retake-workflow-approved-generation-package-to-video-v1',
-      },
-    ],
-    agentPresets: [],
-    capabilityPlugins: [],
-    adapterPlugins: [],
-    uiPlugins: [],
-  },
-  entrypoints: [
-    skillEntryPoint({
-      skillId: 'retake.screenplay.from-brief',
-      capabilityId: 'story.screenplay.generate',
-      name: 'Generate screenplay',
-      description: 'Turn a creative brief into an executable screenplay.',
-      compatibleStageIds: ['story_screenplay'],
-      requiredInputSlotIds: ['brief'],
-      recommended: true,
-    }),
-    skillEntryPoint({
-      skillId: 'retake.screenplay.normalize',
-      capabilityId: 'story.screenplay.normalize',
-      name: 'Organize screenplay',
-      description: 'Organize an existing screenplay without changing its facts.',
-      compatibleStageIds: ['story_screenplay'],
-      requiredInputSlotIds: ['source_screenplay'],
-      recommended: true,
-    }),
-    skillEntryPoint({
-      skillId: 'retake.character-bible.from-screenplay',
-      capabilityId: 'design.character.define',
-      name: 'Define characters',
-      description: 'Create a production-ready Character Bible from a screenplay.',
-      compatibleStageIds: ['production_design'],
-      requiredInputSlotIds: ['screenplay'],
-    }),
-    skillEntryPoint({
-      skillId: 'retake.scene-bible.from-screenplay',
-      capabilityId: 'design.scene.define',
-      name: 'Define scenes',
-      description: 'Create a production-ready Scene Bible from a screenplay.',
-      compatibleStageIds: ['production_design'],
-      requiredInputSlotIds: ['screenplay'],
-    }),
-    skillEntryPoint({
-      skillId: 'retake.storyboard-plan.from-production-design',
-      capabilityId: 'previs.storyboard.plan',
-      name: 'Generate storyboard plan',
-      description: 'Create a shot-level plan from screenplay and production-design bibles.',
-      compatibleStageIds: ['storyboard_previsualization'],
-      requiredInputSlotIds: ['screenplay', 'character_bible', 'scene_bible'],
-    }),
-    skillEntryPoint({
-      skillId: 'retake.storyboard-sheet.from-unit-plan',
-      capabilityId: 'previs.storyboard_sheet.generate',
-      name: 'Generate storyboard sheet',
-      description: 'Generate visual panel-grid candidates for one explicitly selected storyboard unit.',
-      compatibleStageIds: ['storyboard_previsualization'],
-      requiredInputSlotIds: ['storyboard_plan', 'unit_id'],
-      recommended: true,
-    }),
-    skillEntryPoint({
-      skillId: 'retake.video-generation-package.from-approved-storyboard',
-      capabilityId: 'generation.video_package.prepare',
-      name: 'Prepare video generation package',
-      description: 'Prepare one provider-neutral package from an approved storyboard unit and declared references.',
-      compatibleStageIds: ['media_generation'],
-      requiredInputSlotIds: [
-        'storyboard_plan',
-        'storyboard_sheet',
-        'unit_id',
-        'reference_manifest',
-      ],
-      recommended: true,
-    }),
-    skillEntryPoint({
-      skillId: 'retake.video-generation.from-approved-package',
-      capabilityId: 'generation.video.generate',
-      name: 'Generate video from approved package',
-      description: 'Create one Domain Video Operation without the result Artifact or Human Gate.',
-      compatibleStageIds: ['media_generation'],
-      requiredInputSlotIds: ['generation_package'],
-    }),
-    {
-      schemaVersion: 1,
-      entrypointId: 'workflow:retake.workflow.story-to-storyboard',
-      kind: 'workflow',
-      name: 'Story to storyboard plan',
-      description: 'Project a manual workflow from creative brief through storyboard planning.',
-      ref: { workflowDefinitionId: 'retake.workflow.story-to-storyboard' },
-      compatibleStageIds: ['story_screenplay', 'production_design', 'storyboard_previsualization'],
-      requiredInputSlotIds: ['brief'],
-      default: true,
-    },
-    {
-      schemaVersion: 1,
-      entrypointId: 'workflow:retake.workflow.storyboard-unit-to-sheet',
-      kind: 'workflow',
-      name: 'Storyboard unit to sheet',
-      description: 'Project a manual single-unit storyboard-sheet generation and review workflow.',
-      ref: { workflowDefinitionId: 'retake.workflow.storyboard-unit-to-sheet' },
-      compatibleStageIds: ['storyboard_previsualization'],
-      requiredInputSlotIds: ['storyboard_plan', 'unit_id'],
-    },
-    {
-      schemaVersion: 1,
-      entrypointId: 'workflow:retake.workflow.storyboard-unit-to-generation-package',
-      kind: 'workflow',
-      name: 'Storyboard unit to generation package',
-      description: 'Project a manual preparation and review flow for one provider-neutral generation package.',
-      ref: { workflowDefinitionId: 'retake.workflow.storyboard-unit-to-generation-package' },
-      compatibleStageIds: ['media_generation'],
-      requiredInputSlotIds: [
-        'storyboard_plan',
-        'storyboard_sheet',
-        'unit_id',
-        'reference_manifest',
-      ],
-    },
-    {
-      schemaVersion: 1,
-      entrypointId: 'workflow:retake.workflow.approved-generation-package-to-video',
-      kind: 'workflow',
-      name: 'Approved generation package to video',
-      description: 'Generate, select, and review one video from an approved Generation Package.',
-      ref: { workflowDefinitionId: 'retake.workflow.approved-generation-package-to-video' },
-      compatibleStageIds: ['media_generation'],
-      requiredInputSlotIds: ['generation_package'],
-      recommended: true,
-    },
-  ],
-};
+export const storyProductionStarterPackage = legacyRuntimeManifestFromSource(
+  storyProductionStarterSource as unknown as DeclarativePackageManifest,
+  "sha256:retake-package-story-production-starter-domain-video-v1",
+);
+export const storyProductionAgentPackage = legacyRuntimeManifestFromSource(
+  storyProductionAgentSource as unknown as DeclarativePackageManifest,
+  "sha256:retake-package-story-production-agent-generation-package-v1",
+);
 
-export const storyProductionAgentPackage: RetakePackageManifest = {
-  schemaVersion: 1,
-  packageId: 'retake.package.story-production-agent',
-  version: '0.3.0',
-  digest: 'sha256:retake-package-story-production-agent-generation-package-v1',
-  name: 'Retake Story Production Agent',
-  description: 'A bounded AgentPreset for coordinating the built-in story-production target.',
-  source: { kind: 'builtin' },
-  components: {
-    adapterPlugins: [],
-    agentPresets: [agentPresetDefinitionLock(storyProductionDirectorPreset)],
-    capabilityPlugins: [],
-    skills: [],
-    uiPlugins: [],
-    workflows: [],
-  },
-  entrypoints: [{
+function legacyRuntimeManifestFromSource(
+  source: DeclarativePackageManifest,
+  digest: string,
+): RetakePackageManifest {
+  return {
+    components: {
+      adapterPlugins: [],
+      agentPresets: source.components.agentPresets.map(({ agentPresetId, definitionHash, version }) => ({ agentPresetId, definitionHash, version })),
+      capabilityPlugins: [],
+      skills: source.components.skills.map(({ definitionHash, skillId, version }) => ({ definitionHash, skillId, version })),
+      uiPlugins: [],
+      workflows: source.components.workflows.map(({ definitionHash, version, workflowDefinitionId }) => ({ definitionHash, version, workflowDefinitionId })),
+    },
+    description: source.description,
+    digest,
+    entrypoints: structuredClone(source.entrypoints),
+    name: source.name,
+    packageId: source.packageId,
     schemaVersion: 1,
-    entrypointId: 'agent:retake.agent.story-production-director',
-    kind: 'agent_preset',
-    name: storyProductionDirectorPreset.name,
-    description: storyProductionDirectorPreset.description,
-    ref: { agentPresetId: storyProductionDirectorPreset.agentPresetId },
-    compatibleStageIds: [
-      'story_screenplay',
-      'production_design',
-      'storyboard_previsualization',
-      'media_generation',
-    ],
-    requiredInputSlotIds: [],
-  }],
-};
+    source: { kind: "builtin" },
+    version: source.version,
+  };
+}
 
 export const builtInPackageRegistry = createPackageRegistry([
   storyProductionStarterPackage,
@@ -515,24 +315,6 @@ export function validatePackageManifest(manifest: RetakePackageManifest): string
     }
   }
   return issues;
-}
-
-function skillEntryPoint(input: Omit<PackageSkillEntryPoint, 'entrypointId' | 'kind' | 'ref' | 'schemaVersion'> & {
-  capabilityId: string;
-  skillId: string;
-}): PackageSkillEntryPoint {
-  return {
-    schemaVersion: 1,
-    entrypointId: `skill:${input.skillId}`,
-    kind: 'skill',
-    name: input.name,
-    description: input.description,
-    ref: { skillId: input.skillId, capabilityId: input.capabilityId },
-    compatibleStageIds: input.compatibleStageIds,
-    requiredInputSlotIds: input.requiredInputSlotIds,
-    ...(input.default === undefined ? {} : { default: input.default }),
-    ...(input.recommended === undefined ? {} : { recommended: input.recommended }),
-  };
 }
 
 function packageLock(manifest: RetakePackageManifest): PackageLock {

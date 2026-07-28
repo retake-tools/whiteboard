@@ -28,7 +28,7 @@ import {
   X,
 } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties, type MutableRefObject, type ReactElement } from 'react';
-import type { BoardSnapshot, WorkspaceSummary } from '../core/types';
+import type { BoardBackgroundV1, BoardSnapshot, WorkspaceSummary } from '../core/types';
 import type { PluginRuntimeControllerV1 } from '../core/pluginRuntimeManagementClient';
 import type { PackageLifecycleControllerV1 } from '../core/packageLifecycleClient';
 import { loadUiPreferences, saveUiPreferences } from '../core/uiPreferences';
@@ -43,6 +43,10 @@ const ExecutionProvidersSettings = lazy(async () => {
 const PluginManager = lazy(async () => {
   const module = await import('./PluginManager');
   return { default: module.PluginManager };
+});
+const BoardBackgroundSettings = lazy(async () => {
+  const module = await import('./BoardBackgroundSettings');
+  return { default: module.BoardBackgroundSettings };
 });
 
 export type AutosaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -72,6 +76,7 @@ interface TopBarProps {
   onRefreshBoard: () => void;
   onRetrySave: () => void;
   onSelectBoard: (projectId: string, boardId: string) => void;
+  onSetBoardBackground: (background: BoardBackgroundV1) => void;
   onToggleGrid: () => void;
   onToggleArtifactLibrary: () => void;
   onToggleHistory: () => void;
@@ -108,6 +113,7 @@ export function TopBar({
   onRefreshBoard,
   onRetrySave,
   onSelectBoard,
+  onSetBoardBackground,
   onToggleGrid,
   onToggleArtifactLibrary,
   onDeleteSelection,
@@ -127,6 +133,7 @@ export function TopBar({
   const [isBoardMenuOpen, setIsBoardMenuOpen] = useState(() => initialUiPreferences.current.isBoardMenuOpen);
   const [isBoardMenuPinned, setIsBoardMenuPinned] = useState(() => initialUiPreferences.current.isBoardMenuPinned);
   const [isBoardProjectActionsOpen, setIsBoardProjectActionsOpen] = useState(false);
+  const [isBoardBackgroundOpen, setIsBoardBackgroundOpen] = useState(false);
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(() => initialUiPreferences.current.isProjectMenuOpen);
   const [isProjectMenuPinned, setIsProjectMenuPinned] = useState(() => initialUiPreferences.current.isProjectMenuPinned);
   const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useState(false);
@@ -460,6 +467,10 @@ export function TopBar({
               <SettingsMenu
                 currentLocale={locale}
                 showGrid={showGrid}
+                onOpenBoardBackground={() => {
+                  setIsSettingsOpen(false);
+                  setIsBoardBackgroundOpen(true);
+                }}
                 onOpenExecutionProviders={openExecutionProviderSettings}
                 onOpenKeyboardShortcuts={openKeyboardShortcuts}
                 onOpenPlugins={pluginRuntimeController && packageLifecycleController
@@ -498,12 +509,22 @@ export function TopBar({
           />
         </Suspense>
       ) : null}
+      {isBoardBackgroundOpen ? (
+        <Suspense fallback={<div className="execution-settings-backdrop" aria-busy="true" />}>
+          <BoardBackgroundSettings
+            onApply={onSetBoardBackground}
+            onClose={() => setIsBoardBackgroundOpen(false)}
+            snapshot={snapshot}
+          />
+        </Suspense>
+      ) : null}
     </>
   );
 }
 
 function SettingsMenu({
   currentLocale,
+  onOpenBoardBackground,
   onOpenExecutionProviders,
   onOpenKeyboardShortcuts,
   onOpenPlugins,
@@ -512,6 +533,7 @@ function SettingsMenu({
   onToggleGrid,
 }: {
   currentLocale: Locale;
+  onOpenBoardBackground: () => void;
   onOpenExecutionProviders: () => void;
   onOpenKeyboardShortcuts: () => void;
   onOpenPlugins?: () => void;
@@ -544,6 +566,13 @@ function SettingsMenu({
           <ChevronRight size={14} />
         </button>
         <div className="settings-submenu" role="menu" aria-label={t('settings.preferences')}>
+          <button type="button" className="settings-submenu-row" onClick={onOpenBoardBackground}>
+            <Palette size={15} />
+            <span>
+              <strong>{t('settings.boardBackground')}</strong>
+              <small>{t('settings.boardBackgroundDescription')}</small>
+            </span>
+          </button>
           <button type="button" className="settings-submenu-row" onClick={onToggleGrid}>
             <Grid3X3 size={15} />
             <span>

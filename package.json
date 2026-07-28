@@ -95,6 +95,7 @@
     "plugin-foundation-pf4:test": "RETAKE_WORKSPACE_DIR=.retake-test-plugin-foundation-pf4 tsx server/plugin-foundation-pf4-test.ts",
     "plugin-foundation-pf5:test": "RETAKE_WORKSPACE_DIR=.retake-test-plugin-foundation-pf5 tsx server/plugin-foundation-pf5-test.ts",
     "plugin-foundation-pf6:test": "RETAKE_WORKSPACE_DIR=.retake-test-plugin-foundation-pf6 tsx server/plugin-foundation-pf6-test.ts",
+    "plugin-foundation-pf7-background:test": "tsx server/plugin-foundation-pf7-board-background-test.tsx",
     "package-lifecycle-web-v1:test": "RETAKE_WORKSPACE_DIR=.retake-test-package-lifecycle-web-v1 tsx server/package-lifecycle-web-v1-test.ts",
     "domain-video-runtime-v0:test": "RETAKE_WORKSPACE_DIR=.retake-test-domain-video-runtime-v0 tsx server/domain-video-launch-review-v0-test.ts",
     "artifact-v0:test": "RETAKE_WORKSPACE_DIR=.retake-test-artifact-v0 tsx server/artifact-record-revision-store-v0-test.ts",

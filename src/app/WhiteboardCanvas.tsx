@@ -2,6 +2,7 @@ import { Background, NodeToolbar, Position, ReactFlow, type EdgeTypes, type Node
 import { useEffect, useRef, useState, type Dispatch, type FocusEvent as ReactFocusEvent, type PointerEvent as ReactPointerEvent, type ReactElement, type RefObject, type SetStateAction } from 'react';
 import { CanvasMiniMap } from '../components/CanvasMiniMap';
 import { CanvasViewportControls } from '../components/CanvasViewportControls';
+import { BoardBackgroundLayer } from '../components/BoardBackgroundLayer';
 import { ContextToolbar } from '../components/ContextToolbar';
 import { ExecutionOutputEdge } from '../components/ExecutionOutputEdge';
 import { GroupDrawOverlay } from '../components/GroupDrawOverlay';
@@ -281,6 +282,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
       onPointerMoveCapture={handleCanvasPointerMove}
       onPointerLeave={handleCanvasPointerLeave}
     >
+      <BoardBackgroundLayer snapshot={snapshot} />
       <PluginBlockRendererProvider
         onFatalFailure={onPluginContributionFatalFailure}
         registry={pluginContributionRegistry}

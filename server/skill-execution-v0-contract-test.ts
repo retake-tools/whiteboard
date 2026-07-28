@@ -22,7 +22,7 @@ assert.match(composerSource, /className=\{`skill-composer/);
 assert.match(composerSource, /skill-composer-picker-search/);
 assert.match(composerSource, /useDismissiblePopover/);
 assert.match(toolbarSource, /onInvokeEntryPoint/);
-assert.match(composerSource, /workflowUiDefinitionFor/);
+assert.match(composerSource, /resolvedWorkflowUiDefinitionFor/);
 assert.match(composerSource, /aria-expanded=\{picker\?\.mode === 'entrypoint'\}/);
 assert.equal(shouldShowSkillDock({ DEV: true }), true, 'Development builds should expose Skill discovery.');
 assert.equal(shouldShowSkillDock({ DEV: false }), true, 'The develop branch should keep Skill discovery enabled for integrated testing.');

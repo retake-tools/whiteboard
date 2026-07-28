@@ -31,11 +31,14 @@ import {
   listPackageEntryPoints,
   resolvePackageEntryPoint,
 } from '../core/packageRegistry';
-import { skillUiDefinitionFor } from '../core/skillRegistry';
+import { resolvedSkillUiDefinitionFor } from '../core/skillRegistry';
 import type { BoardSnapshot } from '../core/types';
 import { packageEntrypointDraftLaunchRequirements } from '../core/packageEntrypointAgentLaunchApplication';
 import { goalPlanDraftLaunchRequirements } from '../core/goalPlanAgentLaunchApplication';
-import { listWorkflows, workflowUiDefinitionFor } from '../core/workflowRegistry';
+import {
+  listWorkflows,
+  resolvedWorkflowUiDefinitionFor,
+} from '../core/workflowRegistry';
 import { useI18n } from '../i18n';
 import { AgentWorkspaceComposer } from './AgentWorkspaceComposer';
 import { AgentSessionHistoryMenu } from './AgentSessionHistoryMenu';
@@ -455,7 +458,7 @@ function ProposalCard({
   proposal: ChangeProposalRecord;
   snapshot: BoardSnapshot;
 }): ReactElement {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [isLaunchReviewOpen, setIsLaunchReviewOpen] = useState(false);
   const [workflowTarget, setWorkflowTarget] = useState<
     Exclude<PackageEntrypointAgentLaunchTarget, { kind: 'capability' }>
@@ -471,7 +474,7 @@ function ProposalCard({
       ? command.draftCommand.invocation
       : undefined;
   const entrypointName = typedInvocation
-    ? typedEntryPointName(typedInvocation.targetLock.entrypointId, t)
+    ? typedEntryPointName(typedInvocation.targetLock.entrypointId, locale)
     : undefined;
   const skillOperation = proposal.appliedEffect?.kind === 'package_entrypoint_draft'
     && proposal.appliedEffect.entrypointKind === 'skill'
@@ -817,16 +820,20 @@ function agentPresetOptionsForDraft(
 
 function typedEntryPointName(
   entrypointId: string,
-  t: ReturnType<typeof useI18n>['t'],
+  locale: string,
 ): string {
   const resolution = resolvePackageEntryPoint({ entrypointId });
   if (resolution.status !== 'resolved') return entrypointId;
   if (resolution.target.kind === 'skill') {
-    return t(skillUiDefinitionFor(resolution.target.skillLock.skillId).nameKey);
+    return resolvedSkillUiDefinitionFor(
+      resolution.target.skillLock.skillId,
+      locale,
+    ).name;
   }
-  return t(workflowUiDefinitionFor(
+  return resolvedWorkflowUiDefinitionFor(
     resolution.target.workflowDefinitionLock.workflowDefinitionId,
-  ).nameKey);
+    locale,
+  ).name;
 }
 
 function contextRefLabel(ref: NonNullable<ReturnType<typeof messagesForSession>[number]>['contextRefs'][number]): string {

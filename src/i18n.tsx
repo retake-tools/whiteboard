@@ -986,6 +986,20 @@ export type TranslationKey =
   | 'settings.language'
   | 'settings.preferences'
   | 'settings.plugins'
+  | 'settings.boardBackground'
+  | 'settings.boardBackgroundApply'
+  | 'settings.boardBackgroundAsset'
+  | 'settings.boardBackgroundCancel'
+  | 'settings.boardBackgroundColor'
+  | 'settings.boardBackgroundContain'
+  | 'settings.boardBackgroundCover'
+  | 'settings.boardBackgroundDefault'
+  | 'settings.boardBackgroundDescription'
+  | 'settings.boardBackgroundFit'
+  | 'settings.boardBackgroundImage'
+  | 'settings.boardBackgroundMode'
+  | 'settings.boardBackgroundNoImages'
+  | 'settings.boardBackgroundSolid'
   | 'settings.shortcutClose'
   | 'settings.shortcutRedo'
   | 'settings.shortcutUndo'
@@ -2032,6 +2046,20 @@ const translations: Record<Locale, Translations> = {
     'settings.language': 'Language',
     'settings.preferences': 'Preferences',
     'settings.plugins': 'Plugins',
+    'settings.boardBackground': 'Board background',
+    'settings.boardBackgroundApply': 'Apply background',
+    'settings.boardBackgroundAsset': 'Image Asset',
+    'settings.boardBackgroundCancel': 'Close',
+    'settings.boardBackgroundColor': 'Color',
+    'settings.boardBackgroundContain': 'Contain',
+    'settings.boardBackgroundCover': 'Cover',
+    'settings.boardBackgroundDefault': 'Default',
+    'settings.boardBackgroundDescription': 'Set one background layer for this Board',
+    'settings.boardBackgroundFit': 'Image fit',
+    'settings.boardBackgroundImage': 'Image',
+    'settings.boardBackgroundMode': 'Background type',
+    'settings.boardBackgroundNoImages': 'Import an image into this Project first.',
+    'settings.boardBackgroundSolid': 'Solid color',
     'settings.shortcutClose': 'Close dialogs and panels',
     'settings.shortcutRedo': 'Redo',
     'settings.shortcutUndo': 'Undo',
@@ -3073,6 +3101,20 @@ const translations: Record<Locale, Translations> = {
     'settings.language': '语言',
     'settings.preferences': '偏好设置',
     'settings.plugins': '插件',
+    'settings.boardBackground': '画板背景',
+    'settings.boardBackgroundApply': '应用背景',
+    'settings.boardBackgroundAsset': '图片资产',
+    'settings.boardBackgroundCancel': '关闭',
+    'settings.boardBackgroundColor': '颜色',
+    'settings.boardBackgroundContain': '完整显示',
+    'settings.boardBackgroundCover': '铺满',
+    'settings.boardBackgroundDefault': '默认',
+    'settings.boardBackgroundDescription': '为当前画板设置单一底层背景',
+    'settings.boardBackgroundFit': '图片适配',
+    'settings.boardBackgroundImage': '图片',
+    'settings.boardBackgroundMode': '背景类型',
+    'settings.boardBackgroundNoImages': '请先向当前项目导入图片。',
+    'settings.boardBackgroundSolid': '纯色',
     'settings.shortcutClose': '关闭弹窗和面板',
     'settings.shortcutRedo': '重做',
     'settings.shortcutUndo': '撤销',

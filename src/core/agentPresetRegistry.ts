@@ -7,6 +7,7 @@ import type {
   AgentPresetToolPermission,
 } from './agentPresetContracts';
 import { skillDefinitionFor } from './skillRegistry';
+import storyProductionDirectorSource from '../../packages/builtin/story-production-agent/agents/agent-story-production-director/retake.agent.json';
 
 export interface AgentPresetRegistry {
   definitions: AgentPresetDefinition[];
@@ -29,70 +30,7 @@ const reviewResponsibilities = new Set([
   'stage_handoff',
 ] as const);
 
-export const storyProductionDirectorPreset: AgentPresetDefinition = {
-  agentPresetId: 'retake.agent.story-production-director',
-  allowedCapabilityIds: [
-    'story.screenplay.generate',
-    'design.character.define',
-    'design.scene.define',
-    'previs.storyboard.plan',
-    'previs.storyboard_sheet.generate',
-    'generation.video_package.prepare',
-  ],
-  definitionHash: 'sha256:retake-agent-story-production-director-generation-package-v1',
-  description: 'Advance the locked story-production target one ready step at a time and stop at missing facts or gates.',
-  instructions: `Act as the bounded Story Production Director for the current Retake AgentRun.
-
-Read the supplied Board, target, scope, WorkflowRun, readiness, and Gate facts before responding. Stay inside the locked target and allowed capabilities. Advance only work that Retake reports as ready, one legal step at a time. Do not invent completion, assets, approvals, or state that is not present in Retake facts.
-
-When inputs are missing, a human Gate is waiting, output provenance is unclear, execution failed, or the requested change exceeds scope, stop and explain the exact blocker. Structural changes must become a ChangeProposal. Never reorder the Workflow, skip a required Gate, install a Package, expand permission, or treat a status summary as the production artifact.`,
-  name: 'Story Production Director',
-  permissionPolicy: {
-    canCreateBlocks: false,
-    canDeleteAssets: false,
-    canInstallPackages: false,
-    canModifyWorkflow: false,
-  },
-  reviewResponsibilities: [
-    'input_readiness',
-    'output_traceability',
-    'scope_drift',
-    'stage_handoff',
-  ],
-  roleLabel: 'Director',
-  runtimePreference: {
-    compatibleRuntimeKinds: ['codex_app_server'],
-    preferredRuntimeKind: 'codex_app_server',
-    requiredFeatures: [
-      'persistent_session',
-      'streaming_events',
-      'structured_output',
-    ],
-  },
-  schemaVersion: 1,
-  skillPolicy: {
-    allowedSkillIds: [
-      'retake.screenplay.from-brief',
-      'retake.character-bible.from-screenplay',
-      'retake.scene-bible.from-screenplay',
-      'retake.storyboard-plan.from-production-design',
-      'retake.storyboard-sheet.from-unit-plan',
-      'retake.video-generation-package.from-approved-storyboard',
-    ],
-    mode: 'allow_list',
-  },
-  source: {
-    kind: 'catmeme_migration',
-    paths: [
-      'skills-v1-node-workflow/direction-project-director/SKILL.md',
-      'skills/production-workflow/registry.yaml',
-    ],
-  },
-  toolPolicy: {
-    allowedToolPermissions: ['retake.read', 'retake.execute_capability'],
-  },
-  version: '0.3.0',
-};
+export const storyProductionDirectorPreset = storyProductionDirectorSource as unknown as AgentPresetDefinition;
 
 export const builtInAgentPresetRegistry = createAgentPresetRegistry([
   storyProductionDirectorPreset,

@@ -34,12 +34,13 @@ import {
   stageGoalPlanAgentLaunch,
 } from '../core/goalPlanAgentLaunchApplication';
 import { reconcileWorkflowArtifactGates } from '../core/workflowArtifactGateClient';
-import { workflowUiDefinitionFor } from '../core/workflowRegistry';
+import { resolvedWorkflowUiDefinitionFor } from '../core/workflowRegistry';
 import type { useI18n } from '../i18n';
 import { textGenerationLabelsForSkill } from './skillTextLabels';
 
 interface AgentWorkspaceControllerOptions {
   focusWorkflowBlocks: (blockIds: string[]) => void;
+  locale: string;
   persistSnapshot: (
     snapshot: BoardSnapshot,
     options?: { requireLocalApi?: boolean },
@@ -57,6 +58,7 @@ interface AgentWorkspaceControllerOptions {
 export function useAgentWorkspaceController(options: AgentWorkspaceControllerOptions) {
   const {
     focusWorkflowBlocks,
+    locale,
     persistSnapshot,
     setSelectedBlocks,
     snapshot,
@@ -177,10 +179,13 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
                 projectId: applicationSnapshot.project.projectId,
                 useCase: 'text',
               }).connectionId,
-            labelsForSkill: (skillId) => textGenerationLabelsForSkill(skillId, t),
+            labelsForSkill: (skillId) => textGenerationLabelsForSkill(skillId, locale, t),
             outputPlaceholder: t('workflowDraft.outputPending'),
             workflowTitleForTarget: (target) =>
-              t(workflowUiDefinitionFor(target.workflowDefinitionLock.workflowDefinitionId).nameKey),
+              resolvedWorkflowUiDefinitionFor(
+                target.workflowDefinitionLock.workflowDefinitionId,
+                locale,
+              ).name,
           },
         );
         effect = result.proposal.appliedEffect;

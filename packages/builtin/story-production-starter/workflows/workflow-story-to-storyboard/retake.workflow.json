@@ -5,6 +5,20 @@
   "definitionHash": "sha256:retake-workflow-story-to-storyboard-stage-runtime-v2",
   "name": "Story to storyboard plan",
   "description": "Project a manual draft from creative brief through screenplay and production design to storyboard planning.",
+  "ui": {
+    "description": {
+      "default": "Create an editable draft graph from brief through screenplay and production design to storyboard planning.",
+      "locales": {
+        "zh": "创建从 Brief、剧本、角色与场景设定到故事板计划的可编辑草稿图。"
+      }
+    },
+    "name": {
+      "default": "Story to storyboard plan",
+      "locales": {
+        "zh": "从 Brief 到故事板计划"
+      }
+    }
+  },
   "inputSlots": [
     {
       "slotId": "brief",

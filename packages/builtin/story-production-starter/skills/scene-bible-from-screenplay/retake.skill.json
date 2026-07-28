@@ -25,6 +25,70 @@
     "List future reference assets as needed or proposed; never present them as generated or approved.",
     "End with unresolved questions, assumptions, and screenplay coverage."
   ],
+  "ui": {
+    "description": {
+      "default": "Extract scene, spatial, lighting, and continuity constraints from a screenplay.",
+      "locales": {
+        "zh": "从剧本提取场景、空间、灯光与连续性约束。"
+      }
+    },
+    "inputLabel": {
+      "default": "Source screenplay",
+      "locales": {
+        "zh": "源剧本"
+      }
+    },
+    "inputSlots": [
+      {
+        "label": {
+          "default": "Source screenplay",
+          "locales": {
+            "zh": "源剧本"
+          }
+        },
+        "placeholder": {
+          "default": "Connect or paste the screenplay that should define the production scenes...",
+          "locales": {
+            "zh": "连接或粘贴用于生成场景设定的剧本..."
+          }
+        },
+        "slotId": "screenplay"
+      },
+      {
+        "label": {
+          "default": "Additional direction / references",
+          "locales": {
+            "zh": "补充要求 / 参考资料"
+          }
+        },
+        "placeholder": {
+          "default": "Add optional direction or reference material...",
+          "locales": {
+            "zh": "补充可选要求或参考资料..."
+          }
+        },
+        "slotId": "references"
+      }
+    ],
+    "name": {
+      "default": "Define scenes",
+      "locales": {
+        "zh": "生成场景设定"
+      }
+    },
+    "operationTitle": {
+      "default": "Define scenes",
+      "locales": {
+        "zh": "生成场景设定"
+      }
+    },
+    "placeholder": {
+      "default": "Connect or paste the screenplay that should define the production scenes...",
+      "locales": {
+        "zh": "连接或粘贴用于生成场景设定的剧本..."
+      }
+    }
+  },
   "source": {
     "kind": "catmeme_migration",
     "paths": [

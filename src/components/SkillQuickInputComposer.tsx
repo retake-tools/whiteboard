@@ -35,13 +35,13 @@ import {
   listRecommendedPackageEntryPoints,
   type RegisteredPackageEntryPoint,
 } from '../core/packageRegistry';
-import { skillUiDefinitionFor } from '../core/skillRegistry';
+import { resolvedSkillUiDefinitionFor } from '../core/skillRegistry';
 import type {
   StoryboardSheetGenerationParameters,
   StoryboardSheetPanelCount,
 } from '../core/storyboardSheetContracts';
 import type { BoardSnapshot } from '../core/types';
-import { workflowUiDefinitionFor } from '../core/workflowRegistry';
+import { resolvedWorkflowUiDefinitionFor } from '../core/workflowRegistry';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
 import {
@@ -86,7 +86,7 @@ export function SkillQuickInputComposer({
   showRecommendations = mode === 'canvas',
   snapshot,
 }: SkillQuickInputComposerProps): ReactElement {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const keyboardHintId = useId();
   const rootRef = useRef<HTMLElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -158,7 +158,14 @@ export function SkillQuickInputComposer({
   const generationReferenceMentions = useMemo(() => mentions.filter(
     (mention) => mention.slotId === 'references',
   ), [mentions]);
-  const filteredEntryPoints = useMemo(() => filterEntryPoints(entrypoints, picker?.mode === 'entrypoint' ? picker.query : '', t), [entrypoints, picker, t]);
+  const filteredEntryPoints = useMemo(
+    () => filterEntryPoints(
+      entrypoints,
+      picker?.mode === 'entrypoint' ? picker.query : '',
+      locale,
+    ),
+    [entrypoints, locale, picker],
+  );
   const filteredMentions = useMemo(() => filterMentionOptions(
     mentionOptions,
     picker?.mode === 'mention' ? picker.query : '',
@@ -624,7 +631,7 @@ export function SkillQuickInputComposer({
                 onClick={() => setPicker({ mode: 'entrypoint', query: '' })}
               >
                 <Sparkles size={15} />
-                <span>{entryPointDisplayName(selectedEntryPoint, t)}</span>
+                <span>{entryPointDisplayName(selectedEntryPoint, locale)}</span>
                 <ChevronDown size={13} />
               </button>
               <button
@@ -684,7 +691,7 @@ export function SkillQuickInputComposer({
             data-package-id={registration.packageLock.packageId}
             onClick={() => selectEntryPoint(registration)}
           >
-            {entryPointDisplayName(registration, t)}
+            {entryPointDisplayName(registration, locale)}
           </button>
         ))}
         <button type="button" className="skill-composer-more" onClick={() => setPicker({ mode: 'entrypoint', query: '' })}>
@@ -725,10 +732,10 @@ export function SkillQuickInputComposer({
                   }
                 }}
               >
-                <strong>{entryPointDisplayName(registration, t)}</strong>
+                <strong>{entryPointDisplayName(registration, locale)}</strong>
                 <span>
                   <small>{registration.entrypoint.kind === 'workflow' ? t('skillDock.workflowBadge') : t('skillDock.skillBadge')}</small>
-                  {entryPointDisplayDescription(registration, t)}
+                  {entryPointDisplayDescription(registration, locale)}
                 </span>
               </button>
             )) : mentionGroups.map((group) => (
@@ -823,11 +830,11 @@ function isRunnableRegistration(registration: RegisteredPackageEntryPoint): bool
 function filterEntryPoints(
   registrations: RegisteredPackageEntryPoint[],
   query: string,
-  t: ReturnType<typeof useI18n>['t'],
+  locale: string,
 ): RegisteredPackageEntryPoint[] {
   const normalized = query.trim().toLocaleLowerCase();
   if (!normalized) return registrations;
-  return registrations.filter((registration) => `${registration.entrypoint.name} ${registration.entrypoint.description} ${entryPointDisplayName(registration, t)} ${entryPointDisplayDescription(registration, t)}`
+  return registrations.filter((registration) => `${registration.entrypoint.name} ${registration.entrypoint.description} ${entryPointDisplayName(registration, locale)} ${entryPointDisplayDescription(registration, locale)}`
     .toLocaleLowerCase()
     .includes(normalized));
 }
@@ -904,20 +911,34 @@ function stripTrailingTrigger(value: string, trigger: '/' | '@'): string {
 
 function entryPointDisplayName(
   registration: RegisteredPackageEntryPoint,
-  t: ReturnType<typeof useI18n>['t'],
+  locale: string,
 ): string {
   const { entrypoint } = registration;
-  if (entrypoint.kind === 'skill') return t(skillUiDefinitionFor(entrypoint.ref.skillId).nameKey);
-  if (entrypoint.kind === 'workflow') return t(workflowUiDefinitionFor(entrypoint.ref.workflowDefinitionId).nameKey);
+  if (entrypoint.kind === 'skill') {
+    return resolvedSkillUiDefinitionFor(entrypoint.ref.skillId, locale).name;
+  }
+  if (entrypoint.kind === 'workflow') {
+    return resolvedWorkflowUiDefinitionFor(
+      entrypoint.ref.workflowDefinitionId,
+      locale,
+    ).name;
+  }
   return entrypoint.name;
 }
 
 function entryPointDisplayDescription(
   registration: RegisteredPackageEntryPoint,
-  t: ReturnType<typeof useI18n>['t'],
+  locale: string,
 ): string {
   const { entrypoint } = registration;
-  if (entrypoint.kind === 'skill') return t(skillUiDefinitionFor(entrypoint.ref.skillId).descriptionKey);
-  if (entrypoint.kind === 'workflow') return t(workflowUiDefinitionFor(entrypoint.ref.workflowDefinitionId).descriptionKey);
+  if (entrypoint.kind === 'skill') {
+    return resolvedSkillUiDefinitionFor(entrypoint.ref.skillId, locale).description;
+  }
+  if (entrypoint.kind === 'workflow') {
+    return resolvedWorkflowUiDefinitionFor(
+      entrypoint.ref.workflowDefinitionId,
+      locale,
+    ).description;
+  }
   return entrypoint.description;
 }
