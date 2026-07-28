@@ -7,6 +7,24 @@
   background: #f7f8fa;
 }
 
+.board-background-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-color: #f7f8fa;
+}
+
+.board-background-layer.is-image {
+  background-color: #f7f8fa;
+}
+
+.canvas-area > .react-flow {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+}
+
 /* Chromium can briefly paint its fallback cursor while a pointer crosses the
    many nested elements inside editable nodes. Keep one neutral cursor during
    continuous motion, then restore each zone's semantic cursor after it idles. */

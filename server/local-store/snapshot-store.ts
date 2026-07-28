@@ -144,6 +144,7 @@ export function createBlankSnapshot(input: {
       createdAt: input.now,
       updatedAt: input.now,
       order: input.boardOrder ?? 0,
+      background: { kind: 'default' },
     },
     layers: [{ id: 'layer_default', boardId: input.boardId, name: 'Default layer', visible: true, locked: false, order: 0 }],
     blocks: [],

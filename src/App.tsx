@@ -15,6 +15,7 @@ import { WorkflowContinuationDialog } from './components/WorkflowContinuationDia
 import { getAssetPreviewUrl } from './core/assetStore';
 import { blockLockedByGroup, groupMediaItems } from './core/grouping';
 import { loadUiPreferences } from './core/uiPreferences';
+import { setBoardBackground } from './core/boardBackground';
 import { loadExecutionProviderSettings } from './core/executionProviderClient';
 import { useI18n } from './i18n';
 import { useWorkspaceController } from './app/useWorkspaceController';
@@ -679,6 +680,12 @@ function ReadyApp({
         onRefreshBoard={() => void refreshCurrentBoard()}
         onRetrySave={() => void retrySave()}
         onSelectBoard={(projectId, boardId) => void selectBoard(projectId, boardId)}
+        onSetBoardBackground={(background) => {
+          updateSnapshot(
+            (current) => setBoardBackground(current, background),
+            { history: true, persist: true, syncFlow: false },
+          );
+        }}
         onToggleGrid={() => setShowGrid((current) => !current)}
         onDeleteSelection={deleteSelection}
         onDuplicateSelection={duplicateSelection}

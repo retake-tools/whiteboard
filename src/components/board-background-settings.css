@@ -1,0 +1,82 @@
+.board-background-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: grid;
+  place-items: center;
+  background: rgb(15 23 42 / 38%);
+}
+
+.board-background-dialog {
+  display: grid;
+  width: min(460px, calc(100vw - 32px));
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid var(--retake-border);
+  border-radius: 14px;
+  background: var(--retake-surface);
+  box-shadow: 0 24px 70px rgb(15 23 42 / 24%);
+}
+
+.board-background-dialog header,
+.board-background-dialog footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.board-background-dialog h2,
+.board-background-dialog p {
+  margin: 0;
+}
+
+.board-background-dialog header p {
+  margin-top: 5px;
+  color: var(--retake-text-muted);
+  font-size: 13px;
+}
+
+.board-background-dialog label {
+  display: grid;
+  gap: 7px;
+  color: var(--retake-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.board-background-dialog select {
+  min-height: 38px;
+  border: 1px solid var(--retake-border);
+  border-radius: 8px;
+  background: var(--retake-surface);
+  color: var(--retake-text);
+  padding: 0 10px;
+}
+
+.board-background-dialog input[type='color'] {
+  width: 100%;
+  height: 42px;
+  border: 1px solid var(--retake-border);
+  border-radius: 8px;
+  background: var(--retake-surface);
+}
+
+.board-background-dialog button {
+  min-height: 34px;
+  border: 1px solid var(--retake-border);
+  border-radius: 8px;
+  background: var(--retake-surface);
+  color: var(--retake-text);
+  padding: 0 12px;
+}
+
+.board-background-dialog footer {
+  justify-content: flex-end;
+}
+
+.board-background-dialog footer button {
+  border-color: var(--retake-accent-strong);
+  background: var(--retake-accent-strong);
+  color: white;
+}

@@ -12,6 +12,7 @@ import { isExecutionInputRole } from './inputRoles';
 import { fitImageBlockSize, imageResultColumnGap } from './blockSizing';
 import { ensureExecutionResultGroups, repairGroupRelationships } from './grouping';
 import type { ChangeProposalCommand } from './agentSessionContracts';
+import { normalizeBoardBackground } from './boardBackground';
 
 type LegacyBlockType = BlockType | 'task' | 'frame';
 type LegacyConnectionKind = ConnectionKind | 'reference' | 'derived_from';
@@ -78,6 +79,12 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
 
   const migratedSnapshot: BoardSnapshot = {
     ...snapshotWithoutLegacyViewport,
+    board: {
+      ...snapshotWithoutLegacyViewport.board,
+      background: normalizeBoardBackground(
+        snapshotWithoutLegacyViewport.board.background,
+      ),
+    },
     blocks: repairedBlocks,
     edges: migratedEdges,
     executions: migratedExecutions,

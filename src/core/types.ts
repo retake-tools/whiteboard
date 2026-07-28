@@ -129,7 +129,13 @@ export interface BoardRecord {
   createdAt: string;
   updatedAt: string;
   order?: number;
+  background?: BoardBackgroundV1;
 }
+
+export type BoardBackgroundV1 =
+  | { kind: 'default' }
+  | { color: string; kind: 'solid' }
+  | { assetId: string; fit: 'contain' | 'cover'; kind: 'image' };
 
 export interface LayerRecord {
   id: string;
