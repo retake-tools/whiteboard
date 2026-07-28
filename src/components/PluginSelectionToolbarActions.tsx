@@ -7,21 +7,22 @@ import {
 } from 'react';
 import type {
   PluginContributionRegistryV1,
-  PluginImageToolbarActionContextV1,
-  RegisteredPluginActionV1,
-  RegisteredPluginImageSelectionToolbarActionV1,
+  RegisteredPluginCommandV1,
 } from '../core/pluginContributionRegistry';
+import type {
+  PluginImageBlockV1,
+} from '@retake-tools/package-sdk';
 import { TooltipIconButton } from './Tooltip';
 import { PluginActionIcon } from './PluginActionIcon';
 
-const emptyActions: readonly RegisteredPluginActionV1[] = Object.freeze([]);
+const emptyActions: readonly RegisteredPluginCommandV1[] = Object.freeze([]);
 
 export function PluginSelectionToolbarActions({
   blocks,
   onFatalFailure,
   registry,
 }: {
-  blocks: readonly PluginImageToolbarActionContextV1['block'][];
+  blocks: readonly PluginImageBlockV1[];
   onFatalFailure?: (
     pluginModuleId: string,
     message: string,
@@ -30,19 +31,28 @@ export function PluginSelectionToolbarActions({
 }): ReactElement | null {
   const snapshot = useSyncExternalStore(
     registry?.subscribe ?? emptySubscribe,
-    registry?.getActionSnapshot ?? emptySnapshot,
-    registry?.getActionSnapshot ?? emptySnapshot,
+    registry?.getCommandSnapshot ?? emptySnapshot,
+    registry?.getCommandSnapshot ?? emptySnapshot,
   );
+  const context = Object.freeze({
+    blocks: Object.freeze([...blocks]),
+    kind: 'selection' as const,
+  });
   const actions = snapshot.filter(
     (
       action,
-    ): action is RegisteredPluginImageSelectionToolbarActionV1 => (
-      action.placement === 'selection.toolbar'
-      && blocks.length >= action.selectionCount.min
-      && blocks.length <= action.selectionCount.max
+    ): action is RegisteredPluginCommandV1 => (
+      action.contextKind === 'selection'
+      && action.bindings.some(
+        (binding) => binding.surfaceId === 'selection.context-toolbar',
+      )
+      && registry?.availability(
+        action,
+        Object.freeze({ ...context, host: action.host }),
+      ).visible === true
     ),
   );
-  if (actions.length === 0 || blocks.length < 2) return null;
+  if (actions.length === 0 || blocks.length === 0) return null;
 
   return (
     <div
@@ -55,6 +65,7 @@ export function PluginSelectionToolbarActions({
           blocks={blocks}
           key={action.contributionId}
           onFatalFailure={onFatalFailure}
+          registry={registry}
         />
       ))}
     </div>
@@ -66,13 +77,15 @@ const SelectionActionButton = memo(
     action,
     blocks,
     onFatalFailure,
+    registry,
   }: {
-    action: RegisteredPluginImageSelectionToolbarActionV1;
-    blocks: readonly PluginImageToolbarActionContextV1['block'][];
+    action: RegisteredPluginCommandV1;
+    blocks: readonly PluginImageBlockV1[];
     onFatalFailure?: (
       pluginModuleId: string,
       message: string,
     ) => Promise<void> | void;
+    registry?: PluginContributionRegistryV1;
   }): ReactElement | null {
     const [pending, setPending] = useState(false);
     const environment = useSyncExternalStore(
@@ -81,22 +94,30 @@ const SelectionActionButton = memo(
       action.host.environment.getSnapshot,
     );
     if (action.failure) return null;
+    const context = Object.freeze({
+      blocks,
+      host: action.host,
+      kind: 'selection' as const,
+    });
+    const availability = registry?.availability(action, context) ?? {
+      enabled: false,
+      visible: false,
+    };
+    if (!availability.visible) return null;
 
     async function invoke(): Promise<void> {
       if (pending) return;
       setPending(true);
       try {
-        await action.run(Object.freeze({
-          blocks: Object.freeze([...blocks]),
-          host: action.host,
-        }));
+        if (!registry) return;
+        await registry.invoke(action, context);
       } catch (error) {
         const message = error instanceof Error
           ? error.message
           : String(error);
         await onFatalFailure?.(
           action.pluginModuleId,
-          `Plugin action ${action.contributionId} failed: ${message}`,
+          `Plugin command ${action.commandId} failed: ${message}`,
         );
       } finally {
         setPending(false);
@@ -106,7 +127,7 @@ const SelectionActionButton = memo(
     return (
       <TooltipIconButton
         className="icon-button plugin-image-toolbar-action"
-        disabled={pending}
+        disabled={pending || !availability.enabled}
         label={resolvePluginLocalizedTextV2(
           action.label,
           environment.locale,
@@ -125,6 +146,6 @@ function emptySubscribe(): () => void {
   return () => undefined;
 }
 
-function emptySnapshot(): readonly RegisteredPluginActionV1[] {
+function emptySnapshot(): readonly RegisteredPluginCommandV1[] {
   return emptyActions;
 }

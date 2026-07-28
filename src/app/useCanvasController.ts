@@ -55,9 +55,18 @@ import {
   selectedOperationBlockIdFor,
 } from './appHelpers';
 import type { BoardSessionPorts } from './useBoardSession';
+import type {
+  PluginContributionRegistryV1,
+  RegisteredPluginCommandV1,
+} from '../core/pluginContributionRegistry';
 
 interface CanvasControllerOptions {
   connectSessionPorts: (ports: BoardSessionPorts) => void;
+  onPluginContributionFatalFailure?: (
+    pluginModuleId: string,
+    message: string,
+  ) => Promise<void> | void;
+  pluginContributionRegistry?: PluginContributionRegistryV1;
   redo: () => void;
   setHistoryOpen: (open: boolean) => void;
   setInspectorBlockId: (blockId: string | undefined) => void;
@@ -74,6 +83,8 @@ interface CanvasControllerOptions {
 export function useCanvasController(options: CanvasControllerOptions) {
   const {
     connectSessionPorts,
+    onPluginContributionFatalFailure,
+    pluginContributionRegistry,
     redo,
     setHistoryOpen,
     setInspectorBlockId,
@@ -184,10 +195,59 @@ export function useCanvasController(options: CanvasControllerOptions) {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       if (event.target instanceof HTMLElement && isEditableNodeTarget(event.target)) return;
-      const isUndo = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z' && !event.shiftKey;
-      const isRedo = ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'z') || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'y');
-      if (isUndo) { event.preventDefault(); undo(); }
-      if (isRedo) { event.preventDefault(); redo(); }
+      const shortcut = commandShortcutFromKeyboardEvent(event);
+      const binding = shortcut
+        ? pluginContributionRegistry
+          ?.getShortcutResolution()
+          .bindings
+          .find((candidate) => candidate.shortcut === shortcut)
+        : undefined;
+      if (
+        binding?.commandId === 'retake.command.undo'
+        || (!pluginContributionRegistry && shortcut === 'Mod+Z')
+      ) {
+        event.preventDefault();
+        undo();
+        return;
+      }
+      if (
+        binding?.commandId === 'retake.command.redo'
+        || (
+          !pluginContributionRegistry
+          && (shortcut === 'Mod+Shift+Z' || shortcut === 'Mod+Y')
+        )
+      ) {
+        event.preventDefault();
+        redo();
+        return;
+      }
+      if (binding?.source === 'plugin' && pluginContributionRegistry) {
+        const command = pluginContributionRegistry
+          .getCommandSnapshot()
+          .find((candidate) => candidate.commandId === binding.commandId);
+        const context = command
+          ? pluginCommandContextForSelection(
+              command,
+              snapshotRef.current,
+              selectedBlockIdsRef.current,
+            )
+          : null;
+        if (command && context) {
+          event.preventDefault();
+          void pluginContributionRegistry.invoke(command, context).catch(
+            async (error) => {
+              const message = error instanceof Error
+                ? error.message
+                : String(error);
+              await onPluginContributionFatalFailure?.(
+                command.pluginModuleId,
+                `Plugin command ${command.commandId} failed: ${message}`,
+              );
+            },
+          );
+          return;
+        }
+      }
       if ((event.key === 'Delete' || event.key === 'Backspace') && selectedBlockIdsRef.current.length > 0) {
         event.preventDefault();
         actionPortsRef.current.deleteBlockIds(selectedBlockIdsRef.current);
@@ -195,7 +255,13 @@ export function useCanvasController(options: CanvasControllerOptions) {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [
+    onPluginContributionFatalFailure,
+    pluginContributionRegistry,
+    redo,
+    snapshotRef,
+    undo,
+  ]);
 
   function onNodesChange(changes: NodeChange[]): void {
     const removeChanges = changes.filter((change) => change.type === 'remove');
@@ -645,4 +711,56 @@ export function useCanvasController(options: CanvasControllerOptions) {
     setSelectedBlockIds,
     setSelectedBlocks,
   };
+}
+
+export function commandShortcutFromKeyboardEvent(
+  event: Pick<
+    KeyboardEvent,
+    'altKey' | 'ctrlKey' | 'key' | 'metaKey' | 'shiftKey'
+  >,
+): string | null {
+  if (!event.metaKey && !event.ctrlKey) return null;
+  const key = event.key.toUpperCase();
+  if (!/^[A-Z0-9]$/.test(key)) return null;
+  return [
+    'Mod',
+    ...(event.altKey ? ['Alt'] : []),
+    ...(event.shiftKey ? ['Shift'] : []),
+    key,
+  ].join('+');
+}
+
+function pluginCommandContextForSelection(
+  command: RegisteredPluginCommandV1,
+  snapshot: BoardSnapshot,
+  selectedBlockIds: readonly string[],
+) {
+  const images = selectedBlockIds.flatMap((blockId) => {
+    const block = snapshot.blocks.find((candidate) => (
+      candidate.blockId === blockId
+      && candidate.type === 'image'
+    ));
+    if (!block || block.type !== 'image' || !block.data.assetId) return [];
+    return [Object.freeze({
+      assetId: block.data.assetId,
+      blockId: block.blockId,
+      title: block.data.title,
+      type: 'image' as const,
+    })];
+  });
+  if (command.contextKind === 'image' && images.length === 1) {
+    return Object.freeze({
+      block: images[0]!,
+      host: command.host,
+      kind: 'image' as const,
+    });
+  }
+  if (command.contextKind === 'selection' && images.length > 0) {
+    return Object.freeze({
+      blocks: Object.freeze(images),
+      host: command.host,
+      kind: 'selection' as const,
+    });
+  }
+  return null;
 }

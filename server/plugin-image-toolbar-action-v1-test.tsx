@@ -19,6 +19,9 @@ import {
 import {
   createPluginContributionRegistry,
 } from '../src/core/pluginContributionRegistry';
+import {
+  commandShortcutFromKeyboardEvent,
+} from '../src/app/useCanvasController';
 import type {
   AssetRecord,
   BlockRecord,
@@ -73,15 +76,19 @@ const failures = registry.replace([{
     contributions: [{
       contribution: {
         contributionId: 'retake.contribution.download-fixture',
-        exportName: 'fixtureAction',
-        kind: 'action',
+        exportName: 'fixtureCommand',
+        kind: 'command',
       },
       value: {
-        apiVersion: 2,
+        apiVersion: 1,
+        commandId: 'retake.contribution.download-fixture',
+        contextKind: 'image',
+        defaultBindings: [{
+          surfaceId: 'image.context-toolbar',
+        }],
         icon: 'adjustments',
-        kind: 'action',
+        kind: 'command',
         label: 'Download with Plugin',
-        placement: 'image.toolbar',
         run: () => undefined,
       },
     }],
@@ -169,17 +176,24 @@ assert.deepEqual(selectionRegistry.replace([{
     contributions: [{
       contribution: {
         contributionId: 'retake.contribution.selection-fixture',
-        exportName: 'fixtureSelectionAction',
-        kind: 'action',
+        exportName: 'fixtureSelectionCommand',
+        kind: 'command',
       },
       value: {
-        apiVersion: 2,
+        apiVersion: 1,
+        availability: ({ blocks }: { blocks: readonly unknown[] }) => ({
+          enabled: blocks.length === 2,
+          visible: blocks.length === 2,
+        }),
+        commandId: 'retake.contribution.selection-fixture',
+        contextKind: 'selection',
+        defaultBindings: [{
+          surfaceId: 'selection.context-toolbar',
+        }],
         icon: 'smart-edit',
-        kind: 'action',
+        kind: 'command',
         label: 'Edit selected pair',
-        placement: 'selection.toolbar',
         run: () => undefined,
-        selectionCount: { max: 2, min: 2 },
       },
     }],
   },
@@ -229,19 +243,23 @@ assert.deepEqual(operationRegistry.replace([{
     contributions: [{
       contribution: {
         contributionId: 'retake.contribution.operation-fixture',
-        exportName: 'fixtureOperationAction',
-        kind: 'action',
+        exportName: 'fixtureOperationCommand',
+        kind: 'command',
       },
       value: {
-        apiVersion: 2,
-        kind: 'action',
+        apiVersion: 1,
+        commandId: 'retake.contribution.operation-fixture',
+        contextKind: 'operation',
+        defaultBindings: [{
+          surfaceId: 'operation.inspector',
+        }],
+        kind: 'command',
         label: {
           default: 'Reopen edit',
           locales: { 'zh-CN': '重新编辑' },
         },
-        placement: 'operation.inspector',
+        ownedCapabilityId: 'image.annotation_edit',
         run: () => undefined,
-        supportedCapabilityIds: ['image.annotation_edit'],
       },
     }],
   },
@@ -315,13 +333,28 @@ const operationMarkup = renderToStaticMarkup(
 );
 assert.match(operationMarkup, /data-retake-plugin-ui="operation-inspector"/);
 assert.match(operationMarkup, />Reopen edit</);
+assert.equal(commandShortcutFromKeyboardEvent({
+  altKey: false,
+  ctrlKey: false,
+  key: 'a',
+  metaKey: true,
+  shiftKey: true,
+}), 'Mod+Shift+A');
+assert.equal(commandShortcutFromKeyboardEvent({
+  altKey: false,
+  ctrlKey: false,
+  key: 'Escape',
+  metaKey: false,
+  shiftKey: false,
+}), null);
 
 process.stdout.write(`${JSON.stringify({
-  actionRendersInsideCoreImageToolbar: true,
+  commandRendersInsideCoreImageToolbar: true,
   hoverAndFocusPreviewToolbar: true,
-  hoverActionWaitsForBoundScope: true,
+  hoverCommandWaitsForBoundScope: true,
   missingRegistryKeepsCoreToolbarOnly: true,
   declaredToolbarActionIcons: true,
   operationInspectorProjectsCurrentSourceOnly: true,
-  selectionActionRequiresDeclaredImageCount: true,
+  selectionCommandUsesAvailabilityContract: true,
+  shortcutEventsUseCanonicalCommandKeys: true,
 })}\n`);

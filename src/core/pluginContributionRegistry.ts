@@ -1,17 +1,21 @@
 import type {
   PluginLocalizedTextV2,
 } from '@retake-tools/package-contracts';
-import {
-  pluginLocalizedTextV2Schema,
-} from '@retake-tools/package-contracts';
 import type {
   ActivatedPluginContributionV2,
+  CommandShortcutResolutionV1,
+  PluginCommandAvailabilityV1,
+  PluginCommandContextV1,
+  PluginCommandIconV1,
+  PluginCommandSurfaceBindingV1,
+  PluginCommandSurfaceIdV1,
+  PluginCommandV1,
   PluginHostApiV2,
-  PluginOperationActionContextV2,
-  PluginOperationInspectorActionV2,
 } from '@retake-tools/package-sdk';
 import {
-  parsePluginOperationInspectorActionV2,
+  parsePluginCommandV1,
+  pluginCommandAvailabilityV1,
+  resolveCommandShortcutCandidatesV1,
 } from '@retake-tools/plugin-runtime';
 import type {
   ComponentType,
@@ -96,104 +100,67 @@ export interface RegisteredPluginBlockRendererV1 {
   supportedBlockTypes: readonly PluginRendererBlockTypeV1[];
 }
 
-export interface PluginImageToolbarActionContextV1 {
-  readonly block: {
-    readonly assetId: string;
-    readonly blockId: string;
-    readonly previewUrl?: string;
-    readonly title: string;
-    readonly type: 'image';
-  };
-  readonly host: PluginHostApiV2;
-}
-
-export interface PluginImageSelectionToolbarActionContextV1 {
-  readonly blocks: readonly PluginImageToolbarActionContextV1['block'][];
-  readonly host: PluginHostApiV2;
-}
-
-export const pluginToolbarActionIconsV1 = [
-  'adjustments',
-  'annotation',
-  'crop',
-  'outpaint',
-  'resize',
-  'selection-mask',
-  'smart-edit',
-] as const;
-
-export type PluginToolbarActionIconV1 =
-  (typeof pluginToolbarActionIconsV1)[number];
-
-export interface PluginImageToolbarActionContributionValueV1 {
-  apiVersion: 2;
-  icon?: PluginToolbarActionIconV1;
-  kind: 'action';
-  label: PluginLocalizedTextV2;
-  placement: 'image.toolbar';
-  run(context: PluginImageToolbarActionContextV1): Promise<void> | void;
-}
-
-export interface PluginImageSelectionToolbarActionContributionValueV1 {
-  apiVersion: 2;
-  icon?: PluginToolbarActionIconV1;
-  kind: 'action';
-  label: PluginLocalizedTextV2;
-  placement: 'selection.toolbar';
-  selectionCount: {
-    max: number;
-    min: number;
-  };
-  run(
-    context: PluginImageSelectionToolbarActionContextV1,
-  ): Promise<void> | void;
-}
-
-interface RegisteredPluginActionBaseV1 {
+interface RegisteredPluginCommandBaseV1 {
+  availability?: PluginCommandV1['availability'];
+  bindings: readonly PluginCommandSurfaceBindingV1[];
+  commandId: string;
+  contextKind: PluginCommandV1['contextKind'];
   contributionId: string;
+  defaultBindings: readonly PluginCommandSurfaceBindingV1[];
   failure: string | null;
   host: PluginHostApiV2;
+  icon?: PluginCommandIconV1;
   label: PluginLocalizedTextV2;
+  ownedCapabilityId?: string;
   pluginModuleId: string;
+  recommendedShortcuts: readonly string[];
 }
 
-export interface RegisteredPluginImageToolbarActionV1
-  extends RegisteredPluginActionBaseV1 {
-  icon?: PluginToolbarActionIconV1;
-  placement: 'image.toolbar';
-  run(context: PluginImageToolbarActionContextV1): Promise<void> | void;
+export type RegisteredPluginCommandV1 =
+  RegisteredPluginCommandBaseV1
+  & Pick<PluginCommandV1, 'run'>;
+
+export interface PluginCommandExperienceOverrideV1 {
+  readonly commandId: string;
+  readonly hidden?: boolean;
+  readonly order?: number;
 }
 
-export interface RegisteredPluginImageSelectionToolbarActionV1
-  extends RegisteredPluginActionBaseV1 {
-  icon?: PluginToolbarActionIconV1;
-  placement: 'selection.toolbar';
-  selectionCount: {
-    max: number;
-    min: number;
-  };
-  run(
-    context: PluginImageSelectionToolbarActionContextV1,
-  ): Promise<void> | void;
-}
-
-export interface RegisteredPluginOperationInspectorActionV2
-  extends RegisteredPluginActionBaseV1 {
-  placement: 'operation.inspector';
-  run(context: PluginOperationActionContextV2): Promise<void> | void;
-  supportedCapabilityIds: readonly string[];
-}
-
-export type RegisteredPluginActionV1 =
-  | RegisteredPluginImageSelectionToolbarActionV1
-  | RegisteredPluginImageToolbarActionV1
-  | RegisteredPluginOperationInspectorActionV2;
+export const hostCommandShortcutCandidatesV1 = Object.freeze([
+  Object.freeze({
+    commandId: 'retake.command.redo',
+    shortcut: 'Mod+Shift+Z',
+    source: 'host' as const,
+  }),
+  Object.freeze({
+    commandId: 'retake.command.undo',
+    shortcut: 'Mod+Z',
+    source: 'host' as const,
+  }),
+  Object.freeze({
+    commandId: 'retake.command.redo',
+    shortcut: 'Mod+Y',
+    source: 'host' as const,
+  }),
+]);
 
 export interface PluginContributionRegistryV1 {
-  getActionSnapshot(): readonly RegisteredPluginActionV1[];
+  availability(
+    command: RegisteredPluginCommandV1,
+    context: PluginCommandContextV1,
+  ): PluginCommandAvailabilityV1;
+  commandsForSurface(
+    surfaceId: PluginCommandSurfaceIdV1,
+  ): readonly RegisteredPluginCommandV1[];
+  getCommandSnapshot(): readonly RegisteredPluginCommandV1[];
   getCapabilitySnapshot(): readonly RegisteredPluginCapabilityV1[];
   getSnapshot(): readonly RegisteredPluginPanelV1[];
   getRendererSnapshot(): readonly RegisteredPluginBlockRendererV1[];
+  getShortcutResolution(): CommandShortcutResolutionV1;
+  invoke(
+    command: RegisteredPluginCommandV1,
+    context: PluginCommandContextV1,
+  ): Promise<void>;
   ownsCapability(pluginModuleId: string, capabilityId: string): boolean;
   failModule(pluginModuleId: string, message: string): void;
   removeModule(pluginModuleId: string): void;
@@ -201,6 +168,9 @@ export interface PluginContributionRegistryV1 {
     error: string;
     pluginModuleId: string;
   }>;
+  setCommandExperience(
+    overrides: readonly PluginCommandExperienceOverrideV1[],
+  ): void;
   setLocale(locale: string): void;
   subscribe(listener: () => void): () => void;
 }
@@ -208,7 +178,9 @@ export interface PluginContributionRegistryV1 {
 export function createPluginContributionRegistry():
 PluginContributionRegistryV1 {
   let locale = 'en';
-  let actions: readonly RegisteredPluginActionV1[] =
+  let commands: readonly RegisteredPluginCommandV1[] =
+    Object.freeze([]);
+  let commandExperience: readonly PluginCommandExperienceOverrideV1[] =
     Object.freeze([]);
   let capabilities: readonly RegisteredPluginCapabilityV1[] =
     Object.freeze([]);
@@ -218,18 +190,18 @@ PluginContributionRegistryV1 {
   );
   const listeners = new Set<() => void>();
   const update = (
-    nextActions: RegisteredPluginActionV1[],
+    nextCommands: RegisteredPluginCommandV1[],
     nextCapabilities: RegisteredPluginCapabilityV1[],
     nextPanels: RegisteredPluginPanelV1[],
     nextRenderers: RegisteredPluginBlockRendererV1[],
   ) => {
     if (
-      sameActions(actions, nextActions)
+      sameCommands(commands, nextCommands)
       && samePluginCapabilities(capabilities, nextCapabilities)
       && samePanels(panels, nextPanels)
       && sameRenderers(renderers, nextRenderers)
     ) return;
-    actions = Object.freeze(nextActions);
+    commands = Object.freeze(nextCommands);
     capabilities = Object.freeze(nextCapabilities);
     panels = Object.freeze(nextPanels);
     renderers = Object.freeze(nextRenderers);
@@ -239,12 +211,24 @@ PluginContributionRegistryV1 {
     for (const listener of listeners) listener();
   };
   return {
+    availability: (command, context) => (
+      pluginCommandAvailabilityV1(commandDefinition(command), context)
+    ),
+    commandsForSurface: (surfaceId) => commands
+      .filter((command) => command.bindings.some(
+        (binding) => binding.surfaceId === surfaceId,
+      ))
+      .sort((left, right) => (
+        commandSurfaceOrder(left, surfaceId)
+          - commandSurfaceOrder(right, surfaceId)
+        || compareText(left.commandId, right.commandId)
+      )),
     failModule(pluginModuleId, message) {
       update(
-        actions.map((action) => (
-          action.pluginModuleId === pluginModuleId
-            ? { ...action, failure: message }
-            : action
+        commands.map((command) => (
+          command.pluginModuleId === pluginModuleId
+            ? { ...command, failure: message }
+            : command
         )),
         capabilities.map((capability) => (
           capability.pluginModuleId === pluginModuleId
@@ -263,10 +247,35 @@ PluginContributionRegistryV1 {
         )),
       );
     },
-    getActionSnapshot: () => actions,
+    getCommandSnapshot: () => commands,
     getCapabilitySnapshot: () => capabilities,
     getSnapshot: () => panels,
     getRendererSnapshot: () => renderers,
+    getShortcutResolution: () => resolveCommandShortcutCandidatesV1([
+      ...hostCommandShortcutCandidatesV1,
+      ...commands.flatMap((command) => (
+        command.failure === null
+          ? command.recommendedShortcuts.map((shortcut) => ({
+              commandId: command.commandId,
+              shortcut,
+              source: 'plugin' as const,
+            }))
+          : []
+      )),
+    ]),
+    async invoke(command, context) {
+      if (command.failure) {
+        throw new Error(`Plugin command is unavailable: ${command.commandId}`);
+      }
+      const availability = pluginCommandAvailabilityV1(
+        commandDefinition(command),
+        context,
+      );
+      if (!availability.visible || !availability.enabled) {
+        throw new Error(`Plugin command is unavailable: ${command.commandId}`);
+      }
+      await command.run(context as never);
+    },
     ownsCapability: (pluginModuleId, capabilityId) => (
       capabilities.some((capability) => (
         capability.failure === null
@@ -276,8 +285,8 @@ PluginContributionRegistryV1 {
     ),
     removeModule(pluginModuleId) {
       update(
-        actions.filter((action) => (
-          action.pluginModuleId !== pluginModuleId
+        commands.filter((command) => (
+          command.pluginModuleId !== pluginModuleId
         )),
         capabilities.filter(
           (capability) => capability.pluginModuleId !== pluginModuleId,
@@ -290,7 +299,7 @@ PluginContributionRegistryV1 {
     },
     replace(sessions) {
       const failures: Array<{ error: string; pluginModuleId: string }> = [];
-      const nextActions: RegisteredPluginActionV1[] = [];
+      const nextCommands: RegisteredPluginCommandV1[] = [];
       const nextCapabilities: RegisteredPluginCapabilityV1[] = [];
       const nextPanels: RegisteredPluginPanelV1[] = [];
       const nextRenderers: RegisteredPluginBlockRendererV1[] = [];
@@ -304,49 +313,39 @@ PluginContributionRegistryV1 {
                 locale,
               ));
             }
-            if (activated.contribution.kind === 'action') {
-              const isOperationAction = (
-                typeof activated.value === 'object'
-                && activated.value !== null
-                && (
-                  activated.value as { placement?: unknown }
-                ).placement === 'operation.inspector'
+            if (activated.contribution.kind === 'command') {
+              const value = parsePluginCommandV1(activated.value);
+              const defaultBindings = Object.freeze(
+                value.defaultBindings.map((binding) => Object.freeze({
+                  ...binding,
+                })),
               );
-              const value = isOperationAction
-                ? parsePluginOperationInspectorActionV2(activated.value)
-                : parsePluginActionContribution(activated.value);
-              const base = {
+              nextCommands.push({
+                ...(value.availability
+                  ? { availability: value.availability }
+                  : {}),
+                bindings: resolveCommandExperienceBindings(
+                  value.commandId,
+                  defaultBindings,
+                  commandExperience,
+                ),
+                commandId: value.commandId,
+                contextKind: value.contextKind,
                 contributionId: activated.contribution.contributionId,
+                defaultBindings,
                 failure: null,
                 host: session.host,
+                ...(value.icon ? { icon: value.icon } : {}),
                 label: value.label,
+                ...(value.ownedCapabilityId
+                  ? { ownedCapabilityId: value.ownedCapabilityId }
+                  : {}),
                 pluginModuleId: session.record.pluginModuleId,
-              };
-              nextActions.push(value.placement === 'image.toolbar'
-                ? {
-                    ...base,
-                    ...(value.icon ? { icon: value.icon } : {}),
-                    placement: value.placement,
-                    run: value.run,
-                  }
-                : value.placement === 'selection.toolbar'
-                  ? {
-                    ...base,
-                    ...(value.icon ? { icon: value.icon } : {}),
-                    placement: value.placement,
-                    run: value.run,
-                    selectionCount: Object.freeze({
-                      ...value.selectionCount,
-                    }),
-                  }
-                  : {
-                      ...base,
-                      placement: value.placement,
-                      run: value.run,
-                      supportedCapabilityIds: Object.freeze([
-                        ...value.supportedCapabilityIds,
-                      ]),
-                    });
+                recommendedShortcuts: Object.freeze([
+                  ...(value.recommendedShortcuts ?? []),
+                ]),
+                run: value.run,
+              });
             }
             if (activated.contribution.kind === 'panel') {
               const value = parsePanelContribution(activated.value);
@@ -390,16 +389,20 @@ PluginContributionRegistryV1 {
         failedModules.add(conflict.pluginModuleId);
         failures.push(conflict);
       }
+      for (const conflict of pluginCommandConflicts(nextCommands)) {
+        failedModules.add(conflict.pluginModuleId);
+        failures.push(conflict);
+      }
       failures.sort((left, right) => compareText(
         left.pluginModuleId,
         right.pluginModuleId,
       ));
       update(
-        nextActions
-          .filter((action) => !failedModules.has(action.pluginModuleId))
+        nextCommands
+          .filter((command) => !failedModules.has(command.pluginModuleId))
           .sort((left, right) => compareText(
-            left.contributionId,
-            right.contributionId,
+            left.commandId,
+            right.commandId,
           )),
         nextCapabilities
           .filter((capability) => (
@@ -424,11 +427,29 @@ PluginContributionRegistryV1 {
       );
       return failures;
     },
+    setCommandExperience(overrides) {
+      commandExperience = Object.freeze(overrides.map((override) => (
+        Object.freeze({ ...override })
+      )));
+      update(
+        commands.map((command) => ({
+          ...command,
+          bindings: resolveCommandExperienceBindings(
+            command.commandId,
+            command.defaultBindings,
+            commandExperience,
+          ),
+        })),
+        [...capabilities],
+        [...panels],
+        [...renderers],
+      );
+    },
     setLocale(nextLocale) {
       if (nextLocale === locale) return;
       locale = nextLocale;
       update(
-        [...actions],
+        [...commands],
         capabilities.map((capability) => (
           localizeRegisteredPluginCapability(capability, locale)
         )),
@@ -441,44 +462,6 @@ PluginContributionRegistryV1 {
       return () => listeners.delete(listener);
     },
   };
-}
-
-function parsePluginActionContribution(
-  value: unknown,
-):
-  | PluginImageSelectionToolbarActionContributionValueV1
-  | PluginImageToolbarActionContributionValueV1 {
-  if (
-    typeof value !== 'object'
-    || value === null
-    || (value as { apiVersion?: unknown }).apiVersion !== 2
-    || (value as { kind?: unknown }).kind !== 'action'
-    || (
-      (value as { placement?: unknown }).placement !== 'image.toolbar'
-      && (value as { placement?: unknown }).placement !== 'selection.toolbar'
-    )
-    || !isActionLabel((value as { label?: unknown }).label)
-    || (
-      (value as { icon?: unknown }).icon !== undefined
-      && !pluginToolbarActionIconsV1.includes(
-        (value as { icon: PluginToolbarActionIconV1 }).icon,
-      )
-    )
-    || typeof (value as { run?: unknown }).run !== 'function'
-    || (
-      (value as { placement?: unknown }).placement === 'selection.toolbar'
-      && !isSelectionCount(
-        (value as { selectionCount?: unknown }).selectionCount,
-      )
-    )
-  ) {
-    throw new Error(
-      'Plugin action contribution must use a Retake Toolbar Action V2 contract.',
-    );
-  }
-  return value as
-    | PluginImageSelectionToolbarActionContributionValueV1
-    | PluginImageToolbarActionContributionValueV1;
 }
 
 function parseRendererContribution(
@@ -543,70 +526,93 @@ function isBlockTypeArray(
     && value.every((entry) => blockTypes.includes(entry));
 }
 
-function isActionLabel(value: unknown): value is PluginLocalizedTextV2 {
-  const parsed = pluginLocalizedTextV2Schema.safeParse(value);
-  if (!parsed.success) return false;
-  const values = typeof parsed.data === 'string'
-    ? [parsed.data]
-    : [
-        parsed.data.default,
-        ...Object.values(parsed.data.locales ?? {}),
-      ];
-  return values.every((entry) => (
-    entry.trim() === entry
-    && entry.length > 0
-    && entry.length <= 80
-  ));
+function commandDefinition(
+  command: RegisteredPluginCommandV1,
+): PluginCommandV1 {
+  return {
+    ...(command.availability
+      ? { availability: command.availability }
+      : {}),
+    apiVersion: 1,
+    commandId: command.commandId,
+    contextKind: command.contextKind,
+    defaultBindings: command.defaultBindings,
+    ...(command.icon ? { icon: command.icon } : {}),
+    kind: 'command',
+    label: command.label,
+    ...(command.ownedCapabilityId
+      ? { ownedCapabilityId: command.ownedCapabilityId }
+      : {}),
+    recommendedShortcuts: command.recommendedShortcuts,
+    run: command.run,
+  } as PluginCommandV1;
 }
 
-function sameActions(
-  left: readonly RegisteredPluginActionV1[],
-  right: readonly RegisteredPluginActionV1[],
+function pluginCommandConflicts(
+  commands: readonly RegisteredPluginCommandV1[],
+): Array<{ error: string; pluginModuleId: string }> {
+  const owners = new Map<string, Set<string>>();
+  for (const command of commands) {
+    const modules = owners.get(command.commandId) ?? new Set<string>();
+    modules.add(command.pluginModuleId);
+    owners.set(command.commandId, modules);
+  }
+  return [...owners]
+    .filter(([, modules]) => modules.size > 1)
+    .flatMap(([commandId, modules]) => [...modules].map((pluginModuleId) => ({
+      error: `Plugin command contribution conflicts: ${commandId}`,
+      pluginModuleId,
+    })));
+}
+
+function resolveCommandExperienceBindings(
+  commandId: string,
+  bindings: readonly PluginCommandSurfaceBindingV1[],
+  overrides: readonly PluginCommandExperienceOverrideV1[],
+): readonly PluginCommandSurfaceBindingV1[] {
+  const override = overrides.find((entry) => entry.commandId === commandId);
+  if (override?.hidden) return Object.freeze([]);
+  return Object.freeze(bindings.map((binding) => Object.freeze({
+    ...binding,
+    ...(override?.order === undefined ? {} : { order: override.order }),
+  })));
+}
+
+function commandSurfaceOrder(
+  command: RegisteredPluginCommandV1,
+  surfaceId: PluginCommandSurfaceIdV1,
+): number {
+  return command.bindings.find(
+    (binding) => binding.surfaceId === surfaceId,
+  )?.order ?? 0;
+}
+
+function sameCommands(
+  left: readonly RegisteredPluginCommandV1[],
+  right: readonly RegisteredPluginCommandV1[],
 ): boolean {
   return left.length === right.length
-    && left.every((action, index) => (
-      action.contributionId === right[index]?.contributionId
-      && action.failure === right[index]?.failure
-      && action.host === right[index]?.host
-      && JSON.stringify(action.label) === JSON.stringify(right[index]?.label)
-      && action.placement === right[index]?.placement
-      && (
-        action.placement !== 'selection.toolbar'
-        || (
-          right[index]?.placement === 'selection.toolbar'
-          && action.selectionCount.min
-            === right[index].selectionCount.min
-          && action.selectionCount.max
-            === right[index].selectionCount.max
-        )
+    && left.every((command, index) => (
+      command.availability === right[index]?.availability
+      && JSON.stringify(command.bindings)
+        === JSON.stringify(right[index]?.bindings)
+      && command.commandId === right[index]?.commandId
+      && command.contextKind === right[index]?.contextKind
+      && command.contributionId === right[index]?.contributionId
+      && JSON.stringify(command.defaultBindings)
+        === JSON.stringify(right[index]?.defaultBindings)
+      && command.failure === right[index]?.failure
+      && command.host === right[index]?.host
+      && command.icon === right[index]?.icon
+      && JSON.stringify(command.label) === JSON.stringify(right[index]?.label)
+      && command.ownedCapabilityId === right[index]?.ownedCapabilityId
+      && command.pluginModuleId === right[index]?.pluginModuleId
+      && sameTextArray(
+        command.recommendedShortcuts,
+        right[index]?.recommendedShortcuts ?? [],
       )
-      && (
-        action.placement !== 'operation.inspector'
-        || (
-          right[index]?.placement === 'operation.inspector'
-          && sameTextArray(
-            action.supportedCapabilityIds,
-            right[index].supportedCapabilityIds,
-          )
-        )
-      )
-      && action.pluginModuleId === right[index]?.pluginModuleId
-      && action.run === right[index]?.run
+      && command.run === right[index]?.run
     ));
-}
-
-function isSelectionCount(value: unknown): value is {
-  max: number;
-  min: number;
-} {
-  if (
-    typeof value !== 'object'
-    || value === null
-    || !Number.isInteger((value as { min?: unknown }).min)
-    || !Number.isInteger((value as { max?: unknown }).max)
-  ) return false;
-  const { max, min } = value as { max: number; min: number };
-  return min >= 2 && max >= min && max <= 32;
 }
 
 function samePanels(

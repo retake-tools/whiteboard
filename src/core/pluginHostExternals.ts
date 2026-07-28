@@ -13,9 +13,9 @@ import type {
   RetakeCapabilityContributionV2,
 } from '@retake/plugin-api';
 
-export const retakePluginHostExternalsGlobal = 'retakePluginHostExternalsV1';
+export const retakePluginHostExternalsGlobal = 'retakePluginHostExternalsV2';
 
-export interface RetakePluginApiV1 {
+export interface RetakePluginApiV2 {
   defineCapability<
     const Capability extends RetakeCapabilityContributionV2,
   >(capability: Capability): Capability;
@@ -36,12 +36,12 @@ export interface RetakePluginApiV1 {
   defineSettings<const Settings extends PluginSettingsMetadata>(
     settings: Settings,
   ): Settings;
-  pluginApiVersion: 1;
-  version: 1;
+  pluginApiVersion: 2;
+  version: 2;
 }
 
-export interface RetakePluginHostExternalsV1 {
-  '@retake/plugin-api': RetakePluginApiV1;
+export interface RetakePluginHostExternalsV2 {
+  '@retake/plugin-api': RetakePluginApiV2;
   react: typeof React;
   'react-dom': typeof ReactDom;
   'react-dom/client': typeof ReactDomClient;
@@ -50,14 +50,14 @@ export interface RetakePluginHostExternalsV1 {
 }
 
 declare global {
-  var retakePluginHostExternalsV1:
-    | Readonly<RetakePluginHostExternalsV1>
+  var retakePluginHostExternalsV2:
+    | Readonly<RetakePluginHostExternalsV2>
     | undefined;
 }
 
 export function installPluginHostExternals(): void {
-  if (globalThis.retakePluginHostExternalsV1) return;
-  const pluginApi: RetakePluginApiV1 = Object.freeze({
+  if (globalThis.retakePluginHostExternalsV2) return;
+  const pluginApi: RetakePluginApiV2 = Object.freeze({
     defineCapability: <const Capability extends RetakeCapabilityContributionV2>(
       capability: Capability,
     ) => capability,
@@ -76,8 +76,8 @@ export function installPluginHostExternals(): void {
     defineSettings: <const Settings extends PluginSettingsMetadata>(
       settings: Settings,
     ) => settings,
-    pluginApiVersion: 1,
-    version: 1,
+    pluginApiVersion: 2,
+    version: 2,
   });
   const jsxDevRuntime = Object.freeze({
     ...ReactJsxDevRuntime,
@@ -96,7 +96,7 @@ export function installPluginHostExternals(): void {
     'react-dom/client': ReactDomClient,
     'react/jsx-dev-runtime': jsxDevRuntime,
     'react/jsx-runtime': ReactJsxRuntime,
-  }) satisfies Readonly<RetakePluginHostExternalsV1>;
+  }) satisfies Readonly<RetakePluginHostExternalsV2>;
   Object.defineProperty(globalThis, retakePluginHostExternalsGlobal, {
     configurable: false,
     enumerable: false,

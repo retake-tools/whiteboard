@@ -160,7 +160,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
 
           if (
             method === 'GET'
-            && url.pathname.startsWith('/plugin-runtime/externals/v1/')
+            && url.pathname.startsWith('/plugin-runtime/externals/v2/')
           ) {
             const source = pluginHostExternalModuleSource(url.pathname);
             if (!source) {

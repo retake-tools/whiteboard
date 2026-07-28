@@ -54,7 +54,7 @@ const host: PluginHostApiV2 = {
 };
 const FixturePanel = () => null;
 const FixtureRenderer = () => null;
-const fixtureActionRun = () => undefined;
+const fixtureCommandRun = () => undefined;
 const registry = createPluginContributionRegistry();
 let notifications = 0;
 const unsubscribe = registry.subscribe(() => {
@@ -119,101 +119,175 @@ assert.equal(
   'fixture renderer crash',
 );
 
-const actionFailures = registry.replace([
-  actionSession('retake.plugin.action-fixture', {
-    apiVersion: 2,
+const commandFailures = registry.replace([
+  commandSession('retake.plugin.command-fixture', {
+    apiVersion: 1,
+    commandId: 'retake.plugin.command-fixture.command',
+    contextKind: 'image',
+    defaultBindings: [{
+      order: 20,
+      surfaceId: 'image.context-toolbar',
+    }],
     icon: 'annotation',
-    kind: 'action',
-    label: 'Fixture action',
-    placement: 'image.toolbar',
-    run: fixtureActionRun,
+    kind: 'command',
+    label: 'Fixture command',
+    recommendedShortcuts: ['Mod+Shift+F'],
+    run: fixtureCommandRun,
   }),
 ]);
-assert.deepEqual(actionFailures, []);
-assert.equal(registry.getActionSnapshot().length, 1);
+assert.deepEqual(commandFailures, []);
+assert.equal(registry.getCommandSnapshot().length, 1);
 assert.equal(
-  registry.getActionSnapshot()[0]!.run,
-  fixtureActionRun,
+  registry.getCommandSnapshot()[0]!.run,
+  fixtureCommandRun,
 );
 assert.equal(
-  registry.getActionSnapshot()[0]?.placement === 'image.toolbar'
-    ? registry.getActionSnapshot()[0].icon
-    : null,
+  registry.getCommandSnapshot()[0]?.icon,
   'annotation',
 );
-registry.failModule(
-  'retake.plugin.action-fixture',
-  'fixture action crash',
-);
 assert.equal(
-  registry.getActionSnapshot()[0]!.failure,
-  'fixture action crash',
-);
-
-const selectionActionFailures = registry.replace([
-  actionSession('retake.plugin.selection-action-fixture', {
-    apiVersion: 2,
-    kind: 'action',
-    label: 'Fixture selection action',
-    placement: 'selection.toolbar',
-    run: fixtureActionRun,
-    selectionCount: {
-      max: 2,
-      min: 2,
-    },
-  }),
-]);
-assert.deepEqual(selectionActionFailures, []);
-assert.equal(registry.getActionSnapshot().length, 1);
-assert.equal(
-  registry.getActionSnapshot()[0]?.placement,
-  'selection.toolbar',
+  registry.commandsForSurface('image.context-toolbar')[0]?.commandId,
+  'retake.plugin.command-fixture.command',
 );
 assert.deepEqual(
-  registry.getActionSnapshot()[0]?.placement === 'selection.toolbar'
-    ? registry.getActionSnapshot()[0].selectionCount
-    : null,
-  { max: 2, min: 2 },
+  registry.availability(
+    registry.getCommandSnapshot()[0]!,
+    {
+      block: {
+        assetId: 'asset.fixture',
+        blockId: 'block.fixture',
+        title: 'Fixture',
+      },
+      host,
+      kind: 'image',
+    },
+  ),
+  { enabled: true, visible: true },
+);
+assert.deepEqual(registry.getShortcutResolution().bindings, [
+  {
+    commandId: 'retake.plugin.command-fixture.command',
+    shortcut: 'Mod+Shift+F',
+    source: 'plugin',
+  },
+  {
+    commandId: 'retake.command.redo',
+    shortcut: 'Mod+Shift+Z',
+    source: 'host',
+  },
+  {
+    commandId: 'retake.command.redo',
+    shortcut: 'Mod+Y',
+    source: 'host',
+  },
+  {
+    commandId: 'retake.command.undo',
+    shortcut: 'Mod+Z',
+    source: 'host',
+  },
+]);
+const shortcutConflictRegistry = createPluginContributionRegistry();
+assert.deepEqual(shortcutConflictRegistry.replace([
+  commandSession('retake.plugin.shortcut-conflict', {
+    apiVersion: 1,
+    commandId: 'retake.plugin.shortcut-conflict.command',
+    contextKind: 'image',
+    defaultBindings: [{ surfaceId: 'image.context-toolbar' }],
+    kind: 'command',
+    label: 'Shortcut conflict',
+    recommendedShortcuts: ['Mod+Z'],
+    run: fixtureCommandRun,
+  }),
+]), []);
+assert.deepEqual(shortcutConflictRegistry.getShortcutResolution().conflicts, [{
+  commandIds: ['retake.plugin.shortcut-conflict.command'],
+  reason: 'reserved_by_host',
+  shortcut: 'Mod+Z',
+}]);
+assert.equal(
+  shortcutConflictRegistry.getShortcutResolution().bindings.some(
+    (binding) => (
+      binding.commandId === 'retake.plugin.shortcut-conflict.command'
+    ),
+  ),
+  false,
+);
+registry.failModule(
+  'retake.plugin.command-fixture',
+  'fixture command crash',
 );
 assert.equal(
-  Object.isFrozen(
-    registry.getActionSnapshot()[0]?.placement === 'selection.toolbar'
-      ? registry.getActionSnapshot()[0].selectionCount
-      : null,
-  ),
-  true,
+  registry.getCommandSnapshot()[0]!.failure,
+  'fixture command crash',
 );
 
-const malformedAction = registry.replace([
-  actionSession('retake.plugin.malformed-action', {
-    apiVersion: 2,
-    kind: 'action',
-    label: '',
-    placement: 'image.toolbar',
-    run: fixtureActionRun,
+const selectionCommandFailures = registry.replace([
+  commandSession('retake.plugin.selection-command-fixture', {
+    apiVersion: 1,
+    availability: ({ blocks }: { blocks: readonly unknown[] }) => ({
+      enabled: blocks.length === 2,
+      visible: blocks.length === 2,
+    }),
+    commandId: 'retake.plugin.selection-command-fixture.command',
+    contextKind: 'selection',
+    defaultBindings: [{
+      surfaceId: 'selection.context-toolbar',
+    }],
+    kind: 'command',
+    label: 'Fixture selection command',
+    run: fixtureCommandRun,
   }),
 ]);
-assert.deepEqual(malformedAction, [{
-  error: 'Plugin action contribution must use a Retake Toolbar Action V2 contract.',
-  pluginModuleId: 'retake.plugin.malformed-action',
+assert.deepEqual(selectionCommandFailures, []);
+assert.equal(registry.getCommandSnapshot().length, 1);
+assert.equal(
+  registry.commandsForSurface('selection.context-toolbar')[0]?.contextKind,
+  'selection',
+);
+registry.setCommandExperience([{
+  commandId: 'retake.plugin.selection-command-fixture.command',
+  hidden: true,
 }]);
-assert.equal(registry.getActionSnapshot().length, 0);
+assert.equal(
+  registry.commandsForSurface('selection.context-toolbar').length,
+  0,
+);
+registry.setCommandExperience([]);
 
-const malformedActionIcon = registry.replace([
-  actionSession('retake.plugin.malformed-action-icon', {
-    apiVersion: 2,
-    icon: 'same-icon-for-everything',
-    kind: 'action',
-    label: 'Invalid icon',
-    placement: 'image.toolbar',
-    run: fixtureActionRun,
+const malformedCommand = registry.replace([
+  commandSession('retake.plugin.malformed-command', {
+    apiVersion: 1,
+    commandId: 'retake.plugin.malformed-command.command',
+    contextKind: 'image',
+    defaultBindings: [{ surfaceId: 'image.context-toolbar' }],
+    kind: 'command',
+    label: '',
+    run: fixtureCommandRun,
   }),
 ]);
-assert.deepEqual(malformedActionIcon, [{
-  error: 'Plugin action contribution must use a Retake Toolbar Action V2 contract.',
-  pluginModuleId: 'retake.plugin.malformed-action-icon',
+assert.deepEqual(malformedCommand, [{
+  error: 'Plugin command contribution must use the Retake Command V1 contract.',
+  pluginModuleId: 'retake.plugin.malformed-command',
 }]);
-assert.equal(registry.getActionSnapshot().length, 0);
+assert.equal(registry.getCommandSnapshot().length, 0);
+
+const malformedCommandIcon = registry.replace([
+  commandSession('retake.plugin.malformed-command-icon', {
+    apiVersion: 1,
+    commandId: 'retake.plugin.malformed-command-icon.command',
+    contextKind: 'image',
+    defaultBindings: [{ surfaceId: 'image.context-toolbar' }],
+    icon: 'same-icon-for-everything',
+    kind: 'command',
+    label: 'Invalid icon',
+    run: fixtureCommandRun,
+  }),
+]);
+assert.deepEqual(malformedCommandIcon, [{
+  error: 'Plugin command contribution must use the Retake Command V1 contract.',
+  pluginModuleId: 'retake.plugin.malformed-command-icon',
+}]);
+assert.equal(registry.getCommandSnapshot().length, 0);
 
 const malformedRenderer = registry.replace([
   rendererSession('retake.plugin.malformed-renderer', {
@@ -313,27 +387,29 @@ assert.equal(
   capabilityDefinitionFor('image.local_adjust').displayName,
   '插件局部调整',
 );
-const operationActionFailures = registry.replace([
+const operationCommandFailures = registry.replace([
   capabilitySession(
-    'retake.plugin.operation-action-fixture',
+    'retake.plugin.operation-command-fixture',
     fixtureCapability,
   ),
-  actionSession('retake.plugin.operation-action-fixture', {
-    apiVersion: 2,
-    kind: 'action',
+  commandSession('retake.plugin.operation-command-fixture', {
+    apiVersion: 1,
+    commandId: 'retake.plugin.operation-command-fixture.command',
+    contextKind: 'operation',
+    defaultBindings: [{ surfaceId: 'operation.inspector' }],
+    kind: 'command',
     label: {
       default: 'Reopen edit',
       locales: { 'zh-CN': '重新编辑' },
     },
-    placement: 'operation.inspector',
-    run: fixtureActionRun,
-    supportedCapabilityIds: ['image.local_adjust'],
+    ownedCapabilityId: 'image.local_adjust',
+    run: fixtureCommandRun,
   }),
 ]);
-assert.deepEqual(operationActionFailures, []);
+assert.deepEqual(operationCommandFailures, []);
 assert.equal(
-  registry.getActionSnapshot()[0]?.placement,
-  'operation.inspector',
+  registry.commandsForSurface('operation.inspector')[0]?.ownedCapabilityId,
+  'image.local_adjust',
 );
 
 const capabilityConflictFailures = registry.replace([
@@ -368,7 +444,7 @@ registry.replace([
   }),
 ]);
 registry.removeModule('retake.plugin.panel-fixture');
-assert.equal(registry.getActionSnapshot().length, 0);
+assert.equal(registry.getCommandSnapshot().length, 0);
 assert.equal(registry.getCapabilitySnapshot().length, 0);
 assert.equal(registry.getSnapshot().length, 0);
 assert.equal(registry.getRendererSnapshot().length, 0);
@@ -377,8 +453,9 @@ unsubscribe();
 process.stdout.write(`${JSON.stringify({
   capabilityConflictDisablesAllProviders: true,
   capabilityRegistrationRequiresActiveProvider: true,
-  imageToolbarActionContract: true,
-  imageSelectionToolbarActionContract: true,
+  commandExperienceOverridesAreHostOwned: true,
+  imageContextToolbarCommandContract: true,
+  imageSelectionContextToolbarCommandContract: true,
   malformedPanelBecomesProtocolFailure: true,
   moduleFailureKeepsCoreFallbackDescriptor: true,
   moduleRemovalDetachesContributions: true,
@@ -410,7 +487,7 @@ function panelSession(
   };
 }
 
-function actionSession(
+function commandSession(
   pluginModuleId: string,
   value: unknown,
 ): PluginContributionSessionV1 {
@@ -418,9 +495,9 @@ function actionSession(
     activation: {
       contributions: [{
         contribution: {
-          contributionId: `${pluginModuleId}.action`,
-          exportName: 'fixtureAction',
-          kind: 'action',
+          contributionId: `${pluginModuleId}.command`,
+          exportName: 'fixtureCommand',
+          kind: 'command',
         },
         value,
       }],

@@ -11,8 +11,8 @@ import {
 } from 'lucide-react';
 import type { ReactElement } from 'react';
 import type {
-  PluginToolbarActionIconV1,
-} from '../core/pluginContributionRegistry';
+  PluginCommandIconV1,
+} from '@retake-tools/package-sdk';
 
 const iconByName = {
   adjustments: SlidersHorizontal,
@@ -22,12 +22,12 @@ const iconByName = {
   resize: Scaling,
   'selection-mask': ScanSearch,
   'smart-edit': WandSparkles,
-} satisfies Record<PluginToolbarActionIconV1, LucideIcon>;
+} satisfies Record<PluginCommandIconV1, LucideIcon>;
 
 export function PluginActionIcon({
   icon,
 }: {
-  icon?: PluginToolbarActionIconV1;
+  icon?: PluginCommandIconV1;
 }): ReactElement {
   const Icon = icon ? iconByName[icon] : Puzzle;
   return <Icon aria-hidden="true" size={16} />;
