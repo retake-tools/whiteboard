@@ -25,6 +25,7 @@ import {
 } from '../src/core/packageLifecycleClient';
 import type {
   PackageLifecycleSnapshotV1,
+  PackageUpdateSnapshotV1,
 } from '../src/core/packageLifecycleContracts';
 import type {
   PluginRuntimeControllerV1,
@@ -107,7 +108,7 @@ try {
       action: 'update',
       packageId: 'test.package.lifecycle',
     }),
-    /not installed from Git/,
+    /update is unsupported for this source/,
   );
 
   const removed = await service.mutate({
@@ -142,6 +143,28 @@ try {
   assert.match(markup, /Remove/);
   assert.doesNotMatch(markup, /Plugin library/);
   assert.doesNotMatch(markup, new RegExp(escapeRegExp(temporaryRoot)));
+  const updateMarkup = renderManager(installedTwo, 'installed', {
+    checkedAt: installedTwo.updatedAt,
+    checks: [{
+      candidate: {
+        archiveDigest: `sha256:${'a'.repeat(64)}`,
+        commit: null,
+        digest: `sha256:${'b'.repeat(64)}`,
+        notices: [],
+        version: '1.2.0',
+      },
+      currentDigest: packageTwo.digest,
+      currentVersion: packageTwo.version,
+      detail: null,
+      packageId: packageTwo.packageId,
+      sourceKind: packageTwo.source.kind,
+      status: 'available',
+    }],
+    schemaVersion: 1,
+  });
+  assert.match(updateMarkup, /Update available/);
+  assert.match(updateMarkup, /v1\.1\.0 → v1\.2\.0/);
+  assert.match(updateMarkup, />Update</);
   assert.match(renderManager(installedTwo, 'add'), /Install source/);
   assert.match(
     renderManager(installedTwo, 'development'),
@@ -261,8 +284,14 @@ function requiredPackage(snapshot: PackageLifecycleSnapshotV1) {
 function renderManager(
   snapshot: PackageLifecycleSnapshotV1,
   initialTab: 'add' | 'development' | 'installed' = 'installed',
+  updates?: PackageUpdateSnapshotV1,
 ): string {
   const packageController: PackageLifecycleControllerV1 = {
+    checkUpdates: async () => ({
+      checkedAt: snapshot.updatedAt,
+      checks: [],
+      schemaVersion: 1,
+    }),
     getDevelopmentSnapshot: () => ({
       links: [],
       revision: 0,
@@ -270,6 +299,7 @@ function renderManager(
       updatedAt: snapshot.updatedAt,
     }),
     getSnapshot: () => snapshot,
+    getUpdateSnapshot: () => updates,
     mutate: async () => snapshot,
     mutateDevelopment: async () => ({
       links: [],

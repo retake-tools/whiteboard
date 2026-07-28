@@ -13,6 +13,7 @@ import {
   retakeWebPluginV1Toolchain,
 } from '@retake-tools/package-sdk';
 import { LocalPackageManagerService } from './local-package-manager-service';
+import { handlePluginRuntimeManagementRequest } from './plugin-runtime-management-api';
 import { PluginRuntimeService } from './plugin-runtime-service';
 import { pluginRuntimeStateFile } from './plugin-runtime-state-store';
 
@@ -164,6 +165,22 @@ try {
     'retake.plugin.whiteboard-runtime-fixture',
     'retake.asset.read.bound',
   );
+  const partial = await service.setPermissions(
+    'retake.plugin.whiteboard-runtime-fixture',
+    ['retake.asset.read.bound'],
+  );
+  assert.equal(partial.modules[0]!.status, 'enabled');
+  assert.deepEqual(
+    partial.modules[0]!.grant?.permissions,
+    ['retake.asset.read.bound'],
+  );
+  await assert.rejects(
+    service.assertPermission(
+      'retake.plugin.whiteboard-runtime-fixture',
+      'retake.draft.write.bound',
+    ),
+    /not granted/,
+  );
   await assert.rejects(
     service.assertPermission(
       'retake.plugin.whiteboard-runtime-fixture',
@@ -171,12 +188,44 @@ try {
     ),
     /not granted/,
   );
+  const permissionsApi = await handlePluginRuntimeManagementRequest({
+    method: 'POST',
+    pathname:
+      '/plugin-runtime/modules/retake.plugin.whiteboard-runtime-fixture/permissions',
+    readBody: async () => ({
+      permissions: ['retake.asset.read.bound'],
+    }),
+    service,
+  });
+  assert.equal(permissionsApi.handled, true);
+  assert.deepEqual(
+    permissionsApi.handled
+      ? (permissionsApi.value as typeof partial).modules[0]!.grant?.permissions
+      : null,
+    ['retake.asset.read.bound'],
+  );
+  const invalidPermissionsApi = await handlePluginRuntimeManagementRequest({
+    method: 'POST',
+    pathname:
+      '/plugin-runtime/modules/retake.plugin.whiteboard-runtime-fixture/permissions',
+    readBody: async () => ({ permissions: ['retake.unknown'] }),
+    service,
+  });
+  assert.deepEqual(invalidPermissionsApi, {
+    handled: true,
+    statusCode: 400,
+    value: { error: 'Plugin permissions must be a known permission array.' },
+  });
 
   const restored = await new PluginRuntimeService({
     hostVersion: '0.1.2',
     workspaceRoot,
   }).reconcile();
   assert.equal(restored.modules[0]!.status, 'enabled');
+  assert.deepEqual(
+    restored.modules[0]!.grant?.permissions,
+    ['retake.asset.read.bound'],
+  );
   assert.equal(
     restored.modules[0]!.grant?.publisherId,
     'retake.publisher.official',
@@ -226,11 +275,14 @@ try {
   assert.equal(updated.modules[0]!.manifest.version, '0.2.0');
   assert.equal(updated.modules[0]!.status, 'disabled');
   assert.equal(updated.modules[0]!.desiredState, 'enabled');
-  assert.equal(updated.modules[0]!.grant, null);
+  assert.deepEqual(
+    updated.modules[0]!.grant?.permissions,
+    ['retake.asset.read.bound'],
+  );
   assert.equal(updated.modules[0]!.trust, null);
   await assert.rejects(
     service.enable('retake.plugin.whiteboard-runtime-fixture'),
-    /exact permission Grant/,
+    /Code Trust/,
   );
 
   await service.grant({
@@ -285,8 +337,10 @@ try {
     fatalFailureExplicit: true,
     installDoesNotEnable: true,
     nativeModuleActivation: true,
+    partialPermissionApiValidated: true,
     runtimeManagementReturnsSnapshot: true,
-    permissionUpgradeRevokesGrant: true,
+    partialPermissionGrantPersists: true,
+    permissionUpgradePreservesSubset: true,
     persistedRuntimeState: pluginRuntimeStateFile,
     safeModePreservesDesiredState: true,
     scopedProfileCanReadEligibleTrustedModule: true,

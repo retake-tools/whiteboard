@@ -53,6 +53,34 @@ export interface PackageLifecycleSnapshotV1 {
   updatedAt: string;
 }
 
+export interface PackageUpdateCandidateV1 {
+  archiveDigest: string | null;
+  commit: string | null;
+  digest: string;
+  notices: Array<{
+    advisoryId?: string;
+    kind: 'deprecated' | 'security_advisory';
+    message: string;
+  }>;
+  version: string;
+}
+
+export interface PackageUpdateCheckV1 {
+  candidate: PackageUpdateCandidateV1 | null;
+  currentDigest: string;
+  currentVersion: string;
+  detail: string | null;
+  packageId: string;
+  sourceKind: PackageLifecycleSourceKindV1;
+  status: 'available' | 'current' | 'error' | 'pinned' | 'unsupported';
+}
+
+export interface PackageUpdateSnapshotV1 {
+  checkedAt: string;
+  checks: PackageUpdateCheckV1[];
+  schemaVersion: 1;
+}
+
 export interface PackageDevelopmentLinkV1 {
   candidate: {
     identity: PackageDevelopmentLinkV1['identity'];

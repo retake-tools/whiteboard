@@ -174,6 +174,53 @@ export class PluginRuntimeService {
     return snapshot;
   }
 
+  async setPermissions(
+    pluginModuleId: string,
+    permissions: RetakePluginPermission[],
+  ): Promise<PluginRuntimeSnapshotV1> {
+    const snapshot = await this.mutate((host) => {
+      const record = host.list().find(
+        (entry) => entry.pluginModuleId === pluginModuleId,
+      );
+      if (!record) {
+        throw new Error(`PluginModule is not installed: ${pluginModuleId}`);
+      }
+      host.grant({
+        grantId: randomUUID(),
+        permissions: [...new Set(permissions)].sort(compareText),
+        pluginModuleId,
+      });
+      if (
+        record.desiredState === 'enabled'
+        && record.trust
+        && !host.snapshot().safeMode
+      ) {
+        host.enable(pluginModuleId);
+      }
+      return host.snapshot();
+    });
+    if (officialDefaultPluginModuleIds.includes(
+      pluginModuleId as typeof officialDefaultPluginModuleIds[number],
+    )) {
+      const record = snapshot.modules.find(
+        (entry) => entry.pluginModuleId === pluginModuleId,
+      )!;
+      const isFullGrant = samePermissionSet(
+        record.grant?.permissions ?? [],
+        record.manifest.permissions,
+      );
+      await this.officialPreferences.setPluginPermissionOverride(
+        pluginModuleId,
+        isFullGrant ? null : [...(record.grant?.permissions ?? [])],
+      );
+      await this.officialPreferences.setPluginGrantRevoked(
+        pluginModuleId,
+        false,
+      );
+    }
+    return snapshot;
+  }
+
   async assertPermission(
     pluginModuleId: string,
     permission: RetakePluginPermission,
@@ -337,10 +384,17 @@ export class PluginRuntimeService {
       const grantRevoked = preferences.revokedGrantPluginModuleIds.includes(
         policy.pluginModuleId,
       );
+      const permissionOverride = preferences.permissionOverrides.find(
+        (entry) => entry.pluginModuleId === policy.pluginModuleId,
+      );
       if (!grantRevoked) {
         host.grant({
           grantId: `official:${policy.packageDigest}`,
-          permissions: [...policy.permissions],
+          permissions: permissionOverride
+            ? policy.permissions.filter((permission) => (
+              permissionOverride.permissions.includes(permission)
+            ))
+            : [...policy.permissions],
           pluginModuleId: policy.pluginModuleId,
         });
       }
@@ -358,6 +412,14 @@ export class PluginRuntimeService {
       }
     }
   }
+}
+
+function samePermissionSet(
+  left: readonly RetakePluginPermission[],
+  right: readonly RetakePluginPermission[],
+): boolean {
+  return left.length === right.length
+    && left.every((permission) => right.includes(permission));
 }
 
 function compareText(left: string, right: string): number {

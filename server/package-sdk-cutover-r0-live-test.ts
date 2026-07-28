@@ -29,7 +29,7 @@ try {
         repositoryRoot,
         'vendor',
         'package-toolchain',
-        '0.1.0',
+        '0.1.1',
         'official-registry-root.v1.json',
       ),
       'utf8',

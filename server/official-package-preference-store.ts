@@ -21,6 +21,10 @@ export const officialDefaultPluginModuleIds = [
 
 export interface OfficialPackagePreferenceStateV1 {
   disabledPluginModuleIds: string[];
+  permissionOverrides: Array<{
+    permissions: string[];
+    pluginModuleId: string;
+  }>;
   removedPackageIds: string[];
   revokedGrantPluginModuleIds: string[];
   schemaVersion: 1;
@@ -84,6 +88,26 @@ export class OfficialPackagePreferenceStore {
     ));
   }
 
+  async setPluginPermissionOverride(
+    pluginModuleId: string,
+    permissions: string[] | null,
+  ): Promise<OfficialPackagePreferenceStateV1> {
+    return this.update((state) => {
+      state.permissionOverrides = state.permissionOverrides.filter(
+        (entry) => entry.pluginModuleId !== pluginModuleId,
+      );
+      if (permissions !== null) {
+        state.permissionOverrides.push({
+          permissions: [...new Set(permissions)].sort(compareText),
+          pluginModuleId,
+        });
+        state.permissionOverrides.sort((left, right) => (
+          compareText(left.pluginModuleId, right.pluginModuleId)
+        ));
+      }
+    });
+  }
+
   private async update(
     mutation: (state: OfficialPackagePreferenceStateV1) => void,
   ): Promise<OfficialPackagePreferenceStateV1> {
@@ -125,6 +149,7 @@ export function parseOfficialPackagePreferenceState(
       value.disabledPluginModuleIds,
       'disabledPluginModuleIds',
     ),
+    permissionOverrides: permissionOverrides(value.permissionOverrides),
     removedPackageIds: stringArray(
       value.removedPackageIds,
       'removedPackageIds',
@@ -141,11 +166,49 @@ export function parseOfficialPackagePreferenceState(
 function emptyState(): OfficialPackagePreferenceStateV1 {
   return {
     disabledPluginModuleIds: [],
+    permissionOverrides: [],
     removedPackageIds: [],
     revokedGrantPluginModuleIds: [],
     schemaVersion: 1,
     updatedAt: new Date(0).toISOString(),
   };
+}
+
+function permissionOverrides(value: unknown): Array<{
+  permissions: string[];
+  pluginModuleId: string;
+}> {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) {
+    throw new Error(
+      'Official Package preference permissionOverrides is invalid.',
+    );
+  }
+  const moduleIds = new Set<string>();
+  const entries = value.map((entry) => {
+    if (
+      !isRecord(entry)
+      || typeof entry.pluginModuleId !== 'string'
+      || entry.pluginModuleId.length === 0
+    ) {
+      throw new Error(
+        'Official Package preference permission override is invalid.',
+      );
+    }
+    if (moduleIds.has(entry.pluginModuleId)) {
+      throw new Error(
+        'Official Package preference permission override has duplicates.',
+      );
+    }
+    moduleIds.add(entry.pluginModuleId);
+    return {
+      permissions: stringArray(entry.permissions, 'permissionOverride'),
+      pluginModuleId: entry.pluginModuleId,
+    };
+  });
+  return entries.sort((left, right) => (
+    compareText(left.pluginModuleId, right.pluginModuleId)
+  ));
 }
 
 function setMembership(
