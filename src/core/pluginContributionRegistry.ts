@@ -112,8 +112,22 @@ export interface PluginImageSelectionToolbarActionContextV1 {
   readonly host: PluginHostApiV2;
 }
 
+export const pluginToolbarActionIconsV1 = [
+  'adjustments',
+  'annotation',
+  'crop',
+  'outpaint',
+  'resize',
+  'selection-mask',
+  'smart-edit',
+] as const;
+
+export type PluginToolbarActionIconV1 =
+  (typeof pluginToolbarActionIconsV1)[number];
+
 export interface PluginImageToolbarActionContributionValueV1 {
   apiVersion: 2;
+  icon?: PluginToolbarActionIconV1;
   kind: 'action';
   label: PluginLocalizedTextV2;
   placement: 'image.toolbar';
@@ -122,6 +136,7 @@ export interface PluginImageToolbarActionContributionValueV1 {
 
 export interface PluginImageSelectionToolbarActionContributionValueV1 {
   apiVersion: 2;
+  icon?: PluginToolbarActionIconV1;
   kind: 'action';
   label: PluginLocalizedTextV2;
   placement: 'selection.toolbar';
@@ -144,12 +159,14 @@ interface RegisteredPluginActionBaseV1 {
 
 export interface RegisteredPluginImageToolbarActionV1
   extends RegisteredPluginActionBaseV1 {
+  icon?: PluginToolbarActionIconV1;
   placement: 'image.toolbar';
   run(context: PluginImageToolbarActionContextV1): Promise<void> | void;
 }
 
 export interface RegisteredPluginImageSelectionToolbarActionV1
   extends RegisteredPluginActionBaseV1 {
+  icon?: PluginToolbarActionIconV1;
   placement: 'selection.toolbar';
   selectionCount: {
     max: number;
@@ -308,12 +325,14 @@ PluginContributionRegistryV1 {
               nextActions.push(value.placement === 'image.toolbar'
                 ? {
                     ...base,
+                    ...(value.icon ? { icon: value.icon } : {}),
                     placement: value.placement,
                     run: value.run,
                   }
                 : value.placement === 'selection.toolbar'
                   ? {
                     ...base,
+                    ...(value.icon ? { icon: value.icon } : {}),
                     placement: value.placement,
                     run: value.run,
                     selectionCount: Object.freeze({
@@ -439,6 +458,12 @@ function parsePluginActionContribution(
       && (value as { placement?: unknown }).placement !== 'selection.toolbar'
     )
     || !isActionLabel((value as { label?: unknown }).label)
+    || (
+      (value as { icon?: unknown }).icon !== undefined
+      && !pluginToolbarActionIconsV1.includes(
+        (value as { icon: PluginToolbarActionIconV1 }).icon,
+      )
+    )
     || typeof (value as { run?: unknown }).run !== 'function'
     || (
       (value as { placement?: unknown }).placement === 'selection.toolbar'

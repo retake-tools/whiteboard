@@ -203,8 +203,8 @@
 
 .settings-menu-item:hover,
 .settings-menu-item.is-active,
-.settings-menu-group:focus-within > .settings-menu-item,
-.settings-menu-group:hover > .settings-menu-item,
+.settings-menu-group:has(> .settings-submenu):focus-within > .settings-menu-item,
+.settings-menu-group:has(> .settings-submenu):hover > .settings-menu-item,
 .settings-submenu-row:hover {
   border-color: #dbe4f0;
   background: #f8fafc;

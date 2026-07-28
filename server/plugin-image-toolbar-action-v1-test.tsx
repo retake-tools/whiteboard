@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import type {
   PluginHostApiV2,
 } from '@retake-tools/package-sdk';
@@ -6,6 +7,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
   PluginImageToolbarActions,
+  waitForPluginImageToolbarBlockBinding,
 } from '../src/components/PluginImageToolbarActions';
 import {
   PluginSelectionToolbarActions,
@@ -78,6 +80,7 @@ const failures = registry.replace([{
       },
       value: {
         apiVersion: 2,
+        icon: 'adjustments',
         kind: 'action',
         label: 'Download with Plugin',
         placement: 'image.toolbar',
@@ -103,6 +106,7 @@ const markup = renderToStaticMarkup(
 );
 assert.match(markup, /aria-label="Download with Plugin"/);
 assert.match(markup, /plugin-image-toolbar-action/);
+assert.match(markup, /lucide-sliders-horizontal/);
 assert.match(markup, /<button/);
 
 const emptyMarkup = renderToStaticMarkup(
@@ -113,6 +117,53 @@ const emptyMarkup = renderToStaticMarkup(
   />,
 );
 assert.equal(emptyMarkup, '');
+
+let bindingSnapshot = {
+  ...host.getReadSnapshot(),
+  boundBlockIds: [] as string[],
+  selectedBlockIds: [] as string[],
+};
+let bindingListener: (() => void) | undefined;
+let bindingUnsubscribed = false;
+const bindingHost: PluginHostApiV2 = {
+  ...host,
+  getReadSnapshot: () => bindingSnapshot,
+  subscribeReadSnapshot: (listener) => {
+    bindingListener = listener;
+    return () => {
+      bindingUnsubscribed = true;
+      bindingListener = undefined;
+    };
+  },
+};
+const bindingReady = waitForPluginImageToolbarBlockBinding(
+  bindingHost,
+  'block.hovered',
+  100,
+);
+assert.equal(typeof bindingListener, 'function');
+bindingSnapshot = {
+  ...bindingSnapshot,
+  boundBlockIds: ['block.hovered'],
+  selectedBlockIds: ['block.hovered'],
+};
+bindingListener?.();
+await bindingReady;
+assert.equal(bindingUnsubscribed, true);
+const canvasSource = await readFile(
+  new URL('../src/app/WhiteboardCanvas.tsx', import.meta.url),
+  'utf8',
+);
+const toolbarStyles = await readFile(
+  new URL('../src/styles/toolbars.css', import.meta.url),
+  'utf8',
+);
+assert.match(canvasSource, /hoveredImageBlockId/);
+assert.match(canvasSource, /handleCanvasPointerMove/);
+assert.match(canvasSource, /onFocusCapture=\{handleCanvasFocus\}/);
+assert.match(canvasSource, /image-context-toolbar-bridge/);
+assert.match(canvasSource, /pointerEvents: 'all'/);
+assert.match(toolbarStyles, /\.image-context-toolbar-bridge\s*\{[\s\S]*pointer-events: auto/);
 
 const selectionRegistry = createPluginContributionRegistry();
 assert.deepEqual(selectionRegistry.replace([{
@@ -127,6 +178,7 @@ assert.deepEqual(selectionRegistry.replace([{
       },
       value: {
         apiVersion: 2,
+        icon: 'smart-edit',
         kind: 'action',
         label: 'Edit selected pair',
         placement: 'selection.toolbar',
@@ -161,6 +213,7 @@ const selectionMarkup = renderToStaticMarkup(
 );
 assert.match(selectionMarkup, /aria-label="Plugin selection actions"/);
 assert.match(selectionMarkup, /aria-label="Edit selected pair"/);
+assert.match(selectionMarkup, /lucide-wand-sparkles/);
 const wrongCountMarkup = renderToStaticMarkup(
   <PluginSelectionToolbarActions
     blocks={[{
@@ -271,8 +324,10 @@ assert.match(operationMarkup, />Reopen edit</);
 
 process.stdout.write(`${JSON.stringify({
   actionRendersInsideCoreImageToolbar: true,
+  hoverAndFocusPreviewToolbar: true,
+  hoverActionWaitsForBoundScope: true,
   missingRegistryKeepsCoreToolbarOnly: true,
-  neutralCoreActionIcon: true,
+  declaredToolbarActionIcons: true,
   operationInspectorProjectsCurrentSourceOnly: true,
   selectionActionRequiresDeclaredImageCount: true,
 })}\n`);
