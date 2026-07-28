@@ -1,6 +1,6 @@
 {
   "name": "retake-whiteboard",
-  "version": "0.1.2+codex.20260720075806",
+  "version": "0.1.3+codex.20260729001838",
   "description": "Retake Whiteboard MCP tools and Codex skill for Retake video workflow board operations.",
   "author": {
     "name": "Retake Tools",
@@ -8,7 +8,7 @@
   },
   "homepage": "https://github.com/retake-tools/whiteboard",
   "repository": "https://github.com/retake-tools/whiteboard",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "keywords": [
     "whiteboard",
     "mcp",

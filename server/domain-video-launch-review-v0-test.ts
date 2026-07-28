@@ -290,7 +290,7 @@ assert.equal(approvedGenerationPackageToVideoWorkflow.gates[0]?.gateId, 'video_g
 assert.equal(mockVideoAdapterDefinition.version, '0.2.0');
 assert.equal(seedanceModelArkAdapterDefinition.version, '0.2.0');
 assert.equal(dreaminaCliAdapterDefinition.version, '0.2.0');
-assert.equal(storyProductionStarterPackage.version, '0.1.1');
+assert.equal(storyProductionStarterPackage.version, '0.1.2');
 
 const composer = resolvePackageComposerInvocation(snapshot, {
   entrypointId: `workflow:${domainVideoGenerationWorkflowId}`,

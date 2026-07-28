@@ -223,4 +223,6 @@ verification, and safe UI testing guidance.
 
 ## License
 
-Retake Whiteboard is available under the [MIT License](./LICENSE).
+Retake Whiteboard is available under the
+[Apache License 2.0](./LICENSE). Required attribution notices are provided in
+[NOTICE](./NOTICE).
