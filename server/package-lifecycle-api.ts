@@ -13,13 +13,24 @@ export async function handlePackageLifecycleRequest(input: {
   readBody(): Promise<unknown>;
   service: PackageLifecycleService;
 }): Promise<PackageLifecycleApiResult> {
-  if (input.pathname !== '/package-lifecycle') return { handled: false };
+  if (
+    input.pathname !== '/package-lifecycle'
+    && input.pathname !== '/package-lifecycle/updates'
+  ) return { handled: false };
   if (input.method === 'GET') {
+    if (input.pathname === '/package-lifecycle/updates') {
+      return {
+        handled: true,
+        value: await input.service.checkUpdates(),
+      };
+    }
+    if (input.pathname !== '/package-lifecycle') return { handled: false };
     return {
       handled: true,
       value: await input.service.read(),
     };
   }
+  if (input.pathname !== '/package-lifecycle') return { handled: false };
   if (input.method !== 'POST') {
     return {
       handled: true,

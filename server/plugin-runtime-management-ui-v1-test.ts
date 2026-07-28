@@ -78,6 +78,16 @@ assert.match(renderSettings(enabled), />Disable</);
 assert.match(renderSettings(enabled), /Enablement scope/);
 assert.match(renderSettings(enabled), /Effective: Enabled · Workspace/);
 assert.match(renderSettings({ ...enabled, safeMode: true }), /Leave safe mode/);
+const partialGrant = structuredClone(enabled);
+partialGrant.modules[0]!.grant!.permissions = [
+  partialGrant.modules[0]!.manifest.permissions[0]!,
+];
+const partialGrantMarkup = renderSettings(partialGrant);
+assert.equal(
+  partialGrantMarkup.match(/type="checkbox"/g)?.length,
+  partialGrant.modules[0]!.manifest.permissions.length,
+);
+assert.equal(partialGrantMarkup.match(/checked=""/g)?.length, 1);
 
 const originalFetch = globalThis.fetch;
 const calls: string[] = [];
@@ -280,6 +290,7 @@ process.stdout.write(`${JSON.stringify({
   rendererActivationFollowsBoardDemand: true,
   exactNextRuntimeAction: true,
   lazyPanelUsesStableExternalStore: true,
+  partialPermissionControlsRendered: true,
   runtimeMutationsSerialized: true,
   runtimeSnapshotReconciledBeforeNotification: true,
 })}\n`);
@@ -310,6 +321,7 @@ function renderSettings(snapshot: PluginRuntimeSnapshotV1): string {
     manageModule: async () => snapshot,
     refresh: async () => snapshot,
     replace: async () => snapshot,
+    setPermissions: async () => snapshot,
     setSafeMode: async () => snapshot,
     setDemand: async () => snapshot,
     setScope: async () => snapshot,
@@ -318,6 +330,11 @@ function renderSettings(snapshot: PluginRuntimeSnapshotV1): string {
   };
   const packageSnapshot = lifecycleSnapshot(snapshot);
   const packageController: PackageLifecycleControllerV1 = {
+    checkUpdates: async () => ({
+      checkedAt: snapshot.updatedAt,
+      checks: [],
+      schemaVersion: 1,
+    }),
     getDevelopmentSnapshot: () => ({
       links: [],
       revision: 0,
@@ -325,6 +342,7 @@ function renderSettings(snapshot: PluginRuntimeSnapshotV1): string {
       updatedAt: snapshot.updatedAt,
     }),
     getSnapshot: () => packageSnapshot,
+    getUpdateSnapshot: () => undefined,
     mutate: async () => packageSnapshot,
     mutateDevelopment: async () => ({
       links: [],

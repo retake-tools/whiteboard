@@ -2,6 +2,10 @@ import {
   type PluginRuntimeManagementActionV1,
   PluginRuntimeService,
 } from './plugin-runtime-service';
+import {
+  retakePluginPermissionValues,
+  type RetakePluginPermission,
+} from '@retake-tools/package-sdk';
 
 export type PluginRuntimeManagementApiResult =
   | { handled: false }
@@ -35,6 +39,35 @@ export async function handlePluginRuntimeManagementRequest(input: {
     return {
       handled: true,
       value: await input.service.setSafeMode(body.enabled),
+    };
+  }
+
+  const modulePermissionsMatch = input.pathname.match(
+    /^\/plugin-runtime\/modules\/([^/]+)\/permissions$/,
+  );
+  if (input.method === 'POST' && modulePermissionsMatch) {
+    const body = await input.readBody() as { permissions?: unknown };
+    if (
+      !Array.isArray(body.permissions)
+      || body.permissions.some((permission) => (
+        typeof permission !== 'string'
+        || !retakePluginPermissionValues.includes(
+          permission as RetakePluginPermission,
+        )
+      ))
+    ) {
+      return {
+        handled: true,
+        statusCode: 400,
+        value: { error: 'Plugin permissions must be a known permission array.' },
+      };
+    }
+    return {
+      handled: true,
+      value: await input.service.setPermissions(
+        decodeURIComponent(modulePermissionsMatch[1]!),
+        body.permissions as RetakePluginPermission[],
+      ),
     };
   }
 

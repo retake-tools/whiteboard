@@ -18,6 +18,53 @@
   backdrop-filter: blur(12px);
 }
 
+.package-update-banner {
+  align-items: center;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 9px;
+  box-shadow: 0 8px 22px rgb(30 64 175 / 14%);
+  display: flex;
+  justify-content: center;
+  min-height: 36px;
+  padding: 6px 14px;
+  position: absolute;
+  left: 50%;
+  top: 72px;
+  transform: translateX(-50%);
+  z-index: 18;
+}
+
+.package-update-banner > span,
+.package-update-banner > div {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+}
+
+.package-update-banner > div {
+  margin-left: 14px;
+}
+
+.package-update-banner button {
+  background: #2563eb;
+  border: 0;
+  border-radius: 7px;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  padding: 5px 10px;
+}
+
+.package-update-banner .package-update-banner-dismiss {
+  align-items: center;
+  background: transparent;
+  color: #475569;
+  display: inline-flex;
+  justify-content: center;
+  padding: 5px;
+}
+
 .top-bar-left,
 .top-bar-actions {
   display: flex;

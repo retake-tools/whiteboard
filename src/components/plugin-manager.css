@@ -273,6 +273,44 @@
   contain-intrinsic-size: auto 340px;
 }
 
+.plugin-manager-update-status {
+  align-items: center;
+  background: #f1f5f9;
+  border: 1px solid #d7deea;
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 8px 10px;
+}
+
+.plugin-manager-update-status.is-available {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.plugin-manager-update-status small {
+  color: #64748b;
+  flex-basis: 100%;
+}
+
+.plugin-manager-permission-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.plugin-manager-permission-list label {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+}
+
+.plugin-manager-permission-list input {
+  accent-color: #2563eb;
+}
+
 .plugin-manager-package-card > header,
 .plugin-manager-module-card > header {
   display: grid;

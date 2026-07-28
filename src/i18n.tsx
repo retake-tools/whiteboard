@@ -926,6 +926,15 @@ export type TranslationKey =
   | 'packageLibrary.source'
   | 'packageLibrary.title'
   | 'packageLibrary.update'
+  | 'packageLibrary.checkUpdates'
+  | 'packageLibrary.dismissUpdates'
+  | 'packageLibrary.reviewUpdates'
+  | 'packageLibrary.updateAvailable'
+  | 'packageLibrary.updateCheckError'
+  | 'packageLibrary.updateCurrent'
+  | 'packageLibrary.updatePinned'
+  | 'packageLibrary.updateUnsupported'
+  | 'packageLibrary.updatesAvailableBanner'
   | 'settings.keyboardShortcuts'
   | 'settings.generationProfiles'
   | 'settings.generationProfileBuiltin'
@@ -1988,6 +1997,15 @@ const translations: Record<Locale, Translations> = {
     'packageLibrary.source': 'Source',
     'packageLibrary.title': 'Plugin library',
     'packageLibrary.update': 'Update',
+    'packageLibrary.checkUpdates': 'Check for updates',
+    'packageLibrary.dismissUpdates': 'Dismiss update notification',
+    'packageLibrary.reviewUpdates': 'Review updates',
+    'packageLibrary.updateAvailable': 'Update available',
+    'packageLibrary.updateCheckError': 'Update check failed',
+    'packageLibrary.updateCurrent': 'Up to date',
+    'packageLibrary.updatePinned': 'Version pinned',
+    'packageLibrary.updateUnsupported': 'Update check unavailable',
+    'packageLibrary.updatesAvailableBanner': 'Plugin updates available',
     'settings.keyboardShortcuts': 'Keyboard shortcuts',
     'settings.generationProfiles': 'Generation profiles',
     'settings.generationProfileBuiltin': 'Built-in · Read only',
@@ -3045,6 +3063,15 @@ const translations: Record<Locale, Translations> = {
     'packageLibrary.source': '来源',
     'packageLibrary.title': '插件库',
     'packageLibrary.update': '更新',
+    'packageLibrary.checkUpdates': '检查更新',
+    'packageLibrary.dismissUpdates': '关闭更新通知',
+    'packageLibrary.reviewUpdates': '查看更新',
+    'packageLibrary.updateAvailable': '有可用更新',
+    'packageLibrary.updateCheckError': '更新检查失败',
+    'packageLibrary.updateCurrent': '已是最新版本',
+    'packageLibrary.updatePinned': '版本已固定',
+    'packageLibrary.updateUnsupported': '此来源不支持检查更新',
+    'packageLibrary.updatesAvailableBanner': '个 Plugin 有可用更新',
     'settings.keyboardShortcuts': '快捷键',
     'settings.generationProfiles': '生成配置',
     'settings.generationProfileBuiltin': '内置 · 只读',

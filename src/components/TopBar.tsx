@@ -27,7 +27,7 @@ import {
   Undo2,
   X,
 } from 'lucide-react';
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties, type MutableRefObject, type ReactElement } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type MutableRefObject, type ReactElement } from 'react';
 import type { BoardBackgroundV1, BoardSnapshot, WorkspaceSummary } from '../core/types';
 import type { PluginRuntimeControllerV1 } from '../core/pluginRuntimeManagementClient';
 import type { PackageLifecycleControllerV1 } from '../core/packageLifecycleClient';
@@ -483,6 +483,12 @@ export function TopBar({
           </div>
         </div>
       </header>
+      {packageLifecycleController ? (
+        <PackageUpdateBanner
+          controller={packageLifecycleController}
+          onOpen={() => setIsPluginManagerOpen(true)}
+        />
+      ) : null}
       {isKeyboardShortcutsOpen ? (
         <KeyboardShortcutsWindow
           position={keyboardShortcutsPosition}
@@ -520,6 +526,118 @@ export function TopBar({
       ) : null}
     </>
   );
+}
+
+const packageUpdateDismissalsKey =
+  'retake.package-update-dismissals.v1';
+
+export function PackageUpdateBanner({
+  controller,
+  onOpen,
+}: {
+  controller: PackageLifecycleControllerV1;
+  onOpen: () => void;
+}): ReactElement | null {
+  const { t } = useI18n();
+  const snapshot = useSyncExternalStore(
+    controller.subscribe,
+    controller.getUpdateSnapshot,
+    controller.getUpdateSnapshot,
+  );
+  const requested = useRef(false);
+  const [dismissRevision, setDismissRevision] = useState(0);
+
+  useEffect(() => {
+    if (snapshot || requested.current) return;
+    requested.current = true;
+    void controller.checkUpdates().catch(() => undefined);
+  }, [controller, snapshot]);
+
+  const dismissed = readPackageUpdateDismissals();
+  const available = (snapshot?.checks ?? []).filter((check) => (
+    check.status === 'available'
+    && check.candidate
+    && !dismissed.has(packageUpdateDismissalId(
+      check.packageId,
+      check.candidate.version,
+      check.candidate.digest,
+    ))
+  ));
+  if (available.length === 0) return null;
+
+  return (
+    <aside
+      className="package-update-banner"
+      data-dismiss-revision={dismissRevision}
+      role="status"
+    >
+      <span>
+        <RefreshCw size={15} />
+        <strong>{available.length}</strong>
+        {t('packageLibrary.updatesAvailableBanner')}
+      </span>
+      <div>
+        <button type="button" onClick={onOpen}>
+          {t('packageLibrary.reviewUpdates')}
+        </button>
+        <button
+          type="button"
+          className="package-update-banner-dismiss"
+          aria-label={t('packageLibrary.dismissUpdates')}
+          onClick={() => {
+            const next = readPackageUpdateDismissals();
+            for (const check of available) {
+              next.add(packageUpdateDismissalId(
+                check.packageId,
+                check.candidate!.version,
+                check.candidate!.digest,
+              ));
+            }
+            writePackageUpdateDismissals(next);
+            setDismissRevision((current) => current + 1);
+          }}
+        >
+          <X size={15} />
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function packageUpdateDismissalId(
+  packageId: string,
+  version: string,
+  digest: string,
+): string {
+  return `${packageId}:${version}:${digest}`;
+}
+
+function readPackageUpdateDismissals(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const value = JSON.parse(
+      window.localStorage.getItem(packageUpdateDismissalsKey) ?? '[]',
+    ) as unknown;
+    return new Set(
+      Array.isArray(value)
+        ? value.filter((entry): entry is string => typeof entry === 'string')
+        : [],
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+function writePackageUpdateDismissals(values: ReadonlySet<string>): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      packageUpdateDismissalsKey,
+      JSON.stringify([...values].sort()),
+    );
+  } catch {
+    // The notification remains visible when browser storage is unavailable.
+  }
 }
 
 function SettingsMenu({

@@ -12,6 +12,9 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type {
+  DeclarativePackageManifest,
+} from '@retake-tools/package-contracts';
 import {
   configureInstalledRuntimeRegistry,
 } from '../src/core/installedRuntimeRegistry';
@@ -170,6 +173,91 @@ try {
   assert.equal(second.snapshot.lockRevision, 2);
   assert.deepEqual(await readFile(lockPath), lockBeforeSecondBootstrap);
 
+  const pinnedWorkspace = path.join(temporaryRoot, 'version-pinned-workspace');
+  await bootstrapDeclarativePackages({
+    hostVersion: '0.1.2',
+    profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
+    workspaceRoot: pinnedWorkspace,
+  });
+  const pinnedSourceRoot = path.join(temporaryRoot, 'image-studio-pinned-source');
+  await createPinnedPackageSource(pinnedSourceRoot, '0.9.9');
+  const pinnedManager = manager(pinnedWorkspace);
+  await pinnedManager.install(pinnedSourceRoot);
+  const pinnedLockPath = path.join(
+    pinnedWorkspace,
+    'packages',
+    workspacePackageLockFile,
+  );
+  const pinnedLockBeforeBootstrap = await readFile(pinnedLockPath);
+  const pinnedBeforeBootstrap = await pinnedManager.list();
+  const pinnedImageBeforeBootstrap = pinnedBeforeBootstrap.resolvedPackages.find(
+    (entry) => entry.packageId === imagePackageId,
+  );
+  assert.equal(pinnedImageBeforeBootstrap?.version, '0.9.9');
+
+  const afterPinnedBootstrap = await bootstrapDeclarativePackages({
+    hostVersion: '0.1.2',
+    profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
+    workspaceRoot: pinnedWorkspace,
+  });
+  const pinnedImageAfterBootstrap =
+    afterPinnedBootstrap.snapshot.packages.find(
+      (entry) => entry.packageId === imagePackageId,
+    );
+  const pinnedAfterBootstrap = await pinnedManager.list();
+  const pinnedLockImageAfterBootstrap =
+    pinnedAfterBootstrap.resolvedPackages.find(
+      (entry) => entry.packageId === imagePackageId,
+    );
+  assert.equal(afterPinnedBootstrap.installed, false);
+  assert.equal(pinnedImageAfterBootstrap?.version, '0.9.9');
+  assert.equal(
+    pinnedImageAfterBootstrap?.digest,
+    pinnedImageBeforeBootstrap?.digest,
+  );
+  assert.equal(
+    pinnedLockImageAfterBootstrap?.installationId,
+    pinnedImageBeforeBootstrap?.installationId,
+  );
+  assert.deepEqual(
+    await readFile(pinnedLockPath),
+    pinnedLockBeforeBootstrap,
+  );
+
+  const partialGrantWorkspace = path.join(
+    temporaryRoot,
+    'partial-grant-workspace',
+  );
+  await bootstrapDeclarativePackages({
+    hostVersion: '0.1.2',
+    profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
+    workspaceRoot: partialGrantWorkspace,
+  });
+  await new PluginRuntimeService({
+    hostVersion: '0.1.2',
+    workspaceRoot: partialGrantWorkspace,
+  }).setPermissions(imagePluginModuleId, ['retake.asset.read.bound']);
+  const partialGrantBootstrap = await bootstrapDeclarativePackages({
+    hostVersion: '0.1.2',
+    profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
+    workspaceRoot: partialGrantWorkspace,
+  });
+  const partialImage = partialGrantBootstrap.pluginRuntime.modules.find(
+    (entry) => entry.pluginModuleId === imagePluginModuleId,
+  );
+  assert.equal(partialImage?.status, 'enabled');
+  assert.deepEqual(
+    partialImage?.grant?.permissions,
+    ['retake.asset.read.bound'],
+  );
+  const partialPreferences = await new OfficialPackagePreferenceStore(
+    manager(partialGrantWorkspace).packagesRoot,
+  ).read();
+  assert.deepEqual(partialPreferences.permissionOverrides, [{
+    permissions: ['retake.asset.read.bound'],
+    pluginModuleId: imagePluginModuleId,
+  }]);
+
   const runtime = new PluginRuntimeService({
     hostVersion: '0.1.2',
     workspaceRoot,
@@ -323,9 +411,11 @@ try {
     cachedStartupWithoutBundle: true,
     freshOfficialDefaults: true,
     officialTrustAndGrant: true,
+    partialPermissionOverridePersists: true,
     permissionOverridePersists: true,
     removalOverridePersists: true,
     safeModeWins: true,
+    versionPinPersists: true,
     schemaVersion: 2,
   }));
 } finally {
@@ -343,6 +433,49 @@ async function copyBootstrapFixture(name: string): Promise<string> {
   const output = path.join(temporaryRoot, name);
   await cp(bundledRoot, output, { recursive: true });
   return output;
+}
+
+async function createPinnedPackageSource(
+  outputRoot: string,
+  version: string,
+): Promise<void> {
+  const manifest: DeclarativePackageManifest = {
+    components: {
+      agentPresets: [],
+      pluginModules: [],
+      skills: [],
+      workflows: [],
+    },
+    dependencies: [],
+    description: 'Pinned Image Studio fixture.',
+    entrypoints: [],
+    files: ['README.md'],
+    integrity: 'sha256:auto',
+    license: 'MIT',
+    name: 'Pinned Image Studio',
+    optionalDependencies: [],
+    packageId: imagePackageId,
+    permissions: [],
+    publisher: {
+      name: 'Retake Test',
+      publisherId: 'test.publisher',
+    },
+    retakeHostCompatibility: '^0.1.0',
+    schemaVersion: 1,
+    signature: null,
+    version,
+  };
+  await mkdir(outputRoot, { recursive: true });
+  await writeFile(
+    path.join(outputRoot, 'retake.package.json'),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    'utf8',
+  );
+  await writeFile(
+    path.join(outputRoot, 'README.md'),
+    `${manifest.description}\n`,
+    'utf8',
+  );
 }
 
 interface MutableProfile {

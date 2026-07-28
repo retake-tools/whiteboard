@@ -31,7 +31,7 @@ const artifactRoot = path.join(
   repositoryRoot,
   'vendor',
   'package-toolchain',
-  '0.1.0',
+  '0.1.1',
 );
 const manifest = await readJson(
   path.join(artifactRoot, 'release-manifest.json'),
@@ -41,19 +41,19 @@ const packageJson = await readJson(path.join(repositoryRoot, 'package.json'));
 const packageLock = await readJson(path.join(repositoryRoot, 'package-lock.json'));
 
 assert.deepEqual(source, {
-  commit: 'b58024b1ff78ea298aa4729541d709c3ea25a26e',
+  commit: 'fd9923d5df964b5ff7bbcf0bdf969b01313bfd21',
   repository: 'https://github.com/retake-tools/package',
-  version: '0.1.0',
+  version: '0.1.1',
 });
 assert.equal(manifest.schemaVersion, 1);
-assert.equal(manifest.toolchainVersion, '0.1.0');
+assert.equal(manifest.toolchainVersion, '0.1.1');
 assert.equal(manifest.packages.length, 8);
 
 for (const entry of manifest.packages) {
   const dependency = packageJson.dependencies[entry.name];
   assert.equal(
     dependency,
-    `file:vendor/package-toolchain/0.1.0/${entry.file}`,
+    `file:vendor/package-toolchain/0.1.1/${entry.file}`,
   );
   const bytes = await readFile(path.join(artifactRoot, entry.file));
   assert.equal(entry.bytes, bytes.byteLength);

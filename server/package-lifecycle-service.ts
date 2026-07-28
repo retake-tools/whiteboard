@@ -7,6 +7,7 @@ import type {
   PackageLifecycleMutationV1,
   PackageLifecycleRecordV1,
   PackageLifecycleSnapshotV1,
+  PackageUpdateSnapshotV1,
 } from '../src/core/packageLifecycleContracts';
 import {
   ensureDefaultDeclarativePackageBootstrap,
@@ -21,11 +22,13 @@ import {
   OfficialPackagePreferenceStore,
   officialDefaultPackageIds,
 } from './official-package-preference-store';
+import { PackageUpdateService } from './package-update-service';
 
 export class PackageLifecycleService {
   private readonly hostVersion: string;
   private readonly manager: LocalPackageManagerService;
   private readonly officialPreferences: OfficialPackagePreferenceStore;
+  private readonly updates: PackageUpdateService;
   private readonly workspaceRoot: string;
 
   constructor(input: {
@@ -38,6 +41,15 @@ export class PackageLifecycleService {
     this.officialPreferences = new OfficialPackagePreferenceStore(
       this.manager.packagesRoot,
     );
+    this.updates = new PackageUpdateService(input);
+  }
+
+  async checkUpdates(): Promise<PackageUpdateSnapshotV1> {
+    await ensureDefaultDeclarativePackageBootstrap({
+      hostVersion: this.hostVersion,
+      workspaceRoot: this.workspaceRoot,
+    });
+    return this.updates.check();
   }
 
   async read(): Promise<PackageLifecycleSnapshotV1> {
@@ -77,7 +89,7 @@ export class PackageLifecycleService {
     } else {
       const packageId = requiredPackageId(mutation.packageId);
       if (mutation.action === 'update') {
-        await this.manager.updateGit(packageId);
+        await this.updates.update(packageId);
       } else if (mutation.action === 'rollback') {
         await this.manager.rollback(
           packageId,

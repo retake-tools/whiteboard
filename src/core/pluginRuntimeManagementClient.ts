@@ -3,6 +3,7 @@ import type {
   PluginProfileStateV1,
   PluginRuntimeProfileProjectionV1,
   PluginRuntimeSnapshotV1,
+  RetakePluginPermission,
 } from '@retake-tools/package-sdk';
 import {
   projectPluginRuntimeForProfileV1,
@@ -35,6 +36,10 @@ export interface PluginRuntimeControllerV1 {
   manageModule(
     pluginModuleId: string,
     action: PluginRuntimeManagementActionV1,
+  ): Promise<PluginRuntimeSnapshotV1>;
+  setPermissions(
+    pluginModuleId: string,
+    permissions: RetakePluginPermission[],
   ): Promise<PluginRuntimeSnapshotV1>;
   refresh(): Promise<PluginRuntimeSnapshotV1>;
   replace(
@@ -118,6 +123,18 @@ export function createPluginRuntimeController(input: {
         encodeURIComponent(pluginModuleId)
       }/${action}`,
       { method: 'POST' },
+    )),
+    setPermissions: (pluginModuleId, permissions) => enqueue(() => (
+      requestSnapshot(
+        `/api/local/plugin-runtime/modules/${
+          encodeURIComponent(pluginModuleId)
+        }/permissions`,
+        {
+          body: JSON.stringify({ permissions }),
+          headers: { 'Content-Type': 'application/json' },
+          method: 'POST',
+        },
+      )
     )),
     refresh: () => enqueue(() => requestSnapshot('/api/local/plugin-runtime')),
     replace: (snapshot) => enqueue(async () => structuredClone(snapshot)),

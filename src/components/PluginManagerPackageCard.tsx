@@ -23,6 +23,7 @@ import {
 } from '@retake-tools/package-contracts';
 import type {
   PackageLifecycleRecordV1,
+  PackageUpdateCheckV1,
 } from '../core/packageLifecycleContracts';
 import type {
   PluginRuntimeManagementActionV1,
@@ -35,9 +36,11 @@ export function PluginManagerPackageCard({
   locale,
   modules,
   onProfileChange,
+  onPermissionChange,
   onLifecycleAction,
   onRuntimeAction,
   record,
+  updateCheck,
   profileContext,
   profileScope,
   profileState,
@@ -57,10 +60,15 @@ export function PluginManagerPackageCard({
     record: PluginModuleRuntimeRecordV1,
     state: PluginProfileOverrideStateV1,
   ) => void;
+  onPermissionChange: (
+    pluginModuleId: string,
+    permissions: PluginModuleRuntimeRecordV1['manifest']['permissions'],
+  ) => void;
   profileContext: { boardId: string | null; projectId: string | null };
   profileScope: PluginProfileScopeV1;
   profileState: PluginProfileStateV1;
   record: PackageLifecycleRecordV1;
+  updateCheck?: PackageUpdateCheckV1;
   safeMode: boolean;
   t: I18nContextValue['t'];
 }): ReactElement {
@@ -98,6 +106,9 @@ export function PluginManagerPackageCard({
         </em>
       </header>
       <p>{record.description}</p>
+      {updateCheck ? (
+        <PackageUpdateStatus check={updateCheck} t={t} />
+      ) : null}
       <dl>
         <div>
           <dt>{t('packageLibrary.source')}</dt>
@@ -143,6 +154,10 @@ export function PluginManagerPackageCard({
                   moduleRecord,
                   state,
                 )}
+                onPermissionChange={(permissions) => onPermissionChange(
+                  moduleRecord.pluginModuleId,
+                  permissions,
+                )}
                 profileContext={profileContext}
                 profileScope={profileScope}
                 profileState={profileState}
@@ -172,7 +187,7 @@ export function PluginManagerPackageCard({
         </span>
         {record.isRoot ? (
           <div>
-            {record.source.canUpdate ? (
+            {updateCheck?.status === 'available' ? (
               <button
                 type="button"
                 disabled={Boolean(busyId)}
@@ -210,12 +225,47 @@ export function PluginManagerPackageCard({
   );
 }
 
+function PackageUpdateStatus({
+  check,
+  t,
+}: {
+  check: PackageUpdateCheckV1;
+  t: I18nContextValue['t'];
+}): ReactElement {
+  const label = check.status === 'available'
+    ? t('packageLibrary.updateAvailable')
+    : check.status === 'current'
+      ? t('packageLibrary.updateCurrent')
+      : check.status === 'pinned'
+        ? t('packageLibrary.updatePinned')
+        : check.status === 'error'
+          ? t('packageLibrary.updateCheckError')
+          : t('packageLibrary.updateUnsupported');
+  return (
+    <section className={`plugin-manager-update-status is-${check.status}`}>
+      <strong>{label}</strong>
+      {check.status === 'available' && check.candidate ? (
+        <span>
+          v{check.currentVersion} → v{check.candidate.version}
+        </span>
+      ) : null}
+      {check.detail ? <small>{check.detail}</small> : null}
+      {check.candidate?.notices.map((notice) => (
+        <small key={`${notice.kind}:${notice.advisoryId ?? notice.message}`}>
+          {notice.message}
+        </small>
+      ))}
+    </section>
+  );
+}
+
 export function PluginManagerModuleCard({
   busyId,
   effectiveProfile,
   locale,
   onAction,
   onProfileChange,
+  onPermissionChange,
   profileContext,
   profileScope,
   profileState,
@@ -228,6 +278,9 @@ export function PluginManagerModuleCard({
   locale: string;
   onAction: (action: PluginRuntimeManagementActionV1) => void;
   onProfileChange: (state: PluginProfileOverrideStateV1) => void;
+  onPermissionChange: (
+    permissions: PluginModuleRuntimeRecordV1['manifest']['permissions'],
+  ) => void;
   profileContext: { boardId: string | null; projectId: string | null };
   profileScope: PluginProfileScopeV1;
   profileState: PluginProfileStateV1;
@@ -337,10 +390,27 @@ export function PluginManagerModuleCard({
       </section>
       <section>
         <strong>{t('pluginSettings.permissions')}</strong>
-        <div className="plugin-manager-tags">
+        <div className="plugin-manager-permission-list">
           {record.manifest.permissions.length > 0
             ? record.manifest.permissions.map((permission) => (
-              <code key={permission}>{permission}</code>
+              <label key={permission}>
+                <input
+                  type="checkbox"
+                  checked={record.grant?.permissions.includes(permission)
+                    ?? false}
+                  disabled={Boolean(busyId)}
+                  onChange={(event) => {
+                    const next = record.manifest.permissions.filter(
+                      (candidate) => candidate === permission
+                        ? event.target.checked
+                        : record.grant?.permissions.includes(candidate)
+                          ?? false,
+                    );
+                    onPermissionChange(next);
+                  }}
+                />
+                <code>{permission}</code>
+              </label>
             ))
             : <span>{t('pluginSettings.noPermissions')}</span>}
         </div>

@@ -55,6 +55,11 @@ export function PluginManager({
     packageController.getSnapshot,
     packageController.getSnapshot,
   );
+  const updateSnapshot = useSyncExternalStore(
+    packageController.subscribe,
+    packageController.getUpdateSnapshot,
+    packageController.getUpdateSnapshot,
+  );
   const pluginSnapshot = useSyncExternalStore(
     pluginController.subscribe,
     pluginController.getSnapshot,
@@ -84,6 +89,11 @@ export function PluginManager({
     didRequestInitialSnapshot.current = true;
     void run('refresh', packageController.refresh);
   }, [packageController, packageSnapshot]);
+
+  useEffect(() => {
+    if (updateSnapshot) return;
+    void run('check-updates', packageController.checkUpdates);
+  }, [packageController, updateSnapshot]);
 
   const run = async (
     busyKey: string,
@@ -276,6 +286,19 @@ export function PluginManager({
                 type="button"
                 disabled={Boolean(busyId)}
                 onClick={() => void run(
+                  'check-updates',
+                  packageController.checkUpdates,
+                )}
+              >
+                {busyId === 'check-updates'
+                  ? <Loader2 className="is-spinning" size={15} />
+                  : <RefreshCw size={15} />}
+                {t('packageLibrary.checkUpdates')}
+              </button>
+              <button
+                type="button"
+                disabled={Boolean(busyId)}
+                onClick={() => void run(
                   'refresh',
                   packageController.refresh,
                 )}
@@ -354,14 +377,22 @@ export function PluginManager({
                         profileScope={profileScope}
                         profileState={profileState}
                         record={record}
+                        updateCheck={updateSnapshot?.checks.find(
+                          (entry) => entry.packageId === record.packageId,
+                        )}
                         safeMode={pluginSnapshot.safeMode}
                         t={t}
                         onLifecycleAction={(action) => void run(
                           `package:${record.packageId}:${action}`,
-                          () => packageController.mutate({
+                          async () => {
+                            await packageController.mutate({
                             action,
                             packageId: record.packageId,
-                          }),
+                            });
+                            if (action === 'update') {
+                              await packageController.checkUpdates();
+                            }
+                          },
                         )}
                         onRuntimeAction={(pluginModuleId, action) => void run(
                           `module:${pluginModuleId}:${action}`,
@@ -369,6 +400,15 @@ export function PluginManager({
                             pluginModuleId,
                             action,
                           ),
+                        )}
+                        onPermissionChange={(pluginModuleId, permissions) => (
+                          void run(
+                            `module:${pluginModuleId}:permissions`,
+                            () => pluginController.setPermissions(
+                              pluginModuleId,
+                              permissions,
+                            ),
+                          )
                         )}
                         onProfileChange={(moduleRecord, state) => (
                           updateProfile(moduleRecord, state)
@@ -402,6 +442,13 @@ export function PluginManager({
                             onProfileChange={(state) => updateProfile(
                               record,
                               state,
+                            )}
+                            onPermissionChange={(permissions) => void run(
+                              `module:${record.pluginModuleId}:permissions`,
+                              () => pluginController.setPermissions(
+                                record.pluginModuleId,
+                                permissions,
+                              ),
                             )}
                           />
                         ))}

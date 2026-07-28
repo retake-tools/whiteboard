@@ -6,6 +6,7 @@ import type {
   PackageDevelopmentSnapshotV1,
   PackageLifecycleMutationV1,
   PackageLifecycleSnapshotV1,
+  PackageUpdateSnapshotV1,
 } from './packageLifecycleContracts';
 import type {
   PluginRuntimeControllerV1,
@@ -14,6 +15,8 @@ import type {
 export interface PackageLifecycleControllerV1 {
   getDevelopmentSnapshot(): PackageDevelopmentSnapshotV1 | undefined;
   getSnapshot(): PackageLifecycleSnapshotV1 | undefined;
+  getUpdateSnapshot(): PackageUpdateSnapshotV1 | undefined;
+  checkUpdates(): Promise<PackageUpdateSnapshotV1>;
   mutate(
     mutation: PackageLifecycleMutationV1,
   ): Promise<PackageLifecycleSnapshotV1>;
@@ -30,6 +33,7 @@ export function createPackageLifecycleController(input: {
 }): PackageLifecycleControllerV1 {
   let currentSnapshot: PackageLifecycleSnapshotV1 | undefined;
   let currentDevelopment: PackageDevelopmentSnapshotV1 | undefined;
+  let currentUpdates: PackageUpdateSnapshotV1 | undefined;
   let queue: Promise<void> = Promise.resolve();
   const listeners = new Set<() => void>();
 
@@ -57,13 +61,19 @@ export function createPackageLifecycleController(input: {
   };
 
   return {
+    checkUpdates: () => enqueueUpdates(requestPackageUpdateSnapshot),
     getDevelopmentSnapshot: () => currentDevelopment,
     getSnapshot: () => currentSnapshot,
+    getUpdateSnapshot: () => currentUpdates,
     mutate: (mutation) => enqueue(() => requestPackageLifecycleSnapshot({
       body: JSON.stringify(mutation),
       headers: { 'Content-Type': 'application/json' },
       method: 'POST',
-    })),
+    })).then((snapshot) => {
+      currentUpdates = undefined;
+      for (const listener of listeners) listener();
+      return snapshot;
+    }),
     mutateDevelopment: (mutation) => enqueueDevelopment(async () => (
       requestPackageDevelopmentSnapshot({
         body: JSON.stringify(mutation),
@@ -81,6 +91,19 @@ export function createPackageLifecycleController(input: {
       return () => listeners.delete(listener);
     },
   };
+
+  function enqueueUpdates(
+    operation: () => Promise<PackageUpdateSnapshotV1>,
+  ): Promise<PackageUpdateSnapshotV1> {
+    let updateResult!: PackageUpdateSnapshotV1;
+    const result = queue.then(operation, operation).then((snapshot) => {
+      currentUpdates = structuredClone(snapshot);
+      updateResult = currentUpdates;
+      for (const listener of listeners) listener();
+    });
+    queue = result.then(() => undefined, () => undefined);
+    return result.then(() => updateResult);
+  }
 
   function enqueueDevelopment(
     operation: () => Promise<PackageDevelopmentSnapshotV1>,
@@ -105,6 +128,29 @@ export function createPackageLifecycleController(input: {
     queue = result.then(() => undefined, () => undefined);
     return result.then(() => developmentResult);
   }
+}
+
+async function requestPackageUpdateSnapshot(): Promise<
+  PackageUpdateSnapshotV1
+> {
+  const response = await fetch('/api/local/package-lifecycle/updates');
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { error?: unknown };
+    throw new Error(
+      typeof body.error === 'string' && body.error.length > 0
+        ? body.error
+        : `Package update check failed with HTTP ${response.status}.`,
+    );
+  }
+  const body = await response.json() as Partial<PackageUpdateSnapshotV1>;
+  if (
+    body.schemaVersion !== 1
+    || !Array.isArray(body.checks)
+    || typeof body.checkedAt !== 'string'
+  ) {
+    throw new Error('Package update response is invalid.');
+  }
+  return structuredClone(body as PackageUpdateSnapshotV1);
 }
 
 async function requestPackageLifecycleSnapshot(
