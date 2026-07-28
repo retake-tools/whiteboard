@@ -22,7 +22,10 @@ plugin discovery are not complete product flows yet.
 
 ## Requirements
 
-- Node.js 20.19 or later (22.12 or later when using Node.js 22);
+- Node.js 24.18.0 for canonical development, CI, and release builds;
+- Node.js 22.12 or later remains a supported compatibility runtime. Node.js 26
+  is experimental until it reaches LTS and the Package archive codec is
+  runtime-independent;
 - npm;
 - Codex CLI with Codex Plugin support;
 - a real image generation or editing capability available to Codex.

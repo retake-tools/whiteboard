@@ -25,6 +25,8 @@ import {
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const starterRoot = path.join(repositoryRoot, 'packages', 'builtin', 'story-production-starter');
 const agentRoot = path.join(repositoryRoot, 'packages', 'builtin', 'story-production-agent');
+const canonicalStarterArchiveDigest =
+  'sha256:a0522453a4e7de0bbc26697b78025ac4a806fe7b1798288524832fcf13a644b3';
 const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'retake-package-format-v0-'));
 
 try {
@@ -58,6 +60,7 @@ try {
   const packedB = await packDeclarativePackage(starterRoot, archiveB);
   assert.equal(packedA.digest, starter.digest);
   assert.equal(packedA.archiveDigest, packedB.archiveDigest);
+  assert.equal(packedA.archiveDigest, canonicalStarterArchiveDigest);
   assert.deepEqual(await readFile(archiveA), await readFile(archiveB));
   const archived = await validateDeclarativePackage(archiveA);
   const inspected = await inspectDeclarativePackage(archiveA);
