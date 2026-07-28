@@ -12,7 +12,11 @@ import {
 } from 'lucide-react';
 import type { ReactElement } from 'react';
 import type {
+  PluginModuleEffectiveProfileV1,
   PluginModuleRuntimeRecordV1,
+  PluginProfileOverrideStateV1,
+  PluginProfileScopeV1,
+  PluginProfileStateV1,
 } from '@retake-tools/package-sdk';
 import {
   resolvePluginLocalizedTextV2,
@@ -27,15 +31,21 @@ import type { I18nContextValue } from '../i18n';
 
 export function PluginManagerPackageCard({
   busyId,
+  effectiveProfiles,
   locale,
   modules,
+  onProfileChange,
   onLifecycleAction,
   onRuntimeAction,
   record,
+  profileContext,
+  profileScope,
+  profileState,
   safeMode,
   t,
 }: {
   busyId?: string;
+  effectiveProfiles: ReadonlyMap<string, PluginModuleEffectiveProfileV1>;
   locale: string;
   modules: PluginModuleRuntimeRecordV1[];
   onLifecycleAction: (action: 'remove' | 'rollback' | 'update') => void;
@@ -43,6 +53,13 @@ export function PluginManagerPackageCard({
     pluginModuleId: string,
     action: PluginRuntimeManagementActionV1,
   ) => void;
+  onProfileChange: (
+    record: PluginModuleRuntimeRecordV1,
+    state: PluginProfileOverrideStateV1,
+  ) => void;
+  profileContext: { boardId: string | null; projectId: string | null };
+  profileScope: PluginProfileScopeV1;
+  profileState: PluginProfileStateV1;
   record: PackageLifecycleRecordV1;
   safeMode: boolean;
   t: I18nContextValue['t'];
@@ -118,7 +135,17 @@ export function PluginManagerPackageCard({
               <PluginManagerModuleCard
                 key={moduleRecord.pluginModuleId}
                 busyId={busyId}
+                effectiveProfile={effectiveProfiles.get(
+                  moduleRecord.pluginModuleId,
+                )}
                 locale={locale}
+                onProfileChange={(state) => onProfileChange(
+                  moduleRecord,
+                  state,
+                )}
+                profileContext={profileContext}
+                profileScope={profileScope}
+                profileState={profileState}
                 record={moduleRecord}
                 safeMode={safeMode}
                 t={t}
@@ -185,15 +212,25 @@ export function PluginManagerPackageCard({
 
 export function PluginManagerModuleCard({
   busyId,
+  effectiveProfile,
   locale,
   onAction,
+  onProfileChange,
+  profileContext,
+  profileScope,
+  profileState,
   record,
   safeMode,
   t,
 }: {
   busyId?: string;
+  effectiveProfile?: PluginModuleEffectiveProfileV1;
   locale: string;
   onAction: (action: PluginRuntimeManagementActionV1) => void;
+  onProfileChange: (state: PluginProfileOverrideStateV1) => void;
+  profileContext: { boardId: string | null; projectId: string | null };
+  profileScope: PluginProfileScopeV1;
+  profileState: PluginProfileStateV1;
   record: PluginModuleRuntimeRecordV1;
   safeMode: boolean;
   t: I18nContextValue['t'];
@@ -201,12 +238,19 @@ export function PluginManagerModuleCard({
   const isBusy = busyId?.startsWith(
     `module:${record.pluginModuleId}:`,
   ) ?? false;
-  const action = nextAction(record, safeMode);
+  const action = nextAction(record, safeMode, profileScope);
+  const selectedProfileState = profileSelection(
+    record,
+    profileState,
+    profileScope,
+    profileContext,
+  );
+  const displayedStatus = effectiveRuntimeStatus(record, effectiveProfile);
   return (
     <article className="plugin-manager-module-card">
       <header>
         <span className="plugin-manager-icon">
-          {record.status === 'enabled'
+          {displayedStatus === 'enabled'
             ? <CheckCircle2 size={18} />
             : <Boxes size={18} />}
         </span>
@@ -219,8 +263,8 @@ export function PluginManagerModuleCard({
           </strong>
           <small>{record.pluginModuleId} · v{record.manifest.version}</small>
         </span>
-        <em className={`plugin-manager-status is-${record.status}`}>
-          {statusLabel(record.status, t)}
+        <em className={`plugin-manager-status is-${displayedStatus}`}>
+          {statusLabel(displayedStatus, t)}
         </em>
       </header>
       <p>
@@ -243,6 +287,54 @@ export function PluginManagerModuleCard({
           </dd>
         </div>
       </dl>
+      <section className="plugin-manager-module-profile">
+        <label>
+          <strong>{t('pluginSettings.profileScope')}</strong>
+          <select
+            aria-label={`${record.pluginModuleId} ${
+              t('pluginSettings.profileScope')
+            }`}
+            disabled={
+              Boolean(busyId)
+              || (
+                profileScope !== 'workspace'
+                && !profileContext.projectId
+              )
+              || (profileScope === 'board' && !profileContext.boardId)
+            }
+            value={selectedProfileState}
+            onChange={(event) => onProfileChange(
+              event.target.value as PluginProfileOverrideStateV1,
+            )}
+          >
+            {profileScope === 'workspace' ? null : (
+              <option value="inherit">
+                {t('pluginSettings.scopeInherit')}
+              </option>
+            )}
+            <option value="enabled">
+              {t('pluginSettings.statusEnabled')}
+            </option>
+            <option value="disabled">
+              {t('pluginSettings.statusDisabled')}
+            </option>
+          </select>
+        </label>
+        {effectiveProfile ? (
+          <small>
+            {t('pluginSettings.effectiveSource')}: {
+              effectiveProfile.requestedState === 'enabled'
+                ? t('pluginSettings.statusEnabled')
+                : t('pluginSettings.statusDisabled')
+            } · {scopeLabel(effectiveProfile.source.scope, t)}
+            {effectiveProfile.blocker
+              ? ` · ${t('pluginSettings.profileBlocker')}: ${
+                effectiveProfile.blocker
+              }`
+              : ''}
+          </small>
+        ) : null}
+      </section>
       <section>
         <strong>{t('pluginSettings.permissions')}</strong>
         <div className="plugin-manager-tags">
@@ -307,18 +399,59 @@ export function PluginManagerModuleCard({
   );
 }
 
+function effectiveRuntimeStatus(
+  record: PluginModuleRuntimeRecordV1,
+  effective: PluginModuleEffectiveProfileV1 | undefined,
+): PluginModuleRuntimeRecordV1['status'] {
+  if (!effective) return record.status;
+  if (effective.activationState === 'enabled') return 'enabled';
+  if (effective.blocker === 'runtime_failure') return 'failed';
+  if (effective.blocker === 'host_incompatible') return 'incompatible';
+  return 'disabled';
+}
+
 function nextAction(
   record: PluginModuleRuntimeRecordV1,
   safeMode: boolean,
+  profileScope: PluginProfileScopeV1,
 ): PluginRuntimeManagementActionV1 | undefined {
   if (record.status === 'incompatible') return undefined;
   if (!record.grant) return 'grant';
   if (!record.trust) return 'trust';
+  if (profileScope !== 'workspace') return undefined;
   if (record.desiredState === 'enabled' && record.status !== 'failed') {
     return 'disable';
   }
   if (!safeMode && record.negotiatedHostApiVersion !== null) return 'enable';
   return undefined;
+}
+
+function profileSelection(
+  record: PluginModuleRuntimeRecordV1,
+  profile: PluginProfileStateV1,
+  scope: PluginProfileScopeV1,
+  context: { boardId: string | null; projectId: string | null },
+): PluginProfileOverrideStateV1 {
+  if (scope === 'workspace') return record.desiredState;
+  const entry = profile.entries.find((candidate) => (
+    candidate.pluginModuleId === record.pluginModuleId
+    && candidate.scope === scope
+    && candidate.projectId === context.projectId
+    && (
+      scope === 'project'
+      || candidate.boardId === context.boardId
+    )
+  ));
+  return entry?.state ?? 'inherit';
+}
+
+function scopeLabel(
+  scope: PluginProfileScopeV1,
+  t: I18nContextValue['t'],
+): string {
+  if (scope === 'project') return t('pluginSettings.scopeProject');
+  if (scope === 'board') return t('pluginSettings.scopeBoard');
+  return t('pluginSettings.scopeWorkspace');
 }
 
 function actionLabel(

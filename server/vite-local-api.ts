@@ -82,6 +82,9 @@ import {
   handlePluginFoundationConfigRequest,
 } from './plugin-foundation-config-api';
 import {
+  PluginProfileStore,
+} from './plugin-profile-store';
+import {
   PluginFoundationConfigStore,
 } from './plugin-foundation-config-store';
 
@@ -106,6 +109,9 @@ export function localApiPlugin(): Plugin {
 
 function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
   const pluginFoundationConfigStore = new PluginFoundationConfigStore(
+    path.join(retakeRoot, 'packages'),
+  );
+  const pluginProfileStore = new PluginProfileStore(
     path.join(retakeRoot, 'packages'),
   );
   middlewares.use('/api/local', async (req, res, next) => {
@@ -141,6 +147,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
             await handlePluginFoundationConfigRequest({
               method,
               pathname: url.pathname,
+              profileStore: pluginProfileStore,
               readBody: () => readJson(req),
               store: pluginFoundationConfigStore,
             });

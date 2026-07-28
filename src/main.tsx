@@ -39,7 +39,9 @@ import {
   loadPluginRuntimeSnapshot,
   type PluginRuntimeControllerV1,
 } from './core/pluginRuntimeManagementClient';
-import type { PluginRuntimeSnapshotV1 } from '@retake-tools/package-sdk';
+import type {
+  PluginRuntimeSnapshotV1,
+} from '@retake-tools/package-sdk';
 import {
   createPackageLifecycleController,
   type PackageLifecycleControllerV1,
@@ -49,6 +51,7 @@ import {
 } from './app/runConnectedPluginExecution';
 import {
   loadPluginExperience,
+  loadPluginProfile,
 } from './core/pluginFoundationConfigClient';
 
 installPluginHostExternals();
@@ -75,14 +78,28 @@ pluginHostReadStore.setConnectionLister(
 );
 let pluginRuntimeController: PluginRuntimeControllerV1 | undefined;
 let packageLifecycleController: PackageLifecycleControllerV1 | undefined;
+let pluginProfileScopeKey = '';
+
+function unboundPluginRuntimeSnapshot(
+  snapshot: PluginRuntimeSnapshotV1,
+): PluginRuntimeSnapshotV1 {
+  return {
+    ...structuredClone(snapshot),
+    modules: snapshot.modules.map((record) => ({
+      ...structuredClone(record),
+      status: record.status === 'enabled' ? 'disabled' : record.status,
+    })),
+  };
+}
 
 async function applyPluginRuntimeSnapshot(
-  snapshot: PluginRuntimeSnapshotV1,
+  baseSnapshot: PluginRuntimeSnapshotV1,
+  effectiveSnapshot: PluginRuntimeSnapshotV1,
 ): Promise<PluginRuntimeSnapshotV1> {
   pluginHostReadStore.retainModules(
-    snapshot.safeMode
+    effectiveSnapshot.safeMode
       ? []
-      : snapshot.modules
+      : effectiveSnapshot.modules
         .filter((record) => record.status === 'enabled')
         .map((record) => ({
           packageDigest: record.packageLock.digest,
@@ -96,7 +113,7 @@ async function applyPluginRuntimeSnapshot(
       record.manifest.permissions,
     ),
     onFatalFailure: reportPluginFatalFailure,
-    snapshot,
+    snapshot: effectiveSnapshot,
   });
   if (pluginModules.failures.length > 0) {
     console.error('Retake Plugin activation failed.', pluginModules.failures);
@@ -124,19 +141,22 @@ async function applyPluginRuntimeSnapshot(
   );
   return pluginModules.failures.length > 0 || contributionFailures.length > 0
     ? loadPluginRuntimeSnapshot()
-    : snapshot;
+    : baseSnapshot;
 }
 
 void bootstrapInstalledRuntimeRegistry()
   .then(async ({ pluginRuntime }) => {
+    const profile = await loadPluginProfile();
     pluginContributionRegistry.setCommandExperience(
       (await loadPluginExperience()).commandOverrides,
     );
     const initialRuntimeSnapshot = await applyPluginRuntimeSnapshot(
       pluginRuntime,
+      unboundPluginRuntimeSnapshot(pluginRuntime),
     );
     pluginRuntimeController = createPluginRuntimeController({
       applySnapshot: applyPluginRuntimeSnapshot,
+      initialProfileState: profile,
       initialSnapshot: initialRuntimeSnapshot,
     });
     packageLifecycleController = createPackageLifecycleController({
@@ -172,7 +192,26 @@ void bootstrapInstalledRuntimeRegistry()
                 pluginContributionRegistry.setLocale(environment.locale);
               }
             }
-            onPluginHostScopeChange={pluginHostReadStore.update}
+            onPluginHostScopeChange={(snapshot, assets, drafts) => {
+              pluginHostReadStore.update(snapshot, assets, drafts);
+              if (!snapshot.projectId || !snapshot.boardId) return;
+              const scopeKey = `${snapshot.projectId}:${snapshot.boardId}`;
+              if (scopeKey === pluginProfileScopeKey) return;
+              pluginProfileScopeKey = scopeKey;
+              pluginContributionRegistry.replace([]);
+              void pluginRuntimeController?.setScope({
+                boardId: snapshot.boardId,
+                projectId: snapshot.projectId,
+              }).catch((error: unknown) => {
+                if (pluginProfileScopeKey === scopeKey) {
+                  pluginProfileScopeKey = '';
+                }
+                console.error(
+                  'Retake Plugin Profile scope update failed.',
+                  error,
+                );
+              });
+            }}
             pluginContributionRegistry={pluginContributionRegistry}
             packageLifecycleController={packageLifecycleController}
             pluginRuntimeController={pluginRuntimeController}

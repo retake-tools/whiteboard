@@ -6,6 +6,10 @@ import {
   type PluginRuntimeSnapshotV1,
   type RetakePluginPermission,
 } from '@retake-tools/package-sdk';
+import {
+  grantMatchesInstalledPluginModule,
+  trustMatchesInstalledPluginModule,
+} from '@retake-tools/plugin-runtime';
 import { LocalPackageManagerService } from './local-package-manager-service';
 import { PluginRuntimeStateStore } from './plugin-runtime-state-store';
 
@@ -155,16 +159,18 @@ export class PluginRuntimeService {
       throw new Error('Plugin Web Module path is outside dist/.');
     }
     const host = await this.loadHost();
-    const record = host.list().find(
+    const runtime = host.snapshot();
+    const record = runtime.modules.find(
       (entry) => entry.pluginModuleId === input.pluginModuleId,
     );
     if (
       !record
-      || record.status !== 'enabled'
-      || !record.grant
-      || !record.trust
+      || runtime.safeMode
+      || record.negotiatedHostApiVersion === null
+      || !grantMatchesInstalledPluginModule(record, record.grant)
+      || !trustMatchesInstalledPluginModule(record, record.trust)
     ) {
-      throw new Error('Plugin Web Module is not enabled and trusted.');
+      throw new Error('Plugin Web Module is not eligible and trusted.');
     }
     if (record.packageLock.digest !== input.packageDigest) {
       throw new Error('Plugin Web Module Package digest is stale.');

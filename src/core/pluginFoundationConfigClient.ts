@@ -1,11 +1,14 @@
 import {
   type PluginHostExperienceProfileV1,
   type PluginJsonValueV2,
+  type PluginProfileOverrideStateV1,
+  type PluginProfileStateV1,
   type PluginSettingScopeV1,
   type PluginSettingsV1,
 } from '@retake-tools/package-sdk';
 import {
   parsePluginHostExperienceProfileV1,
+  parsePluginProfileStateV1,
 } from '@retake-tools/plugin-runtime';
 
 export interface PluginSettingsPersistedEntryV1 {
@@ -53,6 +56,29 @@ export async function loadPluginExperience(): Promise<
 > {
   return parsePluginHostExperienceProfileV1(await requestJson(
     '/api/local/plugin-foundation/experience',
+  ));
+}
+
+export async function loadPluginProfile(): Promise<PluginProfileStateV1> {
+  return parsePluginProfileStateV1(await requestJson(
+    '/api/local/plugin-foundation/profile',
+  ));
+}
+
+export async function updatePluginProfile(input: {
+  boardId: string | null;
+  pluginModuleId: string;
+  projectId: string;
+  scope: 'board' | 'project';
+  state: PluginProfileOverrideStateV1;
+}): Promise<PluginProfileStateV1> {
+  return parsePluginProfileStateV1(await requestJson(
+    '/api/local/plugin-foundation/profile',
+    {
+      body: JSON.stringify(input),
+      headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+    },
   ));
 }
 
