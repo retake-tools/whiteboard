@@ -78,7 +78,7 @@ try {
   );
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.version),
-    ['0.10.0', '0.1.0'],
+    ['0.10.0', '0.1.1'],
   );
   await validateBootstrapProfileArchives(
     defaultBootstrapProfilePath,
@@ -172,6 +172,71 @@ try {
   assert.equal(second.installed, false);
   assert.equal(second.snapshot.lockRevision, 2);
   assert.deepEqual(await readFile(lockPath), lockBeforeSecondBootstrap);
+
+  const bundledUpgradeRoot = await copyBootstrapFixture('bundled-upgrade');
+  const bundledUpgradeProfilePath = path.join(
+    bundledUpgradeRoot,
+    'retake.bootstrap.json',
+  );
+  const previousProfilePath = path.join(
+    bundledUpgradeRoot,
+    'retake.bootstrap.previous.json',
+  );
+  const previousProfile = JSON.parse(
+    await readFile(bundledUpgradeProfilePath, 'utf8'),
+  ) as typeof publishedProfile;
+  const previousVideo = previousProfile.packages.find(
+    (entry) => entry.packageId === videoPackageId,
+  )!;
+  Object.assign(previousVideo, {
+    archiveDigest:
+      'sha256:bb78d8bb77853c79d179f7b8ddacc6b0507e14718543aa7178f7959ecdbe9543',
+    archivePath: 'video-studio-0.1.0.retakepkg',
+    digest:
+      'sha256:1223ff4574c5090c3d0f89a5cf05ddfe78cf53c8666c830fa089ea96583216c7',
+    version: '0.1.0',
+  });
+  await writeFile(
+    previousProfilePath,
+    `${JSON.stringify(previousProfile, null, 2)}\n`,
+    'utf8',
+  );
+  const upgradeWorkspace = path.join(
+    temporaryRoot,
+    'bundled-upgrade-workspace',
+  );
+  const previousBootstrap = await bootstrapDeclarativePackages({
+    hostVersion: '0.1.2',
+    profilePath: previousProfilePath,
+    workspaceRoot: upgradeWorkspace,
+  });
+  assert.equal(
+    previousBootstrap.snapshot.packages.find(
+      (entry) => entry.packageId === videoPackageId,
+    )?.version,
+    '0.1.0',
+  );
+  await new PluginRuntimeService({
+    hostVersion: '0.1.2',
+    workspaceRoot: upgradeWorkspace,
+  }).manageModule(videoPluginModuleId, 'disable');
+  const upgradedBootstrap = await bootstrapDeclarativePackages({
+    hostVersion: '0.1.2',
+    profilePath: bundledUpgradeProfilePath,
+    workspaceRoot: upgradeWorkspace,
+  });
+  assert.equal(
+    upgradedBootstrap.snapshot.packages.find(
+      (entry) => entry.packageId === videoPackageId,
+    )?.version,
+    '0.1.1',
+  );
+  assert.equal(upgradedBootstrap.installed, true);
+  const upgradedVideoModule = upgradedBootstrap.pluginRuntime.modules.find(
+    (entry) => entry.pluginModuleId === videoPluginModuleId,
+  );
+  assert.equal(upgradedVideoModule?.desiredState, 'disabled');
+  assert.equal(upgradedVideoModule?.status, 'disabled');
 
   const pinnedWorkspace = path.join(temporaryRoot, 'version-pinned-workspace');
   await bootstrapDeclarativePackages({
@@ -408,6 +473,7 @@ try {
   );
 
   console.log(JSON.stringify({
+    bundledDefaultUpgradePersistsOverrides: true,
     cachedStartupWithoutBundle: true,
     freshOfficialDefaults: true,
     officialTrustAndGrant: true,

@@ -180,6 +180,16 @@ export async function bootstrapDeclarativePackages(input: {
       ) {
         continue;
       }
+      if (await isBundledBootstrapInstallation(
+        lockfile,
+        activeRoot.installationId,
+        input.profilePath,
+      )) {
+        const result = await manager.install(archivePaths[index]!);
+        lockfile = result.lockfile;
+        changed = changed || result.changed;
+        continue;
+      }
       // A non-default active source is a user version pin. Do not replace it
       // during startup.
       continue;
@@ -236,6 +246,26 @@ export async function bootstrapDeclarativePackages(input: {
     pluginRuntime,
     snapshot,
   };
+}
+
+async function isBundledBootstrapInstallation(
+  lockfile: WorkspacePackageLock,
+  installationId: string,
+  profilePath: string,
+): Promise<boolean> {
+  const installation = lockfile.installations.find(
+    (entry) => entry.installationId === installationId,
+  );
+  if (installation?.source.kind !== 'local_archive') return false;
+  try {
+    const [sourceDirectory, profileDirectory] = await Promise.all([
+      realpath(path.dirname(installation.source.path)),
+      realpath(path.dirname(profilePath)),
+    ]);
+    return sourceDirectory === profileDirectory;
+  } catch {
+    return false;
+  }
 }
 
 export async function readBootstrapProfile(

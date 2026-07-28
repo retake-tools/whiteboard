@@ -29,7 +29,7 @@ const archivePath = path.join(
   repositoryRoot,
   'packages',
   'bootstrap',
-  'video-studio-0.1.0.retakepkg',
+  'video-studio-0.1.1.retakepkg',
 );
 const materialized = await readMaterializedPackageArchive(archivePath);
 
@@ -75,7 +75,7 @@ export const videoStudioPackage: RetakePackageManifest = {
   schemaVersion: 1,
   source: {
     archiveDigest: materialized.archiveDigest,
-    installationId: 'test-fixture-video-studio-0.1.0',
+    installationId: 'test-fixture-video-studio-0.1.1',
     kind: 'installed',
   },
   version: materialized.manifest.version,
