@@ -38,8 +38,25 @@ assert.equal(
   undefined,
   'A fresh App Server connection must wait for model/list instead of using a hard-coded model.',
 );
+const unavailableSettings = await listExecutionProviderSettings(undefined, {
+  codexAppServerAvailability: () => ({
+    available: false,
+    reason: 'Codex CLI fixture is unavailable.',
+  }),
+});
+assert.equal(
+  unavailableSettings.connections.find(
+    (candidate) => candidate.connectionId === 'codex-app-server',
+  )?.status,
+  'not_installed',
+);
 await updateExecutionConnection('codex-app-server', { modelId: 'gpt-5.6-terra' });
 const settings = await checkExecutionConnection('codex-app-server', undefined, {
+  codexAppServerAvailability: () => ({
+    available: true,
+    executablePath: process.execPath,
+    version: '0.144.6',
+  }),
   probeCodexAppServer: async (selectedModelId) => ({
     version: '0.144.6',
     authMode: 'chatgpt',

@@ -526,6 +526,11 @@ async function emptySnapshot(): Promise<BoardSnapshot> {
 async function readyCodexConnection(): Promise<ExecutionConnectionSummary> {
   await updateExecutionConnection('codex-app-server', { modelId: 'gpt-5.6-terra' });
   const settings = await checkExecutionConnection('codex-app-server', undefined, {
+    codexAppServerAvailability: () => ({
+      available: true,
+      executablePath: process.execPath,
+      version: '0.144.6',
+    }),
     probeCodexAppServer: async (selectedModelId) => ({
       authMode: 'chatgpt',
       capabilities: { imageGeneration: true, namespaceTools: true, webSearch: true },

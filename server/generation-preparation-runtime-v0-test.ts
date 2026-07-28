@@ -90,6 +90,11 @@ assert.throws(
 const snapshot = await emptySnapshot();
 await updateExecutionConnection('codex-app-server', { modelId: 'gpt-5.6-terra' });
 const settings = await checkExecutionConnection('codex-app-server', undefined, {
+  codexAppServerAvailability: () => ({
+    available: true,
+    executablePath: process.execPath,
+    version: '0.144.6',
+  }),
   probeCodexAppServer: async (selectedModelId) => ({
     version: '0.144.6',
     authMode: 'chatgpt',
