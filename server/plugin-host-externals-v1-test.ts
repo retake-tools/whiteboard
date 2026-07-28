@@ -50,7 +50,7 @@ const reactNamespace = await import(
 );
 assert.equal(
   reactNamespace.createElement,
-  globalThis.retakePluginHostExternalsV1!.react.createElement,
+  globalThis.retakePluginHostExternalsV2!.react.createElement,
 );
 
 const pluginApiSource = pluginHostExternalModuleSource(
@@ -74,10 +74,10 @@ for (const helper of [
 ] as const) {
   assert.equal(pluginApi[helper](contribution), contribution);
 }
-assert.equal(pluginApi.pluginApiVersion, 1);
-assert.equal(pluginApi.version, 1);
+assert.equal(pluginApi.pluginApiVersion, 2);
+assert.equal(pluginApi.version, 2);
 assert.equal(
-  pluginHostExternalModuleSource('/plugin-runtime/externals/v1/missing.js'),
+  pluginHostExternalModuleSource('/plugin-runtime/externals/v2/missing.js'),
   undefined,
 );
 

@@ -8,13 +8,12 @@ import {
 } from 'react';
 import type {
   PluginContributionRegistryV1,
-  RegisteredPluginActionV1,
-  RegisteredPluginImageToolbarActionV1,
+  RegisteredPluginCommandV1,
 } from '../core/pluginContributionRegistry';
 import { TooltipIconButton } from './Tooltip';
 import { PluginActionIcon } from './PluginActionIcon';
 
-const emptyActionList: readonly RegisteredPluginActionV1[] =
+const emptyActionList: readonly RegisteredPluginCommandV1[] =
   Object.freeze([]);
 
 export function PluginImageToolbarActions({
@@ -39,14 +38,17 @@ export function PluginImageToolbarActions({
 }): ReactElement | null {
   const actionSnapshot = useSyncExternalStore(
     registry?.subscribe ?? emptySubscribe,
-    registry?.getActionSnapshot ?? emptyActionSnapshot,
-    registry?.getActionSnapshot ?? emptyActionSnapshot,
+    registry?.getCommandSnapshot ?? emptyActionSnapshot,
+    registry?.getCommandSnapshot ?? emptyActionSnapshot,
   );
   const actions = actionSnapshot.filter(
     (
       action,
-    ): action is RegisteredPluginImageToolbarActionV1 => (
-      action.placement === 'image.toolbar'
+    ): action is RegisteredPluginCommandV1 => (
+      action.contextKind === 'image'
+      && action.bindings.some(
+        (binding) => binding.surfaceId === 'image.context-toolbar',
+      )
     ),
   );
   const block = useMemo(() => Object.freeze({
@@ -68,6 +70,7 @@ export function PluginImageToolbarActions({
           key={action.contributionId}
           onFatalFailure={onFatalFailure}
           onInvoke={onInvoke}
+          registry={registry}
         />
       ))}
     </>
@@ -80,8 +83,9 @@ const PluginImageToolbarActionButton = memo(
     block,
     onFatalFailure,
     onInvoke,
+    registry,
   }: {
-    action: RegisteredPluginImageToolbarActionV1;
+    action: RegisteredPluginCommandV1;
     block: {
       readonly assetId: string;
       readonly blockId: string;
@@ -94,6 +98,7 @@ const PluginImageToolbarActionButton = memo(
       message: string,
     ) => Promise<void> | void;
     onInvoke?: () => void;
+    registry?: PluginContributionRegistryV1;
   }): ReactElement | null {
     const [pending, setPending] = useState(false);
     const environment = useSyncExternalStore(
@@ -102,6 +107,16 @@ const PluginImageToolbarActionButton = memo(
       action.host.environment.getSnapshot,
     );
     if (action.failure) return null;
+    const context = Object.freeze({
+      block,
+      host: action.host,
+      kind: 'image' as const,
+    });
+    const availability = registry?.availability(action, context) ?? {
+      enabled: false,
+      visible: false,
+    };
+    if (!availability.visible) return null;
 
     async function invoke(): Promise<void> {
       if (pending) return;
@@ -112,17 +127,15 @@ const PluginImageToolbarActionButton = memo(
           action.host,
           block.blockId,
         );
-        await action.run(Object.freeze({
-          block,
-          host: action.host,
-        }));
+        if (!registry) return;
+        await registry.invoke(action, context);
       } catch (error) {
         const message = error instanceof Error
           ? error.message
           : String(error);
         await onFatalFailure?.(
           action.pluginModuleId,
-          `Plugin action ${action.contributionId} failed: ${message}`,
+          `Plugin command ${action.commandId} failed: ${message}`,
         );
       } finally {
         setPending(false);
@@ -132,7 +145,7 @@ const PluginImageToolbarActionButton = memo(
     return (
       <TooltipIconButton
         className="icon-button plugin-image-toolbar-action"
-        disabled={pending}
+        disabled={pending || !availability.enabled}
         label={resolvePluginLocalizedTextV2(
           action.label,
           environment.locale,
@@ -148,7 +161,7 @@ const PluginImageToolbarActionButton = memo(
 );
 
 export async function waitForPluginImageToolbarBlockBinding(
-  host: RegisteredPluginImageToolbarActionV1['host'],
+  host: RegisteredPluginCommandV1['host'],
   blockId: string,
   timeoutMs = 750,
 ): Promise<void> {
@@ -175,6 +188,6 @@ function emptySubscribe(): () => void {
 }
 
 function emptyActionSnapshot():
-readonly RegisteredPluginActionV1[] {
+readonly RegisteredPluginCommandV1[] {
   return emptyActionList;
 }

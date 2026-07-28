@@ -12,8 +12,7 @@ import {
 } from 'react';
 import type {
   PluginContributionRegistryV1,
-  RegisteredPluginActionV1,
-  RegisteredPluginOperationInspectorActionV2,
+  RegisteredPluginCommandV1,
 } from '../core/pluginContributionRegistry';
 import type {
   AssetRecord,
@@ -21,7 +20,7 @@ import type {
   ExecutionRecord,
 } from '../core/types';
 
-const emptyActions: readonly RegisteredPluginActionV1[] = Object.freeze([]);
+const emptyActions: readonly RegisteredPluginCommandV1[] = Object.freeze([]);
 
 export function PluginOperationInspectorActions({
   disabled = false,
@@ -49,15 +48,18 @@ export function PluginOperationInspectorActions({
 }): ReactElement | null {
   const snapshot = useSyncExternalStore(
     registry?.subscribe ?? emptySubscribe,
-    registry?.getActionSnapshot ?? emptySnapshot,
-    registry?.getActionSnapshot ?? emptySnapshot,
+    registry?.getCommandSnapshot ?? emptySnapshot,
+    registry?.getCommandSnapshot ?? emptySnapshot,
   );
   const actions = snapshot.filter(
     (
       action,
-    ): action is RegisteredPluginOperationInspectorActionV2 => (
-      action.placement === 'operation.inspector'
-      && action.supportedCapabilityIds.includes(execution.capabilityId)
+    ): action is RegisteredPluginCommandV1 => (
+      action.contextKind === 'operation'
+      && action.ownedCapabilityId === execution.capabilityId
+      && action.bindings.some(
+        (binding) => binding.surfaceId === 'operation.inspector',
+      )
     ),
   );
   if (actions.length === 0 || !operationBlock) return null;
@@ -81,6 +83,7 @@ export function PluginOperationInspectorActions({
           onBeforeInvoke={onBeforeInvoke}
           onFatalFailure={onFatalFailure}
           operation={operation}
+          registry={registry}
         />
       ))}
     </div>
@@ -93,8 +96,9 @@ function PluginOperationActionButton({
   onBeforeInvoke,
   onFatalFailure,
   operation,
+  registry,
 }: {
-  action: RegisteredPluginOperationInspectorActionV2;
+  action: RegisteredPluginCommandV1;
   disabled: boolean;
   onBeforeInvoke?: (
     operationBlockId: string,
@@ -104,6 +108,7 @@ function PluginOperationActionButton({
     message: string,
   ) => Promise<void> | void;
   operation: PluginOperationInspectorViewV2;
+  registry?: PluginContributionRegistryV1;
 }): ReactElement | null {
   const [pending, setPending] = useState(false);
   const environment = useSyncExternalStore(
@@ -112,21 +117,29 @@ function PluginOperationActionButton({
     action.host.environment.getSnapshot,
   );
   if (action.failure) return null;
+  const context = Object.freeze({
+    host: action.host,
+    kind: 'operation' as const,
+    operation,
+  });
+  const availability = registry?.availability(action, context) ?? {
+    enabled: false,
+    visible: false,
+  };
+  if (!availability.visible) return null;
 
   const invoke = async (): Promise<void> => {
-    if (disabled || pending) return;
+    if (disabled || pending || !availability.enabled) return;
     setPending(true);
     try {
       await onBeforeInvoke?.(operation.operationBlockId);
-      await action.run(Object.freeze({
-        host: action.host,
-        operation,
-      }));
+      if (!registry) return;
+      await registry.invoke(action, context);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       await onFatalFailure?.(
         action.pluginModuleId,
-        `Plugin operation action ${action.contributionId} failed: ${message}`,
+        `Plugin operation command ${action.commandId} failed: ${message}`,
       );
     } finally {
       setPending(false);
@@ -135,7 +148,7 @@ function PluginOperationActionButton({
   return (
     <button
       className="execution-restore-configuration"
-      disabled={disabled || pending}
+      disabled={disabled || pending || !availability.enabled}
       type="button"
       onClick={() => void invoke()}
     >
@@ -254,6 +267,6 @@ function emptySubscribe(): () => void {
   return () => undefined;
 }
 
-function emptySnapshot(): readonly RegisteredPluginActionV1[] {
+function emptySnapshot(): readonly RegisteredPluginCommandV1[] {
   return emptyActions;
 }

@@ -3,7 +3,7 @@ import {
 } from '@retake-tools/package-sdk';
 
 export const retakePluginExternalModuleBasePath =
-  '/plugin-runtime/externals/v1';
+  '/plugin-runtime/externals/v2';
 
 export const retakePluginExternalModulePaths = Object.freeze({
   '@retake/plugin-api': `${retakePluginExternalModuleBasePath}/plugin-api.js`,
@@ -140,7 +140,7 @@ export function pluginHostExternalModuleSource(
 
 function moduleSource(specifier: string, exports: string[]): string {
   return [
-    'const host = globalThis.retakePluginHostExternalsV1;',
+    'const host = globalThis.retakePluginHostExternalsV2;',
     `if (!host) throw new Error(${JSON.stringify(
       'Retake Plugin Host externals are not installed.',
     )});`,

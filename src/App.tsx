@@ -241,6 +241,8 @@ function ReadyApp({
   }, [snapshot.board.boardId, snapshot.project.projectId]);
   const canvasController = useCanvasController({
     connectSessionPorts: connectPorts,
+    onPluginContributionFatalFailure,
+    pluginContributionRegistry,
     redo,
     setHistoryOpen: setIsHistoryOpen,
     setInspectorBlockId,
