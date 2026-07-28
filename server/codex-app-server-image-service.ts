@@ -22,7 +22,10 @@ import {
 import {
   outpaintCapabilityId,
 } from '../src/core/outpaintContracts';
-import { listExecutionProviderSettings } from './local-store/execution-provider-store';
+import {
+  listExecutionProviderSettings,
+  type ExecutionConnectionCheckDependencies,
+} from './local-store/execution-provider-store';
 import {
   failExecution,
   markExecutionAdapterRetryRunning,
@@ -40,6 +43,7 @@ import {
 } from '../src/core/storyboardSheetContracts';
 
 interface CodexAppServerImageDependencies {
+  connectionCheck?: ExecutionConnectionCheckDependencies;
   runTurn?: typeof runCodexAppServerTurn;
 }
 
@@ -54,7 +58,7 @@ export async function startCodexAppServerImageGeneration(input: {
   execution: ExecutionRecord;
   completion: Promise<void>;
 }> {
-  const settings = await listExecutionProviderSettings(input.projectId);
+  const settings = await listExecutionProviderSettings(input.projectId, dependencies.connectionCheck);
   const connection = settings.connections.find((candidate) => candidate.connectionId === input.connectionId);
   if (
     !connection ||

@@ -1,0 +1,53 @@
+name: Runtime checks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - develop
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  canonical:
+    name: Canonical Node 24
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run mcp:test
+        env:
+          RETAKE_WORKSPACE_DIR: .retake-test
+      - run: npm run plugin:package:test
+
+  compatibility:
+    name: Compatibility Node ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - node-version: 22.22.0
+            experimental: false
+          - node-version: 26
+            experimental: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run declarative-package-v0:test
+      - run: npm run plugin:package:test

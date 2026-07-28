@@ -55,6 +55,7 @@ interface FixedConnectionDefinition {
 }
 
 export interface ExecutionConnectionCheckDependencies {
+  codexAppServerAvailability?: typeof codexAppServerAvailability;
   probeCodexAppServer?: typeof probeCodexAppServerConnection;
   probeDreaminaCli?: typeof probeDreaminaCliConnection;
   probeModelArk?: typeof probeSeedanceModelArkConnection;
@@ -101,7 +102,10 @@ const fixedConnections: FixedConnectionDefinition[] = [
   },
 ];
 
-export async function listExecutionProviderSettings(projectId?: string): Promise<ExecutionProviderSettingsSnapshot> {
+export async function listExecutionProviderSettings(
+  projectId?: string,
+  dependencies: ExecutionConnectionCheckDependencies = {},
+): Promise<ExecutionProviderSettingsSnapshot> {
   const [connectionsFile, credentialsFile, defaultsFile] = await Promise.all([
     readExecutionConnections(),
     readExecutionCredentials(),
@@ -139,7 +143,7 @@ export async function listExecutionProviderSettings(projectId?: string): Promise
       lastCheckedAt: stored?.lastCheckedAt,
       lastError: stored?.lastError,
       requiresCredential: connector.requiresCredential,
-    });
+    }, dependencies);
     return {
       connectionId,
       connectorId: connector.connectorId,
@@ -330,7 +334,7 @@ export async function checkExecutionConnection(
   projectId?: string,
   dependencies: ExecutionConnectionCheckDependencies = {},
 ): Promise<ExecutionProviderSettingsSnapshot> {
-  const settings = await listExecutionProviderSettings(projectId);
+  const settings = await listExecutionProviderSettings(projectId, dependencies);
   const summary = settings.connections.find((connection) => connection.connectionId === connectionId);
   if (!summary) throw new Error(`Execution connection not found: ${connectionId}`);
   let error: string | undefined;
@@ -424,7 +428,7 @@ export async function checkExecutionConnection(
     connection,
   ];
   await writeExecutionConnections(connectionsFile);
-  return listExecutionProviderSettings(projectId);
+  return listExecutionProviderSettings(projectId, dependencies);
 }
 
 export async function saveExecutionDefault(input: {
@@ -499,7 +503,7 @@ async function passiveStatus(input: {
   lastCheckedAt?: string;
   lastError?: string;
   requiresCredential: boolean;
-}): Promise<ExecutionConnectionStatus> {
+}, dependencies: ExecutionConnectionCheckDependencies = {}): Promise<ExecutionConnectionStatus> {
   if (input.installStatus !== 'installed') return 'not_installed';
   if (!input.enabled) return 'unavailable';
   if (input.connectorId === 'dreamina') {
@@ -508,7 +512,8 @@ async function passiveStatus(input: {
     return input.lastError ? 'unavailable' : 'ready';
   }
   if (input.connectorId === 'codex-app-server') {
-    if (!codexAppServerAvailability().available) return 'not_installed';
+    const availability = dependencies.codexAppServerAvailability ?? codexAppServerAvailability;
+    if (!availability().available) return 'not_installed';
     if (!input.lastCheckedAt) return 'untested';
     return input.lastError ? 'unavailable' : 'ready';
   }

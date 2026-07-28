@@ -20,7 +20,9 @@ Retake Whiteboard 是面向 Retake 视频创作工作流的无限画布。当前
 
 ## 环境要求
 
-- Node.js 20.19 或更高版本（使用 Node.js 22 时需 22.12 或更高版本）；
+- canonical 开发、CI 与发布构建使用 Node.js 24.18.0；
+- Node.js 22.12 或更高版本继续作为兼容运行时。Node.js 26 在进入 LTS 且 Package
+  归档 codec 与运行时解耦前仅作实验性验证；
 - npm；
 - 已安装 Codex CLI，并可使用 Codex Plugin；
 - Codex 环境中可用的真实图片生成或编辑能力。
