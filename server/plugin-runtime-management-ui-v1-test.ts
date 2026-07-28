@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type {
-  PluginModuleRuntimeRecordV1,
-  PluginRuntimeSnapshotV1,
+import {
+  emptyPluginProfileStateV1,
+  projectPluginRuntimeForProfileV1,
+  updatePluginProfileOverrideV1,
+  type PluginModuleRuntimeRecordV1,
+  type PluginRuntimeSnapshotV1,
 } from '@retake-tools/package-sdk';
 import { PluginManager } from '../src/components/PluginManager';
 import type {
@@ -72,6 +75,8 @@ const enabled = runtimeSnapshot({
   },
 });
 assert.match(renderSettings(enabled), />Disable</);
+assert.match(renderSettings(enabled), /Enablement scope/);
+assert.match(renderSettings(enabled), /Effective: Enabled · Workspace/);
 assert.match(renderSettings({ ...enabled, safeMode: true }), /Leave safe mode/);
 
 const originalFetch = globalThis.fetch;
@@ -109,9 +114,10 @@ globalThis.fetch = async (input): Promise<Response> => {
 
 try {
   const controller = createPluginRuntimeController({
-    applySnapshot: async (snapshot) => {
-      applied.push(snapshot);
+    applySnapshot: async (_base, effective) => {
+      applied.push(effective);
     },
+    initialProfileState: emptyPluginProfileStateV1(),
     initialSnapshot: enabled,
   });
   let notificationCount = 0;
@@ -140,7 +146,54 @@ try {
   globalThis.fetch = originalFetch;
 }
 
+const boardDisabledProfile = updatePluginProfileOverrideV1(
+  emptyPluginProfileStateV1(),
+  {
+    boardId: 'board.fixture',
+    pluginModuleId: enabled.modules[0]!.pluginModuleId,
+    projectId: 'project.fixture',
+    scope: 'board',
+    state: 'disabled',
+  },
+);
+globalThis.fetch = async (input): Promise<Response> => {
+  assert.equal(String(input), '/api/local/plugin-foundation/profile');
+  return new Response(JSON.stringify(boardDisabledProfile), {
+    headers: { 'Content-Type': 'application/json' },
+    status: 200,
+  });
+};
+try {
+  const controller = createPluginRuntimeController({
+    applySnapshot: async () => {},
+    initialProfileState: emptyPluginProfileStateV1(),
+    initialSnapshot: enabled,
+  });
+  await controller.setScope({
+    boardId: 'board.fixture',
+    projectId: 'project.fixture',
+  });
+  await controller.updateProfile({
+    boardId: 'board.fixture',
+    pluginModuleId: enabled.modules[0]!.pluginModuleId,
+    projectId: 'project.fixture',
+    scope: 'board',
+    state: 'disabled',
+  });
+  assert.equal(
+    controller.getProfileProjection().modules[0]?.source.scope,
+    'board',
+  );
+  assert.equal(
+    controller.getProfileProjection().runtime.modules[0]?.status,
+    'disabled',
+  );
+} finally {
+  globalThis.fetch = originalFetch;
+}
+
 process.stdout.write(`${JSON.stringify({
+  boardProfileReconcilesRuntime: true,
   exactNextRuntimeAction: true,
   lazyPanelUsesStableExternalStore: true,
   runtimeMutationsSerialized: true,
@@ -148,13 +201,28 @@ process.stdout.write(`${JSON.stringify({
 })}\n`);
 
 function renderSettings(snapshot: PluginRuntimeSnapshotV1): string {
+  const profile = emptyPluginProfileStateV1();
+  const projection = projectPluginRuntimeForProfileV1({
+    boardId: 'board.fixture',
+    profile,
+    projectId: 'project.fixture',
+    runtime: snapshot,
+  });
   const pluginController: PluginRuntimeControllerV1 = {
+    getProfileProjection: () => projection,
+    getProfileState: () => profile,
+    getScope: () => ({
+      boardId: 'board.fixture',
+      projectId: 'project.fixture',
+    }),
     getSnapshot: () => snapshot,
     manageModule: async () => snapshot,
     refresh: async () => snapshot,
     replace: async () => snapshot,
     setSafeMode: async () => snapshot,
+    setScope: async () => snapshot,
     subscribe: () => () => {},
+    updateProfile: async () => snapshot,
   };
   const packageSnapshot = lifecycleSnapshot(snapshot);
   const packageController: PackageLifecycleControllerV1 = {

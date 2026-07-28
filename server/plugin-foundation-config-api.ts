@@ -7,6 +7,9 @@ import type {
 import {
   PluginFoundationConfigStore,
 } from './plugin-foundation-config-store';
+import {
+  PluginProfileStore,
+} from './plugin-profile-store';
 
 export type PluginFoundationConfigApiResult =
   | { handled: false }
@@ -16,8 +19,37 @@ export async function handlePluginFoundationConfigRequest(input: {
   method: string;
   pathname: string;
   readBody(): Promise<unknown>;
+  profileStore: PluginProfileStore;
   store: PluginFoundationConfigStore;
 }): Promise<PluginFoundationConfigApiResult> {
+  if (
+    input.method === 'GET'
+    && input.pathname === '/plugin-foundation/profile'
+  ) {
+    return { handled: true, value: await input.profileStore.read() };
+  }
+  if (
+    input.method === 'POST'
+    && input.pathname === '/plugin-foundation/profile'
+  ) {
+    const body = await input.readBody() as {
+      boardId?: string | null;
+      pluginModuleId?: string;
+      projectId?: string;
+      scope?: 'board' | 'project';
+      state?: 'disabled' | 'enabled' | 'inherit';
+    };
+    return {
+      handled: true,
+      value: await input.profileStore.update({
+        boardId: body.boardId ?? null,
+        pluginModuleId: body.pluginModuleId ?? '',
+        projectId: body.projectId ?? '',
+        scope: body.scope as 'board' | 'project',
+        state: body.state as 'disabled' | 'enabled' | 'inherit',
+      }),
+    };
+  }
   if (
     input.method === 'GET'
     && input.pathname === '/plugin-foundation/settings'

@@ -200,6 +200,16 @@ try {
   const normal = await service.setSafeMode(false);
   assert.equal(normal.safeMode, false);
   assert.equal(normal.modules[0]!.status, 'enabled');
+  await service.disable('retake.plugin.whiteboard-runtime-fixture');
+  assert.equal(
+    (await service.readEnabledModuleFile({
+      packageDigest: enabled.packageLock.digest,
+      path: enabled.manifest.runtime.entrypoint,
+      pluginModuleId: enabled.pluginModuleId,
+    })).mediaType,
+    'text/javascript; charset=utf-8',
+  );
+  await service.enable('retake.plugin.whiteboard-runtime-fixture');
 
   const sourceV2 = path.join(temporaryRoot, 'source-v2');
   await writePluginSource(sourceV2, {
@@ -279,6 +289,7 @@ try {
     permissionUpgradeRevokesGrant: true,
     persistedRuntimeState: pluginRuntimeStateFile,
     safeModePreservesDesiredState: true,
+    scopedProfileCanReadEligibleTrustedModule: true,
     workspaceWrites: 'disposable-only',
   })}\n`);
 } finally {

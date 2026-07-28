@@ -18,6 +18,8 @@ import {
 } from 'react';
 import type {
   PluginModuleRuntimeRecordV1,
+  PluginProfileOverrideStateV1,
+  PluginProfileScopeV1,
 } from '@retake-tools/package-sdk';
 import type {
   PackageLifecycleControllerV1,
@@ -55,7 +57,12 @@ export function PluginManager({
     pluginController.getSnapshot,
     pluginController.getSnapshot,
   );
+  const profileProjection = pluginController.getProfileProjection();
+  const profileState = pluginController.getProfileState();
+  const profileContext = pluginController.getScope();
   const [activeTab, setActiveTab] = useState<PluginManagerTab>(initialTab);
+  const [profileScope, setProfileScope] =
+    useState<PluginProfileScopeV1>('workspace');
   const [source, setSource] = useState('');
   const [busyId, setBusyId] = useState<string>();
   const [error, setError] = useState<string>();
@@ -117,6 +124,41 @@ export function PluginManager({
   const unmatchedModules = pluginSnapshot.modules.filter(
     (record) => !installedPackageIds.has(record.packageLock.packageId),
   );
+  const effectiveProfiles = new Map(
+    profileProjection.modules.map((entry) => [
+      entry.pluginModuleId,
+      entry,
+    ]),
+  );
+
+  const updateProfile = (
+    record: PluginModuleRuntimeRecordV1,
+    state: PluginProfileOverrideStateV1,
+  ): void => {
+    if (profileScope === 'workspace') {
+      void run(
+        `module:${record.pluginModuleId}:${state}`,
+        () => pluginController.manageModule(
+          record.pluginModuleId,
+          state === 'enabled' ? 'enable' : 'disable',
+        ),
+      );
+      return;
+    }
+    if (!profileContext.projectId) return;
+    void run(
+      `profile:${record.pluginModuleId}:${profileScope}`,
+      () => pluginController.updateProfile({
+        boardId: profileScope === 'board'
+          ? profileContext.boardId
+          : null,
+        pluginModuleId: record.pluginModuleId,
+        projectId: profileContext.projectId!,
+        scope: profileScope,
+        state,
+      }),
+    );
+  };
 
   return (
     <div
@@ -224,6 +266,37 @@ export function PluginManager({
                   : <RefreshCw size={15} />}
                 {t('pluginSettings.refresh')}
               </button>
+              <label className="plugin-manager-profile-scope">
+                <span>
+                  <strong>{t('pluginSettings.profileScope')}</strong>
+                  <small>
+                    {t('pluginSettings.profileScopeDescription')}
+                  </small>
+                </span>
+                <select
+                  aria-label={t('pluginSettings.profileScope')}
+                  value={profileScope}
+                  onChange={(event) => setProfileScope(
+                    event.target.value as PluginProfileScopeV1,
+                  )}
+                >
+                  <option value="workspace">
+                    {t('pluginSettings.scopeWorkspace')}
+                  </option>
+                  <option
+                    value="project"
+                    disabled={!profileContext.projectId}
+                  >
+                    {t('pluginSettings.scopeProject')}
+                  </option>
+                  <option
+                    value="board"
+                    disabled={!profileContext.boardId}
+                  >
+                    {t('pluginSettings.scopeBoard')}
+                  </option>
+                </select>
+              </label>
             </div>
 
             <div className="plugin-manager-content">
@@ -257,6 +330,10 @@ export function PluginManager({
                         busyId={busyId}
                         locale={locale}
                         modules={modulesByPackage.get(record.packageId) ?? []}
+                        effectiveProfiles={effectiveProfiles}
+                        profileContext={profileContext}
+                        profileScope={profileScope}
+                        profileState={profileState}
                         record={record}
                         safeMode={pluginSnapshot.safeMode}
                         t={t}
@@ -274,6 +351,9 @@ export function PluginManager({
                             action,
                           ),
                         )}
+                        onProfileChange={(moduleRecord, state) => (
+                          updateProfile(moduleRecord, state)
+                        )}
                       />
                     ))}
                     {unmatchedModules.length > 0 ? (
@@ -284,6 +364,12 @@ export function PluginManager({
                             key={record.pluginModuleId}
                             busyId={busyId}
                             locale={locale}
+                            effectiveProfile={effectiveProfiles.get(
+                              record.pluginModuleId,
+                            )}
+                            profileContext={profileContext}
+                            profileScope={profileScope}
+                            profileState={profileState}
                             record={record}
                             safeMode={pluginSnapshot.safeMode}
                             t={t}
@@ -293,6 +379,10 @@ export function PluginManager({
                                 record.pluginModuleId,
                                 action,
                               ),
+                            )}
+                            onProfileChange={(state) => updateProfile(
+                              record,
+                              state,
                             )}
                           />
                         ))}

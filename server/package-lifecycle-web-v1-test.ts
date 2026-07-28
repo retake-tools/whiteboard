@@ -12,6 +12,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type {
   DeclarativePackageManifest,
 } from '@retake-tools/package-contracts';
+import {
+  emptyPluginProfileStateV1,
+  projectPluginRuntimeForProfileV1,
+} from '@retake-tools/package-sdk';
 import { PluginManager } from '../src/components/PluginManager';
 import type {
   PackageLifecycleControllerV1,
@@ -279,7 +283,16 @@ function pluginRuntimeController(
   snapshot: PackageLifecycleSnapshotV1,
   appliedRuntimeRevisions: number[],
 ): PluginRuntimeControllerV1 {
+  const profile = emptyPluginProfileStateV1();
   return {
+    getProfileProjection: () => projectPluginRuntimeForProfileV1({
+      boardId: null,
+      profile,
+      projectId: null,
+      runtime: snapshot.pluginRuntime,
+    }),
+    getProfileState: () => profile,
+    getScope: () => ({ boardId: null, projectId: null }),
     getSnapshot: () => snapshot.pluginRuntime,
     manageModule: async () => snapshot.pluginRuntime,
     refresh: async () => snapshot.pluginRuntime,
@@ -288,7 +301,9 @@ function pluginRuntimeController(
       return runtimeSnapshot;
     },
     setSafeMode: async () => snapshot.pluginRuntime,
+    setScope: async () => snapshot.pluginRuntime,
     subscribe: () => () => {},
+    updateProfile: async () => snapshot.pluginRuntime,
   };
 }
 

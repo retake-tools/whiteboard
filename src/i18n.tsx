@@ -853,10 +853,18 @@ export type TranslationKey =
   | 'pluginSettings.permissions'
   | 'pluginSettings.permissionsGranted'
   | 'pluginSettings.permissionsNotGranted'
+  | 'pluginSettings.profileBlocker'
+  | 'pluginSettings.profileScope'
+  | 'pluginSettings.profileScopeDescription'
   | 'pluginSettings.publisher'
   | 'pluginSettings.refresh'
   | 'pluginSettings.safeMode'
   | 'pluginSettings.safeModeDescription'
+  | 'pluginSettings.scopeBoard'
+  | 'pluginSettings.scopeInherit'
+  | 'pluginSettings.scopeProject'
+  | 'pluginSettings.scopeWorkspace'
+  | 'pluginSettings.effectiveSource'
   | 'pluginSettings.statusDisabled'
   | 'pluginSettings.statusEnabled'
   | 'pluginSettings.statusFailed'
@@ -1868,10 +1876,18 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.permissions': 'Declared permissions',
     'pluginSettings.permissionsGranted': 'Permissions granted',
     'pluginSettings.permissionsNotGranted': 'Permissions not granted',
+    'pluginSettings.profileBlocker': 'Blocked by',
+    'pluginSettings.profileScope': 'Enablement scope',
+    'pluginSettings.profileScopeDescription': 'Choose which override layer these module controls edit.',
     'pluginSettings.publisher': 'Publisher',
     'pluginSettings.refresh': 'Refresh',
     'pluginSettings.safeMode': 'Safe mode',
     'pluginSettings.safeModeDescription': 'Temporarily detach every Plugin contribution while preserving each desired state.',
+    'pluginSettings.scopeBoard': 'Board',
+    'pluginSettings.scopeInherit': 'Inherit',
+    'pluginSettings.scopeProject': 'Project',
+    'pluginSettings.scopeWorkspace': 'Workspace',
+    'pluginSettings.effectiveSource': 'Effective',
     'pluginSettings.statusDisabled': 'Disabled',
     'pluginSettings.statusEnabled': 'Enabled',
     'pluginSettings.statusFailed': 'Failed',
@@ -2878,10 +2894,18 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.permissions': '声明权限',
     'pluginSettings.permissionsGranted': '权限已授权',
     'pluginSettings.permissionsNotGranted': '权限未授权',
+    'pluginSettings.profileBlocker': '阻塞原因',
+    'pluginSettings.profileScope': '启用范围',
+    'pluginSettings.profileScopeDescription': '选择当前模块控件要修改的覆盖层。',
     'pluginSettings.publisher': '发布者',
     'pluginSettings.refresh': '刷新',
     'pluginSettings.safeMode': '安全模式',
     'pluginSettings.safeModeDescription': '临时卸载所有插件贡献，同时保留每个插件原本的启用意图。',
+    'pluginSettings.scopeBoard': '画板',
+    'pluginSettings.scopeInherit': '继承',
+    'pluginSettings.scopeProject': '项目',
+    'pluginSettings.scopeWorkspace': 'Workspace',
+    'pluginSettings.effectiveSource': '实际状态',
     'pluginSettings.statusDisabled': '已停用',
     'pluginSettings.statusEnabled': '已启用',
     'pluginSettings.statusFailed': '运行失败',
