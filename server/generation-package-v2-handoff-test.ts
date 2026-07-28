@@ -160,10 +160,10 @@ assert.equal(
   storyboardUnitToGenerationPackageWorkflow.definitionHash,
   'sha256:retake-workflow-storyboard-unit-to-generation-package-manifest-v2',
 );
-assert.equal(storyProductionStarterPackage.version, '0.1.0');
+assert.equal(storyProductionStarterPackage.version, '0.1.1');
 assert.equal(
   storyProductionStarterPackage.digest,
-  'sha256:1223ff4574c5090c3d0f89a5cf05ddfe78cf53c8666c830fa089ea96583216c7',
+  'sha256:50ceb7fd23fa8000b753fabd8662b8df3f49ca261fdd11c42ab3393cab636de7',
 );
 assert.deepEqual(
   storyProductionStarterPackage.components.skills.find(

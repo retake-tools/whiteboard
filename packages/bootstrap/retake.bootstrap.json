@@ -21,9 +21,9 @@
       "version": "0.10.0"
     },
     {
-      "archiveDigest": "sha256:bb78d8bb77853c79d179f7b8ddacc6b0507e14718543aa7178f7959ecdbe9543",
-      "archivePath": "video-studio-0.1.0.retakepkg",
-      "digest": "sha256:1223ff4574c5090c3d0f89a5cf05ddfe78cf53c8666c830fa089ea96583216c7",
+      "archiveDigest": "sha256:4dd5c40ce2bd9644d883a2c8695667896d368ff0a1966d043d7cc5e6801d67e5",
+      "archivePath": "video-studio-0.1.1.retakepkg",
+      "digest": "sha256:50ceb7fd23fa8000b753fabd8662b8df3f49ca261fdd11c42ab3393cab636de7",
       "packageId": "design.retake.video-studio",
       "pluginModules": [
         {
@@ -31,7 +31,7 @@
           "pluginModuleId": "design.retake.video-studio.web"
         }
       ],
-      "version": "0.1.0"
+      "version": "0.1.1"
     }
   ],
   "profileId": "retake.default-studios",
