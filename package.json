@@ -135,6 +135,7 @@
     "@retake-tools/package-registry-client": "file:vendor/package-toolchain/0.1.0/retake-tools-package-registry-client-0.1.0.tgz",
     "@retake-tools/package-sdk": "file:vendor/package-toolchain/0.1.0/retake-tools-package-sdk-0.1.0.tgz",
     "@retake-tools/plugin-runtime": "file:vendor/package-toolchain/0.1.0/retake-tools-plugin-runtime-0.1.0.tgz",
+    "@retake/plugin-api": "file:vendor/package-toolchain/0.1.0/retake-plugin-api-0.1.0.tgz",
     "@xyflow/react": "12.11.1",
     "ai": "^7.0.32",
     "lucide-react": "1.22.0",

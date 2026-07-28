@@ -34,9 +34,16 @@ export function pluginHostExternalModuleSource(
   }
   if (specifier === '@retake/plugin-api') {
     return moduleSource(specifier, [
+      'export const defineCapability = runtime.defineCapability;',
+      'export const defineCommand = runtime.defineCommand;',
+      'export const defineMessages = runtime.defineMessages;',
+      'export const definePanel = runtime.definePanel;',
+      'export const definePlugin = runtime.definePlugin;',
       'export const definePluginContribution = runtime.definePluginContribution;',
+      'export const defineRenderer = runtime.defineRenderer;',
+      'export const defineSettings = runtime.defineSettings;',
+      'export const pluginApiVersion = runtime.pluginApiVersion;',
       'export const version = runtime.version;',
-      'export default runtime;',
     ]);
   }
   if (specifier === 'react') {

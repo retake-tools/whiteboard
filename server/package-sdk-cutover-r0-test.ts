@@ -41,13 +41,13 @@ const packageJson = await readJson(path.join(repositoryRoot, 'package.json'));
 const packageLock = await readJson(path.join(repositoryRoot, 'package-lock.json'));
 
 assert.deepEqual(source, {
-  commit: 'b39d11f916e1eba1ba5a3c62c694b2db9ba1905e',
+  commit: 'a173413852d7e0787f8c689b5e5f1c876c964452',
   repository: 'https://github.com/retake-tools/package',
   version: '0.1.0',
 });
 assert.equal(manifest.schemaVersion, 1);
 assert.equal(manifest.toolchainVersion, '0.1.0');
-assert.equal(manifest.packages.length, 7);
+assert.equal(manifest.packages.length, 8);
 
 for (const entry of manifest.packages) {
   const dependency = packageJson.dependencies[entry.name];

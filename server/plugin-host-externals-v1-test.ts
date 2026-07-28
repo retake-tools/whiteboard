@@ -35,7 +35,9 @@ for (const specifier of retakeWebPluginExternalModuleSpecifiers) {
       Buffer.from(source).toString('base64')
     }`
   );
-  assert.ok(namespace.default);
+  if (specifier !== '@retake/plugin-api') {
+    assert.ok(namespace.default);
+  }
 }
 
 const reactSource = pluginHostExternalModuleSource(
@@ -61,6 +63,18 @@ const pluginApi = await import(
 );
 const contribution = { component: 'fixture', kind: 'panel' };
 assert.equal(pluginApi.definePluginContribution(contribution), contribution);
+for (const helper of [
+  'defineCapability',
+  'defineCommand',
+  'defineMessages',
+  'definePanel',
+  'definePlugin',
+  'defineRenderer',
+  'defineSettings',
+] as const) {
+  assert.equal(pluginApi[helper](contribution), contribution);
+}
+assert.equal(pluginApi.pluginApiVersion, 1);
 assert.equal(pluginApi.version, 1);
 assert.equal(
   pluginHostExternalModuleSource('/plugin-runtime/externals/v1/missing.js'),
@@ -69,7 +83,8 @@ assert.equal(
 
 process.stdout.write(`${JSON.stringify({
   browserImportMapCoversBuildExternals: true,
-  pluginApiIdentityHelper: true,
+  pluginApiIdentityHelpers: true,
+  pluginApiVersion: pluginApi.pluginApiVersion,
   reactHostSingletonIdentity: true,
   singletonExternalCount: retakeWebPluginExternalModuleSpecifiers.length,
 })}\n`);
