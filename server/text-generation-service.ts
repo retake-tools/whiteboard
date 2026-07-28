@@ -4,7 +4,11 @@ import { generateNativeText, type NativeTextResult } from './ai-sdk-native-text-
 import { runCodexAppServerTurn } from './codex-app-server-client';
 import { publishExecutionEvent } from './execution-events';
 import { createAssetFromDataUrl } from './local-store/asset-store';
-import { listExecutionProviderSettings, resolveExecutionConnection } from './local-store/execution-provider-store';
+import {
+  listExecutionProviderSettings,
+  resolveExecutionConnection,
+  type ExecutionConnectionCheckDependencies,
+} from './local-store/execution-provider-store';
 import {
   failExecution,
   markExecutionRunning,
@@ -25,6 +29,7 @@ import {
 type TextGenerationResult = NativeTextResult | OpenAICompatibleTextResult;
 
 interface TextGenerationDependencies {
+  connectionCheck?: ExecutionConnectionCheckDependencies;
   generateNative?: typeof generateNativeText;
   generateOpenAICompatible?: typeof generateOpenAICompatibleText;
   runCodexAppServer?: typeof runCodexAppServerTurn;
@@ -40,7 +45,7 @@ export async function startTextGeneration(input: {
   execution: ExecutionRecord;
   completion: Promise<void>;
 }> {
-  const settings = await listExecutionProviderSettings(input.projectId);
+  const settings = await listExecutionProviderSettings(input.projectId, dependencies.connectionCheck);
   const connectionSummary = settings.connections.find((candidate) => candidate.connectionId === input.connectionId);
   const connectorId = connectionSummary?.connectorId;
   if (!connectionSummary || connectionSummary.status !== 'ready' || !connectorId || !isTextConnector(connectorId)) {

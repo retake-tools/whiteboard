@@ -75,6 +75,12 @@ if (!workspaceDirectory || path.resolve(workspaceDirectory) === path.resolve('.r
   throw new Error('Video production chain E2E requires an explicit disposable RETAKE_WORKSPACE_DIR.');
 }
 
+const codexAppServerAvailability = () => ({
+  available: true,
+  executablePath: process.execPath,
+  version: '0.144.6',
+});
+
 let snapshot = await emptySnapshot();
 const codexConnection = await readyCodexConnection();
 const mockVideoConnection = mockConnection();
@@ -330,6 +336,7 @@ const startedPreparation = await startTextGeneration({
   executionId: preparationQueued.execution.executionId,
   projectId: snapshot.project.projectId,
 }, {
+  connectionCheck: { codexAppServerAvailability },
   runCodexAppServer: async () => ({
     text: packageMarkdown,
     threadId: 'thread_video_chain_generation_package',
@@ -526,6 +533,7 @@ async function emptySnapshot(): Promise<BoardSnapshot> {
 async function readyCodexConnection(): Promise<ExecutionConnectionSummary> {
   await updateExecutionConnection('codex-app-server', { modelId: 'gpt-5.6-terra' });
   const settings = await checkExecutionConnection('codex-app-server', undefined, {
+    codexAppServerAvailability,
     probeCodexAppServer: async (selectedModelId) => ({
       authMode: 'chatgpt',
       capabilities: { imageGeneration: true, namespaceTools: true, webSearch: true },
