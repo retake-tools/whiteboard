@@ -32,6 +32,12 @@ assert.match(cliUpgradeMessage({
   upgradeCommands: ['claude update'],
 }), /Claude CLI.*1\.0\.0.*claude update/);
 
+const codexAppServerAvailability = () => ({
+  available: true,
+  executablePath: process.execPath,
+  version: '0.144.6',
+});
+
 const initialSettings = await listExecutionProviderSettings();
 assert.equal(
   initialSettings.connections.find((candidate) => candidate.connectionId === 'codex-app-server')?.modelId,
@@ -52,11 +58,7 @@ assert.equal(
 );
 await updateExecutionConnection('codex-app-server', { modelId: 'gpt-5.6-terra' });
 const settings = await checkExecutionConnection('codex-app-server', undefined, {
-  codexAppServerAvailability: () => ({
-    available: true,
-    executablePath: process.execPath,
-    version: '0.144.6',
-  }),
+  codexAppServerAvailability,
   probeCodexAppServer: async (selectedModelId) => ({
     version: '0.144.6',
     authMode: 'chatgpt',
@@ -132,6 +134,7 @@ const textStarted = await startTextGeneration({
   executionId: textRun.execution.executionId,
   connectionId: connection!.connectionId,
 }, {
+  connectionCheck: { codexAppServerAvailability },
   runCodexAppServer: async (input) => {
     assert.equal(input.model, 'gpt-5.6-terra');
     assert.match(input.prompt, /Return only the requested Markdown document/);
@@ -211,6 +214,7 @@ const imageStarted = await startCodexAppServerImageGeneration({
   executionId: imageRun.execution.executionId,
   connectionId: connection!.connectionId,
 }, {
+  connectionCheck: { codexAppServerAvailability },
   runTurn: async (input) => {
     imageCalls += 1;
     const callIndex = imageCalls;
@@ -310,6 +314,7 @@ const retriedImage = await startCodexAppServerImageGeneration({
   connectionId: connection!.connectionId,
   resultBlockId: failedAppServerResultBlockId,
 }, {
+  connectionCheck: { codexAppServerAvailability },
   runTurn: async (input) => {
     appServerRetryCalls += 1;
     assert.match(input.prompt, new RegExp(`candidate ${failedAppServerResultIndex + 1} of 2`));
@@ -457,6 +462,7 @@ const annotationStarted = await startCodexAppServerImageGeneration({
   executionId: annotationRun.execution.executionId,
   connectionId: connection!.connectionId,
 }, {
+  connectionCheck: { codexAppServerAvailability },
   runTurn: async (input) => {
     assert.equal(input.localImagePaths?.length, 2, 'Annotation edit must attach the clean source and annotated composite.');
     assert.match(input.prompt, /final attached annotated composite/);
@@ -567,6 +573,7 @@ const storyboardStarted = await startCodexAppServerImageGeneration({
   executionId: storyboardRun.execution.executionId,
   connectionId: connection!.connectionId,
 }, {
+  connectionCheck: { codexAppServerAvailability },
   runTurn: async (input) => {
     storyboardImageCalls += 1;
     assert.equal(input.localImagePaths?.length, 1, 'Only bound image references may become image attachments.');

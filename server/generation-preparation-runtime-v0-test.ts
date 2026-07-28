@@ -89,12 +89,13 @@ assert.throws(
 
 const snapshot = await emptySnapshot();
 await updateExecutionConnection('codex-app-server', { modelId: 'gpt-5.6-terra' });
+const codexAppServerAvailability = () => ({
+  available: true,
+  executablePath: process.execPath,
+  version: '0.144.6',
+});
 const settings = await checkExecutionConnection('codex-app-server', undefined, {
-  codexAppServerAvailability: () => ({
-    available: true,
-    executablePath: process.execPath,
-    version: '0.144.6',
-  }),
+  codexAppServerAvailability,
   probeCodexAppServer: async (selectedModelId) => ({
     version: '0.144.6',
     authMode: 'chatgpt',
@@ -300,6 +301,7 @@ const started = await startTextGeneration({
   executionId: queued.execution.executionId,
   connectionId: connection!.connectionId,
 }, {
+  connectionCheck: { codexAppServerAvailability },
   runCodexAppServer: async (input) => {
     assert.match(input.prompt, /# Reference Manifest/);
     assert.match(input.prompt, /Hero cat enters the rain station/);
