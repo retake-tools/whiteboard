@@ -58,12 +58,8 @@ const packageRoot = path.join(
   'examples',
   'image-guided-workflow',
 );
-const imageStudioRoot = path.resolve(
-  repositoryRoot,
-  '..',
-  'image-studio',
-  'plugin',
-);
+const imageStudioRoot = process.env.RETAKE_IMAGE_STUDIO_PLUGIN_DIR
+  ?? path.resolve(repositoryRoot, '..', 'image-studio', 'plugin');
 const entrypointId = 'workflow:retake.workflow.guided-image-review';
 const original = {
   agents: listAgentPresets(),
@@ -85,12 +81,7 @@ try {
     range: '^0.9.0',
   }]);
 
-  const [capabilitySource, skill, workflow, agent] = await Promise.all([
-    readJson(path.join(
-      imageStudioRoot,
-      'definitions',
-      'image.guided_edit.json',
-    )),
+  const [skill, workflow, agent, capabilitySource] = await Promise.all([
     readJson(path.join(
       packageRoot,
       'skills',
@@ -109,10 +100,42 @@ try {
       'guided-image-operator',
       'retake.agent.json',
     )),
+    readOptionalJson(path.join(
+      imageStudioRoot,
+      'definitions',
+      'image.guided_edit.json',
+    )),
   ]);
+  const capabilityFixture = capabilityDefinitionFromWorkflow(workflow);
+  if (capabilitySource) {
+    assert.deepEqual(
+      {
+        capabilityId: capabilitySource.capabilityId,
+        definitionHash: capabilitySource.definitionHash,
+        version: capabilitySource.version,
+      },
+      {
+        capabilityId: capabilityFixture.capabilityId,
+        definitionHash: capabilityFixture.definitionHash,
+        version: capabilityFixture.version,
+      },
+    );
+    assert.equal(
+      capabilitySource.inputSlots.find(
+        (slot: { slotId: string }) => slot.slotId === 'prompt',
+      )?.bindingKinds.includes('block'),
+      true,
+    );
+    assert.equal(
+      capabilitySource.outputSlots.find(
+        (slot: { slotId: string }) => slot.slotId === 'edited_images',
+      )?.artifactType,
+      'image',
+    );
+  }
   const capability = {
-    ...capabilitySource,
-    displayName: capabilitySource.displayName.default,
+    ...(capabilitySource ?? capabilityFixture),
+    displayName: capabilitySource?.displayName.default ?? capabilityFixture.displayName,
     schemaVersion: 1,
   } as CapabilityDefinition;
   const manifest = inspected.manifest;
@@ -274,6 +297,7 @@ try {
     genericMediaProjection: true,
     disabledDependencyBlocker: true,
     agentBounded: true,
+    crossRepositoryContractChecked: Boolean(capabilitySource),
   }));
 } finally {
   replacePluginCapabilityDefinitions([]);
@@ -285,4 +309,63 @@ try {
 
 async function readJson(filePath: string): Promise<any> {
   return JSON.parse(await readFile(filePath, 'utf8'));
+}
+
+async function readOptionalJson(filePath: string): Promise<any | undefined> {
+  try {
+    return await readJson(filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
+  }
+}
+
+function capabilityDefinitionFromWorkflow(workflow: any): CapabilityDefinition {
+  const lock = workflow.steps[0].capabilityLock;
+  return {
+    ...lock,
+    category: 'image_editing',
+    displayName: 'Guided image edit',
+    inputSlots: [
+      {
+        artifactTypes: [],
+        bindingKinds: ['asset', 'block'],
+        cardinality: 'one',
+        dataTypes: ['image'],
+        required: true,
+        semanticRole: 'source',
+        slotId: 'source_image',
+      },
+      {
+        artifactTypes: ['image', 'reference', 'selection_mask'],
+        bindingKinds: ['asset', 'block'],
+        cardinality: 'optional',
+        dataTypes: ['image'],
+        required: false,
+        semanticRole: 'guidance',
+        slotId: 'guidance_image',
+      },
+      {
+        artifactTypes: [],
+        bindingKinds: ['block', 'inline'],
+        cardinality: 'one',
+        dataTypes: ['text'],
+        required: true,
+        semanticRole: 'prompt',
+        slotId: 'prompt',
+      },
+    ],
+    outputSlots: [{
+      artifactType: 'image',
+      cardinality: 'many',
+      dataType: 'image',
+      projectionBlockTypes: ['image'],
+      semanticRole: 'edited_images',
+      slotId: 'edited_images',
+    }],
+    parametersSchemaRef: 'definitions/image.guided_edit.parameters.json',
+    runtimeRequirements: ['durable_asset_output', 'image_generation'],
+    schemaVersion: 1,
+    supportedAdapterClasses: ['agent_runtime.media'],
+  };
 }
