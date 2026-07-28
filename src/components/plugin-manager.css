@@ -570,6 +570,128 @@
   }
 }
 
+.plugin-development {
+  display: grid;
+  gap: 16px;
+}
+
+.plugin-development-intro h3,
+.plugin-development-intro p {
+  margin: 0;
+}
+
+.plugin-development-intro p {
+  color: var(--retake-color-muted);
+  margin-top: 5px;
+}
+
+.plugin-development-link {
+  align-items: end;
+  background: var(--retake-color-surface);
+  border: 1px solid var(--retake-color-border);
+  border-radius: 12px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(220px, 1fr) minmax(240px, 0.8fr) auto;
+  padding: 14px;
+}
+
+.plugin-development-link > label:first-child {
+  display: grid;
+  gap: 6px;
+}
+
+.plugin-development-link input:not([type]),
+.plugin-development-link input[type='text'] {
+  width: 100%;
+}
+
+.plugin-development-trust {
+  align-items: flex-start;
+  display: flex;
+  font-size: 12px;
+  gap: 8px;
+  line-height: 1.4;
+}
+
+.plugin-development-list {
+  display: grid;
+  gap: 12px;
+}
+
+.plugin-development-card {
+  border: 1px solid var(--retake-color-border);
+  border-radius: 12px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.plugin-development-card > header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.plugin-development-card > header div {
+  display: grid;
+  gap: 4px;
+}
+
+.plugin-development-card dl {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
+.plugin-development-card dl div {
+  display: grid;
+  gap: 3px;
+}
+
+.plugin-development-card dt {
+  color: var(--retake-color-muted);
+  font-size: 11px;
+}
+
+.plugin-development-card dd {
+  margin: 0;
+}
+
+.plugin-development-card footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.plugin-development-status {
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.plugin-development-status.is-ready {
+  background: #eaf8ef;
+  color: #16794a;
+}
+
+.plugin-development-status.is-failed,
+.plugin-development-status.is-needs_confirmation {
+  background: #fff0f0;
+  color: #b42318;
+}
+
+.plugin-development-error {
+  align-items: flex-start;
+  color: #b42318;
+  display: flex;
+  gap: 7px;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 760px) {
   .plugin-manager-backdrop {
     padding: 12px;
@@ -581,7 +703,9 @@
   }
 
   .plugin-manager-controls,
-  .plugin-manager-install {
+  .plugin-manager-install,
+  .plugin-development-card dl,
+  .plugin-development-link {
     grid-template-columns: 1fr;
   }
 

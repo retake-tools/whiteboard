@@ -17,7 +17,16 @@ export type PluginRuntimeManagementActionV1 =
   | 'grant'
   | 'trust';
 
+export interface PluginActivationDemandV1 {
+  boardBound: boolean;
+  hasBlocks: boolean;
+  hasOperationBlocks: boolean;
+  managerOpen: boolean;
+  selectedBlockCount: number;
+}
+
 export interface PluginRuntimeControllerV1 {
+  getDemand(): PluginActivationDemandV1;
   getProfileProjection(): PluginRuntimeProfileProjectionV1;
   getProfileState(): PluginProfileStateV1;
   getScope(): { boardId: string | null; projectId: string | null };
@@ -33,8 +42,12 @@ export interface PluginRuntimeControllerV1 {
   setSafeMode(enabled: boolean): Promise<PluginRuntimeSnapshotV1>;
   setScope(input: {
     boardId: string;
+    demand?: PluginActivationDemandV1;
     projectId: string;
   }): Promise<PluginRuntimeSnapshotV1>;
+  setDemand(
+    demand: PluginActivationDemandV1,
+  ): Promise<PluginRuntimeSnapshotV1>;
   subscribe(listener: () => void): () => void;
   updateProfile(input: {
     boardId: string | null;
@@ -60,6 +73,13 @@ export function createPluginRuntimeController(input: {
     boardId: null,
     projectId: null,
   });
+  let currentDemand: PluginActivationDemandV1 = {
+    boardBound: false,
+    hasBlocks: false,
+    hasOperationBlocks: false,
+    managerOpen: false,
+    selectedBlockCount: 0,
+  };
   let currentProjection = project();
   let queue: Promise<void> = Promise.resolve();
   const listeners = new Set<() => void>();
@@ -87,6 +107,7 @@ export function createPluginRuntimeController(input: {
   };
 
   return {
+    getDemand: () => currentDemand,
     getProfileProjection: () => currentProjection,
     getProfileState: () => currentProfile,
     getScope: () => currentScope,
@@ -108,7 +129,15 @@ export function createPluginRuntimeController(input: {
       },
     )),
     setScope: (scope) => enqueue(async () => {
-      currentScope = structuredClone(scope);
+      currentScope = {
+        boardId: scope.boardId,
+        projectId: scope.projectId,
+      };
+      if (scope.demand) currentDemand = structuredClone(scope.demand);
+      return structuredClone(currentSnapshot);
+    }),
+    setDemand: (demand) => enqueue(async () => {
+      currentDemand = structuredClone(demand);
       return structuredClone(currentSnapshot);
     }),
     subscribe: (listener) => {
@@ -124,13 +153,37 @@ export function createPluginRuntimeController(input: {
   function project(
     snapshot = currentSnapshot,
   ): PluginRuntimeProfileProjectionV1 {
-    return projectPluginRuntimeForProfileV1({
+    const projection = projectPluginRuntimeForProfileV1({
       boardId: currentScope.boardId,
       profile: currentProfile,
       projectId: currentScope.projectId,
       runtime: snapshot,
     });
+    projection.runtime.modules = projection.runtime.modules.map((record) => (
+      record.status === 'enabled' && !moduleHasDemand(record, currentDemand)
+        ? { ...record, status: 'disabled' }
+        : record
+    ));
+    return projection;
   }
+}
+
+function moduleHasDemand(
+  record: PluginRuntimeSnapshotV1['modules'][number],
+  demand: PluginActivationDemandV1,
+): boolean {
+  if (!demand.boardBound) return false;
+  if (record.trust?.trustChannel === 'linked_source') return true;
+  if (record.manifest.contributions.length === 0) return true;
+  return record.manifest.contributions.some((contribution) => {
+    if (contribution.kind === 'panel') return true;
+    if (contribution.kind === 'renderer') return demand.hasBlocks;
+    if (contribution.kind === 'settings') return demand.managerOpen;
+    if (contribution.kind === 'command') {
+      return demand.selectedBlockCount > 0 || demand.hasOperationBlocks;
+    }
+    return demand.hasOperationBlocks;
+  });
 }
 
 export async function loadPluginRuntimeSnapshot(): Promise<

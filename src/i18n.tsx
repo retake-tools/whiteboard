@@ -839,6 +839,15 @@ export type TranslationKey =
   | 'pluginSettings.addDescription'
   | 'pluginSettings.description'
   | 'pluginSettings.disable'
+  | 'pluginSettings.buildDuration'
+  | 'pluginSettings.confirmIdentity'
+  | 'pluginSettings.devStatusFailed'
+  | 'pluginSettings.devStatusActivating'
+  | 'pluginSettings.devStatusIdle'
+  | 'pluginSettings.devStatusNeedsConfirmation'
+  | 'pluginSettings.devStatusReady'
+  | 'pluginSettings.developmentDescription'
+  | 'pluginSettings.developmentTitle'
   | 'pluginSettings.empty'
   | 'pluginSettings.emptyDescription'
   | 'pluginSettings.enable'
@@ -846,6 +855,9 @@ export type TranslationKey =
   | 'pluginSettings.grant'
   | 'pluginSettings.kicker'
   | 'pluginSettings.leaveSafeMode'
+  | 'pluginSettings.lastGood'
+  | 'pluginSettings.linkedTrustConfirm'
+  | 'pluginSettings.linkSource'
   | 'pluginSettings.noPermissions'
   | 'pluginSettings.noModules'
   | 'pluginSettings.modules'
@@ -858,6 +870,7 @@ export type TranslationKey =
   | 'pluginSettings.profileScopeDescription'
   | 'pluginSettings.publisher'
   | 'pluginSettings.refresh'
+  | 'pluginSettings.rebuild'
   | 'pluginSettings.safeMode'
   | 'pluginSettings.safeModeDescription'
   | 'pluginSettings.scopeBoard'
@@ -871,7 +884,17 @@ export type TranslationKey =
   | 'pluginSettings.statusIncompatible'
   | 'pluginSettings.statusInstalled'
   | 'pluginSettings.tabAdd'
+  | 'pluginSettings.tabDevelopment'
   | 'pluginSettings.tabInstalled'
+  | 'pluginSettings.sourceRoot'
+  | 'pluginSettings.startWatch'
+  | 'pluginSettings.stopWatch'
+  | 'pluginSettings.unlinkRemove'
+  | 'pluginSettings.unlinkRemoveConfirm'
+  | 'pluginSettings.unlinkRetain'
+  | 'pluginSettings.watch'
+  | 'pluginSettings.watchOff'
+  | 'pluginSettings.watchOn'
   | 'pluginSettings.title'
   | 'pluginSettings.trust'
   | 'pluginSettings.trustWarning'
@@ -1862,6 +1885,15 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.addDescription': 'Install from a GitHub shorthand, another Git URL, or a local source directory. Registry search will appear only when that source is available.',
     'pluginSettings.description': 'Install Packages and manage their PluginModules, trust, permissions, runtime state, updates, rollback, and removal in one place.',
     'pluginSettings.disable': 'Disable',
+    'pluginSettings.buildDuration': 'Last build',
+    'pluginSettings.confirmIdentity': 'Confirm new identity',
+    'pluginSettings.devStatusFailed': 'Build failed',
+    'pluginSettings.devStatusActivating': 'Activating candidate',
+    'pluginSettings.devStatusIdle': 'Idle',
+    'pluginSettings.devStatusNeedsConfirmation': 'Confirmation required',
+    'pluginSettings.devStatusReady': 'Ready',
+    'pluginSettings.developmentDescription': 'Link a local source root, rebuild it with the controlled toolchain, and hot-reload its last-good Plugin contribution.',
+    'pluginSettings.developmentTitle': 'Linked development',
     'pluginSettings.empty': 'No PluginModules installed',
     'pluginSettings.emptyDescription': 'Install a Package containing a PluginModule before managing its runtime state here.',
     'pluginSettings.enable': 'Enable',
@@ -1869,6 +1901,9 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.grant': 'Grant exact permissions',
     'pluginSettings.kicker': 'Workspace Plugin Manager',
     'pluginSettings.leaveSafeMode': 'Leave safe mode',
+    'pluginSettings.lastGood': 'Last-good digest',
+    'pluginSettings.linkedTrustConfirm': 'Trust code changes from this exact local source until it is unlinked.',
+    'pluginSettings.linkSource': 'Link source',
     'pluginSettings.noPermissions': 'No declared permissions',
     'pluginSettings.noModules': 'This Package does not contain a PluginModule.',
     'pluginSettings.modules': 'PluginModules',
@@ -1881,6 +1916,7 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.profileScopeDescription': 'Choose which override layer these module controls edit.',
     'pluginSettings.publisher': 'Publisher',
     'pluginSettings.refresh': 'Refresh',
+    'pluginSettings.rebuild': 'Rebuild',
     'pluginSettings.safeMode': 'Safe mode',
     'pluginSettings.safeModeDescription': 'Temporarily detach every Plugin contribution while preserving each desired state.',
     'pluginSettings.scopeBoard': 'Board',
@@ -1894,7 +1930,17 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.statusIncompatible': 'Incompatible',
     'pluginSettings.statusInstalled': 'Installed',
     'pluginSettings.tabAdd': 'Add',
+    'pluginSettings.tabDevelopment': 'Development',
     'pluginSettings.tabInstalled': 'Installed',
+    'pluginSettings.sourceRoot': 'Local source root',
+    'pluginSettings.startWatch': 'Start watch',
+    'pluginSettings.stopWatch': 'Stop watch',
+    'pluginSettings.unlinkRemove': 'Unlink and remove',
+    'pluginSettings.unlinkRemoveConfirm': 'Unlink this source and remove its exact last-good Root Package?',
+    'pluginSettings.unlinkRetain': 'Unlink, keep last-good',
+    'pluginSettings.watch': 'Watch',
+    'pluginSettings.watchOff': 'Stopped',
+    'pluginSettings.watchOn': 'Watching',
     'pluginSettings.title': 'Plugins',
     'pluginSettings.trust': 'Trust exact code',
     'pluginSettings.trustWarning': 'Trust runs this exact Package digest in the same page as the canvas. Review the source before continuing.',
@@ -2880,6 +2926,15 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.addDescription': '从 GitHub 简写、其他 Git URL 或本机源码目录安装。Registry 搜索只在真实来源可用后加入。',
     'pluginSettings.description': '在同一处安装 Package，并管理 PluginModule 的信任、权限、运行状态、更新、回滚与移除。',
     'pluginSettings.disable': '停用',
+    'pluginSettings.buildDuration': '最近构建',
+    'pluginSettings.confirmIdentity': '确认新身份',
+    'pluginSettings.devStatusFailed': '构建失败',
+    'pluginSettings.devStatusActivating': '正在激活候选版本',
+    'pluginSettings.devStatusIdle': '空闲',
+    'pluginSettings.devStatusNeedsConfirmation': '需要确认',
+    'pluginSettings.devStatusReady': '就绪',
+    'pluginSettings.developmentDescription': '关联本机源码目录，使用受控工具链重建，并热替换最近一次可用的 Plugin 贡献。',
+    'pluginSettings.developmentTitle': '关联开发',
     'pluginSettings.empty': '尚未安装 PluginModule',
     'pluginSettings.emptyDescription': '请先安装包含 PluginModule 的 Package，再在这里管理运行状态。',
     'pluginSettings.enable': '启用',
@@ -2887,6 +2942,9 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.grant': '授权声明权限',
     'pluginSettings.kicker': 'Workspace Plugin Manager',
     'pluginSettings.leaveSafeMode': '退出安全模式',
+    'pluginSettings.lastGood': '最近可用摘要',
+    'pluginSettings.linkedTrustConfirm': '在取消关联前，信任来自这个精确本机源码的代码变化。',
+    'pluginSettings.linkSource': '关联源码',
     'pluginSettings.noPermissions': '未声明权限',
     'pluginSettings.noModules': '这个 Package 不包含 PluginModule。',
     'pluginSettings.modules': 'PluginModule',
@@ -2899,6 +2957,7 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.profileScopeDescription': '选择当前模块控件要修改的覆盖层。',
     'pluginSettings.publisher': '发布者',
     'pluginSettings.refresh': '刷新',
+    'pluginSettings.rebuild': '重新构建',
     'pluginSettings.safeMode': '安全模式',
     'pluginSettings.safeModeDescription': '临时卸载所有插件贡献，同时保留每个插件原本的启用意图。',
     'pluginSettings.scopeBoard': '画板',
@@ -2912,7 +2971,17 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.statusIncompatible': '不兼容',
     'pluginSettings.statusInstalled': '已安装',
     'pluginSettings.tabAdd': '添加',
+    'pluginSettings.tabDevelopment': '开发',
     'pluginSettings.tabInstalled': '已安装',
+    'pluginSettings.sourceRoot': '本机源码目录',
+    'pluginSettings.startWatch': '开始监听',
+    'pluginSettings.stopWatch': '停止监听',
+    'pluginSettings.unlinkRemove': '取消关联并移除',
+    'pluginSettings.unlinkRemoveConfirm': '取消关联这个源码，并移除其精确的最近可用 Root Package 吗？',
+    'pluginSettings.unlinkRetain': '取消关联，保留最近可用版本',
+    'pluginSettings.watch': '监听',
+    'pluginSettings.watchOff': '已停止',
+    'pluginSettings.watchOn': '监听中',
     'pluginSettings.title': '插件',
     'pluginSettings.trust': '信任当前代码',
     'pluginSettings.trustWarning': '信任后会在画布所在页面执行当前 Package 摘要对应的代码，请先审阅源码。',

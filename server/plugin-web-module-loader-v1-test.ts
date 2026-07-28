@@ -376,8 +376,120 @@ assert.deepEqual(fatalFailure, {
   pluginModuleId: record.pluginModuleId,
 });
 
+fatalFailure = undefined;
+const atomicDisposals: string[] = [];
+const atomicActivate = async (
+  candidate: PluginModuleRuntimeRecordV1,
+): Promise<ActivatedPluginWebModuleV2> => ({
+  contributions: [],
+  async dispose() {
+    atomicDisposals.push(candidate.packageLock.digest);
+  },
+  pluginModuleId: candidate.pluginModuleId,
+});
+await reconcilePluginWebModules({
+  activate: atomicActivate,
+  createHost: () => host,
+  snapshot,
+});
+const activationRejectedDigest = `sha256:${'3'.repeat(64)}`;
+const activationFallback = await reconcilePluginWebModules({
+  activate: async () => {
+    throw new Error('candidate import failed');
+  },
+  createHost: () => host,
+  onFatalFailure: (pluginModuleId, message) => {
+    fatalFailure = { message, pluginModuleId };
+  },
+  snapshot: {
+    ...snapshot,
+    modules: [{
+      ...record,
+      packageLock: {
+        ...record.packageLock,
+        digest: activationRejectedDigest,
+      },
+      trust: {
+        ...record.trust,
+        packageDigest: activationRejectedDigest,
+      },
+    }],
+  },
+});
+assert.equal(fatalFailure, undefined);
+assert.deepEqual(activationFallback.fallbacks, [{
+  error: 'candidate import failed',
+  pluginModuleId: record.pluginModuleId,
+  rejectedDigest: activationRejectedDigest,
+  retainedDigest: record.packageLock.digest,
+}]);
+assert.equal(atomicDisposals.length, 0);
+
+const protocolRejectedDigest = `sha256:${'4'.repeat(64)}`;
+const protocolFallback = await reconcilePluginWebModules({
+  activate: atomicActivate,
+  createHost: () => host,
+  snapshot: {
+    ...snapshot,
+    modules: [{
+      ...record,
+      packageLock: {
+        ...record.packageLock,
+        digest: protocolRejectedDigest,
+      },
+      trust: {
+        ...record.trust,
+        packageDigest: protocolRejectedDigest,
+      },
+    }],
+  },
+  validateSessions: (sessions) => sessions.flatMap((session) => (
+    session.record.packageLock.digest === protocolRejectedDigest
+      ? [{
+        error: 'candidate contribution protocol failed',
+        pluginModuleId: session.record.pluginModuleId,
+      }]
+      : []
+  )),
+});
+assert.deepEqual(protocolFallback.fallbacks, [{
+  error: 'candidate contribution protocol failed',
+  pluginModuleId: record.pluginModuleId,
+  rejectedDigest: protocolRejectedDigest,
+  retainedDigest: record.packageLock.digest,
+}]);
+assert.deepEqual(atomicDisposals, [protocolRejectedDigest]);
+
+const acceptedDigest = `sha256:${'5'.repeat(64)}`;
+const accepted = await reconcilePluginWebModules({
+  activate: atomicActivate,
+  createHost: () => host,
+  snapshot: {
+    ...snapshot,
+    modules: [{
+      ...record,
+      packageLock: {
+        ...record.packageLock,
+        digest: acceptedDigest,
+      },
+      trust: {
+        ...record.trust,
+        packageDigest: acceptedDigest,
+      },
+    }],
+  },
+  validateSessions: () => [],
+});
+assert.equal(accepted.fallbacks.length, 0);
+assert.deepEqual(atomicDisposals, [
+  protocolRejectedDigest,
+  record.packageLock.digest,
+]);
+
 process.stdout.write(`${JSON.stringify({
+  activationFailureRetainsLastGoodSession: true,
   activationFailureReportsFatalState: true,
+  contributionFailureRetainsLastGoodSession: true,
   conditionalRuntimeChunk: true,
   exactDigestModuleCache: true,
   executionAbortFollowsModuleLifecycle: true,

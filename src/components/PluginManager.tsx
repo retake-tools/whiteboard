@@ -29,11 +29,14 @@ import type {
 } from '../core/pluginRuntimeManagementClient';
 import { useI18n } from '../i18n';
 import {
+  PluginManagerDevelopment,
+} from './PluginManagerDevelopment';
+import {
   PluginManagerModuleCard,
   PluginManagerPackageCard,
 } from './PluginManagerPackageCard';
 
-type PluginManagerTab = 'add' | 'installed';
+type PluginManagerTab = 'add' | 'development' | 'installed';
 
 export function PluginManager({
   initialTab = 'installed',
@@ -217,6 +220,22 @@ export function PluginManager({
           >
             {t('pluginSettings.tabAdd')}
           </button>
+          <button
+            type="button"
+            id="plugin-manager-development-tab"
+            role="tab"
+            aria-controls="plugin-manager-development-panel"
+            aria-selected={activeTab === 'development'}
+            className={activeTab === 'development' ? 'is-active' : undefined}
+            onClick={() => setActiveTab('development')}
+          >
+            {t('pluginSettings.tabDevelopment')}
+            {packageController.getDevelopmentSnapshot()?.links.length ? (
+              <span>
+                {packageController.getDevelopmentSnapshot()?.links.length}
+              </span>
+            ) : null}
+          </button>
         </nav>
 
         {activeTab === 'installed' ? (
@@ -392,7 +411,7 @@ export function PluginManager({
                 )}
             </div>
           </div>
-        ) : (
+        ) : activeTab === 'add' ? (
           <div
             id="plugin-manager-add-panel"
             className="plugin-manager-panel"
@@ -434,6 +453,19 @@ export function PluginManager({
                   {t('packageLibrary.install')}
                 </button>
               </form>
+            </div>
+          </div>
+        ) : (
+          <div
+            id="plugin-manager-development-panel"
+            className="plugin-manager-panel"
+            role="tabpanel"
+            aria-labelledby="plugin-manager-development-tab"
+          >
+            <div className="plugin-manager-content">
+              <PluginManagerDevelopment
+                packageController={packageController}
+              />
             </div>
           </div>
         )}

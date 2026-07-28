@@ -192,8 +192,92 @@ try {
   globalThis.fetch = originalFetch;
 }
 
+const rendererRuntime = structuredClone(enabled);
+rendererRuntime.modules[0]!.manifest.contributions = [{
+  contributionId: 'retake.contribution.runtime-management-renderer',
+  exportName: 'renderer',
+  kind: 'renderer',
+}];
+const demandController = createPluginRuntimeController({
+  applySnapshot: async () => {},
+  initialProfileState: emptyPluginProfileStateV1(),
+  initialSnapshot: rendererRuntime,
+});
+await demandController.setScope({
+  boardId: 'board.fixture',
+  demand: {
+    boardBound: true,
+    hasBlocks: false,
+    hasOperationBlocks: false,
+    managerOpen: false,
+    selectedBlockCount: 0,
+  },
+  projectId: 'project.fixture',
+});
+assert.equal(
+  demandController.getProfileProjection().runtime.modules[0]?.status,
+  'disabled',
+);
+await demandController.setDemand({
+  ...demandController.getDemand(),
+  hasBlocks: true,
+});
+assert.equal(
+  demandController.getProfileProjection().runtime.modules[0]?.status,
+  'enabled',
+);
+
+const linkedRuntime = structuredClone(rendererRuntime);
+linkedRuntime.modules[0]!.trust!.trustChannel = 'linked_source';
+const linkedDemandController = createPluginRuntimeController({
+  applySnapshot: async () => {},
+  initialProfileState: emptyPluginProfileStateV1(),
+  initialSnapshot: linkedRuntime,
+});
+await linkedDemandController.setScope({
+  boardId: 'board.fixture',
+  demand: {
+    boardBound: true,
+    hasBlocks: false,
+    hasOperationBlocks: false,
+    managerOpen: false,
+    selectedBlockCount: 0,
+  },
+  projectId: 'project.fixture',
+});
+assert.equal(
+  linkedDemandController.getProfileProjection().runtime.modules[0]?.status,
+  'enabled',
+);
+
+const legacyRuntime = structuredClone(enabled);
+legacyRuntime.modules[0]!.manifest.contributions = [];
+const legacyDemandController = createPluginRuntimeController({
+  applySnapshot: async () => {},
+  initialProfileState: emptyPluginProfileStateV1(),
+  initialSnapshot: legacyRuntime,
+});
+await legacyDemandController.setScope({
+  boardId: 'board.fixture',
+  demand: {
+    boardBound: true,
+    hasBlocks: false,
+    hasOperationBlocks: false,
+    managerOpen: false,
+    selectedBlockCount: 0,
+  },
+  projectId: 'project.fixture',
+});
+assert.equal(
+  legacyDemandController.getProfileProjection().runtime.modules[0]?.status,
+  'enabled',
+);
+
 process.stdout.write(`${JSON.stringify({
   boardProfileReconcilesRuntime: true,
+  legacyContributionFallbackRemainsEager: true,
+  linkedDevelopmentValidationRemainsEager: true,
+  rendererActivationFollowsBoardDemand: true,
   exactNextRuntimeAction: true,
   lazyPanelUsesStableExternalStore: true,
   runtimeMutationsSerialized: true,
@@ -209,6 +293,13 @@ function renderSettings(snapshot: PluginRuntimeSnapshotV1): string {
     runtime: snapshot,
   });
   const pluginController: PluginRuntimeControllerV1 = {
+    getDemand: () => ({
+      boardBound: true,
+      hasBlocks: false,
+      hasOperationBlocks: false,
+      managerOpen: true,
+      selectedBlockCount: 0,
+    }),
     getProfileProjection: () => projection,
     getProfileState: () => profile,
     getScope: () => ({
@@ -220,15 +311,34 @@ function renderSettings(snapshot: PluginRuntimeSnapshotV1): string {
     refresh: async () => snapshot,
     replace: async () => snapshot,
     setSafeMode: async () => snapshot,
+    setDemand: async () => snapshot,
     setScope: async () => snapshot,
     subscribe: () => () => {},
     updateProfile: async () => snapshot,
   };
   const packageSnapshot = lifecycleSnapshot(snapshot);
   const packageController: PackageLifecycleControllerV1 = {
+    getDevelopmentSnapshot: () => ({
+      links: [],
+      revision: 0,
+      schemaVersion: 1,
+      updatedAt: snapshot.updatedAt,
+    }),
     getSnapshot: () => packageSnapshot,
     mutate: async () => packageSnapshot,
+    mutateDevelopment: async () => ({
+      links: [],
+      revision: 0,
+      schemaVersion: 1,
+      updatedAt: snapshot.updatedAt,
+    }),
     refresh: async () => packageSnapshot,
+    refreshDevelopment: async () => ({
+      links: [],
+      revision: 0,
+      schemaVersion: 1,
+      updatedAt: snapshot.updatedAt,
+    }),
     subscribe: () => () => {},
   };
   return renderToStaticMarkup(
