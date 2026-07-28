@@ -134,22 +134,16 @@ async function writeReactPluginSource(sourceRoot: string): Promise<void> {
     contributions: [
       {
         contributionId: 'retake.contribution.react-browser-fixture-action',
-        definitionHash: null,
-        definitionPath: null,
         exportName: 'fixtureAction',
         kind: 'action',
       },
       {
         contributionId: 'retake.contribution.react-browser-fixture-panel',
-        definitionHash: null,
-        definitionPath: null,
         exportName: 'fixturePanel',
         kind: 'panel',
       },
       {
         contributionId: 'retake.contribution.react-browser-fixture-renderer',
-        definitionHash: null,
-        definitionPath: null,
         exportName: 'fixtureRenderer',
         kind: 'renderer',
       },

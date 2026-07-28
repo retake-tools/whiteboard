@@ -12,7 +12,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type {
   DeclarativePackageManifest,
 } from '@retake-tools/package-contracts';
-import { PackageLibrarySettings } from '../src/components/PackageLibrarySettings';
+import { PluginManager } from '../src/components/PluginManager';
 import type {
   PackageLifecycleControllerV1,
 } from '../src/core/packageLifecycleClient';
@@ -129,12 +129,16 @@ try {
     value: { error: 'Package source is invalid.' },
   });
 
-  const markup = renderLibrary(installedTwo);
-  assert.match(markup, /Plugin library/);
+  const markup = renderManager(installedTwo);
+  assert.match(markup, /Plugins/);
+  assert.match(markup, /Installed/);
+  assert.match(markup, /Add/);
   assert.match(markup, /test\.package\.lifecycle/);
   assert.match(markup, /Rollback/);
   assert.match(markup, /Remove/);
+  assert.doesNotMatch(markup, /Plugin library/);
   assert.doesNotMatch(markup, new RegExp(escapeRegExp(temporaryRoot)));
+  assert.match(renderManager(installedTwo, 'add'), /Install source/);
 
   const originalFetch = globalThis.fetch;
   const calls: string[] = [];
@@ -246,20 +250,26 @@ function requiredPackage(snapshot: PackageLifecycleSnapshotV1) {
   return record;
 }
 
-function renderLibrary(snapshot: PackageLifecycleSnapshotV1): string {
-  const controller: PackageLifecycleControllerV1 = {
+function renderManager(
+  snapshot: PackageLifecycleSnapshotV1,
+  initialTab: 'add' | 'installed' = 'installed',
+): string {
+  const packageController: PackageLifecycleControllerV1 = {
     getSnapshot: () => snapshot,
     mutate: async () => snapshot,
     refresh: async () => snapshot,
     subscribe: () => () => {},
   };
+  const runtimeController = pluginRuntimeController(snapshot, []);
   return renderToStaticMarkup(
     createElement(
       I18nProvider,
       null,
-      createElement(PackageLibrarySettings, {
-        controller,
+      createElement(PluginManager, {
+        initialTab,
         onClose: () => {},
+        packageController,
+        pluginController: runtimeController,
       }),
     ),
   );

@@ -399,8 +399,6 @@ function panelSession(
       contributions: [{
         contribution: {
           contributionId: `${pluginModuleId}.panel`,
-          definitionHash: null,
-          definitionPath: null,
           exportName: 'fixturePanel',
           kind: 'panel',
         },
@@ -421,8 +419,6 @@ function actionSession(
       contributions: [{
         contribution: {
           contributionId: `${pluginModuleId}.action`,
-          definitionHash: null,
-          definitionPath: null,
           exportName: 'fixtureAction',
           kind: 'action',
         },
@@ -443,8 +439,6 @@ function rendererSession(
       contributions: [{
         contribution: {
           contributionId: `${pluginModuleId}.renderer`,
-          definitionHash: null,
-          definitionPath: null,
           exportName: 'fixtureRenderer',
           kind: 'renderer',
         },

@@ -251,7 +251,7 @@ const record = {
     grantId: 'grant.fixture',
     grantedAt: '2026-07-26T00:00:00.000Z',
     grantedBy: 'user',
-    permissions: ['retake.package.read.self'],
+    permissions: ['retake.asset.read.bound'],
     pluginModuleId: 'retake.plugin.loader-fixture',
     publisherId: 'retake.publisher.official',
     schemaVersion: 1,
@@ -261,7 +261,7 @@ const record = {
     definitionHash: 'sha256:loader-fixture',
     description: 'Loader fixture',
     name: 'Loader fixture',
-    permissions: ['retake.package.read.self'],
+    permissions: ['retake.asset.read.bound'],
     pluginModuleId: 'retake.plugin.loader-fixture',
     runtime: {
       entrypoint: 'dist/index.js',

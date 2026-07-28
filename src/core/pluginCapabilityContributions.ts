@@ -24,6 +24,11 @@ export function registeredPluginCapabilityFrom(
   pluginModuleId: string,
   locale: string,
 ): RegisteredPluginCapabilityV1 {
+  if (activated.contribution.kind !== 'capability') {
+    throw new Error(
+      'Registered Plugin capability must reference a capability contribution.',
+    );
+  }
   const parsed = retakeCapabilityContributionV2Schema.safeParse(
     activated.value,
   );

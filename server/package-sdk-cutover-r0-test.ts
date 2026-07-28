@@ -41,7 +41,7 @@ const packageJson = await readJson(path.join(repositoryRoot, 'package.json'));
 const packageLock = await readJson(path.join(repositoryRoot, 'package-lock.json'));
 
 assert.deepEqual(source, {
-  commit: '499d9d5dd6e8fcc0493fa4389a5bc83452a72f5f',
+  commit: 'b39d11f916e1eba1ba5a3c62c694b2db9ba1905e',
   repository: 'https://github.com/retake-tools/package',
   version: '0.1.0',
 });
@@ -190,7 +190,7 @@ try {
       definitionHash: 'sha256:whiteboard-controlled-build-v1',
       description: 'Whiteboard controlled build fixture module',
       name: 'Whiteboard controlled build fixture',
-      permissions: ['retake.package.read.self'],
+      permissions: ['retake.asset.read.bound'],
       pluginModuleId: 'retake.plugin.controlled-build-fixture',
       runtime: {
         entrypoint: 'dist/index.js',

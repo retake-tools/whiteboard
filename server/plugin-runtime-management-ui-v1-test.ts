@@ -5,7 +5,13 @@ import type {
   PluginModuleRuntimeRecordV1,
   PluginRuntimeSnapshotV1,
 } from '@retake-tools/package-sdk';
-import { PluginRuntimeSettings } from '../src/components/PluginRuntimeSettings';
+import { PluginManager } from '../src/components/PluginManager';
+import type {
+  PackageLifecycleControllerV1,
+} from '../src/core/packageLifecycleClient';
+import type {
+  PackageLifecycleSnapshotV1,
+} from '../src/core/packageLifecycleContracts';
 import {
   createPluginRuntimeController,
   type PluginRuntimeControllerV1,
@@ -142,7 +148,7 @@ process.stdout.write(`${JSON.stringify({
 })}\n`);
 
 function renderSettings(snapshot: PluginRuntimeSnapshotV1): string {
-  const controller: PluginRuntimeControllerV1 = {
+  const pluginController: PluginRuntimeControllerV1 = {
     getSnapshot: () => snapshot,
     manageModule: async () => snapshot,
     refresh: async () => snapshot,
@@ -150,16 +156,67 @@ function renderSettings(snapshot: PluginRuntimeSnapshotV1): string {
     setSafeMode: async () => snapshot,
     subscribe: () => () => {},
   };
+  const packageSnapshot = lifecycleSnapshot(snapshot);
+  const packageController: PackageLifecycleControllerV1 = {
+    getSnapshot: () => packageSnapshot,
+    mutate: async () => packageSnapshot,
+    refresh: async () => packageSnapshot,
+    subscribe: () => () => {},
+  };
   return renderToStaticMarkup(
     createElement(
       I18nProvider,
       null,
-      createElement(PluginRuntimeSettings, {
-        controller,
+      createElement(PluginManager, {
         onClose: () => {},
+        packageController,
+        pluginController,
       }),
     ),
   );
+}
+
+function lifecycleSnapshot(
+  pluginRuntime: PluginRuntimeSnapshotV1,
+): PackageLifecycleSnapshotV1 {
+  return {
+    lockRevision: 1,
+    packages: [{
+      componentCounts: {
+        agentPresets: 0,
+        pluginModules: 1,
+        skills: 0,
+        workflows: 0,
+      },
+      dependencies: [],
+      description: 'Runtime Management fixture.',
+      digest: pluginRuntime.modules[0]!.packageLock.digest,
+      history: [],
+      installationId: pluginRuntime.modules[0]!.packageLock.installationId,
+      isRoot: true,
+      name: 'Runtime Management fixture',
+      packageId: pluginRuntime.modules[0]!.packageLock.packageId,
+      source: {
+        canUpdate: false,
+        kind: 'local_directory',
+        label: 'runtime-management-fixture',
+      },
+      version: pluginRuntime.modules[0]!.packageLock.version,
+    }],
+    pluginRuntime,
+    runtimeRegistry: {
+      agentPresets: [],
+      lockRevision: 1,
+      packages: [],
+      profileId: 'test.plugin-manager',
+      schemaVersion: 1,
+      skills: [],
+      snapshotDigest: `sha256:${'b'.repeat(64)}`,
+      workflows: [],
+    },
+    schemaVersion: 1,
+    updatedAt: pluginRuntime.updatedAt,
+  };
 }
 
 function runtimeSnapshot(input: Pick<
@@ -175,15 +232,13 @@ function runtimeSnapshot(input: Pick<
       manifest: {
         contributions: [{
           contributionId: 'retake.contribution.runtime-management-fixture',
-          definitionHash: null,
-          definitionPath: null,
           exportName: 'activate',
           kind: 'panel',
         }],
         definitionHash: 'sha256:runtime-management-fixture',
         description: 'Runtime Management fixture.',
         name: 'Runtime Management fixture',
-        permissions: ['retake.package.read.self'],
+        permissions: ['retake.asset.read.bound'],
         pluginModuleId: 'retake.plugin.runtime-management-fixture',
         runtime: {
           entrypoint: 'dist/index.js',

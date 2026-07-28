@@ -73,8 +73,6 @@ const failures = registry.replace([{
     contributions: [{
       contribution: {
         contributionId: 'retake.contribution.download-fixture',
-        definitionHash: null,
-        definitionPath: null,
         exportName: 'fixtureAction',
         kind: 'action',
       },
@@ -171,8 +169,6 @@ assert.deepEqual(selectionRegistry.replace([{
     contributions: [{
       contribution: {
         contributionId: 'retake.contribution.selection-fixture',
-        definitionHash: null,
-        definitionPath: null,
         exportName: 'fixtureSelectionAction',
         kind: 'action',
       },
@@ -233,8 +229,6 @@ assert.deepEqual(operationRegistry.replace([{
     contributions: [{
       contribution: {
         contributionId: 'retake.contribution.operation-fixture',
-        definitionHash: null,
-        definitionPath: null,
         exportName: 'fixtureOperationAction',
         kind: 'action',
       },

@@ -836,6 +836,7 @@ export type TranslationKey =
   | 'pluginSettings.codeNotTrusted'
   | 'pluginSettings.codeTrusted'
   | 'pluginSettings.contributions'
+  | 'pluginSettings.addDescription'
   | 'pluginSettings.description'
   | 'pluginSettings.disable'
   | 'pluginSettings.empty'
@@ -846,6 +847,8 @@ export type TranslationKey =
   | 'pluginSettings.kicker'
   | 'pluginSettings.leaveSafeMode'
   | 'pluginSettings.noPermissions'
+  | 'pluginSettings.noModules'
+  | 'pluginSettings.modules'
   | 'pluginSettings.package'
   | 'pluginSettings.permissions'
   | 'pluginSettings.permissionsGranted'
@@ -859,9 +862,13 @@ export type TranslationKey =
   | 'pluginSettings.statusFailed'
   | 'pluginSettings.statusIncompatible'
   | 'pluginSettings.statusInstalled'
+  | 'pluginSettings.tabAdd'
+  | 'pluginSettings.tabInstalled'
   | 'pluginSettings.title'
   | 'pluginSettings.trust'
   | 'pluginSettings.trustWarning'
+  | 'pluginSettings.installedDescription'
+  | 'pluginSettings.unmatchedModules'
   | 'packageLibrary.close'
   | 'packageLibrary.components'
   | 'packageLibrary.confirmRemove'
@@ -948,7 +955,6 @@ export type TranslationKey =
   | 'settings.language'
   | 'settings.preferences'
   | 'settings.plugins'
-  | 'settings.packageLibrary'
   | 'settings.shortcutClose'
   | 'settings.shortcutRedo'
   | 'settings.shortcutUndo'
@@ -1845,16 +1851,19 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.codeNotTrusted': 'Code not trusted',
     'pluginSettings.codeTrusted': 'Exact code trusted',
     'pluginSettings.contributions': 'Contributions',
-    'pluginSettings.description': 'Manage installed PluginModules. Runtime changes apply to the current page immediately; source installation and updates are handled separately.',
+    'pluginSettings.addDescription': 'Install from a GitHub shorthand, another Git URL, or a local source directory. Registry search will appear only when that source is available.',
+    'pluginSettings.description': 'Install Packages and manage their PluginModules, trust, permissions, runtime state, updates, rollback, and removal in one place.',
     'pluginSettings.disable': 'Disable',
     'pluginSettings.empty': 'No PluginModules installed',
     'pluginSettings.emptyDescription': 'Install a Package containing a PluginModule before managing its runtime state here.',
     'pluginSettings.enable': 'Enable',
     'pluginSettings.enterSafeMode': 'Enter safe mode',
     'pluginSettings.grant': 'Grant exact permissions',
-    'pluginSettings.kicker': 'In-process Plugin Runtime',
+    'pluginSettings.kicker': 'Workspace Plugin Manager',
     'pluginSettings.leaveSafeMode': 'Leave safe mode',
     'pluginSettings.noPermissions': 'No declared permissions',
+    'pluginSettings.noModules': 'This Package does not contain a PluginModule.',
+    'pluginSettings.modules': 'PluginModules',
     'pluginSettings.package': 'Package',
     'pluginSettings.permissions': 'Declared permissions',
     'pluginSettings.permissionsGranted': 'Permissions granted',
@@ -1868,9 +1877,13 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.statusFailed': 'Failed',
     'pluginSettings.statusIncompatible': 'Incompatible',
     'pluginSettings.statusInstalled': 'Installed',
+    'pluginSettings.tabAdd': 'Add',
+    'pluginSettings.tabInstalled': 'Installed',
     'pluginSettings.title': 'Plugins',
     'pluginSettings.trust': 'Trust exact code',
     'pluginSettings.trustWarning': 'Trust runs this exact Package digest in the same page as the canvas. Review the source before continuing.',
+    'pluginSettings.installedDescription': 'Each card combines the installed Package source and lifecycle with its PluginModule runtime state.',
+    'pluginSettings.unmatchedModules': 'Runtime modules without an installed Package record',
     'packageLibrary.close': 'Close Plugin library',
     'packageLibrary.components': 'Contents',
     'packageLibrary.confirmRemove': 'Remove this Root Package and recalculate its dependency closure:',
@@ -1957,7 +1970,6 @@ const translations: Record<Locale, Translations> = {
     'settings.language': 'Language',
     'settings.preferences': 'Preferences',
     'settings.plugins': 'Plugins',
-    'settings.packageLibrary': 'Plugin library',
     'settings.shortcutClose': 'Close dialogs and panels',
     'settings.shortcutRedo': 'Redo',
     'settings.shortcutUndo': 'Undo',
@@ -2849,16 +2861,19 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.codeNotTrusted': '代码未信任',
     'pluginSettings.codeTrusted': '已信任当前代码',
     'pluginSettings.contributions': '扩展贡献',
-    'pluginSettings.description': '管理已经安装的 PluginModule。运行状态会立即作用于当前页面；源码安装和更新由独立流程处理。',
+    'pluginSettings.addDescription': '从 GitHub 简写、其他 Git URL 或本机源码目录安装。Registry 搜索只在真实来源可用后加入。',
+    'pluginSettings.description': '在同一处安装 Package，并管理 PluginModule 的信任、权限、运行状态、更新、回滚与移除。',
     'pluginSettings.disable': '停用',
     'pluginSettings.empty': '尚未安装 PluginModule',
     'pluginSettings.emptyDescription': '请先安装包含 PluginModule 的 Package，再在这里管理运行状态。',
     'pluginSettings.enable': '启用',
     'pluginSettings.enterSafeMode': '进入安全模式',
     'pluginSettings.grant': '授权声明权限',
-    'pluginSettings.kicker': '页内 Plugin Runtime',
+    'pluginSettings.kicker': 'Workspace Plugin Manager',
     'pluginSettings.leaveSafeMode': '退出安全模式',
     'pluginSettings.noPermissions': '未声明权限',
+    'pluginSettings.noModules': '这个 Package 不包含 PluginModule。',
+    'pluginSettings.modules': 'PluginModule',
     'pluginSettings.package': 'Package',
     'pluginSettings.permissions': '声明权限',
     'pluginSettings.permissionsGranted': '权限已授权',
@@ -2872,9 +2887,13 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.statusFailed': '运行失败',
     'pluginSettings.statusIncompatible': '不兼容',
     'pluginSettings.statusInstalled': '已安装',
+    'pluginSettings.tabAdd': '添加',
+    'pluginSettings.tabInstalled': '已安装',
     'pluginSettings.title': '插件',
     'pluginSettings.trust': '信任当前代码',
     'pluginSettings.trustWarning': '信任后会在画布所在页面执行当前 Package 摘要对应的代码，请先审阅源码。',
+    'pluginSettings.installedDescription': '每张卡片同时展示 Package 来源与生命周期，以及其 PluginModule 运行状态。',
+    'pluginSettings.unmatchedModules': '缺少已安装 Package 记录的 Runtime Module',
     'packageLibrary.close': '关闭插件库',
     'packageLibrary.components': '包含内容',
     'packageLibrary.confirmRemove': '确定移除这个 Root Package 并重新计算依赖闭包吗：',
@@ -2961,7 +2980,6 @@ const translations: Record<Locale, Translations> = {
     'settings.language': '语言',
     'settings.preferences': '偏好设置',
     'settings.plugins': '插件',
-    'settings.packageLibrary': '插件库',
     'settings.shortcutClose': '关闭弹窗和面板',
     'settings.shortcutRedo': '重做',
     'settings.shortcutUndo': '撤销',
