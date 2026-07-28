@@ -26,7 +26,7 @@ try {
     definitionHash: 'sha256:whiteboard-plugin-runtime-v1',
     permissions: [
       'retake.asset.read.bound',
-      'retake.package.read.self',
+      'retake.draft.write.bound',
     ],
     version: '0.1.0',
   });
@@ -199,7 +199,7 @@ try {
     permissions: [
       'retake.asset.create',
       'retake.asset.read.bound',
-      'retake.package.read.self',
+      'retake.draft.write.bound',
     ],
     version: '0.2.0',
   });
@@ -219,7 +219,7 @@ try {
     permissions: [
       'retake.asset.create',
       'retake.asset.read.bound',
-      'retake.package.read.self',
+      'retake.draft.write.bound',
     ],
     pluginModuleId: 'retake.plugin.whiteboard-runtime-fixture',
   });

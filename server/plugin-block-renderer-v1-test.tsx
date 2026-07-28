@@ -75,8 +75,6 @@ const failures = registry.replace([{
     contributions: [{
       contribution: {
         contributionId: 'retake.contribution.renderer-fixture',
-        definitionHash: null,
-        definitionPath: null,
         exportName: 'fixtureRenderer',
         kind: 'renderer',
       },

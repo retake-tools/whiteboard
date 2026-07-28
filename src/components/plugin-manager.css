@@ -1,0 +1,571 @@
+.plugin-manager-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 225;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgb(15 23 42 / 38%);
+  backdrop-filter: blur(4px);
+}
+
+.plugin-manager-dialog {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  width: min(960px, calc(100vw - 56px));
+  height: min(800px, calc(100vh - 56px));
+  overflow: hidden;
+  border: 1px solid #d7deea;
+  border-radius: 16px;
+  background: #f8fafc;
+  box-shadow: 0 32px 96px rgb(15 23 42 / 30%);
+}
+
+.plugin-manager-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 24px 26px 18px;
+  gap: 24px;
+  border-bottom: 1px solid #e3e8ef;
+  background: #fff;
+}
+
+.plugin-manager-header h2 {
+  margin: 5px 0 4px;
+  color: #172033;
+  font-size: 23px;
+  letter-spacing: -0.02em;
+}
+
+.plugin-manager-header p {
+  max-width: 680px;
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.plugin-manager-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--retake-accent-strong);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.plugin-manager-close {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #e0e6ef;
+  border-radius: 9px;
+  background: #fff;
+  color: #475467;
+  cursor: pointer;
+}
+
+.plugin-manager-tabs {
+  display: flex;
+  padding: 0 26px;
+  gap: 22px;
+  border-bottom: 1px solid #e3e8ef;
+  background: #fff;
+}
+
+.plugin-manager-tabs button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 14px 2px 12px;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.plugin-manager-tabs button::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: transparent;
+  content: '';
+}
+
+.plugin-manager-tabs button.is-active {
+  color: var(--retake-accent-strong);
+}
+
+.plugin-manager-tabs button.is-active::after {
+  background: var(--retake-accent-strong);
+}
+
+.plugin-manager-tabs button span {
+  min-width: 19px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #f2f4f7;
+  color: #475467;
+  font-size: 9px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.plugin-manager-panel {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.plugin-manager-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  padding: 14px 26px;
+  gap: 10px;
+  border-bottom: 1px solid #e3e8ef;
+  background: #fff;
+}
+
+.plugin-manager-controls > div {
+  display: grid;
+  gap: 3px;
+}
+
+.plugin-manager-controls strong {
+  color: #202938;
+  font-size: 13px;
+}
+
+.plugin-manager-controls small {
+  color: #667085;
+  font-size: 11px;
+}
+
+.plugin-manager-controls button,
+.plugin-manager-install button,
+.plugin-manager-package-card > footer button,
+.plugin-manager-module-card > footer button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 11px;
+  gap: 6px;
+  border: 1px solid #d7deea;
+  border-radius: 8px;
+  background: #fff;
+  color: #344054;
+  font-size: 11px;
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.plugin-manager-controls button:disabled,
+.plugin-manager-install button:disabled,
+.plugin-manager-package-card > footer button:disabled,
+.plugin-manager-module-card > footer button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.plugin-manager-controls button.is-danger.is-active {
+  border-color: #f04438;
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.plugin-manager-content {
+  height: 100%;
+  overflow: auto;
+  padding: 20px 26px 28px;
+}
+
+.plugin-manager-section-description,
+.plugin-manager-add-content > div > p {
+  margin: 0 0 16px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.plugin-manager-error,
+.plugin-manager-module-failure {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  gap: 7px;
+  border: 1px solid #fecdca;
+  border-radius: 9px;
+  background: #fef3f2;
+  color: #b42318;
+  font-size: 12px;
+}
+
+.plugin-manager-error {
+  margin-bottom: 14px;
+}
+
+.plugin-manager-empty {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  gap: 8px;
+  color: #667085;
+  text-align: center;
+}
+
+.plugin-manager-empty strong {
+  color: #344054;
+}
+
+.plugin-manager-empty span {
+  max-width: 420px;
+  font-size: 12px;
+}
+
+.plugin-manager-package-list {
+  display: grid;
+  gap: 14px;
+}
+
+.plugin-manager-package-card {
+  display: grid;
+  padding: 16px;
+  gap: 13px;
+  border: 1px solid #dce3ec;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 3px 10px rgb(15 23 42 / 4%);
+  content-visibility: auto;
+  contain-intrinsic-size: auto 340px;
+}
+
+.plugin-manager-package-card > header,
+.plugin-manager-module-card > header {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.plugin-manager-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
+}
+
+.plugin-manager-package-card > header > span:nth-child(2),
+.plugin-manager-module-card > header > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.plugin-manager-package-card header strong,
+.plugin-manager-module-card header strong {
+  overflow: hidden;
+  color: #202938;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-manager-package-card header small,
+.plugin-manager-package-card > p,
+.plugin-manager-package-card dt,
+.plugin-manager-package-card dd,
+.plugin-manager-module-card header small,
+.plugin-manager-module-card > p,
+.plugin-manager-module-card dt,
+.plugin-manager-module-card dd {
+  margin: 0;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.plugin-manager-package-role,
+.plugin-manager-status {
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 780;
+  white-space: nowrap;
+}
+
+.plugin-manager-package-role {
+  background: #eef4ff;
+  color: #3538cd;
+}
+
+.plugin-manager-status {
+  background: #f2f4f7;
+  color: #475467;
+}
+
+.plugin-manager-status.is-enabled {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.plugin-manager-status.is-failed,
+.plugin-manager-status.is-incompatible {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.plugin-manager-status.is-installed {
+  background: #fffaeb;
+  color: #b54708;
+}
+
+.plugin-manager-package-card > dl,
+.plugin-manager-module-card > dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  gap: 8px;
+}
+
+.plugin-manager-package-card dl > div,
+.plugin-manager-module-card dl > div,
+.plugin-manager-package-card > section,
+.plugin-manager-module-card > section {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.plugin-manager-package-card dd,
+.plugin-manager-module-card dd {
+  overflow: hidden;
+  color: #344054;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-manager-package-card > section > strong,
+.plugin-manager-package-modules > strong,
+.plugin-manager-module-card > section > strong {
+  color: #344054;
+  font-size: 11px;
+}
+
+.plugin-manager-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.plugin-manager-tags code,
+.plugin-manager-tags span {
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: #f2f4f7;
+  color: #475467;
+  font-family: inherit;
+  font-size: 10px;
+}
+
+.plugin-manager-package-modules {
+  padding: 12px;
+  border: 1px solid #e3e8ef;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.plugin-manager-module-list {
+  display: grid;
+  gap: 10px;
+}
+
+.plugin-manager-module-card {
+  display: grid;
+  padding: 13px;
+  gap: 10px;
+  border: 1px solid #dce3ec;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.plugin-manager-module-card > footer,
+.plugin-manager-package-card > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.plugin-manager-module-card > footer > span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  color: #667085;
+  font-size: 10px;
+}
+
+.plugin-manager-package-card > footer > span,
+.plugin-manager-no-modules {
+  color: #667085;
+  font-size: 10px;
+}
+
+.plugin-manager-package-card > footer > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.plugin-manager-module-card > footer button.is-primary,
+.plugin-manager-install button.is-primary {
+  border-color: var(--retake-accent-strong);
+  background: var(--retake-accent-strong);
+  color: #fff;
+}
+
+.plugin-manager-package-card > footer button.is-danger {
+  border-color: #fecdca;
+  color: #b42318;
+}
+
+.plugin-manager-trust-warning {
+  color: #b54708;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.plugin-manager-unmatched-modules {
+  display: grid;
+  padding: 16px;
+  gap: 10px;
+  border: 1px solid #fdb022;
+  border-radius: 12px;
+  background: #fffaeb;
+}
+
+.plugin-manager-unmatched-modules h3 {
+  margin: 0;
+  color: #93370d;
+  font-size: 12px;
+}
+
+.plugin-manager-add-content {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+}
+
+.plugin-manager-add-content h3 {
+  margin: 0 0 5px;
+  color: #202938;
+  font-size: 16px;
+}
+
+.plugin-manager-install {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.7fr) minmax(260px, 1.7fr) auto;
+  align-items: center;
+  padding: 18px;
+  gap: 10px;
+  border: 1px solid #dce3ec;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.plugin-manager-install label {
+  display: grid;
+  gap: 3px;
+}
+
+.plugin-manager-install strong {
+  color: #202938;
+  font-size: 13px;
+}
+
+.plugin-manager-install small {
+  color: #667085;
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.plugin-manager-install input {
+  min-width: 0;
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid #d7deea;
+  border-radius: 8px;
+  outline: none;
+  color: #344054;
+  font-size: 12px;
+}
+
+.plugin-manager-install input:focus {
+  border-color: var(--retake-accent-strong);
+  box-shadow: 0 0 0 3px var(--retake-accent-soft);
+}
+
+.plugin-manager-dialog .is-spinning {
+  animation: plugin-manager-spin 0.9s linear infinite;
+}
+
+@keyframes plugin-manager-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 760px) {
+  .plugin-manager-backdrop {
+    padding: 12px;
+  }
+
+  .plugin-manager-dialog {
+    width: calc(100vw - 24px);
+    height: calc(100vh - 24px);
+  }
+
+  .plugin-manager-controls,
+  .plugin-manager-install {
+    grid-template-columns: 1fr;
+  }
+
+  .plugin-manager-controls button,
+  .plugin-manager-install button {
+    width: 100%;
+  }
+
+  .plugin-manager-package-card > dl,
+  .plugin-manager-module-card > dl {
+    grid-template-columns: 1fr;
+  }
+
+  .plugin-manager-package-card > footer,
+  .plugin-manager-module-card > footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .plugin-manager-package-card > footer > div {
+    justify-content: stretch;
+  }
+
+  .plugin-manager-package-card > footer button {
+    flex: 1;
+  }
+}
