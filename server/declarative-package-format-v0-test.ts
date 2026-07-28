@@ -25,7 +25,7 @@ const studioArchive = path.join(
   repositoryRoot,
   'packages',
   'bootstrap',
-  'video-studio-0.1.1.retakepkg',
+  'video-studio-0.1.2.retakepkg',
 );
 const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'retake-package-format-v0-'));
 const starterRoot = path.join(temporaryRoot, 'studio-source');

@@ -78,7 +78,7 @@ try {
   );
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.version),
-    ['0.10.0', '0.1.1'],
+    ['0.10.1', '0.1.2'],
   );
   await validateBootstrapProfileArchives(
     defaultBootstrapProfilePath,
@@ -185,16 +185,27 @@ try {
   const previousProfile = JSON.parse(
     await readFile(bundledUpgradeProfilePath, 'utf8'),
   ) as typeof publishedProfile;
+  const previousImage = previousProfile.packages.find(
+    (entry) => entry.packageId === imagePackageId,
+  )!;
+  Object.assign(previousImage, {
+    archiveDigest:
+      'sha256:5937e39f255adbc626ee82297331c0ee2f17e32e2b18588448d50f9c856c0d90',
+    archivePath: 'image-studio-0.10.0.retakepkg',
+    digest:
+      'sha256:be7f4be6ac007cfeab583e7eb4d7201040a20ca6f52ed4c4a41c8d8ba38566f8',
+    version: '0.10.0',
+  });
   const previousVideo = previousProfile.packages.find(
     (entry) => entry.packageId === videoPackageId,
   )!;
   Object.assign(previousVideo, {
     archiveDigest:
-      'sha256:bb78d8bb77853c79d179f7b8ddacc6b0507e14718543aa7178f7959ecdbe9543',
-    archivePath: 'video-studio-0.1.0.retakepkg',
+      'sha256:4dd5c40ce2bd9644d883a2c8695667896d368ff0a1966d043d7cc5e6801d67e5',
+    archivePath: 'video-studio-0.1.1.retakepkg',
     digest:
-      'sha256:1223ff4574c5090c3d0f89a5cf05ddfe78cf53c8666c830fa089ea96583216c7',
-    version: '0.1.0',
+      'sha256:50ceb7fd23fa8000b753fabd8662b8df3f49ca261fdd11c42ab3393cab636de7',
+    version: '0.1.1',
   });
   await writeFile(
     previousProfilePath,
@@ -212,9 +223,15 @@ try {
   });
   assert.equal(
     previousBootstrap.snapshot.packages.find(
+      (entry) => entry.packageId === imagePackageId,
+    )?.version,
+    '0.10.0',
+  );
+  assert.equal(
+    previousBootstrap.snapshot.packages.find(
       (entry) => entry.packageId === videoPackageId,
     )?.version,
-    '0.1.0',
+    '0.1.1',
   );
   await new PluginRuntimeService({
     hostVersion: '0.1.2',
@@ -227,9 +244,15 @@ try {
   });
   assert.equal(
     upgradedBootstrap.snapshot.packages.find(
+      (entry) => entry.packageId === imagePackageId,
+    )?.version,
+    '0.10.1',
+  );
+  assert.equal(
+    upgradedBootstrap.snapshot.packages.find(
       (entry) => entry.packageId === videoPackageId,
     )?.version,
-    '0.1.1',
+    '0.1.2',
   );
   assert.equal(upgradedBootstrap.installed, true);
   const upgradedVideoModule = upgradedBootstrap.pluginRuntime.modules.find(

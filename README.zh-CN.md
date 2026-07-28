@@ -192,4 +192,5 @@ MCP 写回和未来 Direct API 执行必须汇合到同一套 Asset 与 Executio
 
 ## 许可证
 
-Retake Whiteboard 使用 [MIT License](./LICENSE)。
+Retake Whiteboard 使用 [Apache License 2.0](./LICENSE)，需要保留的署名信息见
+[NOTICE](./NOTICE)。

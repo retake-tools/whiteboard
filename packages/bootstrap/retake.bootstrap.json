@@ -2,9 +2,9 @@
   "hostCompatibility": ">=0.1.2 <0.2.0",
   "packages": [
     {
-      "archiveDigest": "sha256:5937e39f255adbc626ee82297331c0ee2f17e32e2b18588448d50f9c856c0d90",
-      "archivePath": "image-studio-0.10.0.retakepkg",
-      "digest": "sha256:be7f4be6ac007cfeab583e7eb4d7201040a20ca6f52ed4c4a41c8d8ba38566f8",
+      "archiveDigest": "sha256:581f7f0051c3c77809240a41d5126157e2baa4a4fc00be7b2e7bf5ec62e2ed0f",
+      "archivePath": "image-studio-0.10.1.retakepkg",
+      "digest": "sha256:4bc61595266ee825d423a2dfe5e1f4924a247c957b05d17daaf3afc4070cdeeb",
       "packageId": "design.retake.image-studio",
       "pluginModules": [
         {
@@ -18,12 +18,12 @@
           "pluginModuleId": "design.retake.image-studio.web"
         }
       ],
-      "version": "0.10.0"
+      "version": "0.10.1"
     },
     {
-      "archiveDigest": "sha256:4dd5c40ce2bd9644d883a2c8695667896d368ff0a1966d043d7cc5e6801d67e5",
-      "archivePath": "video-studio-0.1.1.retakepkg",
-      "digest": "sha256:50ceb7fd23fa8000b753fabd8662b8df3f49ca261fdd11c42ab3393cab636de7",
+      "archiveDigest": "sha256:a9972f561f1e19cda253302ee9a77afd0a6b5acbe542b4950ca8786762823120",
+      "archivePath": "video-studio-0.1.2.retakepkg",
+      "digest": "sha256:1a377bd022b27ae5bbd029c286ac5785b60977ef51709948f15c552cdfdd8b1e",
       "packageId": "design.retake.video-studio",
       "pluginModules": [
         {
@@ -31,7 +31,7 @@
           "pluginModuleId": "design.retake.video-studio.web"
         }
       ],
-      "version": "0.1.1"
+      "version": "0.1.2"
     }
   ],
   "profileId": "retake.default-studios",

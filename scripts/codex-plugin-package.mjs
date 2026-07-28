@@ -8,6 +8,7 @@ const packagedEntries = [
   '.codex-plugin',
   '.mcp.json',
   'LICENSE',
+  'NOTICE',
   'README.md',
   'README.zh-CN.md',
   'assets/readme',

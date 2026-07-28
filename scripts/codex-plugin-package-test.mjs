@@ -24,6 +24,7 @@ try {
     '.mcp.json',
     pluginSourceMarker,
     'LICENSE',
+    'NOTICE',
     'README.md',
     'README.zh-CN.md',
     'assets',

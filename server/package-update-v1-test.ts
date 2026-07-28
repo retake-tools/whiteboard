@@ -80,7 +80,7 @@ try {
         status: 'available',
       },
       {
-        candidate: '0.1.1',
+        candidate: '0.1.2',
         packageId: 'design.retake.video-studio',
         status: 'current',
       },
