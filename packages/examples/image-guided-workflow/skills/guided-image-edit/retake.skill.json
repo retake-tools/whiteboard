@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "skillId": "retake.image.guided-edit",
+  "version": "0.1.0",
+  "definitionHash": "sha256:retake-image-guided-edit-skill-v1",
+  "name": "Guided image edit",
+  "description": "Edit one source Image from an explicit instruction and optional guidance Image.",
+  "category": "media_generation",
+  "capabilityBindings": [
+    {
+      "capabilityId": "image.guided_edit",
+      "inputSlots": [
+        "source_image",
+        "guidance_image",
+        "prompt"
+      ],
+      "outputSlots": [
+        "edited_images"
+      ]
+    }
+  ],
+  "instructionTemplate": "Edit exactly the supplied source Image according to the user's instruction. Treat an optional guidance Image only as reference or mask guidance for the requested change. Preserve every source fact that the instruction does not explicitly change. Do not add text, branding, UI chrome, or explanatory overlays unless the instruction explicitly requires visible text. Return only clean edited Image candidates.",
+  "outputRequirements": [
+    "Return only edited Image candidates derived from the bound source Image.",
+    "Preserve unrequested composition, identity, lighting, and content.",
+    "Use the optional guidance Image only for the declared edit.",
+    "Do not claim approval or select a final result on behalf of the user."
+  ],
+  "ui": {
+    "description": {
+      "default": "Edit one source Image with an instruction and optional reference or mask.",
+      "locales": {
+        "zh": "根据指令和可选参考图或蒙版编辑一张源图片。"
+      }
+    },
+    "inputLabel": {
+      "default": "Source image",
+      "locales": {
+        "zh": "源图片"
+      }
+    },
+    "inputSlots": [
+      {
+        "label": {
+          "default": "Source image",
+          "locales": {
+            "zh": "源图片"
+          }
+        },
+        "placeholder": {
+          "default": "Connect the Image to edit...",
+          "locales": {
+            "zh": "连接要编辑的图片..."
+          }
+        },
+        "slotId": "source_image"
+      },
+      {
+        "label": {
+          "default": "Guidance image",
+          "locales": {
+            "zh": "引导图片"
+          }
+        },
+        "placeholder": {
+          "default": "Optionally connect a reference or Selection Mask...",
+          "locales": {
+            "zh": "可选连接参考图或选区蒙版..."
+          }
+        },
+        "slotId": "guidance_image"
+      },
+      {
+        "label": {
+          "default": "Edit instruction",
+          "locales": {
+            "zh": "编辑要求"
+          }
+        },
+        "placeholder": {
+          "default": "Describe the change and what must remain unchanged...",
+          "locales": {
+            "zh": "说明要修改的内容，以及必须保持不变的内容..."
+          }
+        },
+        "slotId": "prompt"
+      }
+    ],
+    "name": {
+      "default": "Guided image edit",
+      "locales": {
+        "zh": "引导式图片编辑"
+      }
+    },
+    "operationTitle": {
+      "default": "Guided image edit",
+      "locales": {
+        "zh": "引导式图片编辑"
+      }
+    },
+    "placeholder": {
+      "default": "Connect a source Image and enter an edit instruction...",
+      "locales": {
+        "zh": "连接源图片并输入编辑要求..."
+      }
+    }
+  },
+  "source": {
+    "kind": "package",
+    "paths": [
+      "README.md"
+    ]
+  }
+}

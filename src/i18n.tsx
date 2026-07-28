@@ -429,6 +429,7 @@ export type TranslationKey =
   | 'skillComposer.noEntryPoints'
   | 'skillComposer.noMentions'
   | 'skillComposer.invalidInput'
+  | 'skillComposer.capabilityUnavailable'
   | 'skillComposer.modeAgent'
   | 'skillComposer.modeComingSoon'
   | 'skillComposer.modeImage'
@@ -1489,6 +1490,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.noEntryPoints': 'No matching skills or workflows.',
     'skillComposer.noMentions': 'No compatible blocks or assets.',
     'skillComposer.invalidInput': 'This input combination is not compatible with the selected entry point.',
+    'skillComposer.capabilityUnavailable': 'Required Plugin Capability is unavailable',
     'skillComposer.modeAgent': 'Agent',
     'skillComposer.modeComingSoon': 'Coming soon',
     'skillComposer.modeImage': 'Image',
@@ -2544,6 +2546,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.noEntryPoints': '没有匹配的 Skill 或 Workflow。',
     'skillComposer.noMentions': '当前没有兼容的 Block 或 Asset。',
     'skillComposer.invalidInput': '当前输入组合与所选 EntryPoint 不兼容。',
+    'skillComposer.capabilityUnavailable': '所需 Plugin Capability 当前不可用',
     'skillComposer.modeAgent': 'Agent',
     'skillComposer.modeComingSoon': '稍后开放',
     'skillComposer.modeImage': '图片',

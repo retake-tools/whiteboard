@@ -24,6 +24,7 @@ import {
   listPackageComposerMentionOptions,
   packageComposerMentionId,
   packageComposerMentionBindingIdentity,
+  packageComposerDependencyIssue,
   resolvePackageComposerInvocation,
   type PackageComposerInvocation,
   type PackageComposerInlineValue,
@@ -60,6 +61,10 @@ import {
   currentInstalledRuntimeRegistryRevision,
   subscribeInstalledRuntimeRegistry,
 } from '../core/installedRuntimeRegistry';
+import {
+  currentPluginCapabilityDefinitionsRevision,
+  subscribePluginCapabilityDefinitions,
+} from '../core/pluginCapabilityDefinitions';
 
 interface SkillQuickInputComposerProps {
   agentDisabled?: boolean;
@@ -124,6 +129,11 @@ export function SkillQuickInputComposer({
     currentInstalledRuntimeRegistryRevision,
     currentInstalledRuntimeRegistryRevision,
   );
+  const capabilityRevision = useSyncExternalStore(
+    subscribePluginCapabilityDefinitions,
+    currentPluginCapabilityDefinitionsRevision,
+    currentPluginCapabilityDefinitionsRevision,
+  );
   const entrypoints = useMemo(
     () => listPackageEntryPoints().filter(isRunnableRegistration),
     [registryRevision],
@@ -133,6 +143,12 @@ export function SkillQuickInputComposer({
     [registryRevision],
   );
   const selectedEntryPoint = entrypoints.find((registration) => registration.entrypoint.entrypointId === entrypointId);
+  const dependencyIssue = useMemo(
+    () => entrypointId
+      ? packageComposerDependencyIssue(entrypointId)
+      : undefined,
+    [capabilityRevision, entrypointId, registryRevision],
+  );
   const inlineInputOptions = useMemo(
     () => entrypointId ? listPackageComposerInlineInputOptions(entrypointId) : [],
     [entrypointId],
@@ -223,6 +239,7 @@ export function SkillQuickInputComposer({
     usesStoryboardSheet,
   ]);
   const canSubmit = useMemo(() => {
+    if (dependencyIssue) return false;
     if (composerMode === 'video') return false;
     if (composerMode === 'image') {
       return Boolean(instruction.trim() && imageConnectionId && onCreateImageDraft);
@@ -242,6 +259,7 @@ export function SkillQuickInputComposer({
     invocation,
     onCreateImageDraft,
     snapshot,
+    dependencyIssue,
   ]);
 
   useEffect(() => {
@@ -681,6 +699,17 @@ export function SkillQuickInputComposer({
         </div>
       </form>
       {submitError ? <p className="skill-composer-error" role="status">{submitError}</p> : null}
+      {dependencyIssue ? (
+        <p
+          className="skill-composer-error"
+          data-capability-id={dependencyIssue.capabilityId}
+          data-dependency-reason={dependencyIssue.reason}
+          role="status"
+        >
+          {t('skillComposer.capabilityUnavailable')}: {' '}
+          <code>{dependencyIssue.capabilityId}</code>
+        </p>
+      ) : null}
       {showRecommendations && composerMode === 'agent' ? <div className="skill-composer-recommended">
         <span><Sparkles size={12} />{t('skillDock.recommended')}</span>
         {recommended.map((registration) => (

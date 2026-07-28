@@ -1,4 +1,3 @@
-import { capabilityDefinitionFor } from './capabilityRegistry';
 import type {
   AgentPresetDefinition,
   AgentPresetDefinitionLock,
@@ -6,6 +5,7 @@ import type {
   AgentPresetRuntimeKind,
   AgentPresetToolPermission,
 } from './agentPresetContracts';
+import { tryCapabilityDefinitionFor } from './capabilityRegistry';
 import { skillDefinitionFor } from './skillRegistry';
 import storyProductionDirectorSource from '../../packages/builtin/story-production-agent/agents/agent-story-production-director/retake.agent.json';
 
@@ -103,14 +103,7 @@ export function validateAgentPresetDefinition(
     'AgentPreset allowed Capability',
     issues,
   );
-  for (const capabilityId of definition.allowedCapabilityIds) {
-    try {
-      capabilityDefinitionFor(capabilityId);
-    } catch {
-      issues.push(`AgentPreset Capability is not registered: ${capabilityId}`);
-    }
-  }
-
+  const capabilitiesDeclaredByAllowedSkills = new Set<string>();
   if (definition.skillPolicy.mode === 'allow_list') {
     validateUniqueNonEmpty(
       definition.skillPolicy.allowedSkillIds,
@@ -120,6 +113,9 @@ export function validateAgentPresetDefinition(
     for (const skillId of definition.skillPolicy.allowedSkillIds) {
       try {
         const skill = skillDefinitionFor(skillId);
+        for (const binding of skill.capabilityBindings) {
+          capabilitiesDeclaredByAllowedSkills.add(binding.capabilityId);
+        }
         if (!skill.capabilityBindings.some(
           (binding) => definition.allowedCapabilityIds.includes(binding.capabilityId),
         )) issues.push(`AgentPreset Skill has no allowed Capability binding: ${skillId}`);
@@ -127,6 +123,12 @@ export function validateAgentPresetDefinition(
         issues.push(`AgentPreset Skill is not registered: ${skillId}`);
       }
     }
+  }
+  for (const capabilityId of definition.allowedCapabilityIds) {
+    if (
+      !tryCapabilityDefinitionFor(capabilityId)
+      && !capabilitiesDeclaredByAllowedSkills.has(capabilityId)
+    ) issues.push(`AgentPreset Capability is not registered: ${capabilityId}`);
   }
 
   validateKnownUnique(
