@@ -22,7 +22,7 @@ import {
   domainVideoGenerationCapabilityId,
   normalizeDomainVideoGenerationParameters,
 } from '../core/domainVideoGenerationContracts';
-import { skillUiDefinitionFor, skillsForCapability } from '../core/skillRegistry';
+import { resolvedSkillUiDefinitionFor, skillsForCapability } from '../core/skillRegistry';
 import type {
   BlockRecord,
   BlockType,
@@ -47,6 +47,7 @@ interface InputReferencePickerState {
 
 interface OperationInputControllerOptions {
   copyQueuedOperationPrompt: (block: BlockRecord) => Promise<void>;
+  locale: string;
   refreshQueuedOperationPrompt: (block: BlockRecord) => Promise<void>;
   setOperationToast: (toast: OperationToast | undefined) => void;
   setSelectedBlock: (snapshot: BoardSnapshot, blockId: string) => void;
@@ -71,6 +72,7 @@ interface OperationInputControllerOptions {
 export function useOperationInputController(options: OperationInputControllerOptions) {
   const {
     copyQueuedOperationPrompt,
+    locale,
     refreshQueuedOperationPrompt,
     setOperationToast,
     setSelectedBlock,
@@ -105,10 +107,10 @@ export function useOperationInputController(options: OperationInputControllerOpt
   function operationPlaceholderForBlock(operationBlock: BlockRecord): string {
     if (operationBlock.data.capabilityId === 'text.generate') return t('operationToolbar.promptPlaceholder');
     if (typeof operationBlock.data.skillId === 'string') {
-      const ui = skillUiDefinitionFor(operationBlock.data.skillId);
+      const ui = resolvedSkillUiDefinitionFor(operationBlock.data.skillId, locale);
       const slotId = nextRequiredInputSlotId(snapshotRef.current, operationBlock);
       const slot = ui.inputSlots?.find((candidate) => candidate.slotId === slotId);
-      return t(slot?.placeholderKey ?? ui.placeholderKey);
+      return slot?.placeholder ?? ui.placeholder;
     }
     const mode = operationBlock.data.operationMode;
     if (operationBlock.data.operationVariant === 'create_similar') {
@@ -138,10 +140,10 @@ export function useOperationInputController(options: OperationInputControllerOpt
       if (type === 'text') {
         const slotId = nextRequiredInputSlotId(current, operationBlock);
         const skillUi = typeof operationBlock.data.skillId === 'string'
-          ? skillUiDefinitionFor(operationBlock.data.skillId)
+          ? resolvedSkillUiDefinitionFor(operationBlock.data.skillId, locale)
           : undefined;
         const slotUi = skillUi?.inputSlots?.find((candidate) => candidate.slotId === slotId);
-        block.data.title = slotUi ? t(slotUi.inputKey) : t('operationToolbar.prompt');
+        block.data.title = slotUi?.label ?? t('operationToolbar.prompt');
         block.data.promptRole = 'operation_prompt';
         block.data.placeholder = operationPlaceholderForBlock(operationBlock);
       }

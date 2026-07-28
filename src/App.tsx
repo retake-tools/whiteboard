@@ -429,6 +429,7 @@ function ReadyApp({
   const textGenerationController = useTextGenerationController({
     centerWorkflowBlocks,
     focusWorkflowBlocks,
+    locale,
     persistSnapshot,
     setOperationToast,
     setSelectedBlocks,
@@ -440,6 +441,7 @@ function ReadyApp({
   const workflowDraftController = useWorkflowDraftController({
     centerBlockGroup,
     focusWorkflowBlocks,
+    locale,
     setSelectedBlocks,
     t,
     updateSnapshot,
@@ -496,6 +498,7 @@ function ReadyApp({
     runOperation,
   } = useOperationInputController({
     copyQueuedOperationPrompt,
+    locale,
     refreshQueuedOperationPrompt,
     setOperationToast,
     setSelectedBlock,
@@ -521,6 +524,7 @@ function ReadyApp({
   });
   const agentWorkspaceController = useAgentWorkspaceController({
     focusWorkflowBlocks,
+    locale,
     persistSnapshot,
     setSelectedBlocks,
     snapshot,

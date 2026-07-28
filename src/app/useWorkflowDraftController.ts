@@ -4,13 +4,14 @@ import type { BoardSnapshot } from '../core/types';
 import { projectWorkflowDraft } from '../core/workflowDraftProjection';
 import type { ResolvedPackageEntryPointTarget } from '../core/packageRegistry';
 import type { ResolvedPackageComposerInvocation } from '../core/packageComposer';
-import { workflowUiDefinitionFor } from '../core/workflowRegistry';
+import { resolvedWorkflowUiDefinitionFor } from '../core/workflowRegistry';
 import type { useI18n } from '../i18n';
 import { textGenerationLabelsForSkill } from './skillTextLabels';
 
 interface WorkflowDraftControllerOptions {
   centerBlockGroup: (snapshot: BoardSnapshot, blockIds: string[]) => void;
   focusWorkflowBlocks: (blockIds: string[]) => void;
+  locale: string;
   setSelectedBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
   t: ReturnType<typeof useI18n>['t'];
   updateSnapshot: (
@@ -23,6 +24,7 @@ export function useWorkflowDraftController(options: WorkflowDraftControllerOptio
   const {
     centerBlockGroup,
     focusWorkflowBlocks,
+    locale,
     setSelectedBlocks,
     t,
     updateSnapshot,
@@ -36,10 +38,10 @@ export function useWorkflowDraftController(options: WorkflowDraftControllerOptio
     let workflowBlockIds: string[] = [];
     let workflowGroupId = '';
     const nextSnapshot = updateSnapshot((current) => {
-      const ui = workflowUiDefinitionFor(workflowId);
+      const ui = resolvedWorkflowUiDefinitionFor(workflowId, locale);
       const projection = projectWorkflowDraft(current, {
         workflowId,
-        workflowTitle: t(ui.nameKey),
+        workflowTitle: ui.name,
         outputPlaceholder: t('workflowDraft.outputPending'),
         composerInput: composer ? {
           mentions: composer.invocation.mentions,
@@ -53,7 +55,7 @@ export function useWorkflowDraftController(options: WorkflowDraftControllerOptio
           entrypointId: target.entrypoint.entrypointId,
           packageLock: target.packageLock,
         },
-        labelsForSkill: (skillId) => textGenerationLabelsForSkill(skillId, t),
+        labelsForSkill: (skillId) => textGenerationLabelsForSkill(skillId, locale, t),
         connectionIdForCapability: (capabilityId) => {
           const definition = capabilityDefinitionFor(capabilityId);
           const useCase = definition.outputSlots.some((slot) => slot.dataType === 'image') ? 'image' : 'text';

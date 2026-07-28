@@ -25,6 +25,70 @@
     "Use ordered scenes or beats with visible action, dialogue or sound, story-state change, and continuity needs.",
     "End with unresolved ambiguities and a fidelity check."
   ],
+  "ui": {
+    "description": {
+      "default": "Organize structure without changing story facts.",
+      "locales": {
+        "zh": "在不改变剧情事实的前提下整理已有剧本。"
+      }
+    },
+    "inputLabel": {
+      "default": "Source screenplay",
+      "locales": {
+        "zh": "源剧本"
+      }
+    },
+    "inputSlots": [
+      {
+        "label": {
+          "default": "Source screenplay",
+          "locales": {
+            "zh": "源剧本"
+          }
+        },
+        "placeholder": {
+          "default": "Paste the screenplay to normalize, or select a Document Block first...",
+          "locales": {
+            "zh": "粘贴需要规范化的剧本，或先选择一个 Document Block..."
+          }
+        },
+        "slotId": "source_screenplay"
+      },
+      {
+        "label": {
+          "default": "Organization requirements",
+          "locales": {
+            "zh": "整理要求"
+          }
+        },
+        "placeholder": {
+          "default": "Describe how to organize the screenplay without changing story facts...",
+          "locales": {
+            "zh": "描述如何整理剧本，但不要改变剧情事实..."
+          }
+        },
+        "slotId": "normalization_instruction"
+      }
+    ],
+    "name": {
+      "default": "Organize screenplay",
+      "locales": {
+        "zh": "整理剧本"
+      }
+    },
+    "operationTitle": {
+      "default": "Organize screenplay",
+      "locales": {
+        "zh": "整理剧本"
+      }
+    },
+    "placeholder": {
+      "default": "Paste the screenplay to normalize, or select a Document Block first...",
+      "locales": {
+        "zh": "粘贴需要规范化的剧本，或先选择一个 Document Block..."
+      }
+    }
+  },
   "source": {
     "kind": "catmeme_migration",
     "paths": [

@@ -14,7 +14,7 @@ import {
   type WorkflowContinuationGateStatus,
   type WorkflowContinuationResolution,
 } from '../core/workflowContinuation';
-import { workflowUiDefinitionFor } from '../core/workflowRegistry';
+import { resolvedWorkflowUiDefinitionFor } from '../core/workflowRegistry';
 import { useI18n, type TranslationKey } from '../i18n';
 import { useUnifiedComposerDraft } from './UnifiedComposerProvider';
 
@@ -27,7 +27,7 @@ export function WorkflowContinuationDialog({
   onPrepareComposer,
   snapshot,
 }: WorkflowContinuationDialogProps): ReactElement | null {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const { isDirty, startWorkflowContinuation } = useUnifiedComposerDraft();
   const [sourceBlockId, setSourceBlockId] = useState<string>();
   const [resolution, setResolution] = useState<WorkflowContinuationResolution>();
@@ -197,17 +197,20 @@ export function WorkflowContinuationDialog({
             {resolution.candidates.map((candidate) => {
               const confirmsReplacement = isDirty
                 && replacementCandidateId === candidate.candidateId;
-              const workflowUi = workflowUiDefinitionFor(candidate.workflowDefinitionId);
+              const workflowUi = resolvedWorkflowUiDefinitionFor(
+                candidate.workflowDefinitionId,
+                locale,
+              );
               return (
                 <article key={candidate.candidateId}>
                   <div>
                     <div className="workflow-continuation-candidate-heading">
-                      <strong>{t(workflowUi.nameKey)}</strong>
+                      <strong>{workflowUi.name}</strong>
                       {candidate.recommended ? (
                         <span>{t('workflowContinuation.recommended')}</span>
                       ) : null}
                     </div>
-                    <p>{t(workflowUi.descriptionKey)}</p>
+                    <p>{workflowUi.description}</p>
                     <dl>
                       <div>
                         <dt>{t('workflowContinuation.inputSlot')}</dt>

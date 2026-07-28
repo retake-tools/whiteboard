@@ -35,6 +35,7 @@ import { createDraftDomainVideoGenerationOperation } from '../core/domainVideoGe
 interface TextGenerationControllerOptions {
   centerWorkflowBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
   focusWorkflowBlocks: (blockIds: string[]) => void;
+  locale: string;
   persistSnapshot: (snapshot: BoardSnapshot, options?: { requireLocalApi?: boolean }) => Promise<void>;
   setOperationToast: (toast: OperationToast | undefined) => void;
   setSelectedBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
@@ -51,6 +52,7 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
   const {
     centerWorkflowBlocks,
     focusWorkflowBlocks,
+    locale,
     persistSnapshot,
     setOperationToast,
     setSelectedBlocks,
@@ -84,7 +86,7 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
     const skillId = target.entrypoint.ref.skillId;
     let workflowBlockIds: string[] = [];
     const nextSnapshot = updateSnapshot((current) => {
-      const skillLabels = textGenerationLabelsForSkill(skillId, t);
+      const skillLabels = textGenerationLabelsForSkill(skillId, locale, t);
       const explicitInputBindings = composer?.invocation.mentions.map((mention) => mention.kind === 'block'
         ? { kind: 'block' as const, blockId: mention.blockId, inputSlotId: mention.slotId }
         : { kind: 'asset' as const, assetId: mention.assetId, inputSlotId: mention.slotId });
@@ -323,7 +325,7 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
 
   function labelsForOperation(block: BlockRecord): TextGenerationLabels {
     return typeof block.data.skillId === 'string'
-      ? textGenerationLabelsForSkill(block.data.skillId, t)
+      ? textGenerationLabelsForSkill(block.data.skillId, locale, t)
       : labels();
   }
 

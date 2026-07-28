@@ -26,7 +26,7 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 const starterRoot = path.join(repositoryRoot, 'packages', 'builtin', 'story-production-starter');
 const agentRoot = path.join(repositoryRoot, 'packages', 'builtin', 'story-production-agent');
 const canonicalStarterArchiveDigest =
-  'sha256:a0522453a4e7de0bbc26697b78025ac4a806fe7b1798288524832fcf13a644b3';
+  'sha256:45fd87e15376c4b19e55eb77489b7f57f3493132bcf4d114a427ef68e7e6c847';
 const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'retake-package-format-v0-'));
 
 try {

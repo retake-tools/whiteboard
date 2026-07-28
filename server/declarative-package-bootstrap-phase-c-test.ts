@@ -25,8 +25,14 @@ import {
   storyProductionAgentPackage,
   storyProductionStarterPackage,
 } from '../src/core/packageRegistry';
-import { listSkills } from '../src/core/skillRegistry';
-import { listWorkflows } from '../src/core/workflowRegistry';
+import {
+  listSkills,
+  resolvedSkillUiDefinitionFor,
+} from '../src/core/skillRegistry';
+import {
+  listWorkflows,
+  resolvedWorkflowUiDefinitionFor,
+} from '../src/core/workflowRegistry';
 import { listAgentPresets } from '../src/core/agentPresetRegistry';
 import {
   bootstrapDeclarativePackages,
@@ -48,7 +54,7 @@ try {
   assert.equal(publishedProfile.profileId, 'retake.default-video-production');
   assert.equal(
     publishedProfile.rootPackage.digest,
-    'sha256:b5e0ac116b75a8fcdb56f94d6e33fae635d3cd11ec29a5ef669bc2c9aa2841e5',
+    'sha256:0ad43fadc6364c39d049a3c4ab6c72a29b95451c10de5301019ba61b797c3f45',
   );
   assert.equal(
     publishedProfile.dependencyPackages[0]?.digest,
@@ -99,6 +105,17 @@ try {
   assert.equal(listWorkflows().length, 4);
   assert.equal(listAgentPresets().length, 1);
   assert.equal(listPackageEntryPoints().length, 13);
+  assert.equal(
+    resolvedSkillUiDefinitionFor('retake.screenplay.from-brief', 'zh-CN').name,
+    '生成剧本',
+  );
+  assert.equal(
+    resolvedWorkflowUiDefinitionFor(
+      'retake.workflow.story-to-storyboard',
+      'en',
+    ).name,
+    'Story to storyboard plan',
+  );
   const resolved = resolvePackageEntryPoint({
     entrypointId: 'workflow:retake.workflow.story-to-storyboard',
   });
@@ -147,6 +164,13 @@ try {
   assert.equal(emptyBootstrap.installed, false);
   assert.equal(emptyBootstrap.snapshot.packages.length, 0);
   assert.equal((await emptyManager.list()).revision, 2);
+  configureInstalledRuntimeRegistry(emptyBootstrap.snapshot);
+  assert.equal(listPackages().length, 0);
+  assert.equal(listSkills().length, 0);
+  assert.equal(listWorkflows().length, 0);
+  assert.equal(listAgentPresets().length, 0);
+  assert.equal(listPackageEntryPoints().length, 0);
+  configureInstalledRuntimeRegistry(first.snapshot);
 
   await verifyProfileFailure('profile-digest-tamper', (profile) => {
     profile.rootPackage.digest = `sha256:${'0'.repeat(64)}`;
@@ -263,9 +287,27 @@ try {
     registryBeforeTamper,
   );
 
-  const [mainSource, apiSource] = await Promise.all([
+  const [
+    mainSource,
+    apiSource,
+    exportSource,
+    skillRegistrySource,
+    workflowRegistrySource,
+    agentPresetRegistrySource,
+  ] = await Promise.all([
     readFile(path.join(repositoryRoot, 'src', 'main.tsx'), 'utf8'),
     readFile(path.join(repositoryRoot, 'server', 'vite-local-api.ts'), 'utf8'),
+    readFile(
+      path.join(
+        repositoryRoot,
+        'scripts',
+        'export-builtin-declarative-packages.ts',
+      ),
+      'utf8',
+    ),
+    readFile(path.join(repositoryRoot, 'src', 'core', 'skillRegistry.ts'), 'utf8'),
+    readFile(path.join(repositoryRoot, 'src', 'core', 'workflowRegistry.ts'), 'utf8'),
+    readFile(path.join(repositoryRoot, 'src', 'core', 'agentPresetRegistry.ts'), 'utf8'),
   ]);
   assert.ok(
     mainSource.indexOf('bootstrapInstalledRuntimeRegistry()')
@@ -277,6 +319,10 @@ try {
     apiSource.indexOf("url.pathname === '/health'")
       < apiSource.indexOf('await ensurePackageBootstrap()'),
   );
+  assert.doesNotMatch(exportSource, /src\/core\/(?:skill|workflow|agentPreset|package)Registry/);
+  assert.doesNotMatch(skillRegistrySource, /You are the Writer for a video production workflow/);
+  assert.doesNotMatch(workflowRegistrySource, /Project a manual draft graph/);
+  assert.doesNotMatch(agentPresetRegistrySource, /Act as the bounded Retake production agent/);
 
   console.log(JSON.stringify({
     ok: true,
@@ -284,6 +330,9 @@ try {
     boardDataUnaffected: true,
     bundledArchivesExact: true,
     cacheOnlyOfflineActivation: true,
+    domainDefinitionsOwnedByPackageSource: true,
+    emptyInstalledClosureRemovesDomainEntrypoints: true,
+    localizedAuthoringUiOwnedByPackage: true,
     emptyLockPreserved: true,
     firstBootstrapResolvedPackages: first.snapshot.packages.length,
     firstBootstrapRootPackage: storyProductionStarterPackage.packageId,

@@ -26,7 +26,7 @@ import {
 } from '../core/imageComposer';
 import { operationDisplayState } from '../core/operationDisplay';
 import { pluginCapabilityDefinitionFor } from '../core/pluginCapabilityDefinitions';
-import { skillUiDefinitionFor, skillsForCapability } from '../core/skillRegistry';
+import { resolvedSkillUiDefinitionFor, skillsForCapability } from '../core/skillRegistry';
 import {
   normalizeStoryboardSheetGenerationParameters,
   storyboardSheetCapabilityId,
@@ -93,7 +93,7 @@ function LocalCanvasOperationControls({ data }: { data: BlockData }): ReactEleme
 }
 
 function GenerationOperationInlineControls({ blockId, data }: { blockId: string; data: BlockData }): ReactElement {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const controlsRef = useRef<HTMLDivElement | null>(null);
   const [isParamsOpen, setIsParamsOpen] = useState(false);
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
@@ -309,7 +309,7 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
             }}
           >
             <span>{t('operationToolbar.skill')}</span>
-            <strong>{selectedSkill ? localizedSkillName(selectedSkill.skillId, t) : t('operationToolbar.selectSkill')}</strong>
+            <strong>{selectedSkill ? localizedSkillName(selectedSkill.skillId, locale) : t('operationToolbar.selectSkill')}</strong>
             <ChevronRight size={15} />
           </button>
           {isSkillOpen && !isLocked ? (
@@ -326,7 +326,7 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
                     setIsSkillOpen(false);
                   }}
                 >
-                  <span>{localizedSkillName(skill.skillId, t)}</span>
+                  <span>{localizedSkillName(skill.skillId, locale)}</span>
                   {selectedSkill?.skillId === skill.skillId ? <Check size={14} /> : null}
                 </button>
               ))}
@@ -690,8 +690,8 @@ function dispatchUpdateOperationSkill(blockId: string, skillId: string): void {
   window.dispatchEvent(new CustomEvent('retake:update-operation-skill', { detail: { blockId, skillId } }));
 }
 
-function localizedSkillName(skillId: string, t: ReturnType<typeof useI18n>['t']): string {
-  return t(skillUiDefinitionFor(skillId).nameKey);
+function localizedSkillName(skillId: string, locale: string): string {
+  return resolvedSkillUiDefinitionFor(skillId, locale).name;
 }
 
 function textOperationActionKey(capabilityId: string):

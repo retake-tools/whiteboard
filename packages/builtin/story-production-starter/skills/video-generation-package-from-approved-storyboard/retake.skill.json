@@ -29,6 +29,130 @@
     "Map every declared reference requirement to its exact bound Asset or ArtifactRevision identity; never silently substitute a source.",
     "End with a readiness review that distinguishes ready facts, missing inputs, and later provider-specific choices."
   ],
+  "ui": {
+    "description": {
+      "default": "Prepare a provider-neutral package from one approved storyboard unit and declared references.",
+      "locales": {
+        "zh": "基于一个已审阅的分镜 Unit 与声明的参考，准备供应商中立的视频生成包。"
+      }
+    },
+    "inputLabel": {
+      "default": "Storyboard Plan",
+      "locales": {
+        "zh": "故事板计划"
+      }
+    },
+    "inputSlots": [
+      {
+        "label": {
+          "default": "Storyboard Plan",
+          "locales": {
+            "zh": "故事板计划"
+          }
+        },
+        "placeholder": {
+          "default": "Connect the authoritative Storyboard Plan...",
+          "locales": {
+            "zh": "连接作为依据的故事板计划..."
+          }
+        },
+        "slotId": "storyboard_plan"
+      },
+      {
+        "label": {
+          "default": "Approved Storyboard Sheet",
+          "locales": {
+            "zh": "已审阅分镜图"
+          }
+        },
+        "placeholder": {
+          "default": "Connect the current approved Storyboard Sheet revision...",
+          "locales": {
+            "zh": "连接当前且已通过审阅的分镜图修订..."
+          }
+        },
+        "slotId": "storyboard_sheet"
+      },
+      {
+        "label": {
+          "default": "Unit ID",
+          "locales": {
+            "zh": "Unit ID"
+          }
+        },
+        "placeholder": {
+          "default": "Enter the exact Unit ID shared by the Plan and Sheet...",
+          "locales": {
+            "zh": "输入计划与分镜图共同对应的精确 Unit ID..."
+          }
+        },
+        "slotId": "unit_id"
+      },
+      {
+        "label": {
+          "default": "Generation references",
+          "locales": {
+            "zh": "生成参考"
+          }
+        },
+        "placeholder": {
+          "default": "Connect declared character, scene, prop, frame, or motion references...",
+          "locales": {
+            "zh": "连接已声明的角色、场景、道具、帧或动作参考..."
+          }
+        },
+        "slotId": "references"
+      },
+      {
+        "label": {
+          "default": "Reference Manifest",
+          "locales": {
+            "zh": "参考清单"
+          }
+        },
+        "placeholder": {
+          "default": "Declare each reference role, purpose, binding, and whether it is required...",
+          "locales": {
+            "zh": "声明每项参考的角色、用途、绑定以及是否必需..."
+          }
+        },
+        "slotId": "reference_manifest"
+      },
+      {
+        "label": {
+          "default": "Preparation instruction",
+          "locales": {
+            "zh": "准备说明"
+          }
+        },
+        "placeholder": {
+          "default": "Optional bounded instruction for this generation package...",
+          "locales": {
+            "zh": "针对本次生成包的可选范围内说明..."
+          }
+        },
+        "slotId": "instruction"
+      }
+    ],
+    "name": {
+      "default": "Prepare video generation package",
+      "locales": {
+        "zh": "准备视频生成包"
+      }
+    },
+    "operationTitle": {
+      "default": "Prepare generation package",
+      "locales": {
+        "zh": "准备视频生成包"
+      }
+    },
+    "placeholder": {
+      "default": "Connect the authoritative Storyboard Plan...",
+      "locales": {
+        "zh": "连接作为依据的故事板计划..."
+      }
+    }
+  },
   "source": {
     "kind": "catmeme_migration",
     "paths": [

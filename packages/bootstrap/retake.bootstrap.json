@@ -11,9 +11,9 @@
   "hostCompatibility": ">=0.1.2 <0.2.0",
   "profileId": "retake.default-video-production",
   "rootPackage": {
-    "archiveDigest": "sha256:a0522453a4e7de0bbc26697b78025ac4a806fe7b1798288524832fcf13a644b3",
+    "archiveDigest": "sha256:45fd87e15376c4b19e55eb77489b7f57f3493132bcf4d114a427ef68e7e6c847",
     "archivePath": "story-production-starter-0.5.0.retakepkg",
-    "digest": "sha256:b5e0ac116b75a8fcdb56f94d6e33fae635d3cd11ec29a5ef669bc2c9aa2841e5",
+    "digest": "sha256:0ad43fadc6364c39d049a3c4ab6c72a29b95451c10de5301019ba61b797c3f45",
     "packageId": "retake.package.story-production-starter",
     "version": "0.5.0"
   },

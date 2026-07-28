@@ -5,6 +5,20 @@
   "definitionHash": "sha256:retake-workflow-approved-generation-package-to-video-v1",
   "name": "Approved generation package to video",
   "description": "Generate, select, and review one video candidate from an approved Generation Package.",
+  "ui": {
+    "description": {
+      "default": "Generate, select, and review one video from an approved Generation Package.",
+      "locales": {
+        "zh": "基于已批准生成包生成、选择并审阅一个视频。"
+      }
+    },
+    "name": {
+      "default": "Approved package to video",
+      "locales": {
+        "zh": "已批准生成包转视频"
+      }
+    }
+  },
   "inputSlots": [
     {
       "slotId": "generation_package",

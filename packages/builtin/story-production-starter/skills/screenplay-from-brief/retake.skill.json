@@ -25,6 +25,70 @@
     "For each scene or beat, state visible action, story-state change, dialogue or sound when relevant, and continuity needs.",
     "End with a coverage check for hook, causality, escalation, payoff, character continuity, scene continuity, and unresolved questions."
   ],
+  "ui": {
+    "description": {
+      "default": "Create an executable screenplay from a creative brief.",
+      "locales": {
+        "zh": "从创意 Brief 生成可执行的视频剧本。"
+      }
+    },
+    "inputLabel": {
+      "default": "Creative brief",
+      "locales": {
+        "zh": "创意 Brief"
+      }
+    },
+    "inputSlots": [
+      {
+        "label": {
+          "default": "Creative brief",
+          "locales": {
+            "zh": "创意 Brief"
+          }
+        },
+        "placeholder": {
+          "default": "Describe the premise, audience, constraints, characters, and required ending...",
+          "locales": {
+            "zh": "描述题材、受众、约束、角色与必须保留的结局..."
+          }
+        },
+        "slotId": "brief"
+      },
+      {
+        "label": {
+          "default": "Additional direction / references",
+          "locales": {
+            "zh": "补充要求 / 参考资料"
+          }
+        },
+        "placeholder": {
+          "default": "Add optional direction or reference material...",
+          "locales": {
+            "zh": "补充可选要求或参考资料..."
+          }
+        },
+        "slotId": "references"
+      }
+    ],
+    "name": {
+      "default": "Generate screenplay",
+      "locales": {
+        "zh": "生成剧本"
+      }
+    },
+    "operationTitle": {
+      "default": "Generate screenplay",
+      "locales": {
+        "zh": "生成剧本"
+      }
+    },
+    "placeholder": {
+      "default": "Describe the premise, audience, constraints, characters, and required ending...",
+      "locales": {
+        "zh": "描述题材、受众、约束、角色与必须保留的结局..."
+      }
+    }
+  },
   "source": {
     "kind": "catmeme_migration",
     "paths": [

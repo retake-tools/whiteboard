@@ -5,6 +5,20 @@
   "definitionHash": "sha256:retake-workflow-storyboard-unit-to-sheet-v1",
   "name": "Storyboard unit to sheet",
   "description": "Generate image candidates for one explicitly selected storyboard unit and review one accepted sheet.",
+  "ui": {
+    "description": {
+      "default": "Generate and review one accepted storyboard sheet for an explicitly selected Unit.",
+      "locales": {
+        "zh": "为明确选择的一个 Unit 生成候选并审核一个权威分镜图。"
+      }
+    },
+    "name": {
+      "default": "Storyboard unit to sheet",
+      "locales": {
+        "zh": "单 Unit 分镜图"
+      }
+    }
+  },
   "inputSlots": [
     {
       "slotId": "storyboard_plan",

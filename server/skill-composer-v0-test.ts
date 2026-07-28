@@ -7,7 +7,7 @@ import {
   type PackageComposerInvocation,
 } from '../src/core/packageComposer';
 import { createDraftSkillOperation, type TextGenerationLabels } from '../src/core/textOperations';
-import { skillUiDefinitionFor } from '../src/core/skillRegistry';
+import { resolvedSkillUiDefinitionFor } from '../src/core/skillRegistry';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../src/core/types';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import { resetWorkspace } from './local-store/snapshot-store';
@@ -26,8 +26,10 @@ assert.match(composerSource, /onInvokeEntryPoint\(invocation\)/);
 assert.match(controllerSource, /resolvePackageComposerInvocation/);
 assert.equal(composerSource.includes('AgentRun'), false);
 assert.equal(
-  skillUiDefinitionFor('retake.screenplay.normalize').inputSlots?.find((slot) => slot.slotId === 'normalization_instruction')?.inputKey,
-  'skill.normalizeScreenplay.instructionInput',
+  resolvedSkillUiDefinitionFor('retake.screenplay.normalize', 'en').inputSlots?.find(
+    (slot) => slot.slotId === 'normalization_instruction',
+  )?.label,
+  'Organization requirements',
 );
 
 const snapshot = await emptySnapshot();

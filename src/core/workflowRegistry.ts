@@ -1,6 +1,10 @@
 import { capabilityDefinitionFor } from './capabilityRegistry';
 import type { CapabilityCardinality, CapabilityDataType } from './capabilityContracts';
 import { skillDefinitionFor } from './skillRegistry';
+import storyToStoryboardSource from '../../packages/builtin/story-production-starter/workflows/workflow-story-to-storyboard/retake.workflow.json';
+import storyboardUnitToSheetSource from '../../packages/builtin/story-production-starter/workflows/workflow-storyboard-unit-to-sheet/retake.workflow.json';
+import storyboardUnitToGenerationPackageSource from '../../packages/builtin/story-production-starter/workflows/workflow-storyboard-unit-to-generation-package/retake.workflow.json';
+import approvedGenerationPackageToVideoSource from '../../packages/builtin/story-production-starter/workflows/workflow-approved-generation-package-to-video/retake.workflow.json';
 
 export type WorkflowStepType = 'capability';
 export type WorkflowRunPolicy = 'manual';
@@ -97,478 +101,23 @@ export interface WorkflowDefinition {
   steps: WorkflowCapabilityStepDefinition[];
   version: string;
   workflowId: string;
+  ui?: WorkflowUiDefinition;
 }
 
 export interface WorkflowUiDefinition {
-  descriptionKey:
-    | 'workflow.storyToStoryboard.description'
-    | 'workflow.storyboardUnitToSheet.description'
-    | 'workflow.storyboardUnitToGenerationPackage.description'
-    | 'workflow.approvedGenerationPackageToVideo.description';
-  nameKey:
-    | 'workflow.storyToStoryboard.name'
-    | 'workflow.storyboardUnitToSheet.name'
-    | 'workflow.storyboardUnitToGenerationPackage.name'
-    | 'workflow.approvedGenerationPackageToVideo.name';
+  description: PluginLocalizedTextV2;
+  name: PluginLocalizedTextV2;
 }
 
-function capabilityLock(capabilityId: string): WorkflowCapabilityStepDefinition['capabilityLock'] {
-  const definition = capabilityDefinitionFor(capabilityId);
-  return {
-    capabilityId: definition.capabilityId,
-    version: definition.version,
-    definitionHash: definition.definitionHash,
-  };
+export interface ResolvedWorkflowUiDefinition {
+  description: string;
+  name: string;
 }
 
-function skillLock(skillId: string): WorkflowCapabilityStepDefinition['skillLock'] {
-  const definition = skillDefinitionFor(skillId);
-  return {
-    skillId: definition.skillId,
-    version: definition.version,
-    definitionHash: definition.definitionHash,
-  };
-}
-
-export const storyToStoryboardWorkflow: WorkflowDefinition = {
-  schemaVersion: 1,
-  workflowId: 'retake.workflow.story-to-storyboard',
-  version: '0.2.0',
-  definitionHash: 'sha256:retake-workflow-story-to-storyboard-stage-runtime-v2',
-  name: 'Story to storyboard plan',
-  description: 'Project a manual draft from creative brief through screenplay and production design to storyboard planning.',
-  inputSlots: [{
-    slotId: 'brief',
-    artifactTypes: ['creative_brief'],
-    cardinality: 'one',
-    dataTypes: ['text', 'document'],
-    required: true,
-  }],
-  outputSlots: [
-    {
-      slotId: 'screenplay',
-      source: { kind: 'step_output', stepId: 'screenplay_generate', outputSlotId: 'screenplay' },
-      exposedAsIntermediate: true,
-    },
-    {
-      slotId: 'character_bible',
-      source: { kind: 'step_output', stepId: 'character_define', outputSlotId: 'character_bible' },
-      exposedAsIntermediate: true,
-    },
-    {
-      slotId: 'scene_bible',
-      source: { kind: 'step_output', stepId: 'scene_define', outputSlotId: 'scene_bible' },
-      exposedAsIntermediate: true,
-    },
-    {
-      slotId: 'storyboard_plan',
-      source: { kind: 'step_output', stepId: 'storyboard_plan', outputSlotId: 'storyboard_plan' },
-      exposedAsIntermediate: false,
-    },
-  ],
-  stages: [
-    {
-      stageId: 'story_screenplay',
-      stageTypeId: 'retake.stage.story_screenplay',
-      name: 'Story & Screenplay',
-      completionPolicy: 'all_required_steps',
-      outputWorkflowSlotIds: ['screenplay'],
-    },
-    {
-      stageId: 'production_design',
-      stageTypeId: 'retake.stage.production_design',
-      name: 'Production Design',
-      completionPolicy: 'all_required_steps',
-      outputWorkflowSlotIds: ['character_bible', 'scene_bible'],
-    },
-    {
-      stageId: 'storyboard_previsualization',
-      stageTypeId: 'retake.stage.storyboard_previsualization',
-      name: 'Storyboard & Previsualization',
-      completionPolicy: 'all_required_steps',
-      outputWorkflowSlotIds: ['storyboard_plan'],
-    },
-  ],
-  steps: [
-    {
-      stepId: 'screenplay_generate',
-      type: 'capability',
-      stageId: 'story_screenplay',
-      capabilityLock: capabilityLock('story.screenplay.generate'),
-      skillLock: skillLock('retake.screenplay.from-brief'),
-      inputBindings: [{
-        inputSlotId: 'brief',
-        source: { kind: 'workflow_input', slotId: 'brief' },
-      }],
-      outputSlots: ['screenplay'],
-      runPolicy: 'manual',
-      dependsOn: [],
-      optional: false,
-    },
-    {
-      stepId: 'character_define',
-      type: 'capability',
-      stageId: 'production_design',
-      capabilityLock: capabilityLock('design.character.define'),
-      skillLock: skillLock('retake.character-bible.from-screenplay'),
-      inputBindings: [{
-        inputSlotId: 'screenplay',
-        source: { kind: 'step_output', stepId: 'screenplay_generate', outputSlotId: 'screenplay' },
-      }],
-      outputSlots: ['character_bible'],
-      runPolicy: 'manual',
-      dependsOn: ['screenplay_generate'],
-      optional: false,
-    },
-    {
-      stepId: 'scene_define',
-      type: 'capability',
-      stageId: 'production_design',
-      capabilityLock: capabilityLock('design.scene.define'),
-      skillLock: skillLock('retake.scene-bible.from-screenplay'),
-      inputBindings: [{
-        inputSlotId: 'screenplay',
-        source: { kind: 'step_output', stepId: 'screenplay_generate', outputSlotId: 'screenplay' },
-      }],
-      outputSlots: ['scene_bible'],
-      runPolicy: 'manual',
-      dependsOn: ['screenplay_generate'],
-      optional: false,
-    },
-    {
-      stepId: 'storyboard_plan',
-      type: 'capability',
-      stageId: 'storyboard_previsualization',
-      capabilityLock: capabilityLock('previs.storyboard.plan'),
-      skillLock: skillLock('retake.storyboard-plan.from-production-design'),
-      inputBindings: [
-        {
-          inputSlotId: 'screenplay',
-          source: { kind: 'step_output', stepId: 'screenplay_generate', outputSlotId: 'screenplay' },
-        },
-        {
-          inputSlotId: 'character_bible',
-          source: { kind: 'step_output', stepId: 'character_define', outputSlotId: 'character_bible' },
-        },
-        {
-          inputSlotId: 'scene_bible',
-          source: { kind: 'step_output', stepId: 'scene_define', outputSlotId: 'scene_bible' },
-        },
-      ],
-      outputSlots: ['storyboard_plan'],
-      runPolicy: 'manual',
-      dependsOn: ['character_define', 'scene_define'],
-      optional: false,
-    },
-  ],
-  gates: [],
-  defaultRunMode: 'manual',
-};
-
-export const storyboardUnitToSheetWorkflow: WorkflowDefinition = {
-  schemaVersion: 1,
-  workflowId: 'retake.workflow.storyboard-unit-to-sheet',
-  version: '0.1.0',
-  definitionHash: 'sha256:retake-workflow-storyboard-unit-to-sheet-v1',
-  name: 'Storyboard unit to sheet',
-  description: 'Generate image candidates for one explicitly selected storyboard unit and review one accepted sheet.',
-  inputSlots: [
-    {
-      slotId: 'storyboard_plan',
-      artifactTypes: ['storyboard_plan'],
-      cardinality: 'one',
-      dataTypes: ['document'],
-      required: true,
-    },
-    {
-      slotId: 'unit_id',
-      artifactTypes: [],
-      cardinality: 'one',
-      dataTypes: ['text'],
-      required: true,
-      schemaRef: 'retake.storyboard-unit-id/v1',
-    },
-    {
-      slotId: 'references',
-      artifactTypes: [
-        'character_reference',
-        'scene_reference',
-        'prop_reference',
-        'storyboard_reference',
-        'reference',
-      ],
-      cardinality: 'many',
-      dataTypes: ['image'],
-      required: false,
-    },
-  ],
-  outputSlots: [{
-    slotId: 'storyboard_sheet',
-    source: {
-      kind: 'step_output',
-      stepId: 'storyboard_sheet_generate',
-      outputSlotId: 'storyboard_sheet',
-    },
-    exposedAsIntermediate: false,
-  }],
-  stages: [{
-    stageId: 'storyboard_previsualization',
-    stageTypeId: 'retake.stage.storyboard_previsualization',
-    name: 'Storyboard & Previsualization',
-    completionPolicy: 'all_required_steps',
-    outputWorkflowSlotIds: ['storyboard_sheet'],
-  }],
-  steps: [{
-    stepId: 'storyboard_sheet_generate',
-    type: 'capability',
-    stageId: 'storyboard_previsualization',
-    capabilityLock: capabilityLock('previs.storyboard_sheet.generate'),
-    skillLock: skillLock('retake.storyboard-sheet.from-unit-plan'),
-    inputBindings: [
-      {
-        inputSlotId: 'storyboard_plan',
-        source: { kind: 'workflow_input', slotId: 'storyboard_plan' },
-      },
-      {
-        inputSlotId: 'unit_id',
-        source: { kind: 'workflow_input', slotId: 'unit_id' },
-      },
-      {
-        inputSlotId: 'references',
-        source: { kind: 'workflow_input', slotId: 'references' },
-      },
-    ],
-    outputSlots: ['storyboard_sheet'],
-    outputAcceptancePolicy: 'manual_single',
-    runPolicy: 'manual',
-    dependsOn: [],
-    optional: false,
-  }],
-  gates: [{
-    definitionHash: 'sha256:retake-workflow-gate-storyboard-sheet-review-v1',
-    gateId: 'storyboard_sheet_review',
-    kind: 'human_approval',
-    name: 'Storyboard sheet review',
-    required: true,
-    reviewChecklist: [
-      'geometry',
-      'content_readout',
-      'asset_fidelity',
-      'continuity',
-      'no_explanatory_overlay',
-    ],
-    subject: {
-      kind: 'artifact_revision',
-      workflowOutputSlotId: 'storyboard_sheet',
-    },
-  }],
-  defaultRunMode: 'manual',
-};
-
-export const storyboardUnitToGenerationPackageWorkflow: WorkflowDefinition = {
-  schemaVersion: 1,
-  workflowId: 'retake.workflow.storyboard-unit-to-generation-package',
-  version: '0.2.0',
-  definitionHash: 'sha256:retake-workflow-storyboard-unit-to-generation-package-manifest-v2',
-  name: 'Storyboard unit to generation package',
-  description: 'Prepare and review one provider-neutral video generation package from an approved storyboard unit.',
-  inputSlots: [
-    {
-      slotId: 'storyboard_plan',
-      artifactTypes: ['storyboard_plan'],
-      cardinality: 'one',
-      dataTypes: ['document'],
-      required: true,
-    },
-    {
-      slotId: 'storyboard_sheet',
-      artifactTypes: ['storyboard_sheet'],
-      cardinality: 'one',
-      dataTypes: ['image'],
-      required: true,
-    },
-    {
-      slotId: 'unit_id',
-      artifactTypes: [],
-      cardinality: 'one',
-      dataTypes: ['text'],
-      required: true,
-      schemaRef: 'retake.storyboard-unit-id/v1',
-    },
-    {
-      slotId: 'references',
-      artifactTypes: [
-        'character_reference',
-        'scene_reference',
-        'prop_reference',
-        'storyboard_reference',
-        'reference',
-      ],
-      cardinality: 'many',
-      dataTypes: ['image', 'video', 'audio'],
-      required: false,
-    },
-    {
-      slotId: 'reference_manifest',
-      artifactTypes: [],
-      cardinality: 'one',
-      dataTypes: ['structured_data'],
-      required: true,
-      schemaRef: 'retake.generation-reference-manifest/v1',
-    },
-    {
-      slotId: 'instruction',
-      artifactTypes: [],
-      cardinality: 'optional',
-      dataTypes: ['text', 'document'],
-      required: false,
-    },
-  ],
-  outputSlots: [{
-    slotId: 'generation_package',
-    source: {
-      kind: 'step_output',
-      stepId: 'generation_package_prepare',
-      outputSlotId: 'generation_package',
-    },
-    exposedAsIntermediate: false,
-  }],
-  stages: [{
-    stageId: 'media_generation',
-    stageTypeId: 'retake.stage.media_generation',
-    name: 'Media Generation',
-    completionPolicy: 'all_required_steps',
-    outputWorkflowSlotIds: ['generation_package'],
-  }],
-  steps: [{
-    stepId: 'generation_package_prepare',
-    type: 'capability',
-    stageId: 'media_generation',
-    capabilityLock: capabilityLock('generation.video_package.prepare'),
-    skillLock: skillLock('retake.video-generation-package.from-approved-storyboard'),
-    inputBindings: [
-      {
-        inputSlotId: 'storyboard_plan',
-        source: { kind: 'workflow_input', slotId: 'storyboard_plan' },
-      },
-      {
-        inputSlotId: 'storyboard_sheet',
-        source: { kind: 'workflow_input', slotId: 'storyboard_sheet' },
-      },
-      {
-        inputSlotId: 'unit_id',
-        source: { kind: 'workflow_input', slotId: 'unit_id' },
-      },
-      {
-        inputSlotId: 'references',
-        source: { kind: 'workflow_input', slotId: 'references' },
-      },
-      {
-        inputSlotId: 'reference_manifest',
-        source: { kind: 'workflow_input', slotId: 'reference_manifest' },
-      },
-      {
-        inputSlotId: 'instruction',
-        source: { kind: 'workflow_input', slotId: 'instruction' },
-      },
-    ],
-    outputSlots: ['generation_package'],
-    outputAcceptancePolicy: 'automatic',
-    runPolicy: 'manual',
-    dependsOn: [],
-    optional: false,
-  }],
-  gates: [{
-    definitionHash: 'sha256:retake-workflow-gate-generation-package-review-v1',
-    gateId: 'generation_package_review',
-    kind: 'human_approval',
-    name: 'Generation package review',
-    required: true,
-    reviewChecklist: [
-      'authority_traceability',
-      'reference_mapping',
-      'state_and_continuity',
-      'prompt_budget',
-      'provider_neutrality',
-      'readiness',
-    ],
-    subject: {
-      kind: 'artifact_revision',
-      workflowOutputSlotId: 'generation_package',
-    },
-  }],
-  defaultRunMode: 'manual',
-};
-
-export const approvedGenerationPackageToVideoWorkflow: WorkflowDefinition = {
-  schemaVersion: 1,
-  workflowId: 'retake.workflow.approved-generation-package-to-video',
-  version: '0.1.0',
-  definitionHash: 'sha256:retake-workflow-approved-generation-package-to-video-v1',
-  name: 'Approved generation package to video',
-  description: 'Generate, select, and review one video candidate from an approved Generation Package.',
-  inputSlots: [{
-    slotId: 'generation_package',
-    artifactTypes: ['video_generation_package'],
-    cardinality: 'one',
-    dataTypes: ['document'],
-    required: true,
-  }],
-  outputSlots: [{
-    slotId: 'selected_video',
-    source: {
-      kind: 'step_output',
-      stepId: 'domain_video_generate',
-      outputSlotId: 'videos',
-    },
-    exposedAsIntermediate: false,
-  }],
-  stages: [{
-    stageId: 'media_generation',
-    stageTypeId: 'retake.stage.media_generation',
-    name: 'Media Generation',
-    completionPolicy: 'all_required_steps',
-    outputWorkflowSlotIds: ['selected_video'],
-  }],
-  steps: [{
-    stepId: 'domain_video_generate',
-    type: 'capability',
-    stageId: 'media_generation',
-    capabilityLock: capabilityLock('generation.video.generate'),
-    skillLock: skillLock('retake.video-generation.from-approved-package'),
-    inputBindings: [{
-      inputSlotId: 'generation_package',
-      source: { kind: 'workflow_input', slotId: 'generation_package' },
-    }],
-    outputSlots: ['videos'],
-    outputAcceptancePolicy: 'manual_single',
-    runPolicy: 'manual',
-    dependsOn: [],
-    optional: false,
-  }],
-  gates: [{
-    definitionHash: 'sha256:retake-workflow-gate-video-generation-result-review-v1',
-    gateId: 'video_generation_result_review',
-    kind: 'human_approval',
-    name: 'Video generation result review',
-    required: true,
-    reviewChecklist: [
-      'technical_validity',
-      'storyboard_panel_execution',
-      'source_fidelity',
-      'performance_shape',
-      'identity_and_design',
-      'continuity_and_state',
-      'dialogue_voice_sound',
-      'text_overlay_boundary',
-    ],
-    subject: {
-      kind: 'artifact_revision',
-      workflowOutputSlotId: 'selected_video',
-    },
-  }],
-  defaultRunMode: 'manual',
-};
+export const storyToStoryboardWorkflow = storyToStoryboardSource as unknown as WorkflowDefinition;
+export const storyboardUnitToSheetWorkflow = storyboardUnitToSheetSource as unknown as WorkflowDefinition;
+export const storyboardUnitToGenerationPackageWorkflow = storyboardUnitToGenerationPackageSource as unknown as WorkflowDefinition;
+export const approvedGenerationPackageToVideoWorkflow = approvedGenerationPackageToVideoSource as unknown as WorkflowDefinition;
 
 const builtInWorkflows = [
   storyToStoryboardWorkflow,
@@ -578,25 +127,6 @@ const builtInWorkflows = [
 ] as const;
 
 let activeWorkflows: WorkflowDefinition[] = structuredClone([...builtInWorkflows]);
-
-const workflowUiDefinitions: Record<string, WorkflowUiDefinition> = {
-  [storyToStoryboardWorkflow.workflowId]: {
-    nameKey: 'workflow.storyToStoryboard.name',
-    descriptionKey: 'workflow.storyToStoryboard.description',
-  },
-  [storyboardUnitToSheetWorkflow.workflowId]: {
-    nameKey: 'workflow.storyboardUnitToSheet.name',
-    descriptionKey: 'workflow.storyboardUnitToSheet.description',
-  },
-  [storyboardUnitToGenerationPackageWorkflow.workflowId]: {
-    nameKey: 'workflow.storyboardUnitToGenerationPackage.name',
-    descriptionKey: 'workflow.storyboardUnitToGenerationPackage.description',
-  },
-  [approvedGenerationPackageToVideoWorkflow.workflowId]: {
-    nameKey: 'workflow.approvedGenerationPackageToVideo.name',
-    descriptionKey: 'workflow.approvedGenerationPackageToVideo.description',
-  },
-};
 
 export function listWorkflows(): WorkflowDefinition[] {
   return structuredClone(activeWorkflows);
@@ -624,9 +154,22 @@ export function workflowDefinitionFor(workflowId: string): WorkflowDefinition {
 }
 
 export function workflowUiDefinitionFor(workflowId: string): WorkflowUiDefinition {
-  const definition = workflowUiDefinitions[workflowId];
-  if (!definition) throw new Error(`Workflow UI definition not found: ${workflowId}`);
-  return definition;
+  const definition = workflowDefinitionFor(workflowId).ui;
+  if (!definition) {
+    throw new Error(`Workflow UI definition not found: ${workflowId}`);
+  }
+  return structuredClone(definition);
+}
+
+export function resolvedWorkflowUiDefinitionFor(
+  workflowId: string,
+  locale: string,
+): ResolvedWorkflowUiDefinition {
+  const definition = workflowUiDefinitionFor(workflowId);
+  return {
+    description: resolvePluginLocalizedTextV2(definition.description, locale),
+    name: resolvePluginLocalizedTextV2(definition.name, locale),
+  };
 }
 
 export function validateWorkflowDefinition(workflow: WorkflowDefinition): string[] {
@@ -891,3 +434,7 @@ function isAcyclic(steps: WorkflowCapabilityStepDefinition[]): boolean {
   }
   return true;
 }
+import {
+  resolvePluginLocalizedTextV2,
+  type PluginLocalizedTextV2,
+} from '@retake-tools/package-contracts';

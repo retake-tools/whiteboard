@@ -17,11 +17,11 @@
       "version": "0.1.0"
     },
     {
-      "bytes": 15631,
+      "bytes": 15920,
       "file": "retake-tools-package-contracts-0.1.0.tgz",
-      "integrity": "sha512-Vsv9xjazprljxS7RNAC319oNHvQ8wRNlWYX23h4ioygjGCSY1zUlUpd0Tf55026pPK23YMxV0GqR6IjPCjDiQA==",
+      "integrity": "sha512-/rpiuKPpfuN/uTol6WT4DxgX1Af+jbu8F0+559rc/yOWIvsroW2oHzkh5Bk7qLc29K5OgAKFmzLDp2FtScoNMg==",
       "name": "@retake-tools/package-contracts",
-      "sha256": "sha256:7c0d1e777e784820b44bc60d4926271eed2edb2584631a124864d1816340c8ee",
+      "sha256": "sha256:f42443123aa325f4384a3dbe580698cf883349dbdcfba9368c1d9cc915669035",
       "version": "0.1.0"
     },
     {
