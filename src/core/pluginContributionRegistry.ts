@@ -5,16 +5,19 @@ import type {
   ActivatedPluginContributionV2,
   CommandShortcutResolutionV1,
   PluginCommandAvailabilityV1,
+  PluginCommandExperienceOverrideV1,
   PluginCommandContextV1,
   PluginCommandIconV1,
   PluginCommandSurfaceBindingV1,
   PluginCommandSurfaceIdV1,
   PluginCommandV1,
   PluginHostApiV2,
+  PluginSettingsV1,
 } from '@retake-tools/package-sdk';
 import {
   parsePluginCommandV1,
   pluginCommandAvailabilityV1,
+  parsePluginSettingsV1,
   resolveCommandShortcutCandidatesV1,
 } from '@retake-tools/plugin-runtime';
 import type {
@@ -100,6 +103,13 @@ export interface RegisteredPluginBlockRendererV1 {
   supportedBlockTypes: readonly PluginRendererBlockTypeV1[];
 }
 
+export interface RegisteredPluginSettingsV1 {
+  contributionId: string;
+  definition: PluginSettingsV1;
+  failure: string | null;
+  pluginModuleId: string;
+}
+
 interface RegisteredPluginCommandBaseV1 {
   availability?: PluginCommandV1['availability'];
   bindings: readonly PluginCommandSurfaceBindingV1[];
@@ -119,12 +129,6 @@ interface RegisteredPluginCommandBaseV1 {
 export type RegisteredPluginCommandV1 =
   RegisteredPluginCommandBaseV1
   & Pick<PluginCommandV1, 'run'>;
-
-export interface PluginCommandExperienceOverrideV1 {
-  readonly commandId: string;
-  readonly hidden?: boolean;
-  readonly order?: number;
-}
 
 export const hostCommandShortcutCandidatesV1 = Object.freeze([
   Object.freeze({
@@ -156,6 +160,7 @@ export interface PluginContributionRegistryV1 {
   getCapabilitySnapshot(): readonly RegisteredPluginCapabilityV1[];
   getSnapshot(): readonly RegisteredPluginPanelV1[];
   getRendererSnapshot(): readonly RegisteredPluginBlockRendererV1[];
+  getSettingsSnapshot(): readonly RegisteredPluginSettingsV1[];
   getShortcutResolution(): CommandShortcutResolutionV1;
   invoke(
     command: RegisteredPluginCommandV1,
@@ -188,23 +193,27 @@ PluginContributionRegistryV1 {
   let renderers: readonly RegisteredPluginBlockRendererV1[] = Object.freeze(
     [],
   );
+  let settings: readonly RegisteredPluginSettingsV1[] = Object.freeze([]);
   const listeners = new Set<() => void>();
   const update = (
     nextCommands: RegisteredPluginCommandV1[],
     nextCapabilities: RegisteredPluginCapabilityV1[],
     nextPanels: RegisteredPluginPanelV1[],
     nextRenderers: RegisteredPluginBlockRendererV1[],
+    nextSettings: RegisteredPluginSettingsV1[],
   ) => {
     if (
       sameCommands(commands, nextCommands)
       && samePluginCapabilities(capabilities, nextCapabilities)
       && samePanels(panels, nextPanels)
       && sameRenderers(renderers, nextRenderers)
+      && sameSettings(settings, nextSettings)
     ) return;
     commands = Object.freeze(nextCommands);
     capabilities = Object.freeze(nextCapabilities);
     panels = Object.freeze(nextPanels);
     renderers = Object.freeze(nextRenderers);
+    settings = Object.freeze(nextSettings);
     replacePluginCapabilityDefinitions(
       capabilities.map((capability) => capability.definition),
     );
@@ -245,12 +254,18 @@ PluginContributionRegistryV1 {
             ? { ...renderer, failure: message }
             : renderer
         )),
+        settings.map((definition) => (
+          definition.pluginModuleId === pluginModuleId
+            ? { ...definition, failure: message }
+            : definition
+        )),
       );
     },
     getCommandSnapshot: () => commands,
     getCapabilitySnapshot: () => capabilities,
     getSnapshot: () => panels,
     getRendererSnapshot: () => renderers,
+    getSettingsSnapshot: () => settings,
     getShortcutResolution: () => resolveCommandShortcutCandidatesV1([
       ...hostCommandShortcutCandidatesV1,
       ...commands.flatMap((command) => (
@@ -295,6 +310,9 @@ PluginContributionRegistryV1 {
         renderers.filter(
           (renderer) => renderer.pluginModuleId !== pluginModuleId,
         ),
+        settings.filter(
+          (definition) => definition.pluginModuleId !== pluginModuleId,
+        ),
       );
     },
     replace(sessions) {
@@ -303,6 +321,7 @@ PluginContributionRegistryV1 {
       const nextCapabilities: RegisteredPluginCapabilityV1[] = [];
       const nextPanels: RegisteredPluginPanelV1[] = [];
       const nextRenderers: RegisteredPluginBlockRendererV1[] = [];
+      const nextSettings: RegisteredPluginSettingsV1[] = [];
       for (const session of sessions) {
         try {
           for (const activated of session.activation.contributions) {
@@ -370,6 +389,14 @@ PluginContributionRegistryV1 {
                 ]),
               });
             }
+            if (activated.contribution.kind === 'settings') {
+              nextSettings.push({
+                contributionId: activated.contribution.contributionId,
+                definition: parsePluginSettingsV1(activated.value),
+                failure: null,
+                pluginModuleId: session.record.pluginModuleId,
+              });
+            }
           }
         } catch (error) {
           failures.push({
@@ -424,6 +451,14 @@ PluginContributionRegistryV1 {
             left.contributionId,
             right.contributionId,
           )),
+        nextSettings
+          .filter((definition) => (
+            !failedModules.has(definition.pluginModuleId)
+          ))
+          .sort((left, right) => compareText(
+            left.contributionId,
+            right.contributionId,
+          )),
       );
       return failures;
     },
@@ -443,6 +478,7 @@ PluginContributionRegistryV1 {
         [...capabilities],
         [...panels],
         [...renderers],
+        [...settings],
       );
     },
     setLocale(nextLocale) {
@@ -455,6 +491,7 @@ PluginContributionRegistryV1 {
         )),
         [...panels],
         [...renderers],
+        [...settings],
       );
     },
     subscribe(listener) {
@@ -570,12 +607,17 @@ function resolveCommandExperienceBindings(
   bindings: readonly PluginCommandSurfaceBindingV1[],
   overrides: readonly PluginCommandExperienceOverrideV1[],
 ): readonly PluginCommandSurfaceBindingV1[] {
-  const override = overrides.find((entry) => entry.commandId === commandId);
-  if (override?.hidden) return Object.freeze([]);
-  return Object.freeze(bindings.map((binding) => Object.freeze({
-    ...binding,
-    ...(override?.order === undefined ? {} : { order: override.order }),
-  })));
+  return Object.freeze(bindings.flatMap((binding) => {
+    const override = overrides.find((entry) => (
+      entry.commandId === commandId
+      && entry.surfaceId === binding.surfaceId
+    ));
+    if (override?.hidden) return [];
+    return [Object.freeze({
+      ...binding,
+      ...(override?.order === undefined ? {} : { order: override.order }),
+    })];
+  }));
 }
 
 function commandSurfaceOrder(
@@ -644,6 +686,20 @@ function sameRenderers(
         renderer.supportedBlockTypes,
         right[index]?.supportedBlockTypes ?? [],
       )
+    ));
+}
+
+function sameSettings(
+  left: readonly RegisteredPluginSettingsV1[],
+  right: readonly RegisteredPluginSettingsV1[],
+): boolean {
+  return left.length === right.length
+    && left.every((definition, index) => (
+      definition.contributionId === right[index]?.contributionId
+      && JSON.stringify(definition.definition)
+        === JSON.stringify(right[index]?.definition)
+      && definition.failure === right[index]?.failure
+      && definition.pluginModuleId === right[index]?.pluginModuleId
     ));
 }
 

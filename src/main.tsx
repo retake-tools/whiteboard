@@ -47,6 +47,9 @@ import {
 import {
   listConnectedPluginExecutionConnections,
 } from './app/runConnectedPluginExecution';
+import {
+  loadPluginExperience,
+} from './core/pluginFoundationConfigClient';
 
 installPluginHostExternals();
 const root = createRoot(document.getElementById('root')!);
@@ -111,6 +114,14 @@ async function applyPluginRuntimeSnapshot(
       failure.error,
     ).catch(() => undefined);
   }));
+  await pluginHostReadStore.setSettingsDefinitions(
+    pluginContributionRegistry.getSettingsSnapshot()
+      .filter((entry) => entry.failure === null)
+      .map((entry) => ({
+        definition: entry.definition,
+        pluginModuleId: entry.pluginModuleId,
+      })),
+  );
   return pluginModules.failures.length > 0 || contributionFailures.length > 0
     ? loadPluginRuntimeSnapshot()
     : snapshot;
@@ -118,6 +129,9 @@ async function applyPluginRuntimeSnapshot(
 
 void bootstrapInstalledRuntimeRegistry()
   .then(async ({ pluginRuntime }) => {
+    pluginContributionRegistry.setCommandExperience(
+      (await loadPluginExperience()).commandOverrides,
+    );
     const initialRuntimeSnapshot = await applyPluginRuntimeSnapshot(
       pluginRuntime,
     );

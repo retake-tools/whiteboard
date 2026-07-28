@@ -12,6 +12,7 @@ import type {
   PluginHostReadSnapshotV2,
   PluginImageImportV2,
   PluginJsonValueV2,
+  PluginSettingScopeV1,
   PluginModuleRuntimeRecordV1,
   PluginRuntimeSnapshotV1,
 } from '@retake-tools/package-sdk';
@@ -27,6 +28,11 @@ import {
   pluginHostMessage,
 } from './pluginHostErrors';
 import { createPluginHostEnvironment } from './pluginHostEnvironment';
+import {
+  createPluginHostSettingsStore,
+  type PluginHostSettingsDependenciesV1,
+  type PluginSettingsDefinitionRegistrationV1,
+} from './pluginHostSettings';
 import {
   assertConnectedExecutionRunInput,
   assertDraftAccess,
@@ -150,6 +156,9 @@ export function createPluginHostReadStore(
     importImage?: (
       input: PluginImageImportV2 & { projectId: string },
     ) => Promise<AssetRecord>;
+    loadSettingsState?: PluginHostSettingsDependenciesV1['loadSettingsState'];
+    updateSettingsState?:
+      PluginHostSettingsDependenciesV1['updateSettingsState'];
   } = {},
 ): PluginHostReadStore {
   let current = freezeReadSnapshot(initial);
@@ -162,6 +171,10 @@ export function createPluginHostReadStore(
   const importedAssetsByModule = new Map<string, Map<string, AssetRecord>>();
   let retainedModuleDigests = new Map<string, string>();
   const listeners = new Set<(snapshot: PluginHostReadSnapshotV2) => void>();
+  const settings = createPluginHostSettingsStore({
+    loadSettingsState: options.loadSettingsState,
+    updateSettingsState: options.updateSettingsState,
+  });
   const importImage = options.importImage ?? createImageAssetFromDataUrl;
   const environment = createPluginHostEnvironment();
   return {
@@ -416,6 +429,33 @@ export function createPluginHostReadStore(
             }
           },
         }),
+        settings: Object.freeze({
+          getSnapshot(settingsId: string) {
+            return settings.getSnapshot(pluginModuleId, settingsId);
+          },
+          subscribe(listener: () => void) {
+            return settings.subscribe(listener);
+          },
+          async update(input: {
+            settingsId: string;
+            scope: PluginSettingScopeV1;
+            values: Readonly<Record<string, PluginJsonValueV2>>;
+          }) {
+            if (!permissions.includes('retake.settings.write.self')) {
+              throw new PluginHostErrorV2(
+                'not_authorized',
+                'Plugin Settings write permission is required.',
+              );
+            }
+            return settings.update({
+              pluginModuleId,
+              scope: input.scope,
+              settingsId: input.settingsId,
+              snapshot: current,
+              values: input.values,
+            });
+          },
+        }),
         getReadSnapshot: () => current,
         subscribeReadSnapshot(listener) {
           listeners.add(listener);
@@ -462,6 +502,9 @@ export function createPluginHostReadStore(
     setExecutionRunner(runner) {
       executionRunner = runner;
     },
+    async setSettingsDefinitions(definitions) {
+      await settings.setDefinitions(definitions, current);
+    },
     update(snapshot, assets = [], drafts = []) {
       if (
         current.projectId !== snapshot.projectId
@@ -486,9 +529,11 @@ export function createPluginHostReadStore(
       boundAssets = nextAssets;
       boundDrafts = Object.freeze(nextDrafts);
       for (const listener of listeners) listener(current);
+      settings.updateScope(current);
     },
     updateEnvironment: environment.update,
   };
+
 }
 
 export interface PluginHostReadStore {
@@ -505,6 +550,9 @@ export interface PluginHostReadStore {
   setConnectionLister(lister: PluginConnectionListerV2 | undefined): void;
   setDraftRunner(runner: PluginDraftRunnerV2 | undefined): void;
   setExecutionRunner(runner: PluginExecutionRunnerV2 | undefined): void;
+  setSettingsDefinitions(
+    definitions: readonly PluginSettingsDefinitionRegistrationV1[],
+  ): Promise<void>;
   update(
     snapshot: PluginHostReadSnapshotV2,
     assets?: readonly PluginAssetV2[],
@@ -512,6 +560,10 @@ export interface PluginHostReadStore {
   ): void;
   updateEnvironment(snapshot: PluginHostEnvironmentSnapshotV2): void;
 }
+
+export type {
+  PluginSettingsDefinitionRegistrationV1,
+} from './pluginHostSettings';
 
 export interface PluginDraftRunnerRequestV2 {
   blockId: string;

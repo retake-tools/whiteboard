@@ -42,6 +42,7 @@ const host: PluginHostApiV2 = {
   environment: {
     getSnapshot: () => ({
       colorScheme: 'light',
+      contrast: 'normal',
       direction: 'ltr',
       locale: 'en',
       reducedMotion: false,
@@ -56,6 +57,13 @@ const host: PluginHostApiV2 = {
     },
     runConnected: async () => {
       throw new Error('Action fixture does not run connected executions.');
+    },
+  },
+  settings: {
+    getSnapshot: () => null,
+    subscribe: () => () => undefined,
+    update: async () => {
+      throw new Error('Command fixture does not update settings.');
     },
   },
   getReadSnapshot: () => ({
