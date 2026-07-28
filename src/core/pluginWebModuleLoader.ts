@@ -13,17 +13,10 @@ import type {
   PluginImageImportV2,
   PluginJsonValueV2,
   PluginSettingScopeV1,
-  PluginSettingsSnapshotV1,
-  PluginSettingsV1,
   PluginModuleRuntimeRecordV1,
   PluginRuntimeSnapshotV1,
 } from '@retake-tools/package-sdk';
 import { PluginHostErrorV2 } from '@retake-tools/plugin-runtime';
-import {
-  migratePluginSettingsRecordV1,
-  parsePluginSettingsScopeValuesV1,
-  resolvePluginSettingsValuesV1,
-} from '@retake-tools/plugin-runtime';
 import { createImageAssetFromDataUrl } from './assetStore';
 import {
   pluginDraftView,
@@ -36,10 +29,10 @@ import {
 } from './pluginHostErrors';
 import { createPluginHostEnvironment } from './pluginHostEnvironment';
 import {
-  loadPluginSettingsState,
-  updatePluginSettingsState,
-  type PluginSettingsPersistedStateV1,
-} from './pluginFoundationConfigClient';
+  createPluginHostSettingsStore,
+  type PluginHostSettingsDependenciesV1,
+  type PluginSettingsDefinitionRegistrationV1,
+} from './pluginHostSettings';
 import {
   assertConnectedExecutionRunInput,
   assertDraftAccess,
@@ -163,8 +156,9 @@ export function createPluginHostReadStore(
     importImage?: (
       input: PluginImageImportV2 & { projectId: string },
     ) => Promise<AssetRecord>;
-    loadSettingsState?: () => Promise<PluginSettingsPersistedStateV1>;
-    updateSettingsState?: typeof updatePluginSettingsState;
+    loadSettingsState?: PluginHostSettingsDependenciesV1['loadSettingsState'];
+    updateSettingsState?:
+      PluginHostSettingsDependenciesV1['updateSettingsState'];
   } = {},
 ): PluginHostReadStore {
   let current = freezeReadSnapshot(initial);
@@ -177,15 +171,10 @@ export function createPluginHostReadStore(
   const importedAssetsByModule = new Map<string, Map<string, AssetRecord>>();
   let retainedModuleDigests = new Map<string, string>();
   const listeners = new Set<(snapshot: PluginHostReadSnapshotV2) => void>();
-  const settingsListeners = new Set<() => void>();
-  let settingsDefinitions: readonly PluginSettingsDefinitionRegistrationV1[] =
-    Object.freeze([]);
-  let settingsState: PluginSettingsPersistedStateV1 = {
-    entries: [],
-    revision: 0,
-    schemaVersion: 1,
-  };
-  let settingsSnapshots = new Map<string, PluginSettingsSnapshotV1>();
+  const settings = createPluginHostSettingsStore({
+    loadSettingsState: options.loadSettingsState,
+    updateSettingsState: options.updateSettingsState,
+  });
   const importImage = options.importImage ?? createImageAssetFromDataUrl;
   const environment = createPluginHostEnvironment();
   return {
@@ -442,13 +431,10 @@ export function createPluginHostReadStore(
         }),
         settings: Object.freeze({
           getSnapshot(settingsId: string) {
-            return settingsSnapshots.get(
-              settingsIdentity(pluginModuleId, settingsId),
-            ) ?? null;
+            return settings.getSnapshot(pluginModuleId, settingsId);
           },
           subscribe(listener: () => void) {
-            settingsListeners.add(listener);
-            return () => settingsListeners.delete(listener);
+            return settings.subscribe(listener);
           },
           async update(input: {
             settingsId: string;
@@ -461,34 +447,13 @@ export function createPluginHostReadStore(
                 'Plugin Settings write permission is required.',
               );
             }
-            const registration = settingsDefinitions.find((entry) => (
-              entry.pluginModuleId === pluginModuleId
-              && entry.definition.settingsId === input.settingsId
-            ));
-            if (!registration) {
-              throw new PluginHostErrorV2(
-                'not_found',
-                'Plugin Settings definition is not registered.',
-              );
-            }
-            const values = parsePluginSettingsScopeValuesV1(
-              registration.definition,
-              input.scope,
-              input.values,
-            );
-            settingsState = await (
-              options.updateSettingsState ?? updatePluginSettingsState
-            )({
-              definition: registration.definition,
+            return settings.update({
               pluginModuleId,
               scope: input.scope,
-              scopeId: settingsScopeId(input.scope, current),
-              values,
+              settingsId: input.settingsId,
+              snapshot: current,
+              values: input.values,
             });
-            recomputeSettings();
-            return settingsSnapshots.get(
-              settingsIdentity(pluginModuleId, input.settingsId),
-            )!;
           },
         }),
         getReadSnapshot: () => current,
@@ -538,16 +503,7 @@ export function createPluginHostReadStore(
       executionRunner = runner;
     },
     async setSettingsDefinitions(definitions) {
-      settingsDefinitions = Object.freeze(definitions.map((entry) => (
-        Object.freeze({
-          definition: entry.definition,
-          pluginModuleId: entry.pluginModuleId,
-        })
-      )));
-      settingsState = await (
-        options.loadSettingsState ?? loadPluginSettingsState
-      )();
-      recomputeSettings();
+      await settings.setDefinitions(definitions, current);
     },
     update(snapshot, assets = [], drafts = []) {
       if (
@@ -573,63 +529,11 @@ export function createPluginHostReadStore(
       boundAssets = nextAssets;
       boundDrafts = Object.freeze(nextDrafts);
       for (const listener of listeners) listener(current);
-      recomputeSettings();
+      settings.updateScope(current);
     },
     updateEnvironment: environment.update,
   };
 
-  function recomputeSettings(): void {
-    const next = new Map<string, PluginSettingsSnapshotV1>();
-    for (const registration of settingsDefinitions) {
-      const valuesByScope: Partial<Record<
-        PluginSettingScopeV1,
-        Readonly<Record<string, PluginJsonValueV2>>
-      >> = {};
-      for (const scope of ['workspace', 'project', 'board'] as const) {
-        const scopeId = optionalSettingsScopeId(scope, current);
-        if (!scopeId) continue;
-        const stored = settingsState.entries.find((entry) => (
-          entry.pluginModuleId === registration.pluginModuleId
-          && entry.settingsId === registration.definition.settingsId
-          && entry.scope === scope
-          && entry.scopeId === scopeId
-        ));
-        if (!stored) continue;
-        valuesByScope[scope] = parsePluginSettingsScopeValuesV1(
-          registration.definition,
-          scope,
-          migratePluginSettingsRecordV1(registration.definition, {
-            schemaVersion: stored.schemaVersion,
-            values: stored.values,
-          }).values,
-        );
-      }
-      const definition = registration.definition;
-      next.set(
-        settingsIdentity(
-          registration.pluginModuleId,
-          definition.settingsId,
-        ),
-        Object.freeze({
-          revision: [
-            settingsState.revision,
-            current.projectId ?? 'no-project',
-            current.boardId ?? 'no-board',
-            definition.schemaVersion,
-          ].join(':'),
-          schemaVersion: definition.schemaVersion,
-          settingsId: definition.settingsId,
-          values: resolvePluginSettingsValuesV1(
-            definition,
-            valuesByScope,
-          ),
-        }),
-      );
-    }
-    if (sameSettingsSnapshots(settingsSnapshots, next)) return;
-    settingsSnapshots = next;
-    for (const listener of settingsListeners) listener();
-  }
 }
 
 export interface PluginHostReadStore {
@@ -657,10 +561,9 @@ export interface PluginHostReadStore {
   updateEnvironment(snapshot: PluginHostEnvironmentSnapshotV2): void;
 }
 
-export interface PluginSettingsDefinitionRegistrationV1 {
-  definition: PluginSettingsV1;
-  pluginModuleId: string;
-}
+export type {
+  PluginSettingsDefinitionRegistrationV1,
+} from './pluginHostSettings';
 
 export interface PluginDraftRunnerRequestV2 {
   blockId: string;
@@ -763,48 +666,4 @@ function releaseExecutionController(
   if (controllers?.size === 0) {
     controllersByModule.delete(pluginModuleId);
   }
-}
-
-function settingsIdentity(
-  pluginModuleId: string,
-  settingsId: string,
-): string {
-  return `${pluginModuleId}:${settingsId}`;
-}
-
-function settingsScopeId(
-  scope: PluginSettingScopeV1,
-  snapshot: PluginHostReadSnapshotV2,
-): string {
-  const scopeId = optionalSettingsScopeId(scope, snapshot);
-  if (!scopeId) {
-    throw new PluginHostErrorV2(
-      'unavailable',
-      `Plugin Settings ${scope} scope is unavailable.`,
-    );
-  }
-  return scopeId;
-}
-
-function optionalSettingsScopeId(
-  scope: PluginSettingScopeV1,
-  snapshot: PluginHostReadSnapshotV2,
-): string | null {
-  if (scope === 'workspace') return 'workspace';
-  if (scope === 'project') return snapshot.projectId;
-  return snapshot.projectId && snapshot.boardId
-    ? `${snapshot.projectId}:${snapshot.boardId}`
-    : null;
-}
-
-function sameSettingsSnapshots(
-  left: ReadonlyMap<string, PluginSettingsSnapshotV1>,
-  right: ReadonlyMap<string, PluginSettingsSnapshotV1>,
-): boolean {
-  return left.size === right.size
-    && [...left].every(([key, value]) => {
-      const other = right.get(key);
-      return other?.revision === value.revision
-        && JSON.stringify(other.values) === JSON.stringify(value.values);
-    });
 }
