@@ -1,4 +1,7 @@
-import { capabilityDefinitionFor } from './capabilityRegistry';
+import {
+  capabilityDefinitionFor,
+  tryCapabilityDefinitionFor,
+} from './capabilityRegistry';
 import type { CapabilityCardinality, CapabilityDataType } from './capabilityContracts';
 import { skillDefinitionFor } from './skillRegistry';
 import storyToStoryboardSource from '../../packages/builtin/story-production-starter/workflows/workflow-story-to-storyboard/retake.workflow.json';
@@ -217,16 +220,24 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
   }
 
   for (const step of workflow.steps) {
-    const capability = capabilityDefinitionFor(step.capabilityLock.capabilityId);
+    const capability = tryCapabilityDefinitionFor(
+      step.capabilityLock.capabilityId,
+    );
     const skill = skillDefinitionFor(step.skillLock.skillId);
-    if (
+    if (capability && (
       capability.version !== step.capabilityLock.version
       || capability.definitionHash !== step.capabilityLock.definitionHash
-    ) issues.push(`Capability lock mismatch: ${step.stepId}.${capability.capabilityId}`);
+    )) {
+      issues.push(
+        `Capability lock mismatch: ${step.stepId}.${capability.capabilityId}`,
+      );
+    }
     if (skill.version !== step.skillLock.version || skill.definitionHash !== step.skillLock.definitionHash) {
       issues.push(`Skill lock mismatch: ${step.stepId}.${skill.skillId}`);
     }
-    if (!skill.capabilityBindings.some((binding) => binding.capabilityId === capability.capabilityId)) {
+    if (!skill.capabilityBindings.some(
+      (binding) => binding.capabilityId === step.capabilityLock.capabilityId,
+    )) {
       issues.push(`Skill does not bind Workflow capability: ${step.stepId}.${skill.skillId}`);
     }
     for (const dependencyId of step.dependsOn) {
@@ -241,8 +252,10 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
         issues.push(`Duplicate Workflow step input binding: ${step.stepId}.${binding.inputSlotId}`);
       }
       boundInputIds.add(binding.inputSlotId);
-      const targetSlot = capability.inputSlots.find((slot) => slot.slotId === binding.inputSlotId);
-      if (!targetSlot) {
+      const targetSlot = capability?.inputSlots.find(
+        (slot) => slot.slotId === binding.inputSlotId,
+      );
+      if (capability && !targetSlot) {
         issues.push(`Workflow binding targets unknown capability input: ${step.stepId}.${binding.inputSlotId}`);
         continue;
       }
@@ -252,6 +265,7 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
           issues.push(`Workflow binding uses unknown workflow input: ${step.stepId}.${binding.source.slotId}`);
           continue;
         }
+        if (!targetSlot) continue;
         if (!sourceSlot.dataTypes.some((dataType) => targetSlot.dataTypes.includes(dataType))) {
           issues.push(`Workflow input data type mismatch: ${step.stepId}.${binding.inputSlotId}`);
         }
@@ -275,7 +289,11 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
         issues.push(`Workflow binding uses unknown step output: ${step.stepId}.${source.stepId}.${source.outputSlotId}`);
         continue;
       }
-      const sourceCapability = capabilityDefinitionFor(sourceStep.capabilityLock.capabilityId);
+      if (!targetSlot) continue;
+      const sourceCapability = tryCapabilityDefinitionFor(
+        sourceStep.capabilityLock.capabilityId,
+      );
+      if (!sourceCapability) continue;
       const sourceSlot = sourceCapability.outputSlots.find((slot) => slot.slotId === source.outputSlotId);
       if (!sourceSlot) {
         issues.push(`Workflow source capability output is missing: ${sourceStep.stepId}.${source.outputSlotId}`);
@@ -290,14 +308,24 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
         && !targetSlot.artifactTypes.includes(sourceSlot.artifactType)
       ) issues.push(`Workflow binding artifact type mismatch: ${step.stepId}.${binding.inputSlotId}`);
     }
-    for (const requiredSlot of capability.inputSlots.filter((slot) => slot.required)) {
-      if (!boundInputIds.has(requiredSlot.slotId)) {
-        issues.push(`Required Workflow step input is not bound: ${step.stepId}.${requiredSlot.slotId}`);
+    if (capability) {
+      for (const requiredSlot of capability.inputSlots.filter(
+        (slot) => slot.required,
+      )) {
+        if (!boundInputIds.has(requiredSlot.slotId)) {
+          issues.push(
+            `Required Workflow step input is not bound: ${step.stepId}.${requiredSlot.slotId}`,
+          );
+        }
       }
-    }
-    for (const outputSlotId of step.outputSlots) {
-      if (!capability.outputSlots.some((slot) => slot.slotId === outputSlotId)) {
-        issues.push(`Workflow step exposes unknown capability output: ${step.stepId}.${outputSlotId}`);
+      for (const outputSlotId of step.outputSlots) {
+        if (!capability.outputSlots.some(
+          (slot) => slot.slotId === outputSlotId,
+        )) {
+          issues.push(
+            `Workflow step exposes unknown capability output: ${step.stepId}.${outputSlotId}`,
+          );
+        }
       }
     }
   }

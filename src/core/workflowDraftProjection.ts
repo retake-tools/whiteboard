@@ -11,6 +11,7 @@ import type {
 import { createDraftSkillOperation, type TextGenerationLabels } from './textOperations';
 import type { BlockRecord, BoardSnapshot } from './types';
 import { createDraftStoryboardSheetOperation } from './storyboardSheetOperations';
+import { storyboardSheetCapabilityId } from './storyboardSheetContracts';
 import {
   validateWorkflowDefinition,
   workflowDefinitionFor,
@@ -155,7 +156,17 @@ export function projectWorkflowDraft(
             inputSlotId: binding.inputSlotId,
             kind: 'block' as const,
           }))
-        : []
+        : [{
+            blockId: stepOutputs.get(
+              stepOutputKey(binding.source.stepId, binding.source.outputSlotId),
+            )?.blockId,
+            inputSlotId: binding.inputSlotId,
+            kind: 'block' as const,
+          }].filter((value): value is {
+            blockId: string;
+            inputSlotId: string;
+            kind: 'block';
+          } => Boolean(value.blockId))
     ));
     const domainVideoGeneration = step.capabilityLock.capabilityId === domainVideoGenerationCapabilityId;
     const draft = generationPreparation
@@ -174,7 +185,7 @@ export function projectWorkflowDraft(
             labels,
             parameters: input.composerInput?.parameters,
           })
-      : mediaOutput
+      : step.capabilityLock.capabilityId === storyboardSheetCapabilityId
       ? createDraftStoryboardSheetOperation(snapshot, {
           connectionId: input.connectionIdForCapability(step.capabilityLock.capabilityId),
           labels,
@@ -182,6 +193,14 @@ export function projectWorkflowDraft(
           selectedBlockIds,
           unitId: typeof unitValue?.value === 'string' ? unitValue.value : undefined,
         })
+      : mediaOutput
+        ? createDraftMediaCapabilityOperation(snapshot, {
+            capabilityId: step.capabilityLock.capabilityId,
+            connectionId: input.connectionIdForCapability(step.capabilityLock.capabilityId),
+            explicitInputBindings: explicitGenerationInputs,
+            labels,
+            skillId: step.skillLock.skillId,
+          })
       : createDraftSkillOperation(snapshot, {
           ...labels,
           connectionId: input.connectionIdForCapability(step.capabilityLock.capabilityId),
@@ -274,6 +293,52 @@ export function projectWorkflowDraft(
     operationBlockIds: [...operationBlocks.values()].map((block) => block.blockId),
     resultBlockIds: [...stepOutputs.values()].map((block) => block.blockId),
   };
+}
+
+function createDraftMediaCapabilityOperation(
+  snapshot: BoardSnapshot,
+  input: {
+    capabilityId: string;
+    connectionId?: string;
+    explicitInputBindings: Array<{
+      blockId: string;
+      inputSlotId: string;
+      kind: 'block';
+    }>;
+    labels: TextGenerationLabels;
+    skillId: string;
+  },
+): { operationBlock: BlockRecord; inputBlocks: BlockRecord[] } {
+  const inputBlocks = input.explicitInputBindings.map((binding) => {
+    const block = snapshot.blocks.find((candidate) => candidate.blockId === binding.blockId);
+    if (!block) throw new Error(`Workflow Draft input Block not found: ${binding.blockId}`);
+    return block;
+  });
+  const usesCodexAppServer = input.connectionId === 'codex-app-server';
+  const operationBlock = createBlockRecord(snapshot, 'operation');
+  operationBlock.data = {
+    ...operationBlock.data,
+    title: input.labels.operationTitle,
+    body: input.labels.promptPlaceholder,
+    capabilityId: input.capabilityId,
+    skillId: input.skillId,
+    adapter: usesCodexAppServer ? 'codex_app_server' : 'direct_api',
+    ...(usesCodexAppServer ? { agentHost: 'codex' as const } : {}),
+    triggerMode: usesCodexAppServer ? 'agent_bridge' : 'server_worker',
+    ...(input.connectionId ? { connectionId: input.connectionId } : {}),
+  };
+  snapshot.blocks.push(operationBlock);
+  for (const binding of input.explicitInputBindings) {
+    snapshot.edges.push({
+      edgeId: createId('edge'),
+      sourceBlockId: binding.blockId,
+      targetBlockId: operationBlock.blockId,
+      kind: 'execution_input',
+      inputSlotId: binding.inputSlotId,
+    });
+  }
+  touchBoard(snapshot);
+  return { operationBlock, inputBlocks };
 }
 
 function createWorkflowInputBlock(

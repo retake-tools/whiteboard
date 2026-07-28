@@ -572,6 +572,7 @@ export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
     'image.text_to_image',
     'image.image_to_image',
     'image.annotation_edit',
+    'image.guided_edit',
     'image.masked_edit',
     'image.outpaint',
     'previs.storyboard_sheet.generate',
@@ -591,6 +592,11 @@ export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
       profileId: 'codex_annotation_edit',
       requiredSlots: ['prompt', 'source_image'],
       optionalSlots: ['references'],
+    },
+    {
+      profileId: 'codex_guided_edit',
+      requiredSlots: ['prompt', 'source_image'],
+      optionalSlots: ['guidance_image'],
     },
     {
       profileId: 'codex_masked_edit',

@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "workflowId": "retake.workflow.guided-image-review",
+  "version": "0.1.1",
+  "definitionHash": "sha256:retake-workflow-guided-image-review-v3",
+  "name": "Guided image edit and review",
+  "description": "Run one guided Image edit and require a human to approve the accepted result.",
+  "ui": {
+    "description": {
+      "default": "Edit one Image and review the accepted candidate before completion.",
+      "locales": {
+        "zh": "编辑一张图片，并在完成前由人工审阅接受的候选。"
+      }
+    },
+    "name": {
+      "default": "Guided image edit and review",
+      "locales": {
+        "zh": "引导式图片编辑与审阅"
+      }
+    }
+  },
+  "inputSlots": [
+    {
+      "slotId": "source_image",
+      "artifactTypes": [
+        "image"
+      ],
+      "cardinality": "one",
+      "dataTypes": [
+        "image"
+      ],
+      "required": true
+    },
+    {
+      "slotId": "guidance_image",
+      "artifactTypes": [
+        "image",
+        "reference",
+        "selection_mask"
+      ],
+      "cardinality": "optional",
+      "dataTypes": [
+        "image"
+      ],
+      "required": false
+    },
+    {
+      "slotId": "prompt",
+      "artifactTypes": [],
+      "cardinality": "one",
+      "dataTypes": [
+        "text"
+      ],
+      "required": true
+    }
+  ],
+  "outputSlots": [
+    {
+      "slotId": "edited_images",
+      "source": {
+        "kind": "step_output",
+        "stepId": "guided_image_edit",
+        "outputSlotId": "edited_images"
+      },
+      "exposedAsIntermediate": false
+    }
+  ],
+  "stages": [
+    {
+      "stageId": "media_generation",
+      "stageTypeId": "retake.stage.media_generation",
+      "name": "Media Generation",
+      "completionPolicy": "all_required_steps",
+      "outputWorkflowSlotIds": [
+        "edited_images"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "stepId": "guided_image_edit",
+      "type": "capability",
+      "stageId": "media_generation",
+      "capabilityLock": {
+        "capabilityId": "image.guided_edit",
+        "version": "0.1.1",
+        "definitionHash": "sha256:image-guided-edit-v3"
+      },
+      "skillLock": {
+        "skillId": "retake.image.guided-edit",
+        "version": "0.1.0",
+        "definitionHash": "sha256:retake-image-guided-edit-skill-v1"
+      },
+      "inputBindings": [
+        {
+          "inputSlotId": "source_image",
+          "source": {
+            "kind": "workflow_input",
+            "slotId": "source_image"
+          }
+        },
+        {
+          "inputSlotId": "guidance_image",
+          "source": {
+            "kind": "workflow_input",
+            "slotId": "guidance_image"
+          }
+        },
+        {
+          "inputSlotId": "prompt",
+          "source": {
+            "kind": "workflow_input",
+            "slotId": "prompt"
+          }
+        }
+      ],
+      "outputSlots": [
+        "edited_images"
+      ],
+      "outputAcceptancePolicy": "manual_single",
+      "runPolicy": "manual",
+      "dependsOn": [],
+      "optional": false
+    }
+  ],
+  "gates": [
+    {
+      "definitionHash": "sha256:retake-workflow-gate-guided-image-review-v1",
+      "gateId": "guided_image_result_review",
+      "kind": "human_approval",
+      "name": "Guided image result review",
+      "required": true,
+      "reviewChecklist": [
+        "instruction_fidelity",
+        "source_preservation",
+        "guidance_use",
+        "technical_validity"
+      ],
+      "subject": {
+        "kind": "artifact_revision",
+        "workflowOutputSlotId": "edited_images"
+      }
+    }
+  ],
+  "defaultRunMode": "manual"
+}

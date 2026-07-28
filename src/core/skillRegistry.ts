@@ -3,7 +3,7 @@ import {
   type PluginLocalizedTextV2,
 } from '@retake-tools/package-contracts';
 import type { CapabilityInputBinding, SkillDefinitionLock } from './capabilityContracts';
-import { capabilityDefinitionFor } from './capabilityRegistry';
+import { tryCapabilityDefinitionFor } from './capabilityRegistry';
 import screenplayFromBriefSource from '../../packages/builtin/story-production-starter/skills/screenplay-from-brief/retake.skill.json';
 import normalizeScreenplaySource from '../../packages/builtin/story-production-starter/skills/screenplay-normalize/retake.skill.json';
 import characterBibleSource from '../../packages/builtin/story-production-starter/skills/character-bible-from-screenplay/retake.skill.json';
@@ -109,7 +109,8 @@ export function configureSkillRegistry(
       || definition.capabilityBindings.length === 0
     ) throw new Error(`Skill definition is invalid: ${definition.skillId}`);
     for (const binding of definition.capabilityBindings) {
-      const capability = capabilityDefinitionFor(binding.capabilityId);
+      const capability = tryCapabilityDefinitionFor(binding.capabilityId);
+      if (!capability) continue;
       for (const inputSlotId of binding.inputSlots) {
         if (!capability.inputSlots.some((slot) => slot.slotId === inputSlotId)) {
           throw new Error(`Skill input Slot is not registered: ${definition.skillId}.${inputSlotId}`);

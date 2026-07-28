@@ -71,6 +71,29 @@ export interface ResolvedPackageComposerInvocation {
   target: ResolvedPackageEntryPointTarget;
 }
 
+export interface PackageComposerDependencyIssue {
+  capabilityId: string;
+  reason: 'capability_unavailable';
+}
+
+export function packageComposerDependencyIssue(
+  entrypointId: string,
+): PackageComposerDependencyIssue | undefined {
+  const resolution = resolvePackageEntryPoint({ entrypointId });
+  if (resolution.status !== 'resolved') return undefined;
+  const capabilityIds = resolution.target.kind === 'skill'
+    ? [resolution.target.capabilityLock.capabilityId]
+    : workflowDefinitionFor(
+        resolution.target.workflowDefinitionLock.workflowDefinitionId,
+      ).steps.map((step) => step.capabilityLock.capabilityId);
+  const capabilityId = capabilityIds.find(
+    (candidate) => !tryCapabilityDefinitionFor(candidate),
+  );
+  return capabilityId
+    ? { capabilityId, reason: 'capability_unavailable' }
+    : undefined;
+}
+
 export function resolvePackageComposerInvocation(
   snapshot: BoardSnapshot,
   invocation: PackageComposerInvocation,
@@ -79,6 +102,16 @@ export function resolvePackageComposerInvocation(
   const resolution = resolvePackageEntryPoint({ entrypointId: invocation.entrypointId });
   if (resolution.status !== 'resolved') {
     throw new Error(`Package Composer EntryPoint could not be resolved: ${invocation.entrypointId} (${resolution.status})`);
+  }
+  const dependencyIssue = packageComposerDependencyIssue(
+    invocation.entrypointId,
+  );
+  if (dependencyIssue) {
+    throw new Error(
+      `Package Capability dependency is unavailable: ${
+        dependencyIssue.capabilityId
+      }`,
+    );
   }
   const options = listPackageComposerMentionOptions(snapshot, invocation.entrypointId);
   const inlineValues = invocation.inlineValues ?? [];

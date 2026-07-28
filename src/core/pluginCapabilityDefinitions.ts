@@ -4,6 +4,8 @@ import {
 } from './capabilityContracts';
 
 let definitions = new Map<string, CapabilityDefinition>();
+let revision = 0;
+const listeners = new Set<() => void>();
 
 export function replacePluginCapabilityDefinitions(
   nextDefinitions: readonly CapabilityDefinition[],
@@ -22,6 +24,8 @@ export function replacePluginCapabilityDefinitions(
     );
   }
   definitions = next;
+  revision += 1;
+  for (const listener of listeners) listener();
 }
 
 export function pluginCapabilityDefinitionFor(
@@ -29,4 +33,15 @@ export function pluginCapabilityDefinitionFor(
 ): CapabilityDefinition | undefined {
   const definition = definitions.get(capabilityId);
   return definition ? structuredClone(definition) : undefined;
+}
+
+export function currentPluginCapabilityDefinitionsRevision(): number {
+  return revision;
+}
+
+export function subscribePluginCapabilityDefinitions(
+  listener: () => void,
+): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }

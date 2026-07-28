@@ -1,5 +1,8 @@
 import { operationReadinessFor } from './capabilities';
-import { capabilityDefinitionFor } from './capabilityRegistry';
+import {
+  capabilityDefinitionFor,
+  tryCapabilityDefinitionFor,
+} from './capabilityRegistry';
 import { capabilityBindingValueForBlock } from './artifactLibrary';
 import type { CapabilityBindingValue } from './capabilityContracts';
 import { touchBoard } from './blockFactory';
@@ -548,7 +551,14 @@ function projectStepView(
     status = 'pending';
   } else {
     const operation = snapshot.blocks.find((block) => block.blockId === record.operationBlockId && block.type === 'operation');
-    status = operation && operationReadinessFor(snapshot, operation).canRun ? 'ready' : 'waiting_input';
+    const capabilityAvailable = Boolean(
+      tryCapabilityDefinitionFor(record.capabilityLock.capabilityId),
+    );
+    status = !capabilityAvailable
+      ? record.status
+      : operation && operationReadinessFor(snapshot, operation).canRun
+        ? 'ready'
+        : 'waiting_input';
   }
   const dependencyReady = dependencies.every(
     (dependency) => dependency.status === 'succeeded' && dependency.freshness === 'current',

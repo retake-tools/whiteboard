@@ -13,6 +13,11 @@ import {
   domainVideoGenerationCapabilityId,
   normalizeDomainVideoGenerationParameters,
 } from './domainVideoGenerationContracts';
+import { pluginCapabilityDefinitionFor } from './pluginCapabilityDefinitions';
+import type {
+  CapabilityBindingValue,
+  CapabilityDefinition,
+} from './capabilityContracts';
 
 export type CapabilityInputRole = ExecutionInputRole;
 export type CapabilityInputSource = 'block' | 'generated_asset' | 'inline';
@@ -381,6 +386,15 @@ export function operationReadinessFor(
     }
     return { canRun: issues.size === 0, issues: [...issues] };
   }
+  const pluginDefinition = pluginCapabilityDefinitionFor(capabilityId);
+  if (pluginDefinition) {
+    return pluginOperationReadiness(
+      operationBlock,
+      pluginDefinition,
+      inputEdges,
+      blockById,
+    );
+  }
 
   for (const slotId of schema.requiredInputSlotIds ?? []) {
     const edge = inputEdges.find((candidate) => candidate.inputSlotId === slotId);
@@ -426,6 +440,88 @@ export function operationReadinessFor(
   }
 
   return { canRun: issues.size === 0, issues: [...issues] };
+}
+
+function pluginOperationReadiness(
+  operationBlock: BlockRecord,
+  definition: CapabilityDefinition,
+  inputEdges: BoardSnapshot['edges'],
+  blockById: Map<string, BlockRecord>,
+): OperationReadiness {
+  const issues = new Set<OperationReadinessIssue>();
+  const projectedBindings = Array.isArray(operationBlock.data.workflowInputBindings)
+    ? operationBlock.data.workflowInputBindings
+    : [];
+  for (const slot of definition.inputSlots) {
+    if (!slot.required) continue;
+    const edgeBlocks = inputEdges
+      .filter((edge) => edge.inputSlotId === slot.slotId)
+      .map((edge) => blockById.get(edge.sourceBlockId))
+      .filter((block): block is BlockRecord => Boolean(block));
+    const projectedValues = projectedBindings
+      .filter((binding): binding is {
+        inputSlotId: string;
+        values: CapabilityBindingValue[];
+      } => (
+        Boolean(binding)
+        && typeof binding === 'object'
+        && !Array.isArray(binding)
+        && (binding as { inputSlotId?: unknown }).inputSlotId === slot.slotId
+        && Array.isArray((binding as { values?: unknown }).values)
+      ))
+      .flatMap((binding) => binding.values);
+    const hasInlineValue = projectedValues.some((value) => (
+      value.kind === 'inline'
+      && value.value !== undefined
+      && value.value !== null
+      && (typeof value.value !== 'string' || value.value.trim().length > 0)
+    ));
+    if (edgeBlocks.length === 0 && !hasInlineValue) {
+      issues.add(readinessIssueForDataTypes(slot.dataTypes));
+      continue;
+    }
+    if (slot.dataTypes.includes('text')) {
+      const textBlocks = edgeBlocks.filter(
+        (block) => block.type === 'text' || block.type === 'document',
+      );
+      if (textBlocks.length === 0 && !hasInlineValue) {
+        issues.add('text_input_missing');
+      } else if (
+        !hasInlineValue
+        && !textBlocks.some((block) => (
+          block.type === 'text'
+            ? typeof block.data.body === 'string' && block.data.body.trim().length > 0
+            : typeof block.data.assetId === 'string'
+        ))
+      ) {
+        issues.add('prompt_empty');
+      }
+    }
+    if (slot.dataTypes.includes('image')) {
+      const imageBlocks = edgeBlocks.filter((block) => block.type === 'image');
+      if (imageBlocks.length === 0) issues.add('image_input_missing');
+      else if (!imageBlocks.some((block) => typeof block.data.assetId === 'string')) {
+        issues.add('image_asset_missing');
+      }
+    }
+    if (slot.dataTypes.includes('video')) {
+      const videoBlocks = edgeBlocks.filter((block) => block.type === 'video');
+      if (videoBlocks.length === 0) issues.add('image_input_missing');
+      else if (!videoBlocks.some((block) => typeof block.data.assetId === 'string')) {
+        issues.add('image_asset_missing');
+      }
+    }
+  }
+  return { canRun: issues.size === 0, issues: [...issues] };
+}
+
+function readinessIssueForDataTypes(
+  dataTypes: CapabilityDefinition['inputSlots'][number]['dataTypes'],
+): OperationReadinessIssue {
+  if (dataTypes.includes('text') || dataTypes.includes('document')) {
+    return 'text_input_missing';
+  }
+  return 'image_input_missing';
 }
 
 function objectRecord(value: unknown): Record<string, unknown> | undefined {
