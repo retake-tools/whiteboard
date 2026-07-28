@@ -3,11 +3,40 @@ import * as ReactDom from 'react-dom';
 import * as ReactDomClient from 'react-dom/client';
 import * as ReactJsxDevRuntime from 'react/jsx-dev-runtime';
 import * as ReactJsxRuntime from 'react/jsx-runtime';
+import type {
+  PluginCommand,
+  PluginDefinition,
+  PluginMessages,
+  PluginPanel,
+  PluginRenderer,
+  PluginSettingsMetadata,
+  RetakeCapabilityContributionV2,
+} from '@retake/plugin-api';
 
 export const retakePluginHostExternalsGlobal = 'retakePluginHostExternalsV1';
 
 export interface RetakePluginApiV1 {
+  defineCapability<
+    const Capability extends RetakeCapabilityContributionV2,
+  >(capability: Capability): Capability;
+  defineCommand<const Command extends PluginCommand>(
+    command: Command,
+  ): Command;
+  defineMessages<const Messages extends PluginMessages>(
+    messages: Messages,
+  ): Messages;
+  definePanel<const Panel extends PluginPanel>(panel: Panel): Panel;
+  definePlugin<const Plugin extends PluginDefinition>(
+    plugin: Plugin,
+  ): Plugin;
   definePluginContribution<T>(contribution: T): T;
+  defineRenderer<const Renderer extends PluginRenderer>(
+    renderer: Renderer,
+  ): Renderer;
+  defineSettings<const Settings extends PluginSettingsMetadata>(
+    settings: Settings,
+  ): Settings;
+  pluginApiVersion: 1;
   version: 1;
 }
 
@@ -29,7 +58,25 @@ declare global {
 export function installPluginHostExternals(): void {
   if (globalThis.retakePluginHostExternalsV1) return;
   const pluginApi: RetakePluginApiV1 = Object.freeze({
+    defineCapability: <const Capability extends RetakeCapabilityContributionV2>(
+      capability: Capability,
+    ) => capability,
+    defineCommand: <const Command extends PluginCommand>(command: Command) =>
+      command,
+    defineMessages: <const Messages extends PluginMessages>(
+      messages: Messages,
+    ) => messages,
+    definePanel: <const Panel extends PluginPanel>(panel: Panel) => panel,
+    definePlugin: <const Plugin extends PluginDefinition>(plugin: Plugin) =>
+      plugin,
     definePluginContribution: <T>(contribution: T) => contribution,
+    defineRenderer: <const Renderer extends PluginRenderer>(
+      renderer: Renderer,
+    ) => renderer,
+    defineSettings: <const Settings extends PluginSettingsMetadata>(
+      settings: Settings,
+    ) => settings,
+    pluginApiVersion: 1,
     version: 1,
   });
   const jsxDevRuntime = Object.freeze({
