@@ -7,8 +7,8 @@ import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import {
   configureWorkflowRegistry,
   listWorkflows,
-  storyToStoryboardWorkflow,
 } from '../src/core/workflowRegistry';
+import { storyToStoryboardWorkflow } from './studio-domain-test-fixtures';
 import {
   createAgentRunForWorkflowRun,
   reconcileAgentRuntime,

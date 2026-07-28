@@ -7,11 +7,13 @@ import { listPackageEntryPoints } from '../src/core/packageRegistry';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import {
   listWorkflows,
-  storyToStoryboardWorkflow,
-  storyboardUnitToSheetWorkflow,
   validateWorkflowDefinition,
   type WorkflowDefinition,
 } from '../src/core/workflowRegistry';
+import {
+  storyToStoryboardWorkflow,
+  storyboardUnitToSheetWorkflow,
+} from './studio-domain-test-fixtures';
 import { resetWorkspace } from './local-store/snapshot-store';
 
 const snapshot = await resetWorkspace();

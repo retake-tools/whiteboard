@@ -4,14 +4,6 @@ import {
 } from '@retake-tools/package-contracts';
 import type { CapabilityInputBinding, SkillDefinitionLock } from './capabilityContracts';
 import { tryCapabilityDefinitionFor } from './capabilityRegistry';
-import screenplayFromBriefSource from '../../packages/builtin/story-production-starter/skills/screenplay-from-brief/retake.skill.json';
-import normalizeScreenplaySource from '../../packages/builtin/story-production-starter/skills/screenplay-normalize/retake.skill.json';
-import characterBibleSource from '../../packages/builtin/story-production-starter/skills/character-bible-from-screenplay/retake.skill.json';
-import sceneBibleSource from '../../packages/builtin/story-production-starter/skills/scene-bible-from-screenplay/retake.skill.json';
-import storyboardPlanSource from '../../packages/builtin/story-production-starter/skills/storyboard-plan-from-production-design/retake.skill.json';
-import storyboardSheetSource from '../../packages/builtin/story-production-starter/skills/storyboard-sheet-from-unit-plan/retake.skill.json';
-import generationPackageSource from '../../packages/builtin/story-production-starter/skills/video-generation-package-from-approved-storyboard/retake.skill.json';
-import domainVideoSource from '../../packages/builtin/story-production-starter/skills/video-generation-from-approved-package/retake.skill.json';
 
 export type SkillCategory = 'media_generation' | 'previsualization' | 'production_design' | 'screenplay';
 
@@ -68,27 +60,7 @@ export interface RetakeSkillSnapshot extends RetakeSkillDefinition {
   inputBindings: CapabilityInputBinding[];
 }
 
-export const screenplayFromBriefSkill = screenplayFromBriefSource as unknown as RetakeSkillDefinition;
-export const normalizeScreenplaySkill = normalizeScreenplaySource as unknown as RetakeSkillDefinition;
-export const characterBibleFromScreenplaySkill = characterBibleSource as unknown as RetakeSkillDefinition;
-export const sceneBibleFromScreenplaySkill = sceneBibleSource as unknown as RetakeSkillDefinition;
-export const storyboardPlanFromProductionDesignSkill = storyboardPlanSource as unknown as RetakeSkillDefinition;
-export const storyboardSheetFromUnitPlanSkill = storyboardSheetSource as unknown as RetakeSkillDefinition;
-export const videoGenerationPackageFromApprovedStoryboardSkill = generationPackageSource as unknown as RetakeSkillDefinition;
-export const videoGenerationFromApprovedPackageSkill = domainVideoSource as unknown as RetakeSkillDefinition;
-
-const builtInSkills = [
-  screenplayFromBriefSkill,
-  normalizeScreenplaySkill,
-  characterBibleFromScreenplaySkill,
-  sceneBibleFromScreenplaySkill,
-  storyboardPlanFromProductionDesignSkill,
-  storyboardSheetFromUnitPlanSkill,
-  videoGenerationPackageFromApprovedStoryboardSkill,
-  videoGenerationFromApprovedPackageSkill,
-] as const;
-
-let activeSkills: RetakeSkillDefinition[] = structuredClone([...builtInSkills]);
+let activeSkills: RetakeSkillDefinition[] = [];
 
 export function listSkills(): RetakeSkillDefinition[] {
   return structuredClone(activeSkills);

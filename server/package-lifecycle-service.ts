@@ -17,10 +17,15 @@ import {
   type InstalledDeclarativePackageRegistry,
 } from './local-package-manager-service';
 import { PluginRuntimeService } from './plugin-runtime-service';
+import {
+  OfficialPackagePreferenceStore,
+  officialDefaultPackageIds,
+} from './official-package-preference-store';
 
 export class PackageLifecycleService {
   private readonly hostVersion: string;
   private readonly manager: LocalPackageManagerService;
+  private readonly officialPreferences: OfficialPackagePreferenceStore;
   private readonly workspaceRoot: string;
 
   constructor(input: {
@@ -30,6 +35,9 @@ export class PackageLifecycleService {
     this.hostVersion = input.hostVersion;
     this.workspaceRoot = input.workspaceRoot;
     this.manager = new LocalPackageManagerService(input);
+    this.officialPreferences = new OfficialPackagePreferenceStore(
+      this.manager.packagesRoot,
+    );
   }
 
   async read(): Promise<PackageLifecycleSnapshotV1> {
@@ -57,7 +65,15 @@ export class PackageLifecycleService {
     mutation: PackageLifecycleMutationV1,
   ): Promise<PackageLifecycleSnapshotV1> {
     if (mutation.action === 'install') {
-      await this.manager.install(requiredSource(mutation.source));
+      const result = await this.manager.install(
+        requiredSource(mutation.source),
+      );
+      if (isOfficialPackageId(result.root.packageId)) {
+        await this.officialPreferences.setPackageRemoved(
+          result.root.packageId,
+          false,
+        );
+      }
     } else {
       const packageId = requiredPackageId(mutation.packageId);
       if (mutation.action === 'update') {
@@ -69,11 +85,22 @@ export class PackageLifecycleService {
         );
       } else {
         await this.manager.remove(packageId);
+        if (isOfficialPackageId(packageId)) {
+          await this.officialPreferences.setPackageRemoved(packageId, true);
+        }
       }
     }
     invalidateDefaultDeclarativePackageBootstrap();
     return this.read();
   }
+}
+
+function isOfficialPackageId(
+  packageId: string,
+): packageId is typeof officialDefaultPackageIds[number] {
+  return officialDefaultPackageIds.includes(
+    packageId as typeof officialDefaultPackageIds[number],
+  );
 }
 
 export function projectPackageLifecycleSnapshot(input: {

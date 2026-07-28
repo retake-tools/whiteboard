@@ -13,10 +13,10 @@ import {
   requireVideoGenerationPackageArtifactRevisionMetadataV2,
   type VideoGenerationPackageArtifactRevisionMetadataV1,
 } from '../src/core/generationPreparationContracts';
-import { storyProductionStarterPackage } from '../src/core/packageRegistry';
-import { videoGenerationPackageFromApprovedStoryboardSkill } from '../src/core/skillRegistry';
+import { storyProductionStarterPackage } from './studio-domain-test-fixtures';
+import { videoGenerationPackageFromApprovedStoryboardSkill } from './studio-domain-test-fixtures';
 import { storyboardSheetArtifactMetadata } from '../src/core/storyboardSheetContracts';
-import { storyboardUnitToGenerationPackageWorkflow } from '../src/core/workflowRegistry';
+import { storyboardUnitToGenerationPackageWorkflow } from './studio-domain-test-fixtures';
 
 const referenceManifest: GenerationReferenceManifest = {
   schemaRef: 'retake.generation-reference-manifest/v1',
@@ -160,10 +160,10 @@ assert.equal(
   storyboardUnitToGenerationPackageWorkflow.definitionHash,
   'sha256:retake-workflow-storyboard-unit-to-generation-package-manifest-v2',
 );
-assert.equal(storyProductionStarterPackage.version, '0.5.0');
+assert.equal(storyProductionStarterPackage.version, '0.1.0');
 assert.equal(
   storyProductionStarterPackage.digest,
-  'sha256:retake-package-story-production-starter-domain-video-v1',
+  'sha256:1223ff4574c5090c3d0f89a5cf05ddfe78cf53c8666c830fa089ea96583216c7',
 );
 assert.deepEqual(
   storyProductionStarterPackage.components.skills.find(

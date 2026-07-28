@@ -5,7 +5,11 @@ import {
   createAgentSession,
 } from '../src/core/agentSession';
 import { decideChangeProposal } from '../src/core/agentChangeApplication';
-import { builtInPackageRegistry } from '../src/core/packageRegistry';
+import { configurePackageRegistry } from '../src/core/packageRegistry';
+import {
+  builtInPackageRegistry,
+  videoStudioPackage,
+} from './studio-domain-test-fixtures';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../src/core/types';
 import { parseAgentRuntimeDecision } from './agent-runtime-port';
 import { resetWorkspace } from './local-store/snapshot-store';
@@ -224,6 +228,7 @@ const registryManifest = builtInPackageRegistry.manifests[0];
 assert.ok(registryManifest);
 const originalDigest = registryManifest.digest;
 registryManifest.digest = 'sha256:simulated-registry-drift';
+configurePackageRegistry([registryManifest]);
 const beforeRegistryDriftApply = stateCounts(snapshot);
 const registryDriftDecision = decideChangeProposal(snapshot, {
   decision: 'approve',
@@ -231,6 +236,7 @@ const registryDriftDecision = decideChangeProposal(snapshot, {
   proposalId: registryDriftTurn.proposal.proposalId,
 });
 registryManifest.digest = originalDigest;
+configurePackageRegistry([videoStudioPackage]);
 assert.equal(registryDriftDecision.proposal.status, 'failed');
 assert.match(registryDriftDecision.proposal.applyError ?? '', /frozen source message/);
 assert.deepEqual(stateCounts(snapshot), {

@@ -389,6 +389,19 @@ export function PluginManagerModuleCard({
             {actionLabel(action, t)}
           </button>
         ) : null}
+        {record.grant ? (
+          <button
+            type="button"
+            className="is-secondary"
+            disabled={Boolean(busyId)}
+            onClick={() => onAction('revoke')}
+          >
+            {busyId === `module:${record.pluginModuleId}:revoke`
+              ? <Loader2 className="is-spinning" size={15} />
+              : null}
+            {actionLabel('revoke', t)}
+          </button>
+        ) : null}
       </footer>
       {!record.trust ? (
         <small className="plugin-manager-trust-warning">
@@ -459,6 +472,7 @@ function actionLabel(
   t: I18nContextValue['t'],
 ): string {
   if (action === 'grant') return t('pluginSettings.grant');
+  if (action === 'revoke') return t('pluginSettings.revoke');
   if (action === 'trust') return t('pluginSettings.trust');
   if (action === 'disable') return t('pluginSettings.disable');
   return t('pluginSettings.enable');

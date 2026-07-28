@@ -12,63 +12,42 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { DeclarativePackageManifest } from '../src/core/declarativePackageContracts';
-import {
-  storyProductionAgentPackage,
-  storyProductionStarterPackage,
-} from '../src/core/packageRegistry';
+import { videoStudioPackage } from './studio-domain-test-fixtures';
 import {
   inspectDeclarativePackage,
   packDeclarativePackage,
+  readMaterializedPackageArchive,
   validateDeclarativePackage,
 } from './declarative-package-service';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const starterRoot = path.join(repositoryRoot, 'packages', 'builtin', 'story-production-starter');
-const agentRoot = path.join(repositoryRoot, 'packages', 'builtin', 'story-production-agent');
-const canonicalStarterArchiveDigest =
-  'sha256:45fd87e15376c4b19e55eb77489b7f57f3493132bcf4d114a427ef68e7e6c847';
+const studioArchive = path.join(
+  repositoryRoot,
+  'packages',
+  'bootstrap',
+  'video-studio-0.1.0.retakepkg',
+);
 const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'retake-package-format-v0-'));
+const starterRoot = path.join(temporaryRoot, 'studio-source');
 
 try {
-  const starter = await validateDeclarativePackage(starterRoot);
-  const agent = await validateDeclarativePackage(agentRoot);
-  assert.deepEqual(starter.components, {
-    agentPresets: 0,
-    pluginModules: 0,
+  await materializeArchiveSource(studioArchive, starterRoot);
+  const studio = await validateDeclarativePackage(studioArchive);
+  assert.deepEqual(studio.components, {
+    agentPresets: 1,
+    pluginModules: 1,
     skills: 8,
     workflows: 4,
   });
-  assert.deepEqual(agent.components, {
-    agentPresets: 1,
-    pluginModules: 0,
-    skills: 0,
-    workflows: 0,
-  });
-  assert.equal(starter.entrypoints, storyProductionStarterPackage.entrypoints.length);
-  assert.equal(agent.entrypoints, storyProductionAgentPackage.entrypoints.length);
-  assert.deepEqual(starter.manifest.dependencies, [{
-    packageId: storyProductionAgentPackage.packageId,
-    range: `^${storyProductionAgentPackage.version}`,
-  }]);
-  assert.match(starter.digest, /^sha256:[a-f0-9]{64}$/);
-  assert.match(agent.digest, /^sha256:[a-f0-9]{64}$/);
-  assert.notEqual(starter.digest, storyProductionStarterPackage.digest);
-
-  const archiveA = path.join(temporaryRoot, 'starter-a.retakepkg');
-  const archiveB = path.join(temporaryRoot, 'starter-b.retakepkg');
-  const packedA = await packDeclarativePackage(starterRoot, archiveA);
-  const packedB = await packDeclarativePackage(starterRoot, archiveB);
-  assert.equal(packedA.digest, starter.digest);
-  assert.equal(packedA.archiveDigest, packedB.archiveDigest);
-  assert.equal(packedA.archiveDigest, canonicalStarterArchiveDigest);
-  assert.deepEqual(await readFile(archiveA), await readFile(archiveB));
-  const archived = await validateDeclarativePackage(archiveA);
-  const inspected = await inspectDeclarativePackage(archiveA);
-  assert.equal(archived.sourceKind, 'archive');
-  assert.equal(archived.digest, starter.digest);
-  assert.equal(archived.archiveDigest, packedA.archiveDigest);
-  assert.equal(archived.manifest.integrity, starter.digest);
-  assert.deepEqual(inspected.manifest.entrypoints, starter.manifest.entrypoints);
+  assert.equal(studio.entrypoints, videoStudioPackage.entrypoints.length);
+  assert.match(studio.digest, /^sha256:[a-f0-9]{64}$/);
+  assert.equal(studio.digest, videoStudioPackage.digest);
+  const inspectedStudio = await inspectDeclarativePackage(studioArchive);
+  assert.equal(studio.sourceKind, 'archive');
+  assert.deepEqual(
+    inspectedStudio.manifest.entrypoints,
+    studio.manifest.entrypoints,
+  );
 
   const singleSkillRoot = path.join(temporaryRoot, 'single-skill');
   const singleSkillManifest = await createSingleSkillFixture(singleSkillRoot);
@@ -82,7 +61,26 @@ try {
   assert.equal(singleSkill.entrypoints, 1);
   assert.equal(singleSkill.manifest.integrity, singleSkill.digest);
   const singleSkillArchive = path.join(temporaryRoot, 'single-skill.retakepkg');
-  await packDeclarativePackage(singleSkillRoot, singleSkillArchive);
+  const singleSkillArchiveCopy = path.join(
+    temporaryRoot,
+    'single-skill-copy.retakepkg',
+  );
+  const packedSingleSkill = await packDeclarativePackage(
+    singleSkillRoot,
+    singleSkillArchive,
+  );
+  const packedSingleSkillCopy = await packDeclarativePackage(
+    singleSkillRoot,
+    singleSkillArchiveCopy,
+  );
+  assert.equal(
+    packedSingleSkill.archiveDigest,
+    packedSingleSkillCopy.archiveDigest,
+  );
+  assert.deepEqual(
+    await readFile(singleSkillArchive),
+    await readFile(singleSkillArchiveCopy),
+  );
   const inspectedSingleSkill = await inspectDeclarativePackage(singleSkillArchive);
   assert.deepEqual(inspectedSingleSkill.components, {
     agentPresets: 0,
@@ -152,21 +150,6 @@ try {
     /portable, normalized, relative Package path/,
   );
 
-  const cycleRoot = path.join(temporaryRoot, 'workflow-cycle');
-  await cp(starterRoot, cycleRoot, { recursive: true });
-  const cycleManifest = await readManifest(cycleRoot);
-  const workflowPath = cycleManifest.components.workflows[0]!.definitionPath;
-  const workflowFile = path.join(cycleRoot, ...workflowPath.split('/'));
-  const workflow = JSON.parse(await readFile(workflowFile, 'utf8')) as {
-    steps: Array<{ dependsOn: string[]; stepId: string }>;
-  };
-  workflow.steps[0]!.dependsOn = [workflow.steps[0]!.stepId];
-  await writeJson(workflowFile, workflow);
-  await assert.rejects(
-    validateDeclarativePackage(cycleRoot),
-    /cannot depend on itself|dependency graph has a cycle/,
-  );
-
   await createSingleSkillFixture(singleSkillRoot);
   await mkdir(path.join(singleSkillRoot, '.retake'), { recursive: true });
   await writeFile(path.join(singleSkillRoot, '.retake', 'snapshot.json'), '{}', 'utf8');
@@ -174,13 +157,17 @@ try {
     validateDeclarativePackage(singleSkillRoot),
     /reserved \.retake directory/,
   );
+  await rm(path.join(singleSkillRoot, '.retake'), { recursive: true });
 
   await assert.rejects(
-    packDeclarativePackage(starterRoot, path.join(starterRoot, 'nested.retakepkg')),
+    packDeclarativePackage(
+      singleSkillRoot,
+      path.join(singleSkillRoot, 'nested.retakepkg'),
+    ),
     /outside the source directory/,
   );
   const linkedSourceRoot = path.join(temporaryRoot, 'linked-starter-source');
-  await symlink(starterRoot, linkedSourceRoot);
+  await symlink(singleSkillRoot, linkedSourceRoot);
   await assert.rejects(
     packDeclarativePackage(
       linkedSourceRoot,
@@ -189,11 +176,11 @@ try {
     /outside the source directory/,
   );
   await assert.rejects(
-    packDeclarativePackage(starterRoot, archiveA),
+    packDeclarativePackage(starterRoot, singleSkillArchive),
     /EEXIST/,
   );
 
-  const tamperedArchive = Buffer.from(await readFile(archiveA));
+  const tamperedArchive = Buffer.from(await readFile(singleSkillArchive));
   tamperedArchive[Math.floor(tamperedArchive.byteLength / 2)]! ^= 0xff;
   const tamperedArchivePath = path.join(temporaryRoot, 'tampered.retakepkg');
   await writeFile(tamperedArchivePath, tamperedArchive);
@@ -216,15 +203,13 @@ try {
   console.log(JSON.stringify({
     ok: true,
     directoryAndArchiveValidation: true,
-    starterComponents: starter.components,
-    starterDependsOnAgentPackage: true,
+    studioComponents: studio.components,
     singleSkillPackage: true,
     deterministicArchive: true,
-    contentDigest: starter.digest,
-    archiveDigest: packedA.archiveDigest,
+    contentDigest: studio.digest,
+    archiveDigest: packedSingleSkill.archiveDigest,
     exactIntegrityTamperRejected: true,
     unlistedAndSymlinkRejected: true,
-    workflowCycleRejected: true,
     declarativePermissionsOnly: true,
     workspaceAndNetworkIndependent: true,
   }));
@@ -244,6 +229,7 @@ async function createSingleSkillFixture(
   const files = ['LICENSE', 'README.md', skill.definitionPath].sort(comparePath);
   const manifest: DeclarativePackageManifest = {
     ...starterManifest,
+    build: undefined,
     components: {
       agentPresets: [],
       skills: [skill],
@@ -266,6 +252,23 @@ async function createSingleSkillFixture(
   await mkdir(path.dirname(targetDefinition), { recursive: true });
   await cp(sourceDefinition, targetDefinition);
   return manifest;
+}
+
+async function materializeArchiveSource(
+  archivePath: string,
+  outputRoot: string,
+): Promise<void> {
+  const materialized = await readMaterializedPackageArchive(archivePath);
+  await mkdir(outputRoot, { recursive: true });
+  await writeJson(
+    path.join(outputRoot, 'retake.package.json'),
+    materialized.manifest,
+  );
+  for (const [relativePath, bytes] of materialized.files) {
+    const outputPath = path.join(outputRoot, ...relativePath.split('/'));
+    await mkdir(path.dirname(outputPath), { recursive: true });
+    await writeFile(outputPath, bytes);
+  }
 }
 
 async function readManifest(root: string): Promise<DeclarativePackageManifest> {

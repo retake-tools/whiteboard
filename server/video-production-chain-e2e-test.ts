@@ -43,7 +43,7 @@ import {
 import {
   approvedGenerationPackageToVideoWorkflow,
   storyToStoryboardWorkflow,
-} from '../src/core/workflowRegistry';
+} from './studio-domain-test-fixtures';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import {
   decideWorkflowApproval,

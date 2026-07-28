@@ -854,6 +854,7 @@ export type TranslationKey =
   | 'pluginSettings.enable'
   | 'pluginSettings.enterSafeMode'
   | 'pluginSettings.grant'
+  | 'pluginSettings.revoke'
   | 'pluginSettings.kicker'
   | 'pluginSettings.leaveSafeMode'
   | 'pluginSettings.lastGood'
@@ -1915,6 +1916,7 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.enable': 'Enable',
     'pluginSettings.enterSafeMode': 'Enter safe mode',
     'pluginSettings.grant': 'Grant exact permissions',
+    'pluginSettings.revoke': 'Revoke permissions',
     'pluginSettings.kicker': 'Workspace Plugin Manager',
     'pluginSettings.leaveSafeMode': 'Leave safe mode',
     'pluginSettings.lastGood': 'Last-good digest',
@@ -2971,6 +2973,7 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.enable': '启用',
     'pluginSettings.enterSafeMode': '进入安全模式',
     'pluginSettings.grant': '授权声明权限',
+    'pluginSettings.revoke': '撤销权限',
     'pluginSettings.kicker': 'Workspace Plugin Manager',
     'pluginSettings.leaveSafeMode': '退出安全模式',
     'pluginSettings.lastGood': '最近可用摘要',

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import './studio-domain-test-fixtures';
 import { createBlockRecord } from '../src/core/blockFactory';
 import { seedanceModelArkAdapterDefinition } from '../src/core/capabilityRegistry';
 import {

@@ -1,7 +1,10 @@
 import { lstat, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { PluginRuntimeSnapshotV1 } from '@retake-tools/package-sdk';
+import type {
+  PluginRuntimeSnapshotV1,
+  RetakePluginPermission,
+} from '@retake-tools/package-sdk';
 import type { RetakePackageManifest } from '../src/core/packageContracts';
 import {
   configureInstalledRuntimeRegistry,
@@ -15,12 +18,15 @@ import {
 } from './local-package-manager-service';
 import { packageVersionSatisfies, parsePackageVersion } from './package-semver';
 import { PluginRuntimeService } from './plugin-runtime-service';
+import {
+  OfficialPackagePreferenceStore,
+} from './official-package-preference-store';
 import type {
   ResolvedWorkspacePackage,
   WorkspacePackageLock,
 } from './workspace-package-lock';
 
-export const defaultBootstrapProfileId = 'retake.default-video-production';
+export const defaultBootstrapProfileId = 'retake.default-studios';
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const defaultBootstrapProfilePath = path.join(
   repositoryRoot,
@@ -34,15 +40,18 @@ export interface BootstrapPackageReference {
   archivePath: string;
   digest: string;
   packageId: string;
+  pluginModules: Array<{
+    permissions: RetakePluginPermission[];
+    pluginModuleId: string;
+  }>;
   version: string;
 }
 
-export interface DeclarativePackageBootstrapProfileV1 {
-  dependencyPackages: BootstrapPackageReference[];
+export interface DeclarativePackageBootstrapProfileV2 {
   hostCompatibility: string;
+  packages: BootstrapPackageReference[];
   profileId: string;
-  rootPackage: BootstrapPackageReference;
-  schemaVersion: 1;
+  schemaVersion: 2;
 }
 
 export interface DeclarativePackageBootstrapResult {
@@ -90,30 +99,140 @@ export async function bootstrapDeclarativePackages(input: {
     hostVersion: input.hostVersion,
     workspaceRoot: input.workspaceRoot,
   });
-  const hasLockfile = await manager.hasLockfile();
-  if (!hasLockfile) {
-    const { archivePaths } = await validateBootstrapProfileArchives(
+  const hadLockfile = await manager.hasLockfile();
+  let validated: Awaited<
+    ReturnType<typeof validateBootstrapProfileArchives>
+  >;
+  try {
+    validated = await validateBootstrapProfileArchives(
       input.profilePath,
       input.hostVersion,
     );
-    await manager.install(archivePaths[0]!, archivePaths.slice(1));
+  } catch (error) {
+    if (!hadLockfile || !isNodeError(error, 'ENOENT')) throw error;
+    const [lockfile, installedRegistry] = await Promise.all([
+      manager.list(),
+      manager.loadRegistry(),
+    ]);
+    const snapshot = projectInstalledRuntimeRegistry(
+      lockfile,
+      installedRegistry,
+    );
+    const pluginRuntime = await new PluginRuntimeService({
+      hostVersion: input.hostVersion,
+      workspaceRoot: input.workspaceRoot,
+    }).reconcile(
+      input.pluginSafeMode === undefined
+        ? {}
+        : { safeMode: input.pluginSafeMode },
+    );
+    if (input.activateRuntime !== false) {
+      configureInstalledRuntimeRegistry(snapshot);
+    }
+    return {
+      installed: false,
+      pluginRuntime,
+      snapshot,
+    };
   }
-  const [lockfile, installedRegistry] = await Promise.all([
+  const { archivePaths, profile } = validated;
+  const preferences = new OfficialPackagePreferenceStore(manager.packagesRoot);
+  const preferenceState = await preferences.read();
+  let changed = false;
+  let lockfile = await manager.list();
+  const activeRoots = () => new Map(
+    lockfile.roots.map((root) => [root.packageId, root]),
+  );
+  const activePackageIds = () => new Set(
+    lockfile.resolvedPackages.map((entry) => entry.packageId),
+  );
+  const legacyStoryPackageId = 'retake.package.story-production-starter';
+  const legacyGuidedImagePackageId =
+    'retake.package.image-guided-workflow';
+  const videoPolicy = profile.packages.find(
+    (entry) => entry.packageId === 'design.retake.video-studio',
+  );
+  if (
+    videoPolicy
+    && !activeRoots().has(legacyStoryPackageId)
+    && lockfile.installations.some(
+      (entry) => entry.packageId === legacyStoryPackageId,
+    )
+    && !activeRoots().has(videoPolicy.packageId)
+    && preferenceState.updatedAt === new Date(0).toISOString()
+  ) {
+    await preferences.setPackageRemoved(videoPolicy.packageId, true);
+    preferenceState.removedPackageIds.push(videoPolicy.packageId);
+    preferenceState.removedPackageIds.sort(compareText);
+  }
+  for (const [index, packagePolicy] of profile.packages.entries()) {
+    if (preferenceState.removedPackageIds.includes(packagePolicy.packageId)) {
+      continue;
+    }
+    const activeRoot = activeRoots().get(packagePolicy.packageId);
+    if (activeRoot) {
+      const active = lockfile.resolvedPackages.find(
+        (entry) => entry.packageId === packagePolicy.packageId,
+      );
+      if (
+        active?.version === packagePolicy.version
+        && active.digest === packagePolicy.digest
+      ) {
+        continue;
+      }
+      // A non-default active source is a user version pin. Do not replace it
+      // during startup.
+      continue;
+    }
+    if (
+      packagePolicy.packageId === 'design.retake.image-studio'
+      && activeRoots().has(legacyGuidedImagePackageId)
+    ) {
+      lockfile = await manager.remove(legacyGuidedImagePackageId);
+      changed = true;
+    }
+    if (
+      packagePolicy.packageId === 'design.retake.video-studio'
+      && activeRoots().has(legacyStoryPackageId)
+    ) {
+      lockfile = await manager.remove(legacyStoryPackageId);
+      changed = true;
+    }
+    const result = await manager.install(archivePaths[index]!);
+    lockfile = result.lockfile;
+    changed = changed || result.changed;
+  }
+  const [currentLockfile, installedRegistry] = await Promise.all([
     manager.list(),
     manager.loadRegistry(),
   ]);
-  const snapshot = projectInstalledRuntimeRegistry(lockfile, installedRegistry);
+  lockfile = currentLockfile;
+  const snapshot = projectInstalledRuntimeRegistry(
+    currentLockfile,
+    installedRegistry,
+  );
+  const officialDefaults = profile.packages.flatMap((packagePolicy) => (
+    activePackageIds().has(packagePolicy.packageId)
+      ? packagePolicy.pluginModules.map((module) => ({
+          packageDigest: packagePolicy.digest,
+          packageId: packagePolicy.packageId,
+          permissions: [...module.permissions],
+          pluginModuleId: module.pluginModuleId,
+        }))
+      : []
+  ));
   const pluginRuntime = await new PluginRuntimeService({
     hostVersion: input.hostVersion,
     workspaceRoot: input.workspaceRoot,
-  }).reconcile(
-    input.pluginSafeMode === undefined
+  }).reconcile({
+    officialDefaults,
+    ...(input.pluginSafeMode === undefined
       ? {}
-      : { safeMode: input.pluginSafeMode },
-  );
+      : { safeMode: input.pluginSafeMode }),
+  });
   if (input.activateRuntime !== false) configureInstalledRuntimeRegistry(snapshot);
   return {
-    installed: !hasLockfile,
+    installed: !hadLockfile || changed,
     pluginRuntime,
     snapshot,
   };
@@ -121,7 +240,7 @@ export async function bootstrapDeclarativePackages(input: {
 
 export async function readBootstrapProfile(
   profilePath: string,
-): Promise<DeclarativePackageBootstrapProfileV1> {
+): Promise<DeclarativePackageBootstrapProfileV2> {
   const resolvedPath = path.resolve(profilePath);
   const stat = await lstat(resolvedPath);
   if (stat.isSymbolicLink() || !stat.isFile()) {
@@ -141,13 +260,13 @@ export async function validateBootstrapProfileArchives(
   hostVersion: string,
 ): Promise<{
   archivePaths: string[];
-  profile: DeclarativePackageBootstrapProfileV1;
+  profile: DeclarativePackageBootstrapProfileV2;
 }> {
   const profile = await readBootstrapProfile(profilePath);
   if (!packageVersionSatisfies(hostVersion, profile.hostCompatibility)) {
     throw new Error(`Bootstrap profile is incompatible with Retake ${hostVersion}.`);
   }
-  const references = [profile.rootPackage, ...profile.dependencyPackages];
+  const references = profile.packages;
   return {
     archivePaths: await Promise.all(references.map(
       (reference) => validateBootstrapArchive(profilePath, reference),
@@ -156,34 +275,29 @@ export async function validateBootstrapProfileArchives(
   };
 }
 
-function parseBootstrapProfile(value: unknown): DeclarativePackageBootstrapProfileV1 {
+function parseBootstrapProfile(value: unknown): DeclarativePackageBootstrapProfileV2 {
   if (!isRecord(value)) throw new Error('Bootstrap profile must be an object.');
   assertExactKeys(value, [
-    'dependencyPackages',
     'hostCompatibility',
+    'packages',
     'profileId',
-    'rootPackage',
     'schemaVersion',
   ], 'Bootstrap profile');
-  if (value.schemaVersion !== 1) throw new Error('Bootstrap profile schemaVersion is unsupported.');
+  if (value.schemaVersion !== 2) throw new Error('Bootstrap profile schemaVersion is unsupported.');
   if (value.profileId !== defaultBootstrapProfileId) throw new Error('Bootstrap profileId is unsupported.');
   if (typeof value.hostCompatibility !== 'string') {
     throw new Error('Bootstrap profile hostCompatibility is invalid.');
   }
-  if (!Array.isArray(value.dependencyPackages)) {
-    throw new Error('Bootstrap profile dependencyPackages is invalid.');
+  if (!Array.isArray(value.packages) || value.packages.length === 0) {
+    throw new Error('Bootstrap profile packages is invalid.');
   }
   const profile = {
-    dependencyPackages: value.dependencyPackages.map(parsePackageReference),
     hostCompatibility: value.hostCompatibility,
+    packages: value.packages.map(parsePackageReference),
     profileId: value.profileId,
-    rootPackage: parsePackageReference(value.rootPackage),
-    schemaVersion: 1,
-  } satisfies DeclarativePackageBootstrapProfileV1;
-  const packageIds = [
-    profile.rootPackage.packageId,
-    ...profile.dependencyPackages.map((reference) => reference.packageId),
-  ];
+    schemaVersion: 2,
+  } satisfies DeclarativePackageBootstrapProfileV2;
+  const packageIds = profile.packages.map((reference) => reference.packageId);
   if (new Set(packageIds).size !== packageIds.length) {
     throw new Error('Bootstrap profile contains duplicate Package IDs.');
   }
@@ -197,6 +311,7 @@ function parsePackageReference(value: unknown): BootstrapPackageReference {
     'archivePath',
     'digest',
     'packageId',
+    'pluginModules',
     'version',
   ], 'Bootstrap Package reference');
   for (const key of ['archiveDigest', 'archivePath', 'digest', 'packageId', 'version'] as const) {
@@ -211,7 +326,53 @@ function parsePackageReference(value: unknown): BootstrapPackageReference {
   assertDigest(value.digest, 'Bootstrap Package content digest');
   assertDigest(value.archiveDigest, 'Bootstrap Package archive digest');
   parsePackageVersion(value.version as string);
-  return value as unknown as BootstrapPackageReference;
+  if (!Array.isArray(value.pluginModules)) {
+    throw new Error('Bootstrap Package pluginModules is invalid.');
+  }
+  const pluginModules = value.pluginModules.map((entry) => {
+    if (!isRecord(entry)) {
+      throw new Error('Bootstrap PluginModule policy must be an object.');
+    }
+    assertExactKeys(
+      entry,
+      ['permissions', 'pluginModuleId'],
+      'Bootstrap PluginModule policy',
+    );
+    if (
+      typeof entry.pluginModuleId !== 'string'
+      || !Array.isArray(entry.permissions)
+      || entry.permissions.some((permission) => typeof permission !== 'string')
+    ) {
+      throw new Error('Bootstrap PluginModule policy is invalid.');
+    }
+    const permissions = [...entry.permissions].sort(compareText);
+    if (
+      new Set(permissions).size !== permissions.length
+      || JSON.stringify(permissions) !== JSON.stringify(entry.permissions)
+    ) {
+      throw new Error(
+        'Bootstrap PluginModule permissions must be sorted and unique.',
+      );
+    }
+    return {
+      permissions: permissions as RetakePluginPermission[],
+      pluginModuleId: entry.pluginModuleId,
+    };
+  });
+  if (
+    new Set(pluginModules.map((entry) => entry.pluginModuleId)).size
+    !== pluginModules.length
+  ) {
+    throw new Error('Bootstrap Package contains duplicate PluginModule IDs.');
+  }
+  return {
+    archiveDigest: value.archiveDigest as string,
+    archivePath: value.archivePath as string,
+    digest: value.digest as string,
+    packageId: value.packageId as string,
+    pluginModules,
+    version: value.version as string,
+  };
 }
 
 async function validateBootstrapArchive(
@@ -235,6 +396,26 @@ async function validateBootstrapArchive(
     || materialized.digest !== reference.digest
     || materialized.archiveDigest !== reference.archiveDigest
   ) throw new Error(`Bootstrap archive does not match its profile lock: ${reference.packageId}`);
+  const installedModules = materialized.definitions.pluginModules;
+  if (installedModules.size !== reference.pluginModules.length) {
+    throw new Error(
+      `Bootstrap PluginModule allowlist does not match archive: ${reference.packageId}`,
+    );
+  }
+  for (const policy of reference.pluginModules) {
+    const pluginModule = installedModules.get(policy.pluginModuleId);
+    if (
+      !pluginModule
+      || JSON.stringify(pluginModule.permissions)
+        !== JSON.stringify(policy.permissions)
+      || materialized.manifest.publisher.publisherId
+        !== 'retake.publisher.official'
+    ) {
+      throw new Error(
+        `Bootstrap PluginModule allowlist does not match archive: ${policy.pluginModuleId}`,
+      );
+    }
+  }
   return archiveRealPath;
 }
 
@@ -336,4 +517,8 @@ function compareText(left: string, right: string): number {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function isNodeError(error: unknown, code: string): boolean {
+  return error instanceof Error && 'code' in error && error.code === code;
 }

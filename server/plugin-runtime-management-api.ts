@@ -39,7 +39,7 @@ export async function handlePluginRuntimeManagementRequest(input: {
   }
 
   const moduleActionMatch = input.pathname.match(
-    /^\/plugin-runtime\/modules\/([^/]+)\/(grant|trust|enable|disable)$/,
+    /^\/plugin-runtime\/modules\/([^/]+)\/(grant|revoke|trust|enable|disable)$/,
   );
   if (input.method !== 'POST' || !moduleActionMatch) {
     return { handled: false };

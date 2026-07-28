@@ -15,7 +15,7 @@ import type { ExecutionConnectionSummary } from '../src/core/executionProviders'
 import { createDraftSkillOperation, executeExistingTextGenerationOperation, type TextGenerationLabels } from '../src/core/textOperations';
 import type { AssetRecord, BlockRecord, BoardSnapshot, ExecutionRecord } from '../src/core/types';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
-import { storyToStoryboardWorkflow } from '../src/core/workflowRegistry';
+import { storyToStoryboardWorkflow } from './studio-domain-test-fixtures';
 import { createWorkflowRunForGroup, reconcileWorkflowRuntime } from '../src/core/workflowRuntime';
 import { loadSnapshot, resetWorkspace, saveSnapshot } from './local-store/snapshot-store';
 

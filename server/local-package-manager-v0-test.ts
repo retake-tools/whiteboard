@@ -11,10 +11,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import type { DeclarativePackageManifest } from '../src/core/declarativePackageContracts';
-import {
-  storyProductionAgentPackage,
-  storyProductionStarterPackage,
-} from '../src/core/packageRegistry';
+import { videoStudioPackage } from './studio-domain-test-fixtures';
 import { packDeclarativePackage } from './declarative-package-service';
 import {
   LocalPackageManagerService,
@@ -26,38 +23,33 @@ import {
 } from './package-semver';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const starterRoot = path.join(repositoryRoot, 'packages', 'builtin', 'story-production-starter');
-const agentRoot = path.join(repositoryRoot, 'packages', 'builtin', 'story-production-agent');
+const studioArchive = path.join(
+  repositoryRoot,
+  'packages',
+  'bootstrap',
+  'video-studio-0.1.0.retakepkg',
+);
 const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'retake-local-package-manager-v0-'));
 
 try {
   verifySemVer();
 
-  const starterArchive = path.join(temporaryRoot, 'starter.retakepkg');
-  const agentArchive = path.join(temporaryRoot, 'agent.retakepkg');
-  await packDeclarativePackage(starterRoot, starterArchive);
-  await packDeclarativePackage(agentRoot, agentArchive);
-
   const starterWorkspace = path.join(temporaryRoot, 'starter-workspace');
   const starterManager = manager(starterWorkspace);
-  const installedStarter = await starterManager.install(starterArchive, [agentArchive]);
+  const installedStarter = await starterManager.install(studioArchive);
   assert.equal(installedStarter.changed, true);
   assert.equal(installedStarter.lockfile.roots.length, 1);
   assert.deepEqual(
     installedStarter.lockfile.resolvedPackages.map((entry) => entry.packageId),
-    [
-      storyProductionAgentPackage.packageId,
-      storyProductionStarterPackage.packageId,
-    ],
+    [videoStudioPackage.packageId],
   );
-  assert.equal(installedStarter.root.dependencies.length, 1);
-  assert.equal(installedStarter.root.dependencies[0]!.optional, false);
-  assert.equal(installedStarter.lockfile.installations.length, 2);
+  assert.equal(installedStarter.root.dependencies.length, 0);
+  assert.equal(installedStarter.lockfile.installations.length, 1);
 
-  const idempotentStarter = await starterManager.install(starterRoot, [agentRoot]);
+  const idempotentStarter = await starterManager.install(studioArchive);
   assert.equal(idempotentStarter.changed, false);
   assert.equal(idempotentStarter.lockfile.revision, 1);
-  assert.equal(idempotentStarter.lockfile.installations.length, 2);
+  assert.equal(idempotentStarter.lockfile.installations.length, 1);
 
   const registry = await starterManager.loadRegistry();
   assert.equal(registry.skills.size, 8);
@@ -66,26 +58,21 @@ try {
   assert.deepEqual(
     registry.entrypoints.map((entry) => entry.entrypoint.entrypointId).sort(),
     [
-      ...storyProductionStarterPackage.entrypoints,
-      ...storyProductionAgentPackage.entrypoints,
+      ...videoStudioPackage.entrypoints,
     ].map((entrypoint) => entrypoint.entrypointId).sort(),
   );
   assert.deepEqual(
     registry.entrypoints
-      .filter((entry) => entry.packageLock.packageId === storyProductionStarterPackage.packageId)
+      .filter((entry) => entry.packageLock.packageId === videoStudioPackage.packageId)
       .map((entry) => entry.entrypoint),
-    [...storyProductionStarterPackage.entrypoints].sort((left, right) => (
+    [...videoStudioPackage.entrypoints].sort((left, right) => (
       left.entrypointId.localeCompare(right.entrypointId)
     )),
   );
-  await assert.rejects(
-    starterManager.remove(storyProductionAgentPackage.packageId),
-    /transitive dependency/,
-  );
-  const removedStarter = await starterManager.remove(storyProductionStarterPackage.packageId);
+  const removedStarter = await starterManager.remove(videoStudioPackage.packageId);
   assert.equal(removedStarter.roots.length, 0);
   assert.equal(removedStarter.resolvedPackages.length, 0);
-  assert.equal(removedStarter.installations.length, 2);
+  assert.equal(removedStarter.installations.length, 1);
   assert.equal((await starterManager.loadRegistry()).entrypoints.length, 0);
 
   const versionWorkspace = path.join(temporaryRoot, 'version-workspace');
@@ -247,22 +234,20 @@ try {
   const cliInstall = runCli([
     'package',
     'install',
-    starterArchive,
-    '--dependency-source',
-    agentArchive,
+    studioArchive,
     '--workspace',
     cliWorkspace,
     '--json',
   ]);
   assert.equal(cliInstall.status, 0, cliInstall.stderr);
-  assert.equal(JSON.parse(cliInstall.stdout).resolvedPackages.length, 2);
+  assert.equal(JSON.parse(cliInstall.stdout).resolvedPackages.length, 1);
   const cliList = runCli(['package', 'list', '--workspace', cliWorkspace, '--json']);
   assert.equal(cliList.status, 0, cliList.stderr);
   assert.equal(JSON.parse(cliList.stdout).roots.length, 1);
   const cliRemove = runCli([
     'package',
     'remove',
-    storyProductionStarterPackage.packageId,
+    videoStudioPackage.packageId,
     '--workspace',
     cliWorkspace,
     '--json',

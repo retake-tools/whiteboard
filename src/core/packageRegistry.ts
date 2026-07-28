@@ -13,9 +13,6 @@ import type {
 } from './packageContracts';
 import { skillDefinitionFor } from './skillRegistry';
 import { workflowDefinitionFor } from './workflowRegistry';
-import type { DeclarativePackageManifest } from './declarativePackageContracts';
-import storyProductionStarterSource from '../../packages/builtin/story-production-starter/retake.package.json';
-import storyProductionAgentSource from '../../packages/builtin/story-production-agent/retake.package.json';
 
 export interface RegisteredPackageEntryPoint {
   entrypoint: RetakePackageEntryPoint;
@@ -77,44 +74,7 @@ export interface PackageEntryPointQuery {
   refId?: string;
 }
 
-export const storyProductionStarterPackage = legacyRuntimeManifestFromSource(
-  storyProductionStarterSource as unknown as DeclarativePackageManifest,
-  "sha256:retake-package-story-production-starter-domain-video-v1",
-);
-export const storyProductionAgentPackage = legacyRuntimeManifestFromSource(
-  storyProductionAgentSource as unknown as DeclarativePackageManifest,
-  "sha256:retake-package-story-production-agent-generation-package-v1",
-);
-
-function legacyRuntimeManifestFromSource(
-  source: DeclarativePackageManifest,
-  digest: string,
-): RetakePackageManifest {
-  return {
-    components: {
-      adapterPlugins: [],
-      agentPresets: source.components.agentPresets.map(({ agentPresetId, definitionHash, version }) => ({ agentPresetId, definitionHash, version })),
-      capabilityPlugins: [],
-      skills: source.components.skills.map(({ definitionHash, skillId, version }) => ({ definitionHash, skillId, version })),
-      uiPlugins: [],
-      workflows: source.components.workflows.map(({ definitionHash, version, workflowDefinitionId }) => ({ definitionHash, version, workflowDefinitionId })),
-    },
-    description: source.description,
-    digest,
-    entrypoints: structuredClone(source.entrypoints),
-    name: source.name,
-    packageId: source.packageId,
-    schemaVersion: 1,
-    source: { kind: "builtin" },
-    version: source.version,
-  };
-}
-
-export const builtInPackageRegistry = createPackageRegistry([
-  storyProductionStarterPackage,
-  storyProductionAgentPackage,
-]);
-let activePackageRegistry = builtInPackageRegistry;
+let activePackageRegistry = createPackageRegistry([]);
 
 export function createPackageRegistry(manifests: RetakePackageManifest[]): RetakePackageRegistry {
   const packageIds = new Set<string>();

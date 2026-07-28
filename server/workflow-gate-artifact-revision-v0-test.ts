@@ -18,10 +18,10 @@ import {
 import {
   configureWorkflowRegistry,
   listWorkflows,
-  storyToStoryboardWorkflow,
   validateWorkflowDefinition,
   type WorkflowHumanApprovalGateDefinition,
 } from '../src/core/workflowRegistry';
+import { storyToStoryboardWorkflow } from './studio-domain-test-fixtures';
 import {
   createWorkflowRunForGroup,
   reconcileWorkflowRuntime,

@@ -1,21 +1,39 @@
 {
-  "dependencyPackages": [
+  "hostCompatibility": ">=0.1.2 <0.2.0",
+  "packages": [
     {
-      "archiveDigest": "sha256:069bd7fbb9d4aea32fae345798a9b2702f5f9b75c1eb533a12ed3cac3758616d",
-      "archivePath": "story-production-agent-0.3.0.retakepkg",
-      "digest": "sha256:80fbebcebba51315b0bf3d5980fec07ef4f842c64dfa01cfc2426f44ffcc9514",
-      "packageId": "retake.package.story-production-agent",
-      "version": "0.3.0"
+      "archiveDigest": "sha256:5937e39f255adbc626ee82297331c0ee2f17e32e2b18588448d50f9c856c0d90",
+      "archivePath": "image-studio-0.10.0.retakepkg",
+      "digest": "sha256:be7f4be6ac007cfeab583e7eb4d7201040a20ca6f52ed4c4a41c8d8ba38566f8",
+      "packageId": "design.retake.image-studio",
+      "pluginModules": [
+        {
+          "permissions": [
+            "retake.asset.create",
+            "retake.asset.read.bound",
+            "retake.block.read.bound",
+            "retake.draft.write.bound",
+            "retake.execution.manage.self"
+          ],
+          "pluginModuleId": "design.retake.image-studio.web"
+        }
+      ],
+      "version": "0.10.0"
+    },
+    {
+      "archiveDigest": "sha256:bb78d8bb77853c79d179f7b8ddacc6b0507e14718543aa7178f7959ecdbe9543",
+      "archivePath": "video-studio-0.1.0.retakepkg",
+      "digest": "sha256:1223ff4574c5090c3d0f89a5cf05ddfe78cf53c8666c830fa089ea96583216c7",
+      "packageId": "design.retake.video-studio",
+      "pluginModules": [
+        {
+          "permissions": [],
+          "pluginModuleId": "design.retake.video-studio.web"
+        }
+      ],
+      "version": "0.1.0"
     }
   ],
-  "hostCompatibility": ">=0.1.2 <0.2.0",
-  "profileId": "retake.default-video-production",
-  "rootPackage": {
-    "archiveDigest": "sha256:45fd87e15376c4b19e55eb77489b7f57f3493132bcf4d114a427ef68e7e6c847",
-    "archivePath": "story-production-starter-0.5.0.retakepkg",
-    "digest": "sha256:0ad43fadc6364c39d049a3c4ab6c72a29b95451c10de5301019ba61b797c3f45",
-    "packageId": "retake.package.story-production-starter",
-    "version": "0.5.0"
-  },
-  "schemaVersion": 1
+  "profileId": "retake.default-studios",
+  "schemaVersion": 2
 }

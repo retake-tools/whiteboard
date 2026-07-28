@@ -33,7 +33,8 @@ import {
   reconcileWorkflowRuntime,
   workflowRunViewForId,
 } from '../src/core/workflowRuntime';
-import { storyboardUnitToSheetWorkflow, validateWorkflowDefinition } from '../src/core/workflowRegistry';
+import { validateWorkflowDefinition } from '../src/core/workflowRegistry';
+import { storyboardUnitToSheetWorkflow } from './studio-domain-test-fixtures';
 import { createAssetFromDataUrl } from './local-store/asset-store';
 import { readProjectArtifacts } from './local-store/artifact-store';
 import { resetWorkspace, saveSnapshot } from './local-store/snapshot-store';

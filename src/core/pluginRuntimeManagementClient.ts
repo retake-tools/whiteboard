@@ -15,6 +15,7 @@ export type PluginRuntimeManagementActionV1 =
   | 'disable'
   | 'enable'
   | 'grant'
+  | 'revoke'
   | 'trust';
 
 export interface PluginActivationDemandV1 {
