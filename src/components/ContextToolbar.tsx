@@ -26,6 +26,7 @@ interface ContextToolbarProps {
   selectedImageUrl?: string;
   onCreateSimilar: () => void;
   onDownloadImage: () => void;
+  onInteract?: () => void;
   onReplaceImage: () => void;
   onRunQuickEdit: (input: { instruction: string }) => void;
 }
@@ -37,6 +38,7 @@ export function ContextToolbar({
   selectedImageUrl,
   onCreateSimilar,
   onDownloadImage,
+  onInteract,
   onReplaceImage,
   onRunQuickEdit,
 }: ContextToolbarProps): ReactElement | null {
@@ -67,6 +69,7 @@ export function ContextToolbar({
 
   function toggleTool(tool: ImageTool): void {
     setActiveTool((current) => (current === tool ? null : tool));
+    onInteract?.();
   }
 
   if (!hasImageAsset) return null;
@@ -88,12 +91,24 @@ export function ContextToolbar({
         <IconButton label={t('context.createSimilar')} onClick={() => toggleTool('create-similar')}>
           <ImagePlus size={16} />
         </IconButton>
-        <IconButton label={t('context.downloadImage')} onClick={onDownloadImage}>
+        <IconButton
+          label={t('context.downloadImage')}
+          onClick={() => {
+            onDownloadImage();
+            onInteract?.();
+          }}
+        >
           <Download size={16} />
         </IconButton>
         {pluginActions}
         {canReplaceImage ? (
-          <IconButton label={t('context.replaceImage')} onClick={onReplaceImage}>
+          <IconButton
+            label={t('context.replaceImage')}
+            onClick={() => {
+              onReplaceImage();
+              onInteract?.();
+            }}
+          >
             <ImageUp size={16} />
           </IconButton>
         ) : null}

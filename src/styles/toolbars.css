@@ -447,6 +447,10 @@
   backdrop-filter: blur(12px);
 }
 
+.image-context-toolbar-bridge {
+  pointer-events: auto;
+}
+
 .operation-toolbar {
   display: flex;
   width: 360px;

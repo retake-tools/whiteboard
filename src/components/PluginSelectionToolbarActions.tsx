@@ -1,4 +1,3 @@
-import { Puzzle } from 'lucide-react';
 import { resolvePluginLocalizedTextV2 } from '@retake-tools/package-contracts';
 import {
   memo,
@@ -13,6 +12,7 @@ import type {
   RegisteredPluginImageSelectionToolbarActionV1,
 } from '../core/pluginContributionRegistry';
 import { TooltipIconButton } from './Tooltip';
+import { PluginActionIcon } from './PluginActionIcon';
 
 const emptyActions: readonly RegisteredPluginActionV1[] = Object.freeze([]);
 
@@ -115,7 +115,7 @@ const SelectionActionButton = memo(
           void invoke();
         }}
       >
-        <Puzzle aria-hidden="true" size={16} />
+        <PluginActionIcon icon={action.icon} />
       </TooltipIconButton>
     );
   },

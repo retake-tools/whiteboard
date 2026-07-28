@@ -1,5 +1,5 @@
 import { Background, NodeToolbar, Position, ReactFlow, type EdgeTypes, type NodeTypes } from '@xyflow/react';
-import { useEffect, useRef, type Dispatch, type PointerEvent as ReactPointerEvent, type ReactElement, type RefObject, type SetStateAction } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type FocusEvent as ReactFocusEvent, type PointerEvent as ReactPointerEvent, type ReactElement, type RefObject, type SetStateAction } from 'react';
 import { CanvasMiniMap } from '../components/CanvasMiniMap';
 import { CanvasViewportControls } from '../components/CanvasViewportControls';
 import { ContextToolbar } from '../components/ContextToolbar';
@@ -19,6 +19,7 @@ import { maxBoardZoom, minBoardZoom } from '../core/boardViewStateStore';
 import type {
   PluginContributionRegistryV1,
 } from '../core/pluginContributionRegistry';
+import { blockLockedByGroup } from '../core/grouping';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
 import type { useI18n } from '../i18n';
 import { BlockNode } from '../nodes/BlockNode';
@@ -87,6 +88,8 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
     workflowRuntime,
   } = props;
   const pointerIdleTimerRef = useRef<number | undefined>(undefined);
+  const imageToolbarDismissTimerRef = useRef<number | undefined>(undefined);
+  const [hoveredImageBlockId, setHoveredImageBlockId] = useState<string>();
   const selectedImageActionBlocks = canvas.selectedBlockIds.flatMap(
     (blockId) => {
       const block = snapshot.blocks.find(
@@ -105,13 +108,150 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
       }];
     },
   );
+  const selectedImageToolbarContext =
+    selectedBlock?.type === 'image'
+    && selectedImageAsset
+    && selectedImageUrl
+    && !selectedBlockContentLocked
+      ? {
+          asset: selectedImageAsset,
+          block: selectedBlock,
+          previewUrl: selectedImageUrl,
+        }
+      : undefined;
+  const hoveredImageBlock = hoveredImageBlockId
+    ? snapshot.blocks.find((candidate) => (
+        candidate.blockId === hoveredImageBlockId
+        && candidate.type === 'image'
+      ))
+    : undefined;
+  const hoveredImageAsset = hoveredImageBlock
+    && typeof hoveredImageBlock.data.assetId === 'string'
+      ? snapshot.assets.find((candidate) => (
+          candidate.assetId === hoveredImageBlock.data.assetId
+        ))
+      : undefined;
+  const hoveredImageToolbarContext =
+    hoveredImageBlock
+    && hoveredImageAsset
+    && !blockLockedByGroup(snapshot, hoveredImageBlock.blockId)
+      ? {
+          asset: hoveredImageAsset,
+          block: hoveredImageBlock,
+          previewUrl: hoveredImageAsset.previewUrl,
+        }
+      : undefined;
+  const imageToolbarContext = selectedImageToolbarContext
+    ?? (
+      canvas.selectedBlockIds.length < 2
+        ? hoveredImageToolbarContext
+        : undefined
+    );
 
   useEffect(() => () => {
     if (pointerIdleTimerRef.current !== undefined) window.clearTimeout(pointerIdleTimerRef.current);
+    if (imageToolbarDismissTimerRef.current !== undefined) {
+      window.clearTimeout(imageToolbarDismissTimerRef.current);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!hoveredImageBlockId || hoveredImageToolbarContext) return;
+    setHoveredImageBlockId(undefined);
+  }, [hoveredImageBlockId, hoveredImageToolbarContext]);
+
+  useEffect(() => {
+    if (!hoveredImageBlockId) return;
+    function handleDocumentPointerMove(event: PointerEvent): void {
+      if (event.pointerType === 'touch' || !(event.target instanceof Element)) {
+        return;
+      }
+      if (event.target.closest('.image-context-toolbar-bridge')) {
+        cancelImageToolbarDismiss();
+        return;
+      }
+      if (blockIdFromNodeTarget(event.target)) return;
+      scheduleImageToolbarDismiss(hoveredImageBlockId!);
+    }
+    document.addEventListener('pointermove', handleDocumentPointerMove, {
+      capture: true,
+    });
+    return () => {
+      document.removeEventListener('pointermove', handleDocumentPointerMove, {
+        capture: true,
+      });
+    };
+  }, [hoveredImageBlockId]);
+
+  function cancelImageToolbarDismiss(): void {
+    if (imageToolbarDismissTimerRef.current === undefined) return;
+    window.clearTimeout(imageToolbarDismissTimerRef.current);
+    imageToolbarDismissTimerRef.current = undefined;
+  }
+
+  function showImageToolbarPreview(blockId: string): void {
+    cancelImageToolbarDismiss();
+    const block = snapshot.blocks.find((candidate) => (
+      candidate.blockId === blockId
+      && candidate.type === 'image'
+      && typeof candidate.data.assetId === 'string'
+    ));
+    if (!block || blockLockedByGroup(snapshot, block.blockId)) return;
+    setHoveredImageBlockId(block.blockId);
+  }
+
+  function scheduleImageToolbarDismiss(blockId: string): void {
+    cancelImageToolbarDismiss();
+    imageToolbarDismissTimerRef.current = window.setTimeout(() => {
+      setHoveredImageBlockId((current) => (
+        current === blockId ? undefined : current
+      ));
+      imageToolbarDismissTimerRef.current = undefined;
+    }, 140);
+  }
+
+  function blockIdFromNodeTarget(
+    target: EventTarget | null,
+  ): string | undefined {
+    if (!(target instanceof Element)) return undefined;
+    return target
+      .closest<HTMLElement>('.react-flow__node[data-id]')
+      ?.dataset.id;
+  }
+
+  function handleCanvasFocus(event: ReactFocusEvent<HTMLElement>): void {
+    const blockId = blockIdFromNodeTarget(event.target);
+    if (blockId) showImageToolbarPreview(blockId);
+  }
+
+  function handleCanvasBlur(event: ReactFocusEvent<HTMLElement>): void {
+    const blockId = blockIdFromNodeTarget(event.target);
+    if (!blockId) return;
+    const nextBlockId = blockIdFromNodeTarget(event.relatedTarget);
+    if (nextBlockId === blockId) return;
+    scheduleImageToolbarDismiss(blockId);
+  }
 
   function handleCanvasPointerMove(event: ReactPointerEvent<HTMLElement>): void {
     if (event.pointerType === 'touch') return;
+    if (
+      event.target instanceof Element
+      && event.target.closest('.image-context-toolbar-bridge')
+    ) {
+      cancelImageToolbarDismiss();
+    } else {
+      const blockId = blockIdFromNodeTarget(event.target);
+      if (
+        blockId
+        && window.matchMedia(
+          '(hover: hover) and (pointer: fine)',
+        ).matches
+      ) {
+        showImageToolbarPreview(blockId);
+      } else if (hoveredImageBlockId) {
+        scheduleImageToolbarDismiss(hoveredImageBlockId);
+      }
+    }
     const canvasElement = event.currentTarget;
     if (canvasElement.dataset.pointerMoving !== 'true') canvasElement.dataset.pointerMoving = 'true';
     if (pointerIdleTimerRef.current !== undefined) window.clearTimeout(pointerIdleTimerRef.current);
@@ -125,6 +265,9 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
     if (pointerIdleTimerRef.current !== undefined) window.clearTimeout(pointerIdleTimerRef.current);
     pointerIdleTimerRef.current = undefined;
     event.currentTarget.dataset.pointerMoving = 'false';
+    if (hoveredImageBlockId) {
+      scheduleImageToolbarDismiss(hoveredImageBlockId);
+    }
   }
 
   return (
@@ -133,6 +276,8 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
       className="canvas-area"
       data-pointer-moving="false"
       aria-label="Retake board canvas"
+      onBlurCapture={handleCanvasBlur}
+      onFocusCapture={handleCanvasFocus}
       onPointerMoveCapture={handleCanvasPointerMove}
       onPointerLeave={handleCanvasPointerLeave}
     >
@@ -188,31 +333,77 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
             />
           </NodeToolbar>
         ) : null}
-        {selectedBlock?.type === 'image' && selectedImageUrl && !selectedBlockContentLocked ? (
-          <NodeToolbar nodeId={selectedBlock.blockId} position={Position.Top} offset={12} isVisible>
-            <ContextToolbar
-              canvasZoom={canvas.canvasZoom}
-              pluginActions={selectedImageAsset ? (
-                <PluginImageToolbarActions
-                  assetId={selectedImageAsset.assetId}
-                  blockId={selectedBlock.blockId}
-                  onFatalFailure={onPluginContributionFatalFailure}
-                  previewUrl={selectedImageUrl}
-                  registry={pluginContributionRegistry}
-                  title={selectedBlock.data.title}
-                />
-              ) : null}
-              selectedBlock={selectedBlock}
-              selectedImageUrl={selectedImageUrl}
-              onCreateSimilar={() => imageOperations.createImageToImageDraftOperation(selectedBlock, 'create_similar')}
-              onDownloadImage={() => { if (selectedImageAsset) downloadAsset(selectedImageAsset, selectedBlock.data.title); }}
-              onReplaceImage={() => {
-                if (selectedBlock.data.sourceExecutionId || selectedBlock.data.operationBlockId) return;
-                pendingDirectImageImportBlockIdRef.current = selectedBlock.blockId;
-                directImageImportInputRef.current?.click();
+        {imageToolbarContext ? (
+          <NodeToolbar
+            isVisible
+            nodeId={imageToolbarContext.block.blockId}
+            offset={12}
+            position={Position.Top}
+            style={{ pointerEvents: 'all' }}
+          >
+            <div
+              className="image-context-toolbar-bridge"
+              onBlurCapture={(event) => {
+                if (
+                  event.relatedTarget instanceof Node
+                  && event.currentTarget.contains(event.relatedTarget)
+                ) return;
+                scheduleImageToolbarDismiss(
+                  imageToolbarContext.block.blockId,
+                );
               }}
-              onRunQuickEdit={({ instruction }) => imageOperations.createImageToImageDraftOperation(selectedBlock, 'quick_edit', instruction)}
-            />
+              onClick={(event) => event.stopPropagation()}
+              onFocusCapture={cancelImageToolbarDismiss}
+              onPointerEnter={cancelImageToolbarDismiss}
+              onPointerLeave={() => {
+                scheduleImageToolbarDismiss(
+                  imageToolbarContext.block.blockId,
+                );
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              <ContextToolbar
+                canvasZoom={canvas.canvasZoom}
+                pluginActions={(
+                  <PluginImageToolbarActions
+                    assetId={imageToolbarContext.asset.assetId}
+                    blockId={imageToolbarContext.block.blockId}
+                    onFatalFailure={onPluginContributionFatalFailure}
+                    onInvoke={() => {
+                      if (
+                        canvas.selectedBlockIds.length !== 1
+                        || canvas.selectedBlockIds[0]
+                          !== imageToolbarContext.block.blockId
+                      ) {
+                        canvas.selectBlock(imageToolbarContext.block.blockId);
+                      }
+                    }}
+                    previewUrl={imageToolbarContext.previewUrl}
+                    registry={pluginContributionRegistry}
+                    title={imageToolbarContext.block.data.title}
+                  />
+                )}
+                selectedBlock={imageToolbarContext.block}
+                selectedImageUrl={imageToolbarContext.previewUrl}
+                onCreateSimilar={() => imageOperations.createImageToImageDraftOperation(imageToolbarContext.block, 'create_similar')}
+                onDownloadImage={() => downloadAsset(imageToolbarContext.asset, imageToolbarContext.block.data.title)}
+                onInteract={() => {
+                  if (
+                    canvas.selectedBlockIds.length !== 1
+                    || canvas.selectedBlockIds[0]
+                      !== imageToolbarContext.block.blockId
+                  ) {
+                    canvas.selectBlock(imageToolbarContext.block.blockId);
+                  }
+                }}
+                onReplaceImage={() => {
+                  if (imageToolbarContext.block.data.sourceExecutionId || imageToolbarContext.block.data.operationBlockId) return;
+                  pendingDirectImageImportBlockIdRef.current = imageToolbarContext.block.blockId;
+                  directImageImportInputRef.current?.click();
+                }}
+                onRunQuickEdit={({ instruction }) => imageOperations.createImageToImageDraftOperation(imageToolbarContext.block, 'quick_edit', instruction)}
+              />
+            </div>
           </NodeToolbar>
         ) : null}
         {selectedBlock?.type === 'group' ? (

@@ -882,6 +882,11 @@ function ReadyApp({
       />
       {pluginContributionRegistry && onPluginContributionFatalFailure ? (
         <PluginPanelHost
+          anchorBlockId={
+            selectedBlock?.type === 'image'
+              ? selectedBlock.blockId
+              : undefined
+          }
           onFatalFailure={onPluginContributionFatalFailure}
           registry={pluginContributionRegistry}
         />

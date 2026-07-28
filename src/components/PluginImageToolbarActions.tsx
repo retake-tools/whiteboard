@@ -1,4 +1,3 @@
-import { Puzzle } from 'lucide-react';
 import { resolvePluginLocalizedTextV2 } from '@retake-tools/package-contracts';
 import {
   memo,
@@ -13,6 +12,7 @@ import type {
   RegisteredPluginImageToolbarActionV1,
 } from '../core/pluginContributionRegistry';
 import { TooltipIconButton } from './Tooltip';
+import { PluginActionIcon } from './PluginActionIcon';
 
 const emptyActionList: readonly RegisteredPluginActionV1[] =
   Object.freeze([]);
@@ -21,6 +21,7 @@ export function PluginImageToolbarActions({
   assetId,
   blockId,
   onFatalFailure,
+  onInvoke,
   previewUrl,
   registry,
   title,
@@ -31,6 +32,7 @@ export function PluginImageToolbarActions({
     pluginModuleId: string,
     message: string,
   ) => Promise<void> | void;
+  onInvoke?: () => void;
   previewUrl?: string;
   registry?: PluginContributionRegistryV1;
   title: string;
@@ -65,6 +67,7 @@ export function PluginImageToolbarActions({
           block={block}
           key={action.contributionId}
           onFatalFailure={onFatalFailure}
+          onInvoke={onInvoke}
         />
       ))}
     </>
@@ -76,6 +79,7 @@ const PluginImageToolbarActionButton = memo(
     action,
     block,
     onFatalFailure,
+    onInvoke,
   }: {
     action: RegisteredPluginImageToolbarActionV1;
     block: {
@@ -89,6 +93,7 @@ const PluginImageToolbarActionButton = memo(
       pluginModuleId: string,
       message: string,
     ) => Promise<void> | void;
+    onInvoke?: () => void;
   }): ReactElement | null {
     const [pending, setPending] = useState(false);
     const environment = useSyncExternalStore(
@@ -102,6 +107,11 @@ const PluginImageToolbarActionButton = memo(
       if (pending) return;
       setPending(true);
       try {
+        onInvoke?.();
+        await waitForPluginImageToolbarBlockBinding(
+          action.host,
+          block.blockId,
+        );
         await action.run(Object.freeze({
           block,
           host: action.host,
@@ -131,11 +141,34 @@ const PluginImageToolbarActionButton = memo(
           void invoke();
         }}
       >
-        <Puzzle aria-hidden="true" size={16} />
+        <PluginActionIcon icon={action.icon} />
       </TooltipIconButton>
     );
   },
 );
+
+export async function waitForPluginImageToolbarBlockBinding(
+  host: RegisteredPluginImageToolbarActionV1['host'],
+  blockId: string,
+  timeoutMs = 750,
+): Promise<void> {
+  if (host.getReadSnapshot().boundBlockIds.includes(blockId)) return;
+  await new Promise<void>((resolve) => {
+    let timeout: ReturnType<typeof setTimeout>;
+    const unsubscribe = host.subscribeReadSnapshot(() => {
+      if (!host.getReadSnapshot().boundBlockIds.includes(blockId)) {
+        return;
+      }
+      globalThis.clearTimeout(timeout);
+      unsubscribe();
+      resolve();
+    });
+    timeout = globalThis.setTimeout(() => {
+      unsubscribe();
+      resolve();
+    }, timeoutMs);
+  });
+}
 
 function emptySubscribe(): () => void {
   return () => undefined;

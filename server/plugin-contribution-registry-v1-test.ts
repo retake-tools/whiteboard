@@ -122,6 +122,7 @@ assert.equal(
 const actionFailures = registry.replace([
   actionSession('retake.plugin.action-fixture', {
     apiVersion: 2,
+    icon: 'annotation',
     kind: 'action',
     label: 'Fixture action',
     placement: 'image.toolbar',
@@ -133,6 +134,12 @@ assert.equal(registry.getActionSnapshot().length, 1);
 assert.equal(
   registry.getActionSnapshot()[0]!.run,
   fixtureActionRun,
+);
+assert.equal(
+  registry.getActionSnapshot()[0]?.placement === 'image.toolbar'
+    ? registry.getActionSnapshot()[0].icon
+    : null,
+  'annotation',
 );
 registry.failModule(
   'retake.plugin.action-fixture',
@@ -189,6 +196,22 @@ const malformedAction = registry.replace([
 assert.deepEqual(malformedAction, [{
   error: 'Plugin action contribution must use a Retake Toolbar Action V2 contract.',
   pluginModuleId: 'retake.plugin.malformed-action',
+}]);
+assert.equal(registry.getActionSnapshot().length, 0);
+
+const malformedActionIcon = registry.replace([
+  actionSession('retake.plugin.malformed-action-icon', {
+    apiVersion: 2,
+    icon: 'same-icon-for-everything',
+    kind: 'action',
+    label: 'Invalid icon',
+    placement: 'image.toolbar',
+    run: fixtureActionRun,
+  }),
+]);
+assert.deepEqual(malformedActionIcon, [{
+  error: 'Plugin action contribution must use a Retake Toolbar Action V2 contract.',
+  pluginModuleId: 'retake.plugin.malformed-action-icon',
 }]);
 assert.equal(registry.getActionSnapshot().length, 0);
 
