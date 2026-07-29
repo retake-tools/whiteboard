@@ -14,16 +14,15 @@ import { fileURLToPath } from 'node:url';
 import type {
   DeclarativePackageManifest,
 } from '@retake-tools/package-contracts';
-import type {
-  RegistryCatalogV1,
-  TrustedRegistryRootV1,
-  VerifiedTrustedRegistryCatalog,
-} from '@retake-tools/package-sdk';
+import type { ResolvedGitPackageSource } from '@retake-tools/package-sdk';
 import {
   bootstrapDeclarativePackages,
   defaultBootstrapProfilePath,
   readBootstrapProfile,
 } from './declarative-package-bootstrap-service';
+import {
+  readMaterializedPackageArchive,
+} from './declarative-package-service';
 import { LocalPackageManagerService } from './local-package-manager-service';
 import { PackageUpdateService } from './package-update-service';
 import { PackageUpdateBanner } from '../src/components/TopBar';
@@ -42,17 +41,7 @@ const temporaryRoot = await mkdtemp(
 
 try {
   const profile = await readBootstrapProfile(defaultBootstrapProfilePath);
-  const root = JSON.parse(await readFile(
-    path.join(
-      repositoryRoot,
-      'vendor',
-      'package-toolchain',
-      '0.1.1',
-      'official-registry-root.v1.json',
-    ),
-    'utf8',
-  )) as TrustedRegistryRootV1;
-  const verifiedCatalog = fakeCatalog(root, profile.packages);
+  const resolveGitSource = gitResolverFixture(profile);
   const workspaceRoot = path.join(temporaryRoot, 'workspace');
   await bootstrapDeclarativePackages({
     hostVersion: '0.1.2',
@@ -62,7 +51,7 @@ try {
   const service = new PackageUpdateService({
     clock: () => '2026-07-28T16:00:00.000Z',
     hostVersion: '0.1.2',
-    loadOfficialCatalog: async () => verifiedCatalog,
+    resolveGitSource,
     workspaceRoot,
   });
   const available = await service.check();
@@ -86,23 +75,6 @@ try {
       },
     ],
   );
-  const unpublishedService = new PackageUpdateService({
-    hostVersion: '0.1.2',
-    loadOfficialCatalog: async () => ({
-      ...verifiedCatalog,
-      catalog: {
-        ...verifiedCatalog.catalog,
-        packages: [],
-      },
-    }),
-    workspaceRoot,
-  });
-  const unpublished = await unpublishedService.check();
-  assert.deepEqual(
-    unpublished.checks.map((entry) => entry.status),
-    ['unsupported', 'unsupported'],
-  );
-
   const pinnedSource = path.join(temporaryRoot, 'pinned-image-studio');
   await createPinnedPackageSource(pinnedSource);
   await new LocalPackageManagerService({
@@ -116,6 +88,32 @@ try {
   assert.equal(pinnedImage?.status, 'pinned');
   assert.equal(pinnedImage?.candidate, null);
   assert.match(pinnedImage?.detail ?? '', /version pin/i);
+
+  const updateWorkspace = path.join(temporaryRoot, 'update-workspace');
+  await bootstrapDeclarativePackages({
+    hostVersion: '0.1.2',
+    profilePath: defaultBootstrapProfilePath,
+    workspaceRoot: updateWorkspace,
+  });
+  let installedSource: string | null = null;
+  const updateService = new PackageUpdateService({
+    hostVersion: '0.1.2',
+    installSource: async (source) => {
+      installedSource = source;
+    },
+    resolveGitSource,
+    workspaceRoot: updateWorkspace,
+  });
+  await updateService.update('design.retake.image-studio');
+  assert.equal(
+    installedSource,
+    `git+https://github.com/retake-tools/image-studio.git#${
+      new URLSearchParams({
+        ref: '1'.repeat(40),
+        subdirectory: 'plugin',
+      }).toString()
+    }`,
+  );
 
   let dismissalValue: string | null = null;
   const localStorageFixture = {
@@ -153,8 +151,8 @@ try {
   process.stdout.write(`${JSON.stringify({
     currentDetected: true,
     dismissibleTopBannerRendered: true,
-    signedCatalogCandidateProjected: true,
-    unpublishedOfficialPackageIsNotAnError: true,
+    githubUpstreamCandidateProjected: true,
+    officialUpdatePinsExactGitCommit: true,
     updateAvailableDetected: true,
     versionPinSuppressesCandidate: true,
   })}\n`);
@@ -201,74 +199,62 @@ function updateController(
   };
 }
 
-function fakeCatalog(
-  root: TrustedRegistryRootV1,
-  packages: Array<{
-    archiveDigest: string;
-    digest: string;
-    packageId: string;
-    version: string;
-  }>,
-): VerifiedTrustedRegistryCatalog {
-  const catalog: RegistryCatalogV1 = {
-    advisories: [],
-    catalogVersion: 3,
-    expiresAt: '2027-07-28T00:00:00.000Z',
-    issuedAt: '2026-07-28T00:00:00.000Z',
-    packages: packages.map((entry) => {
-      const isImage = entry.packageId === 'design.retake.image-studio';
-      const version = isImage ? '0.11.0' : entry.version;
-      const digest = isImage ? `sha256:${'1'.repeat(64)}` : entry.digest;
-      const archiveDigest = isImage
-        ? `sha256:${'2'.repeat(64)}`
-        : entry.archiveDigest;
-      return {
-        channels: [{
-          archiveDigest,
-          channel: 'stable',
-          digest,
+function gitResolverFixture(
+  profile: Awaited<ReturnType<typeof readBootstrapProfile>>,
+): (source: string | {
+  repository: string;
+  requestedRef: string | null;
+  subdirectory: string;
+}) => Promise<ResolvedGitPackageSource> {
+  return async (source) => {
+    const sourceText = typeof source === 'string'
+      ? source
+      : source.repository;
+    const isImage = sourceText.includes('image-studio');
+    const reference = profile.packages.find((entry) => (
+      entry.packageId === (
+        isImage
+          ? 'design.retake.image-studio'
+          : 'design.retake.video-studio'
+      )
+    ))!;
+    const materialized = await readMaterializedPackageArchive(path.join(
+      repositoryRoot,
+      'packages',
+      'bootstrap',
+      reference.archivePath,
+    ));
+    const repository = isImage
+      ? 'https://github.com/retake-tools/image-studio.git'
+      : 'https://github.com/retake-tools/video-studio.git';
+    const subdirectory = isImage ? 'plugin' : 'package';
+    const version = isImage ? '0.11.0' : reference.version;
+    const digest = isImage ? `sha256:${'1'.repeat(64)}` : reference.digest;
+    return {
+      materialized: {
+        ...materialized,
+        digest,
+        manifest: {
+          ...materialized.manifest,
           version,
-        }],
-        description: `${entry.packageId} update fixture.`,
-        name: entry.packageId,
-        packageId: entry.packageId,
-        publisher: {
-          name: 'Retake',
-          publisherId: 'retake.publisher.official',
         },
-        releases: [{
-          archiveDigest,
-          archiveSizeBytes: 1024,
-          dependencies: [],
-          digest,
-          optionalDependencies: [],
-          permissions: [],
-          publishedAt: '2026-07-28T00:00:00.000Z',
-          retakeHostCompatibility: '^0.1.0',
-          status: 'active',
-          version,
-        }],
-      };
-    }),
-    registryId: root.registryId,
-    schemaVersion: 1,
-    type: 'retake.registry.catalog',
-  };
-  return {
-    catalog,
-    root,
-    state: {
-      catalogDigest: `sha256:${'3'.repeat(64)}`,
-      catalogExpiresAt: catalog.expiresAt,
-      catalogVersion: catalog.catalogVersion,
-      registryId: catalog.registryId,
-      releases: [],
-      rootExpiresAt: root.expiresAt,
-      rootVersion: root.rootVersion,
-      schemaVersion: 1,
-    },
-    validSignatureKeyIds: [root.keys[0]!.keyId],
-    verified: true,
+        source: {
+          commit: isImage ? '1'.repeat(40) : '2'.repeat(40),
+          kind: 'git',
+          path: repository,
+          repository,
+          requestedRef: 'main',
+          resolvedAt: '2026-07-28T16:00:00.000Z',
+          sourceDigest: `sha256:${'4'.repeat(64)}`,
+          subdirectory,
+        },
+      },
+      spec: {
+        repository,
+        requestedRef: 'main',
+        subdirectory,
+      },
+    };
   };
 }
 

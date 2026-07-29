@@ -838,6 +838,7 @@ export type TranslationKey =
   | 'pluginSettings.codeTrusted'
   | 'pluginSettings.contributions'
   | 'pluginSettings.addDescription'
+  | 'pluginSettings.browseDirectory'
   | 'pluginSettings.description'
   | 'pluginSettings.disable'
   | 'pluginSettings.buildDuration'
@@ -1908,7 +1909,8 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.codeNotTrusted': 'Code not trusted',
     'pluginSettings.codeTrusted': 'Exact code trusted',
     'pluginSettings.contributions': 'Contributions',
-    'pluginSettings.addDescription': 'Install from a GitHub shorthand, another Git URL, or a local source directory. Registry search will appear only when that source is available.',
+    'pluginSettings.addDescription': 'Install from a GitHub shorthand, another Git URL, or a local source directory.',
+    'pluginSettings.browseDirectory': 'Browse the Retake Plugin Directory',
     'pluginSettings.description': 'Install Packages and manage their PluginModules, trust, permissions, runtime state, updates, rollback, and removal in one place.',
     'pluginSettings.disable': 'Disable',
     'pluginSettings.buildDuration': 'Last build',
@@ -2974,7 +2976,8 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.codeNotTrusted': '代码未信任',
     'pluginSettings.codeTrusted': '已信任当前代码',
     'pluginSettings.contributions': '扩展贡献',
-    'pluginSettings.addDescription': '从 GitHub 简写、其他 Git URL 或本机源码目录安装。Registry 搜索只在真实来源可用后加入。',
+    'pluginSettings.addDescription': '从 GitHub 简写、其他 Git URL 或本机源码目录安装。',
+    'pluginSettings.browseDirectory': '浏览 Retake 插件目录',
     'pluginSettings.description': '在同一处安装 Package，并管理 PluginModule 的信任、权限、运行状态、更新、回滚与移除。',
     'pluginSettings.disable': '停用',
     'pluginSettings.buildDuration': '最近构建',

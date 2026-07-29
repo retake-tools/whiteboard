@@ -42,6 +42,8 @@ const packages = [
       ] satisfies RetakePluginPermission[],
       pluginModuleId: 'design.retake.image-studio.web',
     }],
+    updateSource:
+      'github:retake-tools/image-studio@main#subdirectory=plugin',
   },
   {
     archiveStem: 'video-studio',
@@ -53,6 +55,8 @@ const packages = [
       permissions: [] satisfies RetakePluginPermission[],
       pluginModuleId: 'design.retake.video-studio.web',
     }],
+    updateSource:
+      'github:retake-tools/video-studio@main#subdirectory=package',
   },
 ] as const;
 
@@ -71,6 +75,7 @@ async function exportDefaultStudioArchives(): Promise<void> {
         permissions: [...entry.permissions],
         pluginModuleId: entry.pluginModuleId,
       })),
+      updateSource: candidate.updateSource,
     });
     references.push(reference);
   }
@@ -84,7 +89,7 @@ async function exportDefaultStudioArchives(): Promise<void> {
         hostCompatibility: '>=0.1.2 <0.2.0',
         packages: references,
         profileId: defaultBootstrapProfileId,
-        schemaVersion: 2,
+        schemaVersion: 3,
       }, null, 2)}\n`,
       'utf8',
     );
@@ -108,6 +113,7 @@ async function packBootstrapPackage(input: {
   manifest: DeclarativePackageManifest;
   packageRoot: string;
   pluginModules: BootstrapPackageReference['pluginModules'];
+  updateSource: string;
 }): Promise<BootstrapPackageReference> {
   const archivePath = `${input.archiveStem}-${input.manifest.version}.retakepkg`;
   const outputPath = path.join(bootstrapRoot, archivePath);
@@ -127,6 +133,7 @@ async function packBootstrapPackage(input: {
       digest: result.digest,
       packageId: input.manifest.packageId,
       pluginModules: input.pluginModules,
+      updateSource: input.updateSource,
       version: input.manifest.version,
     };
   } finally {

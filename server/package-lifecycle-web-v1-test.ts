@@ -165,7 +165,12 @@ try {
   assert.match(updateMarkup, /Update available/);
   assert.match(updateMarkup, /v1\.1\.0 → v1\.2\.0/);
   assert.match(updateMarkup, />Update</);
-  assert.match(renderManager(installedTwo, 'add'), /Install source/);
+  const addMarkup = renderManager(installedTwo, 'add');
+  assert.match(addMarkup, /Install source/);
+  assert.match(
+    addMarkup,
+    /https:\/\/github\.com\/retake-tools\/plugin-directory/,
+  );
   assert.match(
     renderManager(installedTwo, 'development'),
     /Linked development/,

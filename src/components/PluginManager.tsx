@@ -469,6 +469,14 @@ export function PluginManager({
               <div>
                 <h3>{t('pluginSettings.tabAdd')}</h3>
                 <p>{t('pluginSettings.addDescription')}</p>
+                <a
+                  className="plugin-manager-directory-link"
+                  href="https://github.com/retake-tools/plugin-directory"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {t('pluginSettings.browseDirectory')}
+                </a>
               </div>
               {error ? (
                 <div className="plugin-manager-error" role="alert">

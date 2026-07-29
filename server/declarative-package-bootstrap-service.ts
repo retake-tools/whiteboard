@@ -44,14 +44,15 @@ export interface BootstrapPackageReference {
     permissions: RetakePluginPermission[];
     pluginModuleId: string;
   }>;
+  updateSource: string;
   version: string;
 }
 
-export interface DeclarativePackageBootstrapProfileV2 {
+export interface DeclarativePackageBootstrapProfileV3 {
   hostCompatibility: string;
   packages: BootstrapPackageReference[];
   profileId: string;
-  schemaVersion: 2;
+  schemaVersion: 3;
 }
 
 export interface DeclarativePackageBootstrapResult {
@@ -270,7 +271,7 @@ async function isBundledBootstrapInstallation(
 
 export async function readBootstrapProfile(
   profilePath: string,
-): Promise<DeclarativePackageBootstrapProfileV2> {
+): Promise<DeclarativePackageBootstrapProfileV3> {
   const resolvedPath = path.resolve(profilePath);
   const stat = await lstat(resolvedPath);
   if (stat.isSymbolicLink() || !stat.isFile()) {
@@ -290,7 +291,7 @@ export async function validateBootstrapProfileArchives(
   hostVersion: string,
 ): Promise<{
   archivePaths: string[];
-  profile: DeclarativePackageBootstrapProfileV2;
+  profile: DeclarativePackageBootstrapProfileV3;
 }> {
   const profile = await readBootstrapProfile(profilePath);
   if (!packageVersionSatisfies(hostVersion, profile.hostCompatibility)) {
@@ -305,7 +306,7 @@ export async function validateBootstrapProfileArchives(
   };
 }
 
-function parseBootstrapProfile(value: unknown): DeclarativePackageBootstrapProfileV2 {
+function parseBootstrapProfile(value: unknown): DeclarativePackageBootstrapProfileV3 {
   if (!isRecord(value)) throw new Error('Bootstrap profile must be an object.');
   assertExactKeys(value, [
     'hostCompatibility',
@@ -313,7 +314,7 @@ function parseBootstrapProfile(value: unknown): DeclarativePackageBootstrapProfi
     'profileId',
     'schemaVersion',
   ], 'Bootstrap profile');
-  if (value.schemaVersion !== 2) throw new Error('Bootstrap profile schemaVersion is unsupported.');
+  if (value.schemaVersion !== 3) throw new Error('Bootstrap profile schemaVersion is unsupported.');
   if (value.profileId !== defaultBootstrapProfileId) throw new Error('Bootstrap profileId is unsupported.');
   if (typeof value.hostCompatibility !== 'string') {
     throw new Error('Bootstrap profile hostCompatibility is invalid.');
@@ -325,8 +326,8 @@ function parseBootstrapProfile(value: unknown): DeclarativePackageBootstrapProfi
     hostCompatibility: value.hostCompatibility,
     packages: value.packages.map(parsePackageReference),
     profileId: value.profileId,
-    schemaVersion: 2,
-  } satisfies DeclarativePackageBootstrapProfileV2;
+    schemaVersion: 3,
+  } satisfies DeclarativePackageBootstrapProfileV3;
   const packageIds = profile.packages.map((reference) => reference.packageId);
   if (new Set(packageIds).size !== packageIds.length) {
     throw new Error('Bootstrap profile contains duplicate Package IDs.');
@@ -342,9 +343,17 @@ function parsePackageReference(value: unknown): BootstrapPackageReference {
     'digest',
     'packageId',
     'pluginModules',
+    'updateSource',
     'version',
   ], 'Bootstrap Package reference');
-  for (const key of ['archiveDigest', 'archivePath', 'digest', 'packageId', 'version'] as const) {
+  for (const key of [
+    'archiveDigest',
+    'archivePath',
+    'digest',
+    'packageId',
+    'updateSource',
+    'version',
+  ] as const) {
     if (typeof value[key] !== 'string' || value[key].length === 0) {
       throw new Error(`Bootstrap Package reference ${key} is invalid.`);
     }
@@ -353,6 +362,14 @@ function parsePackageReference(value: unknown): BootstrapPackageReference {
     !/^[A-Za-z0-9._-]+\.retakepkg$/.test(value.archivePath as string)
     || path.basename(value.archivePath as string) !== value.archivePath
   ) throw new Error('Bootstrap archivePath must be a portable filename.');
+  if (
+    !/^github:retake-tools\/[a-z0-9._-]+@main#subdirectory=[a-z0-9._/-]+$/
+      .test(value.updateSource as string)
+  ) {
+    throw new Error(
+      'Bootstrap updateSource must pin an official GitHub main source.',
+    );
+  }
   assertDigest(value.digest, 'Bootstrap Package content digest');
   assertDigest(value.archiveDigest, 'Bootstrap Package archive digest');
   parsePackageVersion(value.version as string);
@@ -401,6 +418,7 @@ function parsePackageReference(value: unknown): BootstrapPackageReference {
     digest: value.digest as string,
     packageId: value.packageId as string,
     pluginModules,
+    updateSource: value.updateSource as string,
     version: value.version as string,
   };
 }

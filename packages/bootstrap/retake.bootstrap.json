@@ -18,6 +18,7 @@
           "pluginModuleId": "design.retake.image-studio.web"
         }
       ],
+      "updateSource": "github:retake-tools/image-studio@main#subdirectory=plugin",
       "version": "0.10.1"
     },
     {
@@ -31,9 +32,10 @@
           "pluginModuleId": "design.retake.video-studio.web"
         }
       ],
+      "updateSource": "github:retake-tools/video-studio@main#subdirectory=package",
       "version": "0.1.2"
     }
   ],
   "profileId": "retake.default-studios",
-  "schemaVersion": 2
+  "schemaVersion": 3
 }
