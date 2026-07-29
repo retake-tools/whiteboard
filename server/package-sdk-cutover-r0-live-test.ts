@@ -18,6 +18,16 @@ const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
 );
+const packageJson = JSON.parse(
+  await readFile(path.join(repositoryRoot, 'package.json'), 'utf8'),
+) as {
+  dependencies: Record<string, string>;
+};
+const sdkDependency = packageJson.dependencies['@retake-tools/package-sdk'];
+const toolchainVersion = /^file:vendor\/package-toolchain\/([^/]+)\//u.exec(
+  sdkDependency,
+)?.[1];
+assert.ok(toolchainVersion);
 const temporaryRoot = await mkdtemp(
   path.join(tmpdir(), 'retake-package-sdk-cutover-live-'),
 );
@@ -29,7 +39,7 @@ try {
         repositoryRoot,
         'vendor',
         'package-toolchain',
-        '0.1.1',
+        toolchainVersion,
         'official-registry-root.v1.json',
       ),
       'utf8',

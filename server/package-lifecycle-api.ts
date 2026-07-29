@@ -56,6 +56,7 @@ export async function handlePackageLifecycleRequest(input: {
     }
     if (
       body.action === 'update'
+      || body.action === 'repair'
       || body.action === 'remove'
       || body.action === 'rollback'
     ) {

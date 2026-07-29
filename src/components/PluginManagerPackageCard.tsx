@@ -51,7 +51,9 @@ export function PluginManagerPackageCard({
   effectiveProfiles: ReadonlyMap<string, PluginModuleEffectiveProfileV1>;
   locale: string;
   modules: PluginModuleRuntimeRecordV1[];
-  onLifecycleAction: (action: 'remove' | 'rollback' | 'update') => void;
+  onLifecycleAction: (
+    action: 'remove' | 'repair' | 'rollback' | 'update'
+  ) => void;
   onRuntimeAction: (
     pluginModuleId: string,
     action: PluginRuntimeManagementActionV1,
@@ -73,7 +75,9 @@ export function PluginManagerPackageCard({
   t: I18nContextValue['t'];
 }): ReactElement {
   const isBusy = busyId?.startsWith(`package:${record.packageId}:`) ?? false;
-  const mutate = (action: 'remove' | 'rollback' | 'update'): void => {
+  const mutate = (
+    action: 'remove' | 'repair' | 'rollback' | 'update',
+  ): void => {
     if (
       action === 'remove'
       && !window.confirm(`${t('packageLibrary.confirmRemove')} ${record.name}?`)
@@ -196,7 +200,18 @@ export function PluginManagerPackageCard({
         </span>
         {record.isRoot ? (
           <div>
-            {updateCheck?.status === 'available' ? (
+            {record.loadFailure ? (
+              <button
+                type="button"
+                disabled={Boolean(busyId)}
+                onClick={() => mutate('repair')}
+              >
+                {isBusy
+                  ? <Loader2 className="is-spinning" size={14} />
+                  : <RefreshCw size={14} />}
+                {t('packageLibrary.repair')}
+              </button>
+            ) : updateCheck?.status === 'available' ? (
               <button
                 type="button"
                 disabled={Boolean(busyId)}
@@ -208,7 +223,7 @@ export function PluginManagerPackageCard({
                 {t('packageLibrary.update')}
               </button>
             ) : null}
-            {record.history.length > 0 ? (
+            {record.history.length > 0 && !record.loadFailure ? (
               <button
                 type="button"
                 disabled={Boolean(busyId)}
