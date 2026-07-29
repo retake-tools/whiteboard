@@ -790,6 +790,11 @@ function ReadyApp({
         selectedBlock={inspectorBlock}
         snapshot={snapshot}
         onClose={() => setInspectorBlockId(undefined)}
+        onBeforePluginOperationAction={async () => {
+          setInspectorBlockId(undefined);
+          await nextAnimationFrame();
+          await nextAnimationFrame();
+        }}
         onCopyPrompt={copyPromptWithHistory}
         onPluginFatalFailure={onPluginContributionFatalFailure}
         onRestoreConfiguration={restoreConfigurationVersion}
@@ -868,6 +873,9 @@ function ReadyApp({
           onPauseAgentRun={agentRuntimeController.pauseAgentRun}
           onResumeAgentRun={agentRuntimeController.resumeAgentRun}
           onRequestCanvasMode={closeAgentWorkspace}
+          onSelectLaunchConnection={
+            imageOperationController.updateOperationConnection
+          }
           onSelectAgentRun={agentWorkspaceController.selectAgentRun}
           onSelectSession={agentWorkspaceController.selectSession}
           onSubmitMessage={(input) => void agentWorkspaceController.submitMessage(input)}
@@ -929,6 +937,12 @@ function ReadyApp({
       {appShell}
     </UnifiedComposerProvider>
   );
+}
+
+function nextAnimationFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
 }
 
 function WorkspaceLoadState({

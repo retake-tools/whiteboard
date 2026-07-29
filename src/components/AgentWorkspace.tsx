@@ -48,6 +48,11 @@ import {
   currentInstalledRuntimeRegistryRevision,
   subscribeInstalledRuntimeRegistry,
 } from '../core/installedRuntimeRegistry';
+import {
+  currentExecutionProviderSettings,
+  readyAutomatedExecutionConnections,
+  subscribeExecutionProviderSettings,
+} from '../core/executionProviderPreferences';
 
 export function AgentWorkspace({
   binding,
@@ -65,6 +70,7 @@ export function AgentWorkspace({
   onLocateBlock,
   onResumeAgentRun,
   onRequestCanvasMode,
+  onSelectLaunchConnection,
   onSelectAgentRun,
   onSelectSession,
   onSubmitMessage,
@@ -98,6 +104,10 @@ export function AgentWorkspace({
   onLocateBlock: (blockId: string) => void;
   onResumeAgentRun: (agentRunId: string) => void;
   onRequestCanvasMode: () => void;
+  onSelectLaunchConnection: (
+    blockId: string,
+    connectionId: string,
+  ) => void;
   onSelectAgentRun: (agentRunId?: string) => void;
   onSelectSession: (agentSessionId: string) => void;
   onSubmitMessage: (input: Parameters<typeof AgentWorkspaceComposer>[0]['onSubmit'] extends (value: infer T) => void ? T : never) => void;
@@ -227,6 +237,7 @@ export function AgentWorkspace({
                         snapshot={snapshot}
                         onDecide={onDecideProposal}
                         onLaunch={onLaunchProposal}
+                        onSelectLaunchConnection={onSelectLaunchConnection}
                         onView={onViewProposalEffect}
                         onViewRun={onViewProposalRun}
                       />
@@ -243,6 +254,7 @@ export function AgentWorkspace({
                   snapshot={snapshot}
                   onDecide={onDecideProposal}
                   onLaunch={onLaunchProposal}
+                  onSelectLaunchConnection={onSelectLaunchConnection}
                   onView={onViewProposalEffect}
                   onViewRun={onViewProposalRun}
                 />
@@ -435,6 +447,7 @@ function ProposalCard({
   isLaunching,
   onDecide,
   onLaunch,
+  onSelectLaunchConnection,
   onView,
   onViewRun,
   proposal,
@@ -453,6 +466,10 @@ function ProposalCard({
     target: AgentDraftLaunchTarget,
     agentPresetEntryPointId?: string,
   ) => void;
+  onSelectLaunchConnection: (
+    blockId: string,
+    connectionId: string,
+  ) => void;
   onView: (proposalId: string) => void;
   onViewRun: (proposalId: string) => void;
   proposal: ChangeProposalRecord;
@@ -464,6 +481,11 @@ function ProposalCard({
     Exclude<PackageEntrypointAgentLaunchTarget, { kind: 'capability' }>
   >({ kind: 'workflow_run' });
   const [agentPresetEntryPointId, setAgentPresetEntryPointId] = useState('');
+  const providerSettings = useSyncExternalStore(
+    subscribeExecutionProviderSettings,
+    currentExecutionProviderSettings,
+    currentExecutionProviderSettings,
+  );
   const command = proposal.proposedCommand;
   const goalPlan = command.kind === 'goal_plan.instantiate'
     ? command.goalPlan
@@ -484,14 +506,30 @@ function ProposalCard({
           && block.type === 'operation',
     )
     : undefined;
-  const launchOperation = skillOperation ?? proposal.appliedEffect?.createdBlockIds
-    .flatMap((blockId) => {
-      const block = snapshot.blocks.find(
-        (candidate) => candidate.blockId === blockId && candidate.type === 'operation',
-      );
-      return block ? [block] : [];
-    })
-    .find((block) => block.data.capabilityId === 'previs.storyboard_sheet.generate');
+  const launchOperations = skillOperation
+    ? [skillOperation]
+    : (proposal.appliedEffect?.createdBlockIds
+      .flatMap((blockId) => {
+        const block = snapshot.blocks.find(
+          (candidate) => candidate.blockId === blockId && candidate.type === 'operation',
+        );
+        return block ? [block] : [];
+      }) ?? []);
+  const launchOperation = launchOperations.find(
+    (block) => block.data.capabilityId === 'previs.storyboard_sheet.generate',
+  ) ?? launchOperations[0];
+  const launchConnectionOptions = launchOperations.flatMap((operation) => {
+    const capabilityId = typeof operation.data.capabilityId === 'string'
+      ? operation.data.capabilityId
+      : '';
+    const connections = capabilityId
+      ? readyAutomatedExecutionConnections({
+          capabilityId,
+          settings: providerSettings,
+        })
+      : [];
+    return connections.length > 0 ? [{ connections, operation }] : [];
+  });
   const readiness = skillOperation
     ? operationReadinessFor(snapshot, skillOperation)
     : undefined;
@@ -669,14 +707,52 @@ function ProposalCard({
                     ).join(' · ') || '—'}
                   </small>
                   <small>{t('agentWorkspace.parameters')}: {invocationParameterSummary(typedInvocation.parameters)}</small>
-                  <small>
-                    {t('operationToolbar.generator')}: {
-                      typeof launchOperation?.data.connectionId === 'string'
-                        ? launchOperation.data.connectionId
-                        : '—'
-                    } · {typeof launchOperation?.data.adapter === 'string' ? launchOperation.data.adapter : '—'}
-                  </small>
                 </div>
+              ) : null}
+              {launchConnectionOptions.length > 0 ? (
+                <div className="agent-workspace-preset-summary">
+                  {launchConnectionOptions.map(({ connections, operation }) => {
+                    const selectedConnectionId = typeof operation.data.connectionId === 'string'
+                      ? operation.data.connectionId
+                      : connections[0]?.connectionId ?? '';
+                    return (
+                      <label key={`launch-connection:${operation.blockId}`}>
+                        <span>
+                          {operation.data.title} · {t('operationToolbar.generator')}
+                        </span>
+                        <select
+                          value={connections.some(
+                            (connection) => connection.connectionId === selectedConnectionId,
+                          ) ? selectedConnectionId : connections[0]?.connectionId}
+                          onChange={(event) => onSelectLaunchConnection(
+                            operation.blockId,
+                            event.target.value,
+                          )}
+                        >
+                          {connections.map((connection) => (
+                            <option
+                              key={connection.connectionId}
+                              value={connection.connectionId}
+                            >
+                              {connection.displayName}
+                              {connection.modelId ? ` · ${connection.modelId}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : launchOperation ? (
+                <small>
+                  {t('operationToolbar.generator')}: {
+                    typeof launchOperation.data.connectionId === 'string'
+                      ? launchOperation.data.connectionId
+                      : '—'
+                  } · {typeof launchOperation.data.adapter === 'string'
+                    ? launchOperation.data.adapter
+                    : '—'}
+                </small>
               ) : null}
               {workflowDefinition && !goalPlan ? (
                 <WorkflowAgentTargetPicker

@@ -3,6 +3,7 @@ import type {
   ExecutionProviderSettingsSnapshot,
   ExecutionUseCase,
 } from './executionProviders';
+import { tryCapabilityDefinitionFor } from './capabilityRegistry';
 
 export type ExecutionConnectionPreferenceSource =
   | 'explicit'
@@ -86,4 +87,72 @@ export function executionConnection(
   const snapshot = snapshotsByProject.get(projectId) ?? snapshotsByProject.get('');
   const connection = snapshot?.connections.find((candidate) => candidate.connectionId === connectionId);
   return connection ? { ...connection } : undefined;
+}
+
+export function executionUseCaseForCapability(
+  capabilityId: string,
+): ExecutionUseCase | undefined {
+  const outputType = tryCapabilityDefinitionFor(
+    capabilityId,
+  )?.outputSlots[0]?.dataType;
+  if (outputType === 'image' || outputType === 'video' || outputType === 'audio') {
+    return outputType;
+  }
+  if (outputType === 'text' || outputType === 'document') return 'text';
+  return undefined;
+}
+
+export function readyAutomatedExecutionConnections(input: {
+  capabilityId: string;
+  settings?: ExecutionProviderSettingsSnapshot;
+}): ExecutionConnectionSummary[] {
+  const settings = input.settings ?? latestSnapshot;
+  if (!settings) return [];
+  const useCase = executionUseCaseForCapability(input.capabilityId);
+  return settings.connections
+    .filter((connection) => (
+      connection.connectorId !== 'codex-managed'
+      && connection.enabled
+      && connection.status === 'ready'
+      && (useCase === undefined || connection.enabledUseCases.includes(useCase))
+      && connection.supportedCapabilityIds.includes(input.capabilityId)
+    ))
+    .map((connection) => ({ ...connection }));
+}
+
+export function resolveAgentExecutionConnection(input: {
+  capabilityId: string;
+  initialConnectionId?: string;
+  projectId: string;
+  settings?: ExecutionProviderSettingsSnapshot;
+}): ExecutionConnectionSummary | undefined {
+  const settings = input.settings
+    ?? snapshotsByProject.get(input.projectId)
+    ?? snapshotsByProject.get('');
+  if (!settings) return undefined;
+  const compatible = readyAutomatedExecutionConnections({
+    capabilityId: input.capabilityId,
+    settings,
+  });
+  const useCase = executionUseCaseForCapability(input.capabilityId);
+  const preferredIds = [
+    useCase === undefined
+      ? undefined
+      : settings.projectDefaults.find(
+          (candidate) => candidate.useCase === useCase,
+        )?.connectionId,
+    useCase === undefined
+      ? undefined
+      : settings.workspaceDefaults.find(
+          (candidate) => candidate.useCase === useCase,
+        )?.connectionId,
+    input.initialConnectionId,
+  ].filter((connectionId): connectionId is string => Boolean(connectionId));
+  return preferredIds
+    .map((connectionId) => compatible.find(
+      (connection) => connection.connectionId === connectionId,
+    ))
+    .find((connection): connection is ExecutionConnectionSummary => (
+      Boolean(connection)
+    )) ?? compatible[0];
 }

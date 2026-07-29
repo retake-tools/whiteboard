@@ -44,6 +44,7 @@ import {
   domainVideoGenerationCapabilityId,
   normalizeDomainVideoGenerationParameters,
 } from '../core/domainVideoGenerationContracts';
+import { AnnotationOperationInlineControls } from './AnnotationOperationInlineControls';
 
 type AspectPreset = 'source' | ImageComposerAspectRatio;
 type ResolutionPreset = ImageComposerResolution;
@@ -63,7 +64,16 @@ export function OperationInlineControls({ blockId, data }: { blockId: string; da
   const pluginDefinition = typeof data.capabilityId === 'string'
     ? pluginCapabilityDefinitionFor(data.capabilityId)
     : undefined;
-  if (pluginDefinition || data.capabilityId === 'image.annotation_edit') {
+  if (data.capabilityId === 'image.annotation_edit') {
+    return (
+      <AnnotationOperationInlineControls
+        blockId={blockId}
+        capabilityName={pluginDefinition?.displayName ?? data.title}
+        data={data}
+      />
+    );
+  }
+  if (pluginDefinition) {
     return (
       <PluginOwnedOperationControls
         capabilityName={pluginDefinition?.displayName ?? data.title}

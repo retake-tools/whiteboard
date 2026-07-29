@@ -488,7 +488,9 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         const connection = executionConnection(selectedConnectionId, current.project.projectId);
         const currentCapabilityId = currentOperationBlock.data.capabilityId === storyboardSheetCapabilityId
           ? storyboardSheetCapabilityId
-          : capabilityIdForOperationMode(input.operation);
+          : currentOperationBlock.data.capabilityId === 'image.annotation_edit'
+            ? 'image.annotation_edit'
+            : capabilityIdForOperationMode(input.operation);
         if (
           !connection ||
           connection.status !== 'ready' ||

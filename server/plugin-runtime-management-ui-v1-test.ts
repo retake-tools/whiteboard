@@ -488,6 +488,7 @@ function lifecycleSnapshot(
     pluginRuntime,
     runtimeRegistry: {
       agentPresets: [],
+      capabilities: [],
       lockRevision: 1,
       packages: [],
       profileId: 'test.plugin-manager',

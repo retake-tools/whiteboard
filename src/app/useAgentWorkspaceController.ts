@@ -20,7 +20,7 @@ import { loadBoardSnapshot } from '../core/boardStore';
 import { requestAgentRuntimeTurn } from '../core/agentRuntimeClient';
 import {
   currentExecutionProviderSettings,
-  resolveExecutionConnectionPreference,
+  resolveAgentExecutionConnection,
 } from '../core/executionProviderPreferences';
 import { reconcileAgentArtifactTarget } from '../core/agentArtifactTargetClient';
 import type { PackageComposerMention } from '../core/packageComposer';
@@ -173,12 +173,11 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
           { decision, expectedProposalVersion, proposalId },
           {
             connectionIdForCapability: (capabilityId, applicationSnapshot) =>
-              resolveExecutionConnectionPreference({
+              resolveAgentExecutionConnection({
                 capabilityId,
                 initialConnectionId: 'codex-app-server',
                 projectId: applicationSnapshot.project.projectId,
-                useCase: 'text',
-              }).connectionId,
+              })?.connectionId,
             labelsForSkill: (skillId) => textGenerationLabelsForSkill(skillId, locale, t),
             outputPlaceholder: t('workflowDraft.outputPending'),
             workflowTitleForTarget: (target) =>

@@ -12,10 +12,12 @@ import type {
   RetakePluginModuleManifestV2,
   RetakePackageEntryPoint,
 } from '@retake-tools/package-contracts';
+import type { CapabilityDefinition } from '../src/core/capabilityContracts';
 import {
   loadInstalledPackagesTolerant,
   type InstalledPackageLoadFailure,
 } from './installed-package-recovery-service';
+import { readInstalledPackageCapabilityDefinitions } from './installed-plugin-capability-definitions';
 export type { InstalledPackageLoadFailure } from './installed-package-recovery-service';
 
 export {
@@ -46,6 +48,7 @@ export interface InstalledDefinition<T> {
 
 export interface InstalledDeclarativePackageRegistry {
   agentPresets: Map<string, InstalledDefinition<DeclarativeAgentPresetDefinition>>;
+  capabilities: Map<string, InstalledDefinition<CapabilityDefinition>>;
   entrypoints: Array<{
     entrypoint: RetakePackageEntryPoint;
     packageLock: {
@@ -175,6 +178,7 @@ function buildInstalledRegistry(
     );
     const registry: InstalledDeclarativePackageRegistry = {
       agentPresets: new Map(),
+      capabilities: new Map(),
       entrypoints: [],
       packages: [],
       pluginModules: new Map(),
@@ -215,6 +219,10 @@ function buildInstalledRegistry(
         packageLock,
         'PluginModule',
       );
+      const capabilities = readInstalledPackageCapabilityDefinitions(
+        installed.definitions.pluginModules.values(), installed.files,
+      );
+      addDefinitions(registry.capabilities, capabilities, packageLock, 'Capability');
       addDefinitions(
         registry.skills,
         installed.definitions.skills,

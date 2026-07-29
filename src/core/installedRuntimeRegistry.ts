@@ -1,4 +1,5 @@
 import type { AgentPresetDefinition } from './agentPresetContracts';
+import type { CapabilityDefinition } from './capabilityContracts';
 import {
   configureAgentPresetRegistry,
   listAgentPresets,
@@ -18,6 +19,10 @@ import {
   listWorkflows,
   type WorkflowDefinition,
 } from './workflowRegistry';
+import {
+  listInstalledPluginCapabilityDefinitions,
+  replaceInstalledPluginCapabilityDefinitions,
+} from './pluginCapabilityDefinitions';
 import { sha256Hex } from './sha256';
 
 let configuredSnapshotDigest = '';
@@ -26,6 +31,7 @@ const configuredSnapshotListeners = new Set<() => void>();
 
 export interface InstalledRuntimeRegistrySnapshotV1 {
   agentPresets: AgentPresetDefinition[];
+  capabilities: CapabilityDefinition[];
   lockRevision: number;
   packages: RetakePackageManifest[];
   profileId: string;
@@ -41,6 +47,7 @@ export function configureInstalledRuntimeRegistry(
   const snapshot = parseInstalledRuntimeRegistrySnapshot(input);
   const previous = currentRuntimeRegistrySnapshot('retake.runtime.previous', -1);
   try {
+    replaceInstalledPluginCapabilityDefinitions(snapshot.capabilities);
     configureSkillRegistry(snapshot.skills);
     configureWorkflowRegistry(snapshot.workflows);
     configureAgentPresetRegistry(snapshot.agentPresets);
@@ -75,6 +82,7 @@ export function currentRuntimeRegistrySnapshot(
 ): InstalledRuntimeRegistrySnapshotV1 {
   return withSnapshotDigest({
     agentPresets: listAgentPresets(),
+    capabilities: listInstalledPluginCapabilityDefinitions(),
     lockRevision,
     packages: listPackages(),
     profileId,
@@ -100,6 +108,7 @@ function parseInstalledRuntimeRegistrySnapshot(
   if (!isRecord(input)) throw new Error('Installed Runtime Registry snapshot must be an object.');
   assertExactKeys(input, [
     'agentPresets',
+    'capabilities',
     'lockRevision',
     'packages',
     'profileId',
@@ -123,12 +132,14 @@ function parseInstalledRuntimeRegistrySnapshot(
   ) throw new Error('Installed Runtime Registry snapshot digest is invalid.');
   if (
     !Array.isArray(input.packages)
+    || !Array.isArray(input.capabilities)
     || !Array.isArray(input.skills)
     || !Array.isArray(input.workflows)
     || !Array.isArray(input.agentPresets)
   ) throw new Error('Installed Runtime Registry snapshot collections are invalid.');
   const rawPayload = {
     agentPresets: input.agentPresets,
+    capabilities: input.capabilities,
     lockRevision: input.lockRevision,
     packages: input.packages,
     profileId: input.profileId,
@@ -152,6 +163,7 @@ function parseInstalledRuntimeRegistrySnapshot(
   }
   const snapshot: InstalledRuntimeRegistrySnapshotV1 = {
     agentPresets: cloneObjectArray(input.agentPresets, 'AgentPreset') as AgentPresetDefinition[],
+    capabilities: cloneObjectArray(input.capabilities, 'Capability') as CapabilityDefinition[],
     lockRevision: input.lockRevision as number,
     packages,
     profileId: input.profileId,
@@ -176,6 +188,13 @@ function cloneObjectArray(
 function assertExactComponentOwnership(
   snapshot: InstalledRuntimeRegistrySnapshotV1,
 ): void {
+  assertSameIds(
+    snapshot.capabilities.map((definition) => definition.capabilityId),
+    snapshot.packages.flatMap((manifest) => (
+      manifest.components.capabilityPlugins.map((lock) => lock.componentId)
+    )),
+    'Capability',
+  );
   assertSameIds(
     snapshot.skills.map((definition) => definition.skillId),
     snapshot.packages.flatMap((manifest) => (
@@ -215,6 +234,7 @@ function assertSameIds(
 function restoreRuntimeRegistry(
   previous: InstalledRuntimeRegistrySnapshotV1,
 ): void {
+  replaceInstalledPluginCapabilityDefinitions(previous.capabilities);
   configureSkillRegistry(previous.skills);
   configureWorkflowRegistry(previous.workflows);
   configureAgentPresetRegistry(previous.agentPresets);

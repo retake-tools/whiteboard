@@ -266,6 +266,11 @@ function OperationInputRoleBadge({ data }: { data: BlockData }): ReactElement | 
   });
 
   if (!edgeId) return null;
+  if (
+    !isPending
+    && role === 'source'
+    && options.length <= 1
+  ) return null;
 
   return (
     <div ref={controlRef} className="operation-input-role-control nodrag nopan">

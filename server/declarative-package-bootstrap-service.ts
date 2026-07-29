@@ -542,12 +542,15 @@ export function projectInstalledRuntimeRegistry(
   const packages = registry.packages.map((manifest) => {
     const resolved = resolvedByPackageId.get(manifest.packageId);
     if (!resolved) throw new Error(`Installed Package is absent from the resolved closure: ${manifest.packageId}`);
-    return runtimePackageManifest(manifest, resolved);
+    return runtimePackageManifest(manifest, resolved, registry);
   });
   return withSnapshotDigest({
     agentPresets: [...registry.agentPresets.values()]
       .map((entry) => structuredClone(entry.definition))
       .sort((left, right) => compareText(left.agentPresetId, right.agentPresetId)),
+    capabilities: [...registry.capabilities.values()]
+      .map((entry) => structuredClone(entry.definition))
+      .sort((left, right) => compareText(left.capabilityId, right.capabilityId)),
     lockRevision: lockfile.revision,
     packages: packages.sort((left, right) => compareText(left.packageId, right.packageId)),
     profileId: defaultBootstrapProfileId,
@@ -564,6 +567,7 @@ export function projectInstalledRuntimeRegistry(
 function runtimePackageManifest(
   manifest: InstalledDeclarativePackageRegistry['packages'][number],
   resolved: ResolvedWorkspacePackage,
+  registry: InstalledDeclarativePackageRegistry,
 ): RetakePackageManifest {
   return {
     components: {
@@ -573,7 +577,14 @@ function runtimePackageManifest(
         definitionHash: component.definitionHash,
         version: component.version,
       })),
-      capabilityPlugins: [],
+      capabilityPlugins: [...registry.capabilities.values()]
+        .filter((entry) => entry.packageLock.packageId === manifest.packageId)
+        .map((entry) => ({
+          componentId: entry.definition.capabilityId,
+          definitionHash: entry.definition.definitionHash,
+          version: entry.definition.version,
+        }))
+        .sort((left, right) => compareText(left.componentId, right.componentId)),
       skills: manifest.components.skills.map((component) => ({
         definitionHash: component.definitionHash,
         skillId: component.skillId,

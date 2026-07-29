@@ -86,6 +86,7 @@ assert.equal(connection?.modelId, 'gpt-5.6-terra');
 assert.deepEqual(connection?.supportedCapabilityIds, [
   ...codexTextDocumentCapabilityIds,
   'image.annotation_edit',
+  'image.guided_edit',
   'image.image_to_image',
   'image.masked_edit',
   'image.outpaint',

@@ -362,8 +362,10 @@ const completedAnnotationOperationMarkup = renderToStaticMarkup(
     />
   </I18nProvider>,
 );
-assert.match(completedAnnotationOperationMarkup, /Managed by Plugin/);
-assert.doesNotMatch(completedAnnotationOperationMarkup, /Generate again/);
+assert.match(completedAnnotationOperationMarkup, /Generator/);
+assert.match(completedAnnotationOperationMarkup, /Count/);
+assert.match(completedAnnotationOperationMarkup, /Generate again/);
+assert.doesNotMatch(completedAnnotationOperationMarkup, /Managed by Plugin/);
 
 const invalidOperationMarkup = renderToStaticMarkup(
   <I18nProvider>

@@ -35,6 +35,9 @@ interface ExecutionInspectorProps {
   snapshot: BoardSnapshot;
   onClose: () => void;
   onCopyPrompt: (input: CopyPromptInput) => void | Promise<void>;
+  onBeforePluginOperationAction?: (
+    operationBlockId: string,
+  ) => Promise<void> | void;
   onRestoreConfiguration: (executionId: string) => void;
   onPluginFatalFailure?: (
     pluginModuleId: string,
@@ -46,6 +49,7 @@ interface ExecutionInspectorProps {
 export function ExecutionInspector({
   copiedPromptKey,
   onClose,
+  onBeforePluginOperationAction,
   selectedBlock,
   snapshot,
   onCopyPrompt,
@@ -206,6 +210,7 @@ export function ExecutionInspector({
               copyKey={`inspector:${context.execution.executionId}`}
               copySource="execution_inspector"
               onCopyPrompt={onCopyPrompt}
+              onBeforePluginOperationAction={onBeforePluginOperationAction}
               onPluginFatalFailure={onPluginFatalFailure}
               onRestoreConfiguration={
                 typeof context.executionVersion === 'number'

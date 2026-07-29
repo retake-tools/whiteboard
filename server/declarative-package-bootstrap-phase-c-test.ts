@@ -18,6 +18,7 @@ import type {
 import {
   configureInstalledRuntimeRegistry,
 } from '../src/core/installedRuntimeRegistry';
+import { capabilityDefinitionFor } from '../src/core/capabilityRegistry';
 import {
   listPackageEntryPoints,
   listPackages,
@@ -114,6 +115,12 @@ try {
   assert.equal(first.snapshot.skills.length, 9);
   assert.equal(first.snapshot.workflows.length, 5);
   assert.equal(first.snapshot.agentPresets.length, 2);
+  assert.equal(
+    first.snapshot.capabilities.some(
+      (definition) => definition.capabilityId === 'image.guided_edit',
+    ),
+    true,
+  );
   assert.equal(await readFile(sentinelPath, 'utf8'), 'board-data-must-remain\n');
   assert.deepEqual(
     first.snapshot.packages.map((manifest) => manifest.packageId),
@@ -153,6 +160,10 @@ try {
   assert.equal(listSkills().length, 9);
   assert.equal(listWorkflows().length, 5);
   assert.equal(listAgentPresets().length, 2);
+  assert.equal(
+    capabilityDefinitionFor('image.guided_edit').definitionHash,
+    'sha256:image-guided-edit-v3',
+  );
   assert.equal(listPackageEntryPoints().length, 15);
   assert.equal(
     resolvedSkillUiDefinitionFor('retake.screenplay.from-brief', 'zh-CN').name,
@@ -465,6 +476,7 @@ try {
 
   console.log(JSON.stringify({
     cachedStartupWithoutBundle: true,
+    installedPluginCapabilities: true,
     freshOfficialDefaults: true,
     officialTrustAndGrant: true,
     partialPermissionOverridePersists: true,

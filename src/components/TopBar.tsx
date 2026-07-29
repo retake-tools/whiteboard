@@ -445,15 +445,6 @@ export function TopBar({
             <Library size={16} />
           </TooltipIconButton>
           <TooltipIconButton
-            buttonRef={agentWorkspaceButtonRef}
-            className="icon-button"
-            isPressed={isAgentWorkspaceOpen}
-            label={t('agentWorkspace.open')}
-            onClick={onToggleAgentWorkspace}
-          >
-            <Bot size={16} />
-          </TooltipIconButton>
-          <TooltipIconButton
             className="icon-button"
             isPressed={isHistoryOpen}
             label={t('history.open')}
@@ -497,6 +488,15 @@ export function TopBar({
           </div>
         </div>
       </header>
+      <TooltipIconButton
+        buttonRef={agentWorkspaceButtonRef}
+        className="agent-workspace-trigger"
+        isPressed={isAgentWorkspaceOpen}
+        label={t('agentWorkspace.open')}
+        onClick={onToggleAgentWorkspace}
+      >
+        <Bot size={18} />
+      </TooltipIconButton>
       {packageLifecycleController ? (
         <PackageUpdateBanner
           controller={packageLifecycleController}

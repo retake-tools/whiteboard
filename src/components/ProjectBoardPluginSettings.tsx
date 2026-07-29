@@ -1,6 +1,7 @@
 import { Boxes, X } from 'lucide-react';
 import {
   useMemo,
+  useRef,
   useState,
   type ReactElement,
 } from 'react';
@@ -13,6 +14,7 @@ import { resolvePluginLocalizedTextV2 } from '@retake-tools/package-contracts';
 import type {
   PluginRuntimeControllerV1,
 } from '../core/pluginRuntimeManagementClient';
+import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
 
 export type PluginSettingsTarget =
@@ -46,6 +48,7 @@ export function ProjectBoardPluginSettings({
   const profile = pluginController.getProfileState();
   const [busyId, setBusyId] = useState<string>();
   const [error, setError] = useState<string>();
+  const drawerRef = useRef<HTMLElement | null>(null);
   const effectiveModules = useMemo(() => (
     projectPluginRuntimeForProfileV1({
       boardId: target.boardId,
@@ -54,6 +57,12 @@ export function ProjectBoardPluginSettings({
       runtime,
     }).modules
   ), [profile, runtime, target]);
+
+  useDismissiblePopover({
+    active: true,
+    onDismiss: onClose,
+    rootRef: drawerRef,
+  });
 
   const updatePluginState = (
     pluginModuleId: string,
@@ -75,6 +84,7 @@ export function ProjectBoardPluginSettings({
 
   return (
     <aside
+      ref={drawerRef}
       className="project-board-manager-plugin-drawer"
       aria-label={t('projectBoard.pluginSettings')}
     >

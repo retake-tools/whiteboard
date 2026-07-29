@@ -176,6 +176,12 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               service: createPluginRuntimeService(),
             });
           if (pluginRuntimeManagement.handled) {
+            if (
+              method === 'POST'
+              && (pluginRuntimeManagement.statusCode ?? 200) < 400
+            ) {
+              invalidateDefaultDeclarativePackageBootstrap();
+            }
             sendJson(
               res,
               pluginRuntimeManagement.value,

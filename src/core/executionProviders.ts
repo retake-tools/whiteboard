@@ -111,6 +111,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     requiresCredential: false,
     supportedCapabilityIds: [
       'image.annotation_edit',
+      'image.guided_edit',
       'image.image_to_image',
       'image.masked_edit',
       'image.outpaint',
@@ -130,6 +131,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     supportedCapabilityIds: [
       ...codexTextDocumentCapabilityIds,
       'image.annotation_edit',
+      'image.guided_edit',
       'image.image_to_image',
       'image.masked_edit',
       'image.outpaint',

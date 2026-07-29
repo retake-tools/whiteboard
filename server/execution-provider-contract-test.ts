@@ -5,6 +5,8 @@ import { createBlockRecord } from '../src/core/blockFactory';
 import { textDocumentCapabilityIds } from '../src/core/capabilityRegistry';
 import {
   cacheExecutionProviderSettings,
+  readyAutomatedExecutionConnections,
+  resolveAgentExecutionConnection,
   resolveExecutionConnectionPreference,
 } from '../src/core/executionProviderPreferences';
 import { defaultSnapshot } from '../src/core/sampleBoard';
@@ -455,6 +457,61 @@ assert.equal(resolveExecutionConnectionPreference({
   projectId: 'project_resolution_initial',
   useCase: 'text',
 }).source, 'initial');
+const manualImageConnection = {
+  ...readyWorkspaceText,
+  connectionId: 'codex-managed',
+  connectorId: 'codex-managed',
+  enabledUseCases: ['image' as const],
+  supportedCapabilityIds: ['image.annotation_edit'],
+};
+const automatedImageConnection = {
+  ...manualImageConnection,
+  connectionId: 'codex-app-server',
+  connectorId: 'codex-app-server',
+};
+const agentProviderSettings = {
+  ...settings,
+  connections: [manualImageConnection, automatedImageConnection],
+  workspaceDefaults: [{
+    useCase: 'image' as const,
+    connectionId: manualImageConnection.connectionId,
+  }],
+  projectDefaults: [],
+};
+cacheExecutionProviderSettings(
+  'project_agent_connection',
+  agentProviderSettings,
+);
+assert.deepEqual(
+  readyAutomatedExecutionConnections({
+    capabilityId: 'image.annotation_edit',
+    settings: agentProviderSettings,
+  }).map((connection) => connection.connectionId),
+  ['codex-app-server'],
+);
+assert.deepEqual(
+  readyAutomatedExecutionConnections({
+    capabilityId: 'plugin.removed_capability',
+    settings: {
+      ...agentProviderSettings,
+      connections: [{
+        ...automatedImageConnection,
+        supportedCapabilityIds: ['plugin.removed_capability'],
+      }],
+    },
+  }).map((connection) => connection.connectionId),
+  ['codex-app-server'],
+  'A removed declarative definition must not crash Agent launch review.',
+);
+assert.equal(
+  resolveAgentExecutionConnection({
+    capabilityId: 'image.annotation_edit',
+    initialConnectionId: 'codex-app-server',
+    projectId: 'project_agent_connection',
+  })?.connectionId,
+  'codex-app-server',
+  'Agent step execution must not select the manual Codex MCP handoff.',
+);
 const unavailableProjectVideo = {
   ...previewConnection,
   connectionId: 'connection_unavailable_project_video',

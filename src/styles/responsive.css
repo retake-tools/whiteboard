@@ -2,7 +2,12 @@
   .top-bar {
     top: 10px;
     left: 10px;
-    max-width: calc(100vw - 20px);
+    max-width: calc(100vw - 76px);
+  }
+
+  .agent-workspace-trigger {
+    top: 10px;
+    right: 10px;
   }
 
   .top-bar-actions {
