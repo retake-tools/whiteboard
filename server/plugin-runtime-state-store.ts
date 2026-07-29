@@ -40,6 +40,23 @@ export class PluginRuntimeStateStore {
     }
   }
 
+  async readTolerant(): Promise<PluginRuntimeSnapshotV1 | undefined> {
+    try {
+      return await this.read();
+    } catch (error) {
+      if (
+        error instanceof Error
+        && (
+          error.message.includes('Installed PluginModule manifest is invalid')
+          || error.message.includes(
+            'Plugin Runtime snapshot schemaVersion is unsupported',
+          )
+        )
+      ) return undefined;
+      throw error;
+    }
+  }
+
   async write(snapshot: PluginRuntimeSnapshotV1): Promise<void> {
     const parsed = parsePluginRuntimeSnapshot(snapshot);
     await mkdir(path.dirname(this.statePath), { recursive: true });

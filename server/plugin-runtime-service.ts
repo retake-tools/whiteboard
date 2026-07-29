@@ -292,7 +292,7 @@ export class PluginRuntimeService {
   ): Promise<PluginRuntimeHost> {
     const [installedModules, previousSnapshot, development] = await Promise.all([
       this.installedModules(),
-      this.stateStore.read(),
+      this.stateStore.readTolerant(),
       this.development.list(),
     ]);
     const base = new PluginRuntimeHost({
@@ -337,7 +337,7 @@ export class PluginRuntimeService {
   }
 
   private async installedModules(): Promise<InstalledPluginModule[]> {
-    const registry = await this.manager.loadRegistry();
+    const { registry } = await this.manager.loadRegistryTolerant();
     const publishers = new Map(
       registry.packages.map((manifest) => [
         manifest.packageId,

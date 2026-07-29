@@ -944,13 +944,21 @@ function entryPointDisplayName(
 ): string {
   const { entrypoint } = registration;
   if (entrypoint.kind === 'skill') {
-    return resolvedSkillUiDefinitionFor(entrypoint.ref.skillId, locale).name;
+    try {
+      return resolvedSkillUiDefinitionFor(entrypoint.ref.skillId, locale).name;
+    } catch {
+      return entrypoint.name;
+    }
   }
   if (entrypoint.kind === 'workflow') {
-    return resolvedWorkflowUiDefinitionFor(
-      entrypoint.ref.workflowDefinitionId,
-      locale,
-    ).name;
+    try {
+      return resolvedWorkflowUiDefinitionFor(
+        entrypoint.ref.workflowDefinitionId,
+        locale,
+      ).name;
+    } catch {
+      return entrypoint.name;
+    }
   }
   return entrypoint.name;
 }
@@ -961,13 +969,24 @@ function entryPointDisplayDescription(
 ): string {
   const { entrypoint } = registration;
   if (entrypoint.kind === 'skill') {
-    return resolvedSkillUiDefinitionFor(entrypoint.ref.skillId, locale).description;
+    try {
+      return resolvedSkillUiDefinitionFor(
+        entrypoint.ref.skillId,
+        locale,
+      ).description;
+    } catch {
+      return entrypoint.description;
+    }
   }
   if (entrypoint.kind === 'workflow') {
-    return resolvedWorkflowUiDefinitionFor(
-      entrypoint.ref.workflowDefinitionId,
-      locale,
-    ).description;
+    try {
+      return resolvedWorkflowUiDefinitionFor(
+        entrypoint.ref.workflowDefinitionId,
+        locale,
+      ).description;
+    } catch {
+      return entrypoint.description;
+    }
   }
   return entrypoint.description;
 }

@@ -916,6 +916,7 @@ export type TranslationKey =
   | 'packageLibrary.installHint'
   | 'packageLibrary.installPlaceholder'
   | 'packageLibrary.installSource'
+  | 'packageLibrary.isolated'
   | 'packageLibrary.kicker'
   | 'packageLibrary.loading'
   | 'packageLibrary.noPreviousVersion'
@@ -1988,6 +1989,7 @@ const translations: Record<Locale, Translations> = {
     'packageLibrary.installHint': 'Remote network access happens only when you submit a Git source.',
     'packageLibrary.installPlaceholder': 'github:owner/repo@ref or /path/to/package',
     'packageLibrary.installSource': 'Install source',
+    'packageLibrary.isolated': 'Package isolated; update, reinstall, or remove it to recover.',
     'packageLibrary.kicker': 'Workspace Package Manager',
     'packageLibrary.loading': 'Loading installed Packages…',
     'packageLibrary.noPreviousVersion': 'No cached previous installation',
@@ -3055,6 +3057,7 @@ const translations: Record<Locale, Translations> = {
     'packageLibrary.installHint': '只有提交 Git 来源时才会发起远程网络访问。',
     'packageLibrary.installPlaceholder': 'github:owner/repo@ref 或 /本机/package/路径',
     'packageLibrary.installSource': '安装来源',
+    'packageLibrary.isolated': 'Package 已被隔离；请更新、重新安装或移除后恢复。',
     'packageLibrary.kicker': 'Workspace Package Manager',
     'packageLibrary.loading': '正在读取已安装的 Package…',
     'packageLibrary.noPreviousVersion': '没有可回滚的本机缓存版本',

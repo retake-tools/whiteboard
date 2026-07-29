@@ -57,18 +57,19 @@ export class PackageLifecycleService {
       hostVersion: this.hostVersion,
       workspaceRoot: this.workspaceRoot,
     });
-    const [lockfile, pluginRuntime, registry] = await Promise.all([
+    const [lockfile, pluginRuntime, installed] = await Promise.all([
       this.manager.list(),
       new PluginRuntimeService({
         hostVersion: this.hostVersion,
         workspaceRoot: this.workspaceRoot,
       }).reconcile(),
-      this.manager.loadRegistry(),
+      this.manager.loadRegistryTolerant(),
     ]);
     return projectPackageLifecycleSnapshot({
+      failures: installed.failures,
       lockfile,
       pluginRuntime,
-      registry,
+      registry: installed.registry,
       runtimeRegistry: bootstrap.snapshot,
     });
   }
@@ -120,6 +121,9 @@ function isOfficialPackageId(
 }
 
 export function projectPackageLifecycleSnapshot(input: {
+  failures?: Awaited<
+    ReturnType<LocalPackageManagerService['loadRegistryTolerant']>
+  >['failures'];
   lockfile: WorkspacePackageLock;
   pluginRuntime: PackageLifecycleSnapshotV1['pluginRuntime'];
   registry: InstalledDeclarativePackageRegistry;
@@ -127,6 +131,9 @@ export function projectPackageLifecycleSnapshot(input: {
 }): PackageLifecycleSnapshotV1 {
   const manifests = new Map(
     input.registry.packages.map((manifest) => [manifest.packageId, manifest]),
+  );
+  const failures = new Map(
+    (input.failures ?? []).map((failure) => [failure.packageId, failure]),
   );
   const roots = new Set(
     input.lockfile.roots.map((root) => root.packageId),
@@ -139,7 +146,8 @@ export function projectPackageLifecycleSnapshot(input: {
     const installation = input.lockfile.installations.find(
       (entry) => entry.installationId === resolved.installationId,
     );
-    if (!manifest || !installation) {
+    const failure = failures.get(resolved.packageId);
+    if ((!manifest && !failure) || !installation) {
       throw new Error(
         `Package lifecycle projection is incomplete: ${resolved.packageId}`,
       );
@@ -161,22 +169,29 @@ export function projectPackageLifecycleSnapshot(input: {
       }));
     return {
       componentCounts: {
-        agentPresets: manifest.components.agentPresets.length,
-        pluginModules: manifest.components.pluginModules?.length ?? 0,
-        skills: manifest.components.skills.length,
-        workflows: manifest.components.workflows.length,
+        agentPresets: manifest?.components.agentPresets.length ?? 0,
+        pluginModules: manifest?.components.pluginModules?.length ?? 0,
+        skills: manifest?.components.skills.length ?? 0,
+        workflows: manifest?.components.workflows.length ?? 0,
       },
       dependencies: resolved.dependencies.map((dependency) => ({
         optional: dependency.optional,
         packageId: dependency.packageId,
         range: dependency.range,
       })),
-      description: manifest.description,
+      description: manifest?.description
+        ?? 'This Package is isolated because its installed contents are incompatible or invalid.',
       digest: resolved.digest,
       history,
       installationId: resolved.installationId,
       isRoot: roots.has(resolved.packageId),
-      name: manifest.name,
+      loadFailure: failure
+        ? {
+            code: 'incompatible_or_invalid_package',
+            message: summarizeLoadFailure(failure.error),
+          }
+        : null,
+      name: manifest?.name ?? resolved.packageId,
       packageId: resolved.packageId,
       source: projectSource(installation),
       version: resolved.version,
@@ -228,6 +243,12 @@ function requiredSource(value: unknown): string {
     throw new PackageLifecycleInputError('Package source is invalid.');
   }
   return source;
+}
+
+function summarizeLoadFailure(message: string): string {
+  const issues = message.split('\n').filter(Boolean);
+  if (issues.length <= 1) return message;
+  return `${issues[0]} (+${issues.length - 1} more validation issues)`;
 }
 
 function requiredPackageId(value: unknown): string {

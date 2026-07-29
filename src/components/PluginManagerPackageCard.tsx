@@ -106,6 +106,15 @@ export function PluginManagerPackageCard({
         </em>
       </header>
       <p>{record.description}</p>
+      {record.loadFailure ? (
+        <div className="plugin-manager-error" role="alert">
+          <ShieldAlert size={16} />
+          <span>
+            <strong>{t('packageLibrary.isolated')}</strong>
+            <small>{record.loadFailure.message}</small>
+          </span>
+        </div>
+      ) : null}
       {updateCheck ? (
         <PackageUpdateStatus check={updateCheck} t={t} />
       ) : null}

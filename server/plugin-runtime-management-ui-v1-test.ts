@@ -390,6 +390,7 @@ function lifecycleSnapshot(
       history: [],
       installationId: pluginRuntime.modules[0]!.packageLock.installationId,
       isRoot: true,
+      loadFailure: null,
       name: 'Runtime Management fixture',
       packageId: pluginRuntime.modules[0]!.packageLock.packageId,
       source: {
