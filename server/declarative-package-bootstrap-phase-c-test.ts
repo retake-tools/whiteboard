@@ -79,7 +79,7 @@ try {
   );
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.version),
-    ['0.10.1', '0.1.2'],
+    ['0.10.4', '0.1.2'],
   );
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.updateSource),
@@ -90,7 +90,7 @@ try {
   );
   await validateBootstrapProfileArchives(
     defaultBootstrapProfilePath,
-    '0.1.2',
+    '0.1.3',
   );
 
   const bootstrapCopy = await copyBootstrapFixture('valid-bootstrap');
@@ -104,7 +104,7 @@ try {
   await writeFile(sentinelPath, 'board-data-must-remain\n', 'utf8');
 
   const first = await bootstrapDeclarativePackages({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot,
   });
@@ -173,7 +173,7 @@ try {
   );
   const lockBeforeSecondBootstrap = await readFile(lockPath);
   const second = await bootstrapDeclarativePackages({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot,
   });
@@ -183,7 +183,7 @@ try {
 
   const pinnedWorkspace = path.join(temporaryRoot, 'version-pinned-workspace');
   await bootstrapDeclarativePackages({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot: pinnedWorkspace,
   });
@@ -204,7 +204,7 @@ try {
   assert.equal(pinnedImageBeforeBootstrap?.version, '0.9.9');
 
   const afterPinnedBootstrap = await bootstrapDeclarativePackages({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot: pinnedWorkspace,
   });
@@ -281,16 +281,16 @@ try {
     'partial-grant-workspace',
   );
   await bootstrapDeclarativePackages({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot: partialGrantWorkspace,
   });
   await new PluginRuntimeService({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     workspaceRoot: partialGrantWorkspace,
   }).setPermissions(imagePluginModuleId, ['retake.asset.read.bound']);
   const partialGrantBootstrap = await bootstrapDeclarativePackages({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot: partialGrantWorkspace,
   });
@@ -311,13 +311,13 @@ try {
   }]);
 
   const runtime = new PluginRuntimeService({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     workspaceRoot,
   });
   await runtime.manageModule(imagePluginModuleId, 'revoke');
   await runtime.manageModule(videoPluginModuleId, 'disable');
   const afterOverrides = await bootstrapDeclarativePackages({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot,
   });
@@ -351,7 +351,7 @@ try {
 
   const removedWorkspace = path.join(temporaryRoot, 'removed-workspace');
   await bootstrapDeclarativePackages({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot: removedWorkspace,
   });
@@ -361,7 +361,7 @@ try {
     removedManager.packagesRoot,
   ).setPackageRemoved(imagePackageId, true);
   const removedBootstrap = await bootstrapDeclarativePackages({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot: removedWorkspace,
   });
@@ -374,7 +374,7 @@ try {
 
   const safeWorkspace = path.join(temporaryRoot, 'safe-mode-workspace');
   const safeBootstrap = await bootstrapDeclarativePackages({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     pluginSafeMode: true,
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot: safeWorkspace,
@@ -393,7 +393,7 @@ try {
   );
   const cachedOnly = await bootstrapDeclarativePackages({
     activateRuntime: false,
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     profilePath: missingBundlePath,
     workspaceRoot,
   });
@@ -435,7 +435,7 @@ try {
   await assert.rejects(
     bootstrapDeclarativePackages({
       activateRuntime: false,
-      hostVersion: '0.1.2',
+      hostVersion: '0.1.3',
       profilePath: path.join(symlinkArchiveRoot, 'retake.bootstrap.json'),
       workspaceRoot: path.join(temporaryRoot, 'archive-symlink-workspace'),
     }),
@@ -456,7 +456,7 @@ try {
   await assert.rejects(
     bootstrapDeclarativePackages({
       activateRuntime: false,
-      hostVersion: '0.1.2',
+      hostVersion: '0.1.3',
       profilePath: path.join(archiveTamperRoot, 'retake.bootstrap.json'),
       workspaceRoot: path.join(temporaryRoot, 'archive-tamper-workspace'),
     }),
@@ -481,7 +481,7 @@ try {
 
 function manager(workspaceRoot: string): LocalPackageManagerService {
   return new LocalPackageManagerService({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     workspaceRoot,
   });
 }
@@ -568,7 +568,7 @@ async function verifyProfileFailure(
   await assert.rejects(
     bootstrapDeclarativePackages({
       activateRuntime: false,
-      hostVersion: '0.1.2',
+      hostVersion: '0.1.3',
       profilePath,
       workspaceRoot,
     }),
