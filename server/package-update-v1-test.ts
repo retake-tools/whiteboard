@@ -44,13 +44,13 @@ try {
   const resolveGitSource = gitResolverFixture(profile);
   const workspaceRoot = path.join(temporaryRoot, 'workspace');
   await bootstrapDeclarativePackages({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     profilePath: defaultBootstrapProfilePath,
     workspaceRoot,
   });
   const service = new PackageUpdateService({
     clock: () => '2026-07-28T16:00:00.000Z',
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     resolveGitSource,
     workspaceRoot,
   });
@@ -78,7 +78,7 @@ try {
   const pinnedSource = path.join(temporaryRoot, 'pinned-image-studio');
   await createPinnedPackageSource(pinnedSource);
   await new LocalPackageManagerService({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     workspaceRoot,
   }).install(pinnedSource);
   const pinned = await service.check();
@@ -91,13 +91,13 @@ try {
 
   const updateWorkspace = path.join(temporaryRoot, 'update-workspace');
   await bootstrapDeclarativePackages({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     profilePath: defaultBootstrapProfilePath,
     workspaceRoot: updateWorkspace,
   });
   let installedSource: string | null = null;
   const updateService = new PackageUpdateService({
-    hostVersion: '0.1.2',
+    hostVersion: '0.1.3',
     installSource: async (source) => {
       installedSource = source;
     },
