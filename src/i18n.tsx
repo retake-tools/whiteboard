@@ -820,13 +820,27 @@ export type TranslationKey =
   | 'projectBoard.confirmDeleteBoard'
   | 'projectBoard.confirmDeleteProject'
   | 'projectBoard.create'
+  | 'projectBoard.currentBoard'
+  | 'projectBoard.currentProject'
   | 'projectBoard.copyBoard'
   | 'projectBoard.delete'
+  | 'projectBoard.boardListDescription'
+  | 'projectBoard.boardPluginDescription'
+  | 'projectBoard.boardPluginOverrides'
+  | 'projectBoard.managerDescription'
+  | 'projectBoard.managerKicker'
+  | 'projectBoard.managerTitle'
   | 'projectBoard.menuTitle'
   | 'projectBoard.newBoardName'
   | 'projectBoard.newProjectName'
   | 'projectBoard.projectActions'
+  | 'projectBoard.projectPluginDefaults'
+  | 'projectBoard.projectPluginDescription'
+  | 'projectBoard.pluginSettings'
+  | 'projectBoard.pluginState'
+  | 'projectBoard.pluginsEnabled'
   | 'projectBoard.projectsTitle'
+  | 'projectBoard.openManager'
   | 'projectBoard.pin'
   | 'projectBoard.rename'
   | 'projectBoard.renameBoard'
@@ -850,6 +864,7 @@ export type TranslationKey =
   | 'pluginSettings.devStatusReady'
   | 'pluginSettings.developmentDescription'
   | 'pluginSettings.developmentTitle'
+  | 'pluginSettings.details'
   | 'pluginSettings.empty'
   | 'pluginSettings.emptyDescription'
   | 'pluginSettings.enable'
@@ -873,6 +888,7 @@ export type TranslationKey =
   | 'pluginSettings.profileScopeDescription'
   | 'pluginSettings.publisher'
   | 'pluginSettings.refresh'
+  | 'pluginSettings.runtimeAndPermissions'
   | 'pluginSettings.rebuild'
   | 'pluginSettings.safeMode'
   | 'pluginSettings.safeModeDescription'
@@ -1895,13 +1911,27 @@ const translations: Record<Locale, Translations> = {
     'projectBoard.confirmDeleteBoard': 'Delete this board? This cannot be undone.',
     'projectBoard.confirmDeleteProject': 'Delete this project and all boards? This cannot be undone.',
     'projectBoard.create': 'Create',
+    'projectBoard.currentBoard': 'Current board',
+    'projectBoard.currentProject': 'Current project',
     'projectBoard.copyBoard': 'Duplicate board',
     'projectBoard.delete': 'Delete',
+    'projectBoard.boardListDescription': 'Open a board or manage its Plugin overrides.',
+    'projectBoard.boardPluginDescription': 'This Board overrides its Project defaults. Inherit removes the Board override.',
+    'projectBoard.boardPluginOverrides': 'Board Plugin overrides',
+    'projectBoard.managerDescription': 'Browse Projects and Boards, then configure Plugin defaults in the context where they apply.',
+    'projectBoard.managerKicker': 'Workspace',
+    'projectBoard.managerTitle': 'Projects and boards',
     'projectBoard.menuTitle': 'Projects and boards',
     'projectBoard.newBoardName': 'Untitled board',
     'projectBoard.newProjectName': 'Untitled project',
     'projectBoard.projectActions': 'Project actions',
+    'projectBoard.projectPluginDefaults': 'Project Plugin defaults',
+    'projectBoard.projectPluginDescription': 'These defaults apply to Boards in this Project unless a Board overrides them.',
+    'projectBoard.pluginSettings': 'Plugin settings',
+    'projectBoard.pluginState': 'Plugin state',
+    'projectBoard.pluginsEnabled': 'Plugins enabled',
     'projectBoard.projectsTitle': 'Projects',
+    'projectBoard.openManager': 'Manage projects and boards',
     'projectBoard.pin': 'Keep open',
     'projectBoard.rename': 'Rename',
     'projectBoard.renameBoard': 'Rename board',
@@ -1914,7 +1944,7 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.contributions': 'Contributions',
     'pluginSettings.addDescription': 'Install from a GitHub shorthand, another Git URL, or a local source directory.',
     'pluginSettings.browseDirectory': 'Browse the Retake Plugin Directory',
-    'pluginSettings.description': 'Install Packages and manage their PluginModules, trust, permissions, runtime state, updates, rollback, and removal in one place.',
+    'pluginSettings.description': 'Install Plugins and manage Package updates, permissions, Workspace defaults, rollback, and removal in one place.',
     'pluginSettings.disable': 'Disable',
     'pluginSettings.buildDuration': 'Last build',
     'pluginSettings.confirmIdentity': 'Confirm new identity',
@@ -1925,8 +1955,9 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.devStatusReady': 'Ready',
     'pluginSettings.developmentDescription': 'Link a local source root, rebuild it with the controlled toolchain, and hot-reload its last-good Plugin contribution.',
     'pluginSettings.developmentTitle': 'Linked development',
-    'pluginSettings.empty': 'No PluginModules installed',
-    'pluginSettings.emptyDescription': 'Install a Package containing a PluginModule before managing its runtime state here.',
+    'pluginSettings.details': 'Permissions and technical details',
+    'pluginSettings.empty': 'No executable Plugins installed',
+    'pluginSettings.emptyDescription': 'Install a Plugin Package before managing its runtime state here.',
     'pluginSettings.enable': 'Enable',
     'pluginSettings.enterSafeMode': 'Enter safe mode',
     'pluginSettings.grant': 'Grant exact permissions',
@@ -1937,8 +1968,8 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.linkedTrustConfirm': 'Trust code changes from this exact local source until it is unlinked.',
     'pluginSettings.linkSource': 'Link source',
     'pluginSettings.noPermissions': 'No declared permissions',
-    'pluginSettings.noModules': 'This Package does not contain a PluginModule.',
-    'pluginSettings.modules': 'PluginModules',
+    'pluginSettings.noModules': 'This Package does not contain an executable Plugin.',
+    'pluginSettings.modules': 'Plugins',
     'pluginSettings.package': 'Package',
     'pluginSettings.permissions': 'Declared permissions',
     'pluginSettings.permissionsGranted': 'Permissions granted',
@@ -1948,6 +1979,7 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.profileScopeDescription': 'Choose which override layer these module controls edit.',
     'pluginSettings.publisher': 'Publisher',
     'pluginSettings.refresh': 'Refresh',
+    'pluginSettings.runtimeAndPermissions': 'Runtime and permissions',
     'pluginSettings.rebuild': 'Rebuild',
     'pluginSettings.safeMode': 'Safe mode',
     'pluginSettings.safeModeDescription': 'Temporarily detach every Plugin contribution while preserving each desired state.',
@@ -1976,7 +2008,7 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.title': 'Plugins',
     'pluginSettings.trust': 'Trust exact code',
     'pluginSettings.trustWarning': 'Trust runs this exact Package digest in the same page as the canvas. Review the source before continuing.',
-    'pluginSettings.installedDescription': 'Each card combines the installed Package source and lifecycle with its PluginModule runtime state.',
+    'pluginSettings.installedDescription': 'Each card combines Plugin contents, Package lifecycle, Workspace default state, and permissions.',
     'pluginSettings.unmatchedModules': 'Runtime modules without an installed Package record',
     'packageLibrary.close': 'Close Plugin library',
     'packageLibrary.actions': 'Package actions',
@@ -1987,7 +2019,7 @@ const translations: Record<Locale, Translations> = {
     'packageLibrary.dependency': 'Dependency',
     'packageLibrary.description': 'Install a Package from GitHub, another Git URL, or a path on this machine. Updates, rollbacks, and removals apply to this Workspace and reconcile the current page immediately.',
     'packageLibrary.empty': 'No Packages installed',
-    'packageLibrary.emptyDescription': 'Install a Package source to add Skills, Workflows, Agent presets, or PluginModules.',
+    'packageLibrary.emptyDescription': 'Install a Package source to add Skills, Workflows, Agent presets, or executable Plugins.',
     'packageLibrary.install': 'Install',
     'packageLibrary.installHint': 'Remote network access happens only when you submit a Git source.',
     'packageLibrary.installPlaceholder': 'github:owner/repo@ref or /path/to/package',
@@ -2965,13 +2997,27 @@ const translations: Record<Locale, Translations> = {
     'projectBoard.confirmDeleteBoard': '确定删除这个画板吗？此操作不能撤销。',
     'projectBoard.confirmDeleteProject': '确定删除这个项目和全部画板吗？此操作不能撤销。',
     'projectBoard.create': '创建',
+    'projectBoard.currentBoard': '当前画板',
+    'projectBoard.currentProject': '当前项目',
     'projectBoard.copyBoard': '复制画板',
     'projectBoard.delete': '删除',
+    'projectBoard.boardListDescription': '打开画板，或管理该画板的 Plugin 覆盖。',
+    'projectBoard.boardPluginDescription': '该画板可覆盖所属项目的默认设置；选择继承会删除画板覆盖。',
+    'projectBoard.boardPluginOverrides': '画板 Plugin 覆盖',
+    'projectBoard.managerDescription': '浏览项目与画板，并在设置实际生效的上下文中配置 Plugin。',
+    'projectBoard.managerKicker': 'Workspace',
+    'projectBoard.managerTitle': '项目和画板',
     'projectBoard.menuTitle': '项目和画板',
     'projectBoard.newBoardName': '未命名画板',
     'projectBoard.newProjectName': '未命名项目',
     'projectBoard.projectActions': '项目设置',
+    'projectBoard.projectPluginDefaults': '项目 Plugin 默认设置',
+    'projectBoard.projectPluginDescription': '这些设置默认应用于项目下的画板，画板可以单独覆盖。',
+    'projectBoard.pluginSettings': 'Plugin 设置',
+    'projectBoard.pluginState': 'Plugin 状态',
+    'projectBoard.pluginsEnabled': '个 Plugin 已启用',
     'projectBoard.projectsTitle': '项目',
+    'projectBoard.openManager': '管理项目和画板',
     'projectBoard.pin': '保持打开',
     'projectBoard.rename': '重命名',
     'projectBoard.renameBoard': '重命名画板',
@@ -2984,7 +3030,7 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.contributions': '扩展贡献',
     'pluginSettings.addDescription': '从 GitHub 简写、其他 Git URL 或本机源码目录安装。',
     'pluginSettings.browseDirectory': '浏览 Retake 插件目录',
-    'pluginSettings.description': '在同一处安装 Package，并管理 PluginModule 的信任、权限、运行状态、更新、回滚与移除。',
+    'pluginSettings.description': '在同一处安装 Plugin，并管理 Package 更新、权限、Workspace 默认状态、回滚与移除。',
     'pluginSettings.disable': '停用',
     'pluginSettings.buildDuration': '最近构建',
     'pluginSettings.confirmIdentity': '确认新身份',
@@ -2995,8 +3041,9 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.devStatusReady': '就绪',
     'pluginSettings.developmentDescription': '关联本机源码目录，使用受控工具链重建，并热替换最近一次可用的 Plugin 贡献。',
     'pluginSettings.developmentTitle': '关联开发',
-    'pluginSettings.empty': '尚未安装 PluginModule',
-    'pluginSettings.emptyDescription': '请先安装包含 PluginModule 的 Package，再在这里管理运行状态。',
+    'pluginSettings.details': '权限与技术详情',
+    'pluginSettings.empty': '尚未安装可执行 Plugin',
+    'pluginSettings.emptyDescription': '请先安装 Plugin Package，再在这里管理运行状态。',
     'pluginSettings.enable': '启用',
     'pluginSettings.enterSafeMode': '进入安全模式',
     'pluginSettings.grant': '授权声明权限',
@@ -3007,8 +3054,8 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.linkedTrustConfirm': '在取消关联前，信任来自这个精确本机源码的代码变化。',
     'pluginSettings.linkSource': '关联源码',
     'pluginSettings.noPermissions': '未声明权限',
-    'pluginSettings.noModules': '这个 Package 不包含 PluginModule。',
-    'pluginSettings.modules': 'PluginModule',
+    'pluginSettings.noModules': '这个 Package 不包含可执行 Plugin。',
+    'pluginSettings.modules': 'Plugin',
     'pluginSettings.package': 'Package',
     'pluginSettings.permissions': '声明权限',
     'pluginSettings.permissionsGranted': '权限已授权',
@@ -3018,6 +3065,7 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.profileScopeDescription': '选择当前模块控件要修改的覆盖层。',
     'pluginSettings.publisher': '发布者',
     'pluginSettings.refresh': '刷新',
+    'pluginSettings.runtimeAndPermissions': '运行与权限',
     'pluginSettings.rebuild': '重新构建',
     'pluginSettings.safeMode': '安全模式',
     'pluginSettings.safeModeDescription': '临时卸载所有插件贡献，同时保留每个插件原本的启用意图。',
@@ -3046,7 +3094,7 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.title': '插件',
     'pluginSettings.trust': '信任当前代码',
     'pluginSettings.trustWarning': '信任后会在画布所在页面执行当前 Package 摘要对应的代码，请先审阅源码。',
-    'pluginSettings.installedDescription': '每张卡片同时展示 Package 来源与生命周期，以及其 PluginModule 运行状态。',
+    'pluginSettings.installedDescription': '每张卡片统一展示 Plugin 内容、Package 生命周期、Workspace 默认状态与权限。',
     'pluginSettings.unmatchedModules': '缺少已安装 Package 记录的 Runtime Module',
     'packageLibrary.close': '关闭插件库',
     'packageLibrary.actions': 'Package 操作',
@@ -3057,7 +3105,7 @@ const translations: Record<Locale, Translations> = {
     'packageLibrary.dependency': '依赖 Package',
     'packageLibrary.description': '可从 GitHub、其他 Git URL 或本机路径安装 Package。更新、回滚和移除只作用于当前 Workspace，并会立即同步当前页面。',
     'packageLibrary.empty': '尚未安装 Package',
-    'packageLibrary.emptyDescription': '安装一个 Package 来源，即可加入 Skill、Workflow、Agent preset 或 PluginModule。',
+    'packageLibrary.emptyDescription': '安装一个 Package 来源，即可加入 Skill、Workflow、Agent preset 或可执行 Plugin。',
     'packageLibrary.install': '安装',
     'packageLibrary.installHint': '只有提交 Git 来源时才会发起远程网络访问。',
     'packageLibrary.installPlaceholder': 'github:owner/repo@ref 或 /本机/package/路径',

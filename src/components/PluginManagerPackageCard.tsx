@@ -12,11 +12,7 @@ import {
 } from 'lucide-react';
 import type { ReactElement } from 'react';
 import type {
-  PluginModuleEffectiveProfileV1,
   PluginModuleRuntimeRecordV1,
-  PluginProfileOverrideStateV1,
-  PluginProfileScopeV1,
-  PluginProfileStateV1,
 } from '@retake-tools/package-sdk';
 import {
   resolvePluginLocalizedTextV2,
@@ -32,23 +28,17 @@ import type { I18nContextValue } from '../i18n';
 
 export function PluginManagerPackageCard({
   busyId,
-  effectiveProfiles,
   locale,
   modules,
-  onProfileChange,
   onPermissionChange,
   onLifecycleAction,
   onRuntimeAction,
   record,
   updateCheck,
-  profileContext,
-  profileScope,
-  profileState,
   safeMode,
   t,
 }: {
   busyId?: string;
-  effectiveProfiles: ReadonlyMap<string, PluginModuleEffectiveProfileV1>;
   locale: string;
   modules: PluginModuleRuntimeRecordV1[];
   onLifecycleAction: (
@@ -58,17 +48,10 @@ export function PluginManagerPackageCard({
     pluginModuleId: string,
     action: PluginRuntimeManagementActionV1,
   ) => void;
-  onProfileChange: (
-    record: PluginModuleRuntimeRecordV1,
-    state: PluginProfileOverrideStateV1,
-  ) => void;
   onPermissionChange: (
     pluginModuleId: string,
     permissions: PluginModuleRuntimeRecordV1['manifest']['permissions'],
   ) => void;
-  profileContext: { boardId: string | null; projectId: string | null };
-  profileScope: PluginProfileScopeV1;
-  profileState: PluginProfileStateV1;
   record: PackageLifecycleRecordV1;
   updateCheck?: PackageUpdateCheckV1;
   safeMode: boolean;
@@ -122,64 +105,24 @@ export function PluginManagerPackageCard({
       {updateCheck ? (
         <PackageUpdateStatus check={updateCheck} t={t} />
       ) : null}
-      {record.isRoot ? (
-        <section className="plugin-manager-package-actions">
-          <span>
-            <strong>{t('packageLibrary.actions')}</strong>
-            <small>
-              {record.history.length > 0
-                ? `${record.history.length} ${
-                  t('packageLibrary.previousVersions')
-                }`
-                : t('packageLibrary.noPreviousVersion')}
-            </small>
-          </span>
-          <div>
-            {record.loadFailure ? (
-              <button
-                type="button"
-                disabled={Boolean(busyId)}
-                onClick={() => mutate('repair')}
-              >
-                {isBusy
-                  ? <Loader2 className="is-spinning" size={14} />
-                  : <RefreshCw size={14} />}
-                {t('packageLibrary.repair')}
-              </button>
-            ) : updateCheck?.status === 'available' ? (
-              <button
-                type="button"
-                className="is-primary"
-                disabled={Boolean(busyId)}
-                onClick={() => mutate('update')}
-              >
-                {isBusy
-                  ? <Loader2 className="is-spinning" size={14} />
-                  : <RefreshCw size={14} />}
-                {t('packageLibrary.update')}
-              </button>
-            ) : null}
-            {record.history.length > 0 && !record.loadFailure ? (
-              <button
-                type="button"
-                disabled={Boolean(busyId)}
-                onClick={() => mutate('rollback')}
-              >
-                <RotateCcw size={14} />
-                {t('packageLibrary.rollback')}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="is-danger"
-              disabled={Boolean(busyId)}
-              onClick={() => mutate('remove')}
-            >
-              <Trash2 size={14} />
-              {t('packageLibrary.remove')}
-            </button>
-          </div>
-        </section>
+      {record.isRoot && (
+        record.loadFailure || updateCheck?.status === 'available'
+      ) ? (
+        <div className="plugin-manager-package-primary-action">
+          <button
+            type="button"
+            className="is-primary"
+            disabled={Boolean(busyId)}
+            onClick={() => mutate(record.loadFailure ? 'repair' : 'update')}
+          >
+            {isBusy
+              ? <Loader2 className="is-spinning" size={14} />
+              : <RefreshCw size={14} />}
+            {record.loadFailure
+              ? t('packageLibrary.repair')
+              : t('packageLibrary.update')}
+          </button>
+        </div>
       ) : null}
       <dl>
         <div>
@@ -211,28 +154,18 @@ export function PluginManagerPackageCard({
         </section>
       ) : null}
       <section className="plugin-manager-package-modules">
-        <strong>{t('pluginSettings.modules')}</strong>
+        <strong>{t('pluginSettings.runtimeAndPermissions')}</strong>
         {modules.length > 0 ? (
           <div className="plugin-manager-module-list">
             {modules.map((moduleRecord) => (
               <PluginManagerModuleCard
                 key={moduleRecord.pluginModuleId}
                 busyId={busyId}
-                effectiveProfile={effectiveProfiles.get(
-                  moduleRecord.pluginModuleId,
-                )}
                 locale={locale}
-                onProfileChange={(state) => onProfileChange(
-                  moduleRecord,
-                  state,
-                )}
                 onPermissionChange={(permissions) => onPermissionChange(
                   moduleRecord.pluginModuleId,
                   permissions,
                 )}
-                profileContext={profileContext}
-                profileScope={profileScope}
-                profileState={profileState}
                 record={moduleRecord}
                 safeMode={safeMode}
                 t={t}
@@ -249,6 +182,38 @@ export function PluginManagerPackageCard({
           </span>
         )}
       </section>
+      {record.isRoot ? (
+        <footer className="plugin-manager-package-footer">
+          <span>
+            {record.history.length > 0
+              ? `${record.history.length} ${
+                t('packageLibrary.previousVersions')
+              }`
+              : t('packageLibrary.noPreviousVersion')}
+          </span>
+          <div>
+            {record.history.length > 0 && !record.loadFailure ? (
+              <button
+                type="button"
+                disabled={Boolean(busyId)}
+                onClick={() => mutate('rollback')}
+              >
+                <RotateCcw size={14} />
+                {t('packageLibrary.rollback')}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="is-danger"
+              disabled={Boolean(busyId)}
+              onClick={() => mutate('remove')}
+            >
+              <Trash2 size={14} />
+              {t('packageLibrary.remove')}
+            </button>
+          </div>
+        </footer>
+      ) : null}
     </article>
   );
 }
@@ -289,29 +254,19 @@ function PackageUpdateStatus({
 
 export function PluginManagerModuleCard({
   busyId,
-  effectiveProfile,
   locale,
   onAction,
-  onProfileChange,
   onPermissionChange,
-  profileContext,
-  profileScope,
-  profileState,
   record,
   safeMode,
   t,
 }: {
   busyId?: string;
-  effectiveProfile?: PluginModuleEffectiveProfileV1;
   locale: string;
   onAction: (action: PluginRuntimeManagementActionV1) => void;
-  onProfileChange: (state: PluginProfileOverrideStateV1) => void;
   onPermissionChange: (
     permissions: PluginModuleRuntimeRecordV1['manifest']['permissions'],
   ) => void;
-  profileContext: { boardId: string | null; projectId: string | null };
-  profileScope: PluginProfileScopeV1;
-  profileState: PluginProfileStateV1;
   record: PluginModuleRuntimeRecordV1;
   safeMode: boolean;
   t: I18nContextValue['t'];
@@ -319,14 +274,8 @@ export function PluginManagerModuleCard({
   const isBusy = busyId?.startsWith(
     `module:${record.pluginModuleId}:`,
   ) ?? false;
-  const action = nextAction(record, safeMode, profileScope);
-  const selectedProfileState = profileSelection(
-    record,
-    profileState,
-    profileScope,
-    profileContext,
-  );
-  const displayedStatus = effectiveRuntimeStatus(record, effectiveProfile);
+  const action = nextAction(record, safeMode);
+  const displayedStatus = record.status;
   return (
     <article className="plugin-manager-module-card">
       <header>
@@ -354,105 +303,86 @@ export function PluginManagerModuleCard({
           locale === 'zh' ? 'zh-CN' : 'en',
         )}
       </p>
-      <dl>
-        <div>
-          <dt>{t('pluginSettings.publisher')}</dt>
-          <dd>{record.publisherId}</dd>
-        </div>
-        <div>
-          <dt>{t('pluginSettings.permissions')}</dt>
-          <dd>
+      <details className="plugin-manager-module-details">
+        <summary>
+          <span>
+            <strong>{t('pluginSettings.details')}</strong>
+            <small>
+              {record.manifest.permissions.length} {
+                t('pluginSettings.permissions')
+              } · {record.manifest.contributions.length} {
+                t('pluginSettings.contributions')
+              }
+            </small>
+          </span>
+        </summary>
+        <dl>
+          <div>
+            <dt>{t('pluginSettings.publisher')}</dt>
+            <dd>{record.publisherId}</dd>
+          </div>
+          <div>
+            <dt>{t('pluginSettings.permissions')}</dt>
+            <dd>
+              {record.manifest.permissions.length > 0
+                ? record.manifest.permissions.length
+                : t('pluginSettings.noPermissions')}
+            </dd>
+          </div>
+        </dl>
+        <section>
+          <strong>{t('pluginSettings.permissions')}</strong>
+          <div className="plugin-manager-permission-list">
             {record.manifest.permissions.length > 0
-              ? record.manifest.permissions.length
-              : t('pluginSettings.noPermissions')}
-          </dd>
-        </div>
-      </dl>
-      <section className="plugin-manager-module-profile">
-        <label>
-          <strong>{t('pluginSettings.profileScope')}</strong>
-          <select
-            aria-label={`${record.pluginModuleId} ${
-              t('pluginSettings.profileScope')
-            }`}
-            disabled={
-              Boolean(busyId)
-              || (
-                profileScope !== 'workspace'
-                && !profileContext.projectId
-              )
-              || (profileScope === 'board' && !profileContext.boardId)
-            }
-            value={selectedProfileState}
-            onChange={(event) => onProfileChange(
-              event.target.value as PluginProfileOverrideStateV1,
-            )}
-          >
-            {profileScope === 'workspace' ? null : (
-              <option value="inherit">
-                {t('pluginSettings.scopeInherit')}
-              </option>
-            )}
-            <option value="enabled">
-              {t('pluginSettings.statusEnabled')}
-            </option>
-            <option value="disabled">
-              {t('pluginSettings.statusDisabled')}
-            </option>
-          </select>
-        </label>
-        {effectiveProfile ? (
-          <small>
-            {t('pluginSettings.effectiveSource')}: {
-              effectiveProfile.requestedState === 'enabled'
-                ? t('pluginSettings.statusEnabled')
-                : t('pluginSettings.statusDisabled')
-            } · {scopeLabel(effectiveProfile.source.scope, t)}
-            {effectiveProfile.blocker
-              ? ` · ${t('pluginSettings.profileBlocker')}: ${
-                effectiveProfile.blocker
-              }`
-              : ''}
-          </small>
+              ? record.manifest.permissions.map((permission) => (
+                <label key={permission}>
+                  <input
+                    type="checkbox"
+                    checked={record.grant?.permissions.includes(permission)
+                      ?? false}
+                    disabled={Boolean(busyId)}
+                    onChange={(event) => {
+                      const next = record.manifest.permissions.filter(
+                        (candidate) => candidate === permission
+                          ? event.target.checked
+                          : record.grant?.permissions.includes(candidate)
+                            ?? false,
+                      );
+                      onPermissionChange(next);
+                    }}
+                  />
+                  <code>{permission}</code>
+                </label>
+              ))
+              : <span>{t('pluginSettings.noPermissions')}</span>}
+          </div>
+        </section>
+        <section>
+          <strong>{t('pluginSettings.contributions')}</strong>
+          <div className="plugin-manager-tags">
+            {record.manifest.contributions.map((contribution) => (
+              <code key={contribution.contributionId}>
+                {contribution.kind}: {contribution.contributionId}
+              </code>
+            ))}
+          </div>
+        </section>
+        {record.grant ? (
+          <footer>
+            <button
+              type="button"
+              className="is-secondary"
+              disabled={Boolean(busyId)}
+              onClick={() => onAction('revoke')}
+            >
+              {busyId === `module:${record.pluginModuleId}:revoke`
+                ? <Loader2 className="is-spinning" size={15} />
+                : null}
+              {actionLabel('revoke', t)}
+            </button>
+          </footer>
         ) : null}
-      </section>
-      <section>
-        <strong>{t('pluginSettings.permissions')}</strong>
-        <div className="plugin-manager-permission-list">
-          {record.manifest.permissions.length > 0
-            ? record.manifest.permissions.map((permission) => (
-              <label key={permission}>
-                <input
-                  type="checkbox"
-                  checked={record.grant?.permissions.includes(permission)
-                    ?? false}
-                  disabled={Boolean(busyId)}
-                  onChange={(event) => {
-                    const next = record.manifest.permissions.filter(
-                      (candidate) => candidate === permission
-                        ? event.target.checked
-                        : record.grant?.permissions.includes(candidate)
-                          ?? false,
-                    );
-                    onPermissionChange(next);
-                  }}
-                />
-                <code>{permission}</code>
-              </label>
-            ))
-            : <span>{t('pluginSettings.noPermissions')}</span>}
-        </div>
-      </section>
-      <section>
-        <strong>{t('pluginSettings.contributions')}</strong>
-        <div className="plugin-manager-tags">
-          {record.manifest.contributions.map((contribution) => (
-            <code key={contribution.contributionId}>
-              {contribution.kind}: {contribution.contributionId}
-            </code>
-          ))}
-        </div>
-      </section>
+      </details>
       {record.failure ? (
         <div className="plugin-manager-module-failure">
           <ShieldAlert size={14} />
@@ -487,19 +417,6 @@ export function PluginManagerModuleCard({
             {actionLabel(action, t)}
           </button>
         ) : null}
-        {record.grant ? (
-          <button
-            type="button"
-            className="is-secondary"
-            disabled={Boolean(busyId)}
-            onClick={() => onAction('revoke')}
-          >
-            {busyId === `module:${record.pluginModuleId}:revoke`
-              ? <Loader2 className="is-spinning" size={15} />
-              : null}
-            {actionLabel('revoke', t)}
-          </button>
-        ) : null}
       </footer>
       {!record.trust ? (
         <small className="plugin-manager-trust-warning">
@@ -510,59 +427,18 @@ export function PluginManagerModuleCard({
   );
 }
 
-function effectiveRuntimeStatus(
-  record: PluginModuleRuntimeRecordV1,
-  effective: PluginModuleEffectiveProfileV1 | undefined,
-): PluginModuleRuntimeRecordV1['status'] {
-  if (!effective) return record.status;
-  if (effective.activationState === 'enabled') return 'enabled';
-  if (effective.blocker === 'runtime_failure') return 'failed';
-  if (effective.blocker === 'host_incompatible') return 'incompatible';
-  return 'disabled';
-}
-
 function nextAction(
   record: PluginModuleRuntimeRecordV1,
   safeMode: boolean,
-  profileScope: PluginProfileScopeV1,
 ): PluginRuntimeManagementActionV1 | undefined {
   if (record.status === 'incompatible') return undefined;
   if (!record.grant) return 'grant';
   if (!record.trust) return 'trust';
-  if (profileScope !== 'workspace') return undefined;
   if (record.desiredState === 'enabled' && record.status !== 'failed') {
     return 'disable';
   }
   if (!safeMode && record.negotiatedHostApiVersion !== null) return 'enable';
   return undefined;
-}
-
-function profileSelection(
-  record: PluginModuleRuntimeRecordV1,
-  profile: PluginProfileStateV1,
-  scope: PluginProfileScopeV1,
-  context: { boardId: string | null; projectId: string | null },
-): PluginProfileOverrideStateV1 {
-  if (scope === 'workspace') return record.desiredState;
-  const entry = profile.entries.find((candidate) => (
-    candidate.pluginModuleId === record.pluginModuleId
-    && candidate.scope === scope
-    && candidate.projectId === context.projectId
-    && (
-      scope === 'project'
-      || candidate.boardId === context.boardId
-    )
-  ));
-  return entry?.state ?? 'inherit';
-}
-
-function scopeLabel(
-  scope: PluginProfileScopeV1,
-  t: I18nContextValue['t'],
-): string {
-  if (scope === 'project') return t('pluginSettings.scopeProject');
-  if (scope === 'board') return t('pluginSettings.scopeBoard');
-  return t('pluginSettings.scopeWorkspace');
 }
 
 function actionLabel(

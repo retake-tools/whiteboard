@@ -15,7 +15,15 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Check, GripVertical, MoreVertical, Pin, PinOff, Plus } from 'lucide-react';
+import {
+  Check,
+  GripVertical,
+  LayoutGrid,
+  MoreVertical,
+  Pin,
+  PinOff,
+  Plus,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import type { WorkspaceBoardSummary, WorkspaceProjectSummary, WorkspaceSummary } from '../core/types';
 import { useI18n } from '../i18n';
@@ -31,6 +39,7 @@ interface ProjectBoardMenuProps {
   workspace?: WorkspaceSummary;
   onClose: () => void;
   onCreateProject: () => void;
+  onOpenManager?: () => void;
   onCreateBoard: (projectId: string) => void;
   onDeleteBoard: (projectId: string, boardId: string) => void;
   onDeleteProject: (projectId: string) => void;
@@ -51,6 +60,7 @@ export function ProjectBoardMenu({
   workspace,
   onClose,
   onCreateProject,
+  onOpenManager,
   onCreateBoard,
   onDeleteBoard,
   onDeleteProject,
@@ -232,6 +242,14 @@ export function ProjectBoardMenu({
           />
         ) : null}
       </div>
+      {onOpenManager ? (
+        <footer className="project-board-menu-footer">
+          <button type="button" onClick={onOpenManager}>
+            <LayoutGrid size={14} />
+            {t('projectBoard.openManager')}
+          </button>
+        </footer>
+      ) : null}
     </section>
   );
 }

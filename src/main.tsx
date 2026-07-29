@@ -13,6 +13,7 @@ import './components/group-draw-overlay.css';
 import './components/image-generation-panel.css';
 import './components/input-reference-picker.css';
 import './components/project-board.css';
+import './components/project-board-manager.css';
 import './components/plugin-panel-host.css';
 import './components/plugin-manager.css';
 import './components/workflow-continuation.css';

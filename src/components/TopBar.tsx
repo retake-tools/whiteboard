@@ -48,6 +48,10 @@ const BoardBackgroundSettings = lazy(async () => {
   const module = await import('./BoardBackgroundSettings');
   return { default: module.BoardBackgroundSettings };
 });
+const ProjectBoardManager = lazy(async () => {
+  const module = await import('./ProjectBoardManager');
+  return { default: module.ProjectBoardManager };
+});
 
 export type AutosaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -141,6 +145,8 @@ export function TopBar({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isExecutionSettingsOpen, setIsExecutionSettingsOpen] = useState(false);
   const [isPluginManagerOpen, setIsPluginManagerOpen] = useState(false);
+  const [isProjectBoardManagerOpen, setIsProjectBoardManagerOpen] =
+    useState(false);
   const boardControlRef = useRef<HTMLDivElement | null>(null);
   const keyboardShortcutsRef = useRef<HTMLDivElement | null>(null);
   const settingsRef = useRef<HTMLDivElement | null>(null);
@@ -249,6 +255,12 @@ export function TopBar({
     setIsPluginManagerOpen(false);
   }, []);
 
+  const openProjectBoardManager = useCallback((): void => {
+    setIsBoardMenuOpen(false);
+    setIsProjectMenuOpen(false);
+    setIsProjectBoardManagerOpen(true);
+  }, []);
+
   return (
     <>
       <header className="top-bar" aria-label="Project and board controls">
@@ -276,6 +288,7 @@ export function TopBar({
                 }}
                 onCreateBoard={onCreateBoard}
                 onCreateProject={onCreateProject}
+                onOpenManager={openProjectBoardManager}
                 onDeleteBoard={onDeleteBoard}
                 onDeleteProject={onDeleteProject}
                 onDuplicateBoard={onDuplicateBoard}
@@ -391,6 +404,7 @@ export function TopBar({
                 }}
                 onCreateBoard={onCreateBoard}
                 onCreateProject={onCreateProject}
+                onOpenManager={openProjectBoardManager}
                 onDeleteBoard={onDeleteBoard}
                 onDeleteProject={onDeleteProject}
                 onDuplicateBoard={onDuplicateBoard}
@@ -512,6 +526,30 @@ export function TopBar({
             packageController={packageLifecycleController}
             pluginController={pluginRuntimeController}
             onClose={closePluginSettings}
+          />
+        </Suspense>
+      ) : null}
+      {isProjectBoardManagerOpen
+      && pluginRuntimeController
+      && workspace ? (
+        <Suspense fallback={<div className="execution-settings-backdrop" aria-busy="true" />}>
+          <ProjectBoardManager
+            currentBoardId={snapshot.board.boardId}
+            currentProjectId={snapshot.project.projectId}
+            onClose={() => setIsProjectBoardManagerOpen(false)}
+            onCreateBoard={onCreateBoard}
+            onCreateProject={onCreateProject}
+            onDeleteBoard={onDeleteBoard}
+            onDeleteProject={onDeleteProject}
+            onDuplicateBoard={onDuplicateBoard}
+            onOpenBoard={(projectId, boardId) => {
+              setIsProjectBoardManagerOpen(false);
+              onSelectBoard(projectId, boardId);
+            }}
+            onRenameBoard={onRenameBoard}
+            onRenameProject={onRenameProject}
+            pluginController={pluginRuntimeController}
+            workspace={workspace}
           />
         </Suspense>
       ) : null}
