@@ -41,8 +41,15 @@ try {
     hostVersion: '0.1.2',
     workspaceRoot,
   });
-  const installed = await service.reconcile();
+  const [installed, concurrentInstalled] = await Promise.all([
+    service.reconcile(),
+    new PluginRuntimeService({
+      hostVersion: '0.1.2',
+      workspaceRoot,
+    }).reconcile(),
+  ]);
   assert.equal(installed.modules.length, 1);
+  assert.equal(concurrentInstalled.modules.length, 1);
   assert.equal(installed.modules[0]!.status, 'installed');
   assert.equal(installed.modules[0]!.grant, null);
   await assert.rejects(
@@ -339,6 +346,7 @@ try {
     nativeModuleActivation: true,
     partialPermissionApiValidated: true,
     runtimeManagementReturnsSnapshot: true,
+    serverRuntimeMutationsSerialized: true,
     partialPermissionGrantPersists: true,
     permissionUpgradePreservesSubset: true,
     persistedRuntimeState: pluginRuntimeStateFile,

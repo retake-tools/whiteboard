@@ -16,6 +16,8 @@ import {
 
 export const pluginRuntimeStateFile = 'retake.plugin-runtime.json';
 
+const mutationQueues = new Map<string, Promise<void>>();
+
 export class PluginRuntimeStateStore {
   readonly statePath: string;
   private readonly lockPath: string;
@@ -75,6 +77,30 @@ export class PluginRuntimeStateStore {
   }
 
   async withMutationLock<T>(operation: () => Promise<T>): Promise<T> {
+    let releaseTurn = (): void => {};
+    const turn = new Promise<void>((resolve) => {
+      releaseTurn = resolve;
+    });
+    const previous = mutationQueues.get(this.lockPath) ?? Promise.resolve();
+    const queued = previous.then(
+      () => turn,
+      () => turn,
+    );
+    mutationQueues.set(this.lockPath, queued);
+    await previous.catch(() => undefined);
+    try {
+      return await this.withFileMutationLock(operation);
+    } finally {
+      releaseTurn();
+      if (mutationQueues.get(this.lockPath) === queued) {
+        mutationQueues.delete(this.lockPath);
+      }
+    }
+  }
+
+  private async withFileMutationLock<T>(
+    operation: () => Promise<T>,
+  ): Promise<T> {
     await mkdir(path.dirname(this.lockPath), { recursive: true });
     let handle: Awaited<ReturnType<typeof open>>;
     try {
