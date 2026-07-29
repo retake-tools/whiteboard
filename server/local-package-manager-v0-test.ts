@@ -220,6 +220,17 @@ try {
   archive[Math.floor(archive.byteLength / 2)]! ^= 0xff;
   await writeFile(cachePath, archive);
   await assert.rejects(tamperManager.loadRegistry(), /invalid|checksum|integrity|canonical/i);
+  const tolerantTamper = await tamperManager.loadRegistryTolerant();
+  assert.equal(tolerantTamper.registry.packages.length, 0);
+  assert.equal(tolerantTamper.failures.length, 1);
+  assert.equal(
+    tolerantTamper.failures[0]?.packageId,
+    'test.package.versioned',
+  );
+  assert.match(
+    tolerantTamper.failures[0]?.error ?? '',
+    /invalid|checksum|integrity|canonical/i,
+  );
 
   const lockTamperWorkspace = path.join(temporaryRoot, 'lock-tamper-workspace');
   const lockTamperManager = manager(lockTamperWorkspace);

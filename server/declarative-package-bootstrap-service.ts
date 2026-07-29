@@ -14,6 +14,7 @@ import {
 import { readMaterializedPackageArchive } from './declarative-package-service';
 import {
   LocalPackageManagerService,
+  type InstalledPackageLoadFailure,
   type InstalledDeclarativePackageRegistry,
 } from './local-package-manager-service';
 import { packageVersionSatisfies, parsePackageVersion } from './package-semver';
@@ -57,6 +58,7 @@ export interface DeclarativePackageBootstrapProfileV3 {
 
 export interface DeclarativePackageBootstrapResult {
   installed: boolean;
+  packageFailures: InstalledPackageLoadFailure[];
   pluginRuntime: PluginRuntimeSnapshotV1;
   snapshot: InstalledRuntimeRegistrySnapshotV1;
 }
@@ -111,13 +113,13 @@ export async function bootstrapDeclarativePackages(input: {
     );
   } catch (error) {
     if (!hadLockfile || !isNodeError(error, 'ENOENT')) throw error;
-    const [lockfile, installedRegistry] = await Promise.all([
+    const [lockfile, installed] = await Promise.all([
       manager.list(),
-      manager.loadRegistry(),
+      manager.loadRegistryTolerant(),
     ]);
     const snapshot = projectInstalledRuntimeRegistry(
       lockfile,
-      installedRegistry,
+      installed.registry,
     );
     const pluginRuntime = await new PluginRuntimeService({
       hostVersion: input.hostVersion,
@@ -132,6 +134,7 @@ export async function bootstrapDeclarativePackages(input: {
     }
     return {
       installed: false,
+      packageFailures: installed.failures,
       pluginRuntime,
       snapshot,
     };
@@ -141,6 +144,30 @@ export async function bootstrapDeclarativePackages(input: {
   const preferenceState = await preferences.read();
   let changed = false;
   let lockfile = await manager.list();
+  const initialInstalled = await manager.loadRegistryTolerant();
+  if (initialInstalled.failures.length > 0) {
+    const snapshot = projectInstalledRuntimeRegistry(
+      lockfile,
+      initialInstalled.registry,
+    );
+    const pluginRuntime = await new PluginRuntimeService({
+      hostVersion: input.hostVersion,
+      workspaceRoot: input.workspaceRoot,
+    }).reconcile(
+      input.pluginSafeMode === undefined
+        ? {}
+        : { safeMode: input.pluginSafeMode },
+    );
+    if (input.activateRuntime !== false) {
+      configureInstalledRuntimeRegistry(snapshot);
+    }
+    return {
+      installed: false,
+      packageFailures: initialInstalled.failures,
+      pluginRuntime,
+      snapshot,
+    };
+  }
   const activeRoots = () => new Map(
     lockfile.roots.map((root) => [root.packageId, root]),
   );
@@ -213,14 +240,14 @@ export async function bootstrapDeclarativePackages(input: {
     lockfile = result.lockfile;
     changed = changed || result.changed;
   }
-  const [currentLockfile, installedRegistry] = await Promise.all([
+  const [currentLockfile, installed] = await Promise.all([
     manager.list(),
-    manager.loadRegistry(),
+    manager.loadRegistryTolerant(),
   ]);
   lockfile = currentLockfile;
   const snapshot = projectInstalledRuntimeRegistry(
     currentLockfile,
-    installedRegistry,
+    installed.registry,
   );
   const officialDefaults = profile.packages.flatMap((packagePolicy) => (
     activePackageIds().has(packagePolicy.packageId)
@@ -244,6 +271,7 @@ export async function bootstrapDeclarativePackages(input: {
   if (input.activateRuntime !== false) configureInstalledRuntimeRegistry(snapshot);
   return {
     installed: !hadLockfile || changed,
+    packageFailures: installed.failures,
     pluginRuntime,
     snapshot,
   };

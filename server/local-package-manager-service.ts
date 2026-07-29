@@ -12,6 +12,11 @@ import type {
   RetakePluginModuleManifestV2,
   RetakePackageEntryPoint,
 } from '@retake-tools/package-contracts';
+import {
+  loadInstalledPackagesTolerant,
+  type InstalledPackageLoadFailure,
+} from './installed-package-recovery-service';
+export type { InstalledPackageLoadFailure } from './installed-package-recovery-service';
 
 export {
   workspacePackageLockFile,
@@ -53,6 +58,11 @@ export interface InstalledDeclarativePackageRegistry {
   pluginModules: Map<string, InstalledDefinition<RetakePluginModuleManifestV2>>;
   skills: Map<string, InstalledDefinition<DeclarativeSkillDefinition>>;
   workflows: Map<string, InstalledDefinition<DeclarativeWorkflowDefinition>>;
+}
+
+export interface InstalledDeclarativePackageLoadResult {
+  failures: InstalledPackageLoadFailure[];
+  registry: InstalledDeclarativePackageRegistry;
 }
 
 export class LocalPackageManagerService {
@@ -126,6 +136,28 @@ export class LocalPackageManagerService {
       this.sdkManager.list(),
       this.sdkManager.loadInstalledPackages(),
     ]);
+    return buildInstalledRegistry(lockfile, installedPackages);
+  }
+
+  async loadRegistryTolerant(): Promise<InstalledDeclarativePackageLoadResult> {
+    const lockfile = await this.sdkManager.list();
+    const { failures, installedPackages } = await loadInstalledPackagesTolerant(
+      this.sdkManager,
+      this.packagesRoot,
+    );
+    return {
+      failures,
+      registry: buildInstalledRegistry(lockfile, installedPackages),
+    };
+  }
+}
+
+function buildInstalledRegistry(
+  lockfile: WorkspacePackageLock,
+  installedPackages: Awaited<
+    ReturnType<PackageManager['loadInstalledPackages']>
+  >,
+): InstalledDeclarativePackageRegistry {
     const resolvedByPackageId = new Map(
       lockfile.resolvedPackages.map((entry) => [entry.packageId, entry]),
     );
@@ -197,7 +229,6 @@ export class LocalPackageManagerService {
       compareText(left.packageId, right.packageId)
     ));
     return registry;
-  }
 }
 
 function addDefinitions<T>(

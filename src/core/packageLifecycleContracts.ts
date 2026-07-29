@@ -34,6 +34,10 @@ export interface PackageLifecycleRecordV1 {
   history: PackageLifecycleHistoryEntryV1[];
   installationId: string;
   isRoot: boolean;
+  loadFailure: {
+    code: 'incompatible_or_invalid_package';
+    message: string;
+  } | null;
   name: string;
   packageId: string;
   source: {

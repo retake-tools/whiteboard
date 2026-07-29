@@ -143,6 +143,16 @@ try {
   assert.match(markup, /Remove/);
   assert.doesNotMatch(markup, /Plugin library/);
   assert.doesNotMatch(markup, new RegExp(escapeRegExp(temporaryRoot)));
+  const isolatedSnapshot = structuredClone(installedTwo);
+  const isolatedPackage = requiredPackage(isolatedSnapshot);
+  isolatedPackage.loadFailure = {
+    code: 'incompatible_or_invalid_package',
+    message: 'Legacy PluginModule manifest is incompatible.',
+  };
+  const isolatedMarkup = renderManager(isolatedSnapshot);
+  assert.match(isolatedMarkup, /Package isolated/);
+  assert.match(isolatedMarkup, /Legacy PluginModule manifest is incompatible/);
+  assert.match(isolatedMarkup, />Remove</);
   const updateMarkup = renderManager(installedTwo, 'installed', {
     checkedAt: installedTwo.updatedAt,
     checks: [{
