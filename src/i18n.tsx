@@ -904,6 +904,7 @@ export type TranslationKey =
   | 'pluginSettings.installedDescription'
   | 'pluginSettings.unmatchedModules'
   | 'packageLibrary.close'
+  | 'packageLibrary.actions'
   | 'packageLibrary.components'
   | 'packageLibrary.confirmRemove'
   | 'packageLibrary.confirmRollback'
@@ -1978,6 +1979,7 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.installedDescription': 'Each card combines the installed Package source and lifecycle with its PluginModule runtime state.',
     'pluginSettings.unmatchedModules': 'Runtime modules without an installed Package record',
     'packageLibrary.close': 'Close Plugin library',
+    'packageLibrary.actions': 'Package actions',
     'packageLibrary.components': 'Contents',
     'packageLibrary.confirmRemove': 'Remove this Root Package and recalculate its dependency closure:',
     'packageLibrary.confirmRollback': 'Roll back to the most recently active cached installation:',
@@ -3047,6 +3049,7 @@ const translations: Record<Locale, Translations> = {
     'pluginSettings.installedDescription': '每张卡片同时展示 Package 来源与生命周期，以及其 PluginModule 运行状态。',
     'pluginSettings.unmatchedModules': '缺少已安装 Package 记录的 Runtime Module',
     'packageLibrary.close': '关闭插件库',
+    'packageLibrary.actions': 'Package 操作',
     'packageLibrary.components': '包含内容',
     'packageLibrary.confirmRemove': '确定移除这个 Root Package 并重新计算依赖闭包吗：',
     'packageLibrary.confirmRollback': '确定回滚到最近一次激活的本机缓存版本吗：',

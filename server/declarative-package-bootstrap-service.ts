@@ -18,9 +18,13 @@ import {
   type InstalledDeclarativePackageRegistry,
 } from './local-package-manager-service';
 import { packageVersionSatisfies, parsePackageVersion } from './package-semver';
-import { PluginRuntimeService } from './plugin-runtime-service';
+import {
+  PluginRuntimeService,
+  type OfficialPluginRuntimeDefaultV1,
+} from './plugin-runtime-service';
 import {
   OfficialPackagePreferenceStore,
+  type OfficialPackagePreferenceStateV2,
 } from './official-package-preference-store';
 import type {
   ResolvedWorkspacePackage,
@@ -171,9 +175,6 @@ export async function bootstrapDeclarativePackages(input: {
   const activeRoots = () => new Map(
     lockfile.roots.map((root) => [root.packageId, root]),
   );
-  const activePackageIds = () => new Set(
-    lockfile.resolvedPackages.map((entry) => entry.packageId),
-  );
   const legacyStoryPackageId = 'retake.package.story-production-starter';
   const legacyGuidedImagePackageId =
     'retake.package.image-guided-workflow';
@@ -249,16 +250,12 @@ export async function bootstrapDeclarativePackages(input: {
     currentLockfile,
     installed.registry,
   );
-  const officialDefaults = profile.packages.flatMap((packagePolicy) => (
-    activePackageIds().has(packagePolicy.packageId)
-      ? packagePolicy.pluginModules.map((module) => ({
-          packageDigest: packagePolicy.digest,
-          packageId: packagePolicy.packageId,
-          permissions: [...module.permissions],
-          pluginModuleId: module.pluginModuleId,
-        }))
-      : []
-  ));
+  const officialDefaults = projectOfficialPluginRuntimeDefaults({
+    lockfile: currentLockfile,
+    preferenceState,
+    profile,
+    registry: installed.registry,
+  });
   const pluginRuntime = await new PluginRuntimeService({
     hostVersion: input.hostVersion,
     workspaceRoot: input.workspaceRoot,
@@ -275,6 +272,46 @@ export async function bootstrapDeclarativePackages(input: {
     pluginRuntime,
     snapshot,
   };
+}
+
+export function projectOfficialPluginRuntimeDefaults(input: {
+  lockfile: WorkspacePackageLock;
+  preferenceState: OfficialPackagePreferenceStateV2;
+  profile: DeclarativePackageBootstrapProfileV3;
+  registry: InstalledDeclarativePackageRegistry;
+}): OfficialPluginRuntimeDefaultV1[] {
+  return input.profile.packages.flatMap((packagePolicy) => {
+    const active = input.lockfile.resolvedPackages.find(
+      (entry) => entry.packageId === packagePolicy.packageId,
+    );
+    if (
+      !active
+      || (
+        active.digest !== packagePolicy.digest
+        && !input.preferenceState.upstreamManagedPackageIds.includes(
+          packagePolicy.packageId,
+        )
+      )
+    ) return [];
+    return packagePolicy.pluginModules.flatMap((modulePolicy) => {
+      const installed = input.registry.pluginModules.get(
+        modulePolicy.pluginModuleId,
+      );
+      if (
+        !installed
+        || installed.packageLock.packageId !== packagePolicy.packageId
+        || installed.packageLock.digest !== active.digest
+      ) return [];
+      return [{
+        packageDigest: active.digest,
+        packageId: packagePolicy.packageId,
+        permissions: modulePolicy.permissions.filter((permission) => (
+          installed.definition.permissions.includes(permission)
+        )),
+        pluginModuleId: modulePolicy.pluginModuleId,
+      }];
+    });
+  });
 }
 
 async function isBundledBootstrapInstallation(

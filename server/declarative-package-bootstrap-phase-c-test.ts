@@ -35,6 +35,7 @@ import { listAgentPresets } from '../src/core/agentPresetRegistry';
 import {
   bootstrapDeclarativePackages,
   defaultBootstrapProfilePath,
+  projectOfficialPluginRuntimeDefaults,
   readBootstrapProfile,
   validateBootstrapProfileArchives,
 } from './declarative-package-bootstrap-service';
@@ -229,6 +230,50 @@ try {
   assert.deepEqual(
     await readFile(pinnedLockPath),
     pinnedLockBeforeBootstrap,
+  );
+
+  const officialManager = manager(workspaceRoot);
+  const [officialLockfile, officialInstalled] = await Promise.all([
+    officialManager.list(),
+    officialManager.loadRegistryTolerant(),
+  ]);
+  const changedProfileDigest = structuredClone(publishedProfile);
+  changedProfileDigest.packages[0]!.digest = `sha256:${'f'.repeat(64)}`;
+  const unmanagedDefaults = projectOfficialPluginRuntimeDefaults({
+    lockfile: officialLockfile,
+    preferenceState: await new OfficialPackagePreferenceStore(
+      officialManager.packagesRoot,
+    ).read(),
+    profile: changedProfileDigest,
+    registry: officialInstalled.registry,
+  });
+  assert.equal(
+    unmanagedDefaults.some(
+      (entry) => entry.pluginModuleId === imagePluginModuleId,
+    ),
+    false,
+  );
+  const managedPreferences = await new OfficialPackagePreferenceStore(
+    officialManager.packagesRoot,
+  ).setPackageUpstreamManaged(imagePackageId, true);
+  const managedDefaults = projectOfficialPluginRuntimeDefaults({
+    lockfile: officialLockfile,
+    preferenceState: managedPreferences,
+    profile: changedProfileDigest,
+    registry: officialInstalled.registry,
+  });
+  const managedImageDefault = managedDefaults.find(
+    (entry) => entry.pluginModuleId === imagePluginModuleId,
+  );
+  assert.equal(
+    managedImageDefault?.packageDigest,
+    officialLockfile.resolvedPackages.find(
+      (entry) => entry.packageId === imagePackageId,
+    )?.digest,
+  );
+  assert.deepEqual(
+    managedImageDefault?.permissions,
+    publishedProfile.packages[0]!.pluginModules[0]!.permissions,
   );
 
   const partialGrantWorkspace = path.join(
@@ -426,6 +471,7 @@ try {
     permissionOverridePersists: true,
     removalOverridePersists: true,
     safeModeWins: true,
+    upstreamManagedOfficialDefaultsFollowActiveDigest: true,
     versionPinPersists: true,
     schemaVersion: 3,
   }));

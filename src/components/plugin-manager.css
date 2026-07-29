@@ -176,7 +176,7 @@
 
 .plugin-manager-controls button,
 .plugin-manager-install button,
-.plugin-manager-package-card > footer button,
+.plugin-manager-package-actions button,
 .plugin-manager-module-card > footer button {
   display: inline-flex;
   align-items: center;
@@ -195,7 +195,7 @@
 
 .plugin-manager-controls button:disabled,
 .plugin-manager-install button:disabled,
-.plugin-manager-package-card > footer button:disabled,
+.plugin-manager-package-actions button:disabled,
 .plugin-manager-module-card > footer button:disabled {
   cursor: wait;
   opacity: 0.58;
@@ -480,8 +480,35 @@
   background: #fff;
 }
 
-.plugin-manager-module-card > footer,
-.plugin-manager-package-card > footer {
+.plugin-manager-package-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  gap: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.plugin-manager-package-actions > span {
+  display: grid;
+  gap: 3px;
+}
+
+.plugin-manager-package-actions > span > small {
+  color: #667085;
+  font-size: 10px;
+}
+
+.plugin-manager-package-actions > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.plugin-manager-module-card > footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -497,27 +524,20 @@
   font-size: 10px;
 }
 
-.plugin-manager-package-card > footer > span,
 .plugin-manager-no-modules {
   color: #667085;
   font-size: 10px;
 }
 
-.plugin-manager-package-card > footer > div {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 7px;
-}
-
 .plugin-manager-module-card > footer button.is-primary,
+.plugin-manager-package-actions button.is-primary,
 .plugin-manager-install button.is-primary {
   border-color: var(--retake-accent-strong);
   background: var(--retake-accent-strong);
   color: #fff;
 }
 
-.plugin-manager-package-card > footer button.is-danger {
+.plugin-manager-package-actions button.is-danger {
   border-color: #fecdca;
   color: #b42318;
 }
@@ -768,17 +788,17 @@
     grid-template-columns: 1fr;
   }
 
-  .plugin-manager-package-card > footer,
+  .plugin-manager-package-actions,
   .plugin-manager-module-card > footer {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .plugin-manager-package-card > footer > div {
+  .plugin-manager-package-actions > div {
     justify-content: stretch;
   }
 
-  .plugin-manager-package-card > footer button {
+  .plugin-manager-package-actions button {
     flex: 1;
   }
 }

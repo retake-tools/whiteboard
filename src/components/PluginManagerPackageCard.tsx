@@ -122,6 +122,65 @@ export function PluginManagerPackageCard({
       {updateCheck ? (
         <PackageUpdateStatus check={updateCheck} t={t} />
       ) : null}
+      {record.isRoot ? (
+        <section className="plugin-manager-package-actions">
+          <span>
+            <strong>{t('packageLibrary.actions')}</strong>
+            <small>
+              {record.history.length > 0
+                ? `${record.history.length} ${
+                  t('packageLibrary.previousVersions')
+                }`
+                : t('packageLibrary.noPreviousVersion')}
+            </small>
+          </span>
+          <div>
+            {record.loadFailure ? (
+              <button
+                type="button"
+                disabled={Boolean(busyId)}
+                onClick={() => mutate('repair')}
+              >
+                {isBusy
+                  ? <Loader2 className="is-spinning" size={14} />
+                  : <RefreshCw size={14} />}
+                {t('packageLibrary.repair')}
+              </button>
+            ) : updateCheck?.status === 'available' ? (
+              <button
+                type="button"
+                className="is-primary"
+                disabled={Boolean(busyId)}
+                onClick={() => mutate('update')}
+              >
+                {isBusy
+                  ? <Loader2 className="is-spinning" size={14} />
+                  : <RefreshCw size={14} />}
+                {t('packageLibrary.update')}
+              </button>
+            ) : null}
+            {record.history.length > 0 && !record.loadFailure ? (
+              <button
+                type="button"
+                disabled={Boolean(busyId)}
+                onClick={() => mutate('rollback')}
+              >
+                <RotateCcw size={14} />
+                {t('packageLibrary.rollback')}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="is-danger"
+              disabled={Boolean(busyId)}
+              onClick={() => mutate('remove')}
+            >
+              <Trash2 size={14} />
+              {t('packageLibrary.remove')}
+            </button>
+          </div>
+        </section>
+      ) : null}
       <dl>
         <div>
           <dt>{t('packageLibrary.source')}</dt>
@@ -190,61 +249,6 @@ export function PluginManagerPackageCard({
           </span>
         )}
       </section>
-      <footer>
-        <span>
-          {record.history.length > 0
-            ? `${record.history.length} ${
-              t('packageLibrary.previousVersions')
-            }`
-            : t('packageLibrary.noPreviousVersion')}
-        </span>
-        {record.isRoot ? (
-          <div>
-            {record.loadFailure ? (
-              <button
-                type="button"
-                disabled={Boolean(busyId)}
-                onClick={() => mutate('repair')}
-              >
-                {isBusy
-                  ? <Loader2 className="is-spinning" size={14} />
-                  : <RefreshCw size={14} />}
-                {t('packageLibrary.repair')}
-              </button>
-            ) : updateCheck?.status === 'available' ? (
-              <button
-                type="button"
-                disabled={Boolean(busyId)}
-                onClick={() => mutate('update')}
-              >
-                {isBusy
-                  ? <Loader2 className="is-spinning" size={14} />
-                  : <RefreshCw size={14} />}
-                {t('packageLibrary.update')}
-              </button>
-            ) : null}
-            {record.history.length > 0 && !record.loadFailure ? (
-              <button
-                type="button"
-                disabled={Boolean(busyId)}
-                onClick={() => mutate('rollback')}
-              >
-                <RotateCcw size={14} />
-                {t('packageLibrary.rollback')}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="is-danger"
-              disabled={Boolean(busyId)}
-              onClick={() => mutate('remove')}
-            >
-              <Trash2 size={14} />
-              {t('packageLibrary.remove')}
-            </button>
-          </div>
-        ) : null}
-      </footer>
     </article>
   );
 }
