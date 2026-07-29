@@ -70,7 +70,7 @@ try {
   const publishedProfile = await readBootstrapProfile(
     defaultBootstrapProfilePath,
   );
-  assert.equal(publishedProfile.schemaVersion, 2);
+  assert.equal(publishedProfile.schemaVersion, 3);
   assert.equal(publishedProfile.profileId, 'retake.default-studios');
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.packageId),
@@ -79,6 +79,13 @@ try {
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.version),
     ['0.10.1', '0.1.2'],
+  );
+  assert.deepEqual(
+    publishedProfile.packages.map((entry) => entry.updateSource),
+    [
+      'github:retake-tools/image-studio@main#subdirectory=plugin',
+      'github:retake-tools/video-studio@main#subdirectory=package',
+    ],
   );
   await validateBootstrapProfileArchives(
     defaultBootstrapProfilePath,
@@ -172,94 +179,6 @@ try {
   assert.equal(second.installed, false);
   assert.equal(second.snapshot.lockRevision, 2);
   assert.deepEqual(await readFile(lockPath), lockBeforeSecondBootstrap);
-
-  const bundledUpgradeRoot = await copyBootstrapFixture('bundled-upgrade');
-  const bundledUpgradeProfilePath = path.join(
-    bundledUpgradeRoot,
-    'retake.bootstrap.json',
-  );
-  const previousProfilePath = path.join(
-    bundledUpgradeRoot,
-    'retake.bootstrap.previous.json',
-  );
-  const previousProfile = JSON.parse(
-    await readFile(bundledUpgradeProfilePath, 'utf8'),
-  ) as typeof publishedProfile;
-  const previousImage = previousProfile.packages.find(
-    (entry) => entry.packageId === imagePackageId,
-  )!;
-  Object.assign(previousImage, {
-    archiveDigest:
-      'sha256:5937e39f255adbc626ee82297331c0ee2f17e32e2b18588448d50f9c856c0d90',
-    archivePath: 'image-studio-0.10.0.retakepkg',
-    digest:
-      'sha256:be7f4be6ac007cfeab583e7eb4d7201040a20ca6f52ed4c4a41c8d8ba38566f8',
-    version: '0.10.0',
-  });
-  const previousVideo = previousProfile.packages.find(
-    (entry) => entry.packageId === videoPackageId,
-  )!;
-  Object.assign(previousVideo, {
-    archiveDigest:
-      'sha256:4dd5c40ce2bd9644d883a2c8695667896d368ff0a1966d043d7cc5e6801d67e5',
-    archivePath: 'video-studio-0.1.1.retakepkg',
-    digest:
-      'sha256:50ceb7fd23fa8000b753fabd8662b8df3f49ca261fdd11c42ab3393cab636de7',
-    version: '0.1.1',
-  });
-  await writeFile(
-    previousProfilePath,
-    `${JSON.stringify(previousProfile, null, 2)}\n`,
-    'utf8',
-  );
-  const upgradeWorkspace = path.join(
-    temporaryRoot,
-    'bundled-upgrade-workspace',
-  );
-  const previousBootstrap = await bootstrapDeclarativePackages({
-    hostVersion: '0.1.2',
-    profilePath: previousProfilePath,
-    workspaceRoot: upgradeWorkspace,
-  });
-  assert.equal(
-    previousBootstrap.snapshot.packages.find(
-      (entry) => entry.packageId === imagePackageId,
-    )?.version,
-    '0.10.0',
-  );
-  assert.equal(
-    previousBootstrap.snapshot.packages.find(
-      (entry) => entry.packageId === videoPackageId,
-    )?.version,
-    '0.1.1',
-  );
-  await new PluginRuntimeService({
-    hostVersion: '0.1.2',
-    workspaceRoot: upgradeWorkspace,
-  }).manageModule(videoPluginModuleId, 'disable');
-  const upgradedBootstrap = await bootstrapDeclarativePackages({
-    hostVersion: '0.1.2',
-    profilePath: bundledUpgradeProfilePath,
-    workspaceRoot: upgradeWorkspace,
-  });
-  assert.equal(
-    upgradedBootstrap.snapshot.packages.find(
-      (entry) => entry.packageId === imagePackageId,
-    )?.version,
-    '0.10.1',
-  );
-  assert.equal(
-    upgradedBootstrap.snapshot.packages.find(
-      (entry) => entry.packageId === videoPackageId,
-    )?.version,
-    '0.1.2',
-  );
-  assert.equal(upgradedBootstrap.installed, true);
-  const upgradedVideoModule = upgradedBootstrap.pluginRuntime.modules.find(
-    (entry) => entry.pluginModuleId === videoPluginModuleId,
-  );
-  assert.equal(upgradedVideoModule?.desiredState, 'disabled');
-  assert.equal(upgradedVideoModule?.status, 'disabled');
 
   const pinnedWorkspace = path.join(temporaryRoot, 'version-pinned-workspace');
   await bootstrapDeclarativePackages({
@@ -448,6 +367,10 @@ try {
   await verifyProfileFailure('profile-permission-tamper', (profile) => {
     profile.packages[0]!.pluginModules[0]!.permissions = [];
   }, /allowlist does not match archive/);
+  await verifyProfileFailure('profile-update-source-tamper', (profile) => {
+    profile.packages[0]!.updateSource =
+      'github:attacker/image-studio@main#subdirectory=plugin';
+  }, /official GitHub main source/);
 
   const symlinkArchiveRoot = await copyBootstrapFixture('archive-symlink');
   const symlinkProfile = await readBootstrapProfile(
@@ -496,7 +419,6 @@ try {
   );
 
   console.log(JSON.stringify({
-    bundledDefaultUpgradePersistsOverrides: true,
     cachedStartupWithoutBundle: true,
     freshOfficialDefaults: true,
     officialTrustAndGrant: true,
@@ -505,7 +427,7 @@ try {
     removalOverridePersists: true,
     safeModeWins: true,
     versionPinPersists: true,
-    schemaVersion: 2,
+    schemaVersion: 3,
   }));
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });
@@ -575,6 +497,7 @@ interface MutableProfile {
     pluginModules: Array<{
       permissions: string[];
     }>;
+    updateSource: string;
   }>;
 }
 

@@ -19,7 +19,7 @@ export const officialDefaultPluginModuleIds = [
   'design.retake.video-studio.web',
 ] as const;
 
-export interface OfficialPackagePreferenceStateV1 {
+export interface OfficialPackagePreferenceStateV2 {
   disabledPluginModuleIds: string[];
   permissionOverrides: Array<{
     permissions: string[];
@@ -27,7 +27,8 @@ export interface OfficialPackagePreferenceStateV1 {
   }>;
   removedPackageIds: string[];
   revokedGrantPluginModuleIds: string[];
-  schemaVersion: 1;
+  schemaVersion: 2;
+  upstreamManagedPackageIds: string[];
   updatedAt: string;
 }
 
@@ -41,7 +42,7 @@ export class OfficialPackagePreferenceStore {
     );
   }
 
-  async read(): Promise<OfficialPackagePreferenceStateV1> {
+  async read(): Promise<OfficialPackagePreferenceStateV2> {
     try {
       return parseOfficialPackagePreferenceState(
         JSON.parse(await readFile(this.statePath, 'utf8')) as unknown,
@@ -58,7 +59,7 @@ export class OfficialPackagePreferenceStore {
   async setPackageRemoved(
     packageId: string,
     removed: boolean,
-  ): Promise<OfficialPackagePreferenceStateV1> {
+  ): Promise<OfficialPackagePreferenceStateV2> {
     return this.update((state) => setMembership(
       state.removedPackageIds,
       packageId,
@@ -66,10 +67,21 @@ export class OfficialPackagePreferenceStore {
     ));
   }
 
+  async setPackageUpstreamManaged(
+    packageId: string,
+    managed: boolean,
+  ): Promise<OfficialPackagePreferenceStateV2> {
+    return this.update((state) => setMembership(
+      state.upstreamManagedPackageIds,
+      packageId,
+      managed,
+    ));
+  }
+
   async setPluginDisabled(
     pluginModuleId: string,
     disabled: boolean,
-  ): Promise<OfficialPackagePreferenceStateV1> {
+  ): Promise<OfficialPackagePreferenceStateV2> {
     return this.update((state) => setMembership(
       state.disabledPluginModuleIds,
       pluginModuleId,
@@ -80,7 +92,7 @@ export class OfficialPackagePreferenceStore {
   async setPluginGrantRevoked(
     pluginModuleId: string,
     revoked: boolean,
-  ): Promise<OfficialPackagePreferenceStateV1> {
+  ): Promise<OfficialPackagePreferenceStateV2> {
     return this.update((state) => setMembership(
       state.revokedGrantPluginModuleIds,
       pluginModuleId,
@@ -91,7 +103,7 @@ export class OfficialPackagePreferenceStore {
   async setPluginPermissionOverride(
     pluginModuleId: string,
     permissions: string[] | null,
-  ): Promise<OfficialPackagePreferenceStateV1> {
+  ): Promise<OfficialPackagePreferenceStateV2> {
     return this.update((state) => {
       state.permissionOverrides = state.permissionOverrides.filter(
         (entry) => entry.pluginModuleId !== pluginModuleId,
@@ -109,8 +121,8 @@ export class OfficialPackagePreferenceStore {
   }
 
   private async update(
-    mutation: (state: OfficialPackagePreferenceStateV1) => void,
-  ): Promise<OfficialPackagePreferenceStateV1> {
+    mutation: (state: OfficialPackagePreferenceStateV2) => void,
+  ): Promise<OfficialPackagePreferenceStateV2> {
     const state = await this.read();
     mutation(state);
     state.updatedAt = new Date().toISOString();
@@ -119,7 +131,7 @@ export class OfficialPackagePreferenceStore {
   }
 
   private async write(
-    state: OfficialPackagePreferenceStateV1,
+    state: OfficialPackagePreferenceStateV2,
   ): Promise<void> {
     const parsed = parseOfficialPackagePreferenceState(state);
     await mkdir(path.dirname(this.statePath), { recursive: true });
@@ -140,8 +152,11 @@ export class OfficialPackagePreferenceStore {
 
 export function parseOfficialPackagePreferenceState(
   value: unknown,
-): OfficialPackagePreferenceStateV1 {
-  if (!isRecord(value) || value.schemaVersion !== 1) {
+): OfficialPackagePreferenceStateV2 {
+  if (
+    !isRecord(value)
+    || (value.schemaVersion !== 1 && value.schemaVersion !== 2)
+  ) {
     throw new Error('Official Package preference state is invalid.');
   }
   return {
@@ -158,18 +173,25 @@ export function parseOfficialPackagePreferenceState(
       value.revokedGrantPluginModuleIds,
       'revokedGrantPluginModuleIds',
     ),
-    schemaVersion: 1,
+    schemaVersion: 2,
+    upstreamManagedPackageIds: value.schemaVersion === 1
+      ? []
+      : stringArray(
+        value.upstreamManagedPackageIds,
+        'upstreamManagedPackageIds',
+      ),
     updatedAt: requiredText(value.updatedAt, 'updatedAt'),
   };
 }
 
-function emptyState(): OfficialPackagePreferenceStateV1 {
+function emptyState(): OfficialPackagePreferenceStateV2 {
   return {
     disabledPluginModuleIds: [],
     permissionOverrides: [],
     removedPackageIds: [],
     revokedGrantPluginModuleIds: [],
-    schemaVersion: 1,
+    schemaVersion: 2,
+    upstreamManagedPackageIds: [],
     updatedAt: new Date(0).toISOString(),
   };
 }

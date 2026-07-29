@@ -85,6 +85,10 @@ export class PackageLifecycleService {
           result.root.packageId,
           false,
         );
+        await this.officialPreferences.setPackageUpstreamManaged(
+          result.root.packageId,
+          false,
+        );
       }
     } else {
       const packageId = requiredPackageId(mutation.packageId);
