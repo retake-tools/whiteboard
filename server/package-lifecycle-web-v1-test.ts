@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   mkdir,
   mkdtemp,
+  readFile,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -152,6 +153,8 @@ try {
   const isolatedMarkup = renderManager(isolatedSnapshot);
   assert.match(isolatedMarkup, /Package isolated/);
   assert.match(isolatedMarkup, /Legacy PluginModule manifest is incompatible/);
+  assert.match(isolatedMarkup, /Update \/ reinstall/);
+  assert.doesNotMatch(isolatedMarkup, />Rollback</);
   assert.match(isolatedMarkup, />Remove</);
   const updateMarkup = renderManager(installedTwo, 'installed', {
     checkedAt: installedTwo.updatedAt,
@@ -231,12 +234,46 @@ try {
     globalThis.fetch = originalFetch;
   }
 
+  const repairWorkspace = path.join(temporaryRoot, 'repair-workspace');
+  const repairSource = await createPackage('2.0.0');
+  const repairService = new PackageLifecycleService({
+    hostVersion: '0.1.2',
+    workspaceRoot: repairWorkspace,
+  });
+  const repairInstalled = await repairService.mutate({
+    action: 'install',
+    source: repairSource,
+  });
+  const repairRecord = requiredPackage(repairInstalled);
+  const repairCachePath = path.join(
+    repairWorkspace,
+    'packages',
+    'cache',
+    'sha256',
+    `${repairRecord.digest.slice('sha256:'.length)}.retakepkg`,
+  );
+  const repairArchive = Buffer.from(await readFile(repairCachePath));
+  repairArchive[Math.floor(repairArchive.byteLength / 2)]! ^= 0xff;
+  await writeFile(repairCachePath, repairArchive);
+  await writePackage(repairSource, '2.0.1');
+  invalidateDefaultDeclarativePackageBootstrap();
+  const isolatedRead = await repairService.read();
+  assert.equal(requiredPackage(isolatedRead).loadFailure?.code, 'incompatible_or_invalid_package');
+  assert.equal(requiredPackage(isolatedRead).name, 'test.package.lifecycle');
+  const repaired = await repairService.mutate({
+    action: 'repair',
+    packageId: 'test.package.lifecycle',
+  });
+  assert.equal(requiredPackage(repaired).version, '2.0.1');
+  assert.equal(requiredPackage(repaired).loadFailure, null);
+
   process.stdout.write(`${JSON.stringify({
     browserMutationsSerialized: true,
     currentPageSnapshotsReturnedAfterEveryMutation: true,
     dependencyRemovalGuardOwnedByPackageManager: true,
     localPathsProjectedWithoutDirectoryDisclosure: true,
     localSourceInstallRollbackRemove: true,
+    isolatedLocalSourceRepair: true,
     pluginRuntimeReadUsesFreshPersistedAuthority: true,
     sourceUpdateCapabilityIsExact: true,
     webLibraryRendersLifecycleActions: true,
@@ -249,6 +286,11 @@ try {
 async function createPackage(version: string): Promise<string> {
   const root = path.join(temporaryRoot, `package-${version}`);
   await mkdir(root, { recursive: true });
+  await writePackage(root, version);
+  return root;
+}
+
+async function writePackage(root: string, version: string): Promise<void> {
   const manifest: DeclarativePackageManifest = {
     components: {
       agentPresets: [],
@@ -285,7 +327,6 @@ async function createPackage(version: string): Promise<string> {
     `${manifest.description}\n`,
     'utf8',
   );
-  return root;
 }
 
 function requiredPackage(snapshot: PackageLifecycleSnapshotV1) {

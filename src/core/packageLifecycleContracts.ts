@@ -149,6 +149,10 @@ export type PackageLifecycleMutationV1 =
     source: string;
   }
   | {
+    action: 'repair';
+    packageId: string;
+  }
+  | {
     action: 'remove';
     packageId: string;
   }

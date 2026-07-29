@@ -922,6 +922,7 @@ export type TranslationKey =
   | 'packageLibrary.noPreviousVersion'
   | 'packageLibrary.previousVersions'
   | 'packageLibrary.refresh'
+  | 'packageLibrary.repair'
   | 'packageLibrary.remove'
   | 'packageLibrary.rollback'
   | 'packageLibrary.root'
@@ -1995,6 +1996,7 @@ const translations: Record<Locale, Translations> = {
     'packageLibrary.noPreviousVersion': 'No cached previous installation',
     'packageLibrary.previousVersions': 'cached previous installation(s)',
     'packageLibrary.refresh': 'Refresh',
+    'packageLibrary.repair': 'Update / reinstall',
     'packageLibrary.remove': 'Remove',
     'packageLibrary.rollback': 'Rollback',
     'packageLibrary.root': 'Root Package',
@@ -3063,6 +3065,7 @@ const translations: Record<Locale, Translations> = {
     'packageLibrary.noPreviousVersion': '没有可回滚的本机缓存版本',
     'packageLibrary.previousVersions': '个本机缓存历史版本',
     'packageLibrary.refresh': '刷新',
+    'packageLibrary.repair': '更新 / 重新安装',
     'packageLibrary.remove': '移除',
     'packageLibrary.rollback': '回滚',
     'packageLibrary.root': 'Root Package',

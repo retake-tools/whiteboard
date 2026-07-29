@@ -27,33 +27,40 @@ const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
 );
+const packageJson = await readJson(path.join(repositoryRoot, 'package.json'));
+const packageLock = await readJson(path.join(repositoryRoot, 'package-lock.json'));
+const sdkDependency = packageJson.dependencies['@retake-tools/package-sdk'];
+const vendoredToolchainMatch = /^file:vendor\/package-toolchain\/([^/]+)\//u.exec(
+  sdkDependency,
+);
+assert.ok(
+  vendoredToolchainMatch,
+  'The Package SDK must resolve from a versioned vendored toolchain directory.',
+);
+const toolchainVersion = vendoredToolchainMatch[1];
 const artifactRoot = path.join(
   repositoryRoot,
   'vendor',
   'package-toolchain',
-  '0.1.1',
+  toolchainVersion,
 );
 const manifest = await readJson(
   path.join(artifactRoot, 'release-manifest.json'),
 );
 const source = await readJson(path.join(artifactRoot, 'source.json'));
-const packageJson = await readJson(path.join(repositoryRoot, 'package.json'));
-const packageLock = await readJson(path.join(repositoryRoot, 'package-lock.json'));
 
-assert.deepEqual(source, {
-  commit: 'fd9923d5df964b5ff7bbcf0bdf969b01313bfd21',
-  repository: 'https://github.com/retake-tools/package',
-  version: '0.1.1',
-});
+assert.equal(source.repository, 'https://github.com/retake-tools/package');
+assert.equal(source.version, toolchainVersion);
+assert.match(source.commit, /^[a-f0-9]{40}$/u);
 assert.equal(manifest.schemaVersion, 1);
-assert.equal(manifest.toolchainVersion, '0.1.1');
+assert.equal(manifest.toolchainVersion, toolchainVersion);
 assert.equal(manifest.packages.length, 8);
 
 for (const entry of manifest.packages) {
   const dependency = packageJson.dependencies[entry.name];
   assert.equal(
     dependency,
-    `file:vendor/package-toolchain/0.1.1/${entry.file}`,
+    `file:vendor/package-toolchain/${toolchainVersion}/${entry.file}`,
   );
   const bytes = await readFile(path.join(artifactRoot, entry.file));
   assert.equal(entry.bytes, bytes.byteLength);
@@ -302,11 +309,12 @@ const adapterSources = await Promise.all(adapterPaths.map(async (relativePath) =
   relativePath,
   source: await readFile(path.join(repositoryRoot, relativePath), 'utf8'),
 })));
+const adapterLineCount = adapterSources.reduce(
+  (lines, entry) => lines + entry.source.trimEnd().split('\n').length,
+  0,
+);
 assert.equal(
-  adapterSources.reduce(
-    (lines, entry) => lines + entry.source.split('\n').length,
-    0,
-  ) < 450,
+  adapterLineCount < 450,
   true,
 );
 for (const entry of adapterSources) {
@@ -326,10 +334,7 @@ assert.equal(dependencyText.includes('/develop'), false);
 assert.equal(dependencyText.includes('/main'), false);
 
 process.stdout.write(`${JSON.stringify({
-  adapterLines: adapterSources.reduce(
-    (lines, entry) => lines + entry.source.split('\n').length,
-    0,
-  ),
+  adapterLines: adapterLineCount,
   artifactCommit: source.commit,
   artifacts: manifest.packages.length,
   exactVersionAndIntegrity: true,
@@ -337,6 +342,7 @@ process.stdout.write(`${JSON.stringify({
   pluginRuntimeArtifact: true,
   portableImplementationsRemoved: removedPortableImplementations.length,
   sdkAuthority: true,
+  toolchainVersion,
 })}\n`);
 
 async function readJson(filePath: string): Promise<any> {

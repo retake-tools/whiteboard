@@ -92,6 +92,18 @@ export class LocalPackageManagerService {
     return this.sdkManager.updateGit(packageId, dependencySourcePaths);
   }
 
+  async repair(
+    packageId: string,
+    sourcePath: string,
+    dependencySourcePaths: string[] = [],
+  ): Promise<LocalPackageInstallResult> {
+    return this.sdkManager.repair(
+      packageId,
+      sourcePath,
+      dependencySourcePaths,
+    );
+  }
+
   async installVerifiedRemote(
     root: VerifiedRemotePackageArchive,
     dependencies: VerifiedRemotePackageArchive[] = [],

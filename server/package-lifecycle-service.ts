@@ -95,6 +95,8 @@ export class PackageLifecycleService {
       const packageId = requiredPackageId(mutation.packageId);
       if (mutation.action === 'update') {
         await this.updates.update(packageId);
+      } else if (mutation.action === 'repair') {
+        await this.repair(packageId);
       } else if (mutation.action === 'rollback') {
         await this.manager.rollback(
           packageId,
@@ -109,6 +111,49 @@ export class PackageLifecycleService {
     }
     invalidateDefaultDeclarativePackageBootstrap();
     return this.read();
+  }
+
+  private async repair(packageId: string): Promise<void> {
+    const [lockfile, installed] = await Promise.all([
+      this.manager.list(),
+      this.manager.loadRegistryTolerant(),
+    ]);
+    if (!installed.failures.some((failure) => failure.packageId === packageId)) {
+      throw new PackageLifecycleInputError(
+        `Package is not isolated: ${packageId}`,
+      );
+    }
+    const resolved = lockfile.resolvedPackages.find(
+      (entry) => entry.packageId === packageId,
+    );
+    const installation = lockfile.installations.find(
+      (entry) => entry.installationId === resolved?.installationId,
+    );
+    if (!installation) {
+      throw new PackageLifecycleInputError(
+        `Isolated Package Installation is missing: ${packageId}`,
+      );
+    }
+    if (installation.source.kind === 'git') {
+      await this.updates.update(packageId);
+      return;
+    }
+    if (
+      installation.source.kind !== 'local_directory'
+      && installation.source.kind !== 'local_archive'
+    ) {
+      throw new PackageLifecycleInputError(
+        `Isolated Package source cannot be repaired in place: ${packageId}`,
+      );
+    }
+    await this.manager.repair(packageId, installation.source.path);
+    if (isOfficialPackageId(packageId)) {
+      await this.officialPreferences.setPackageRemoved(packageId, false);
+      await this.officialPreferences.setPackageUpstreamManaged(
+        packageId,
+        false,
+      );
+    }
   }
 }
 
@@ -191,7 +236,7 @@ export function projectPackageLifecycleSnapshot(input: {
             message: summarizeLoadFailure(failure.error),
           }
         : null,
-      name: manifest?.name ?? resolved.packageId,
+      name: manifest?.name ?? officialPackageName(resolved.packageId),
       packageId: resolved.packageId,
       source: projectSource(installation),
       version: resolved.version,
@@ -249,6 +294,16 @@ function summarizeLoadFailure(message: string): string {
   const issues = message.split('\n').filter(Boolean);
   if (issues.length <= 1) return message;
   return `${issues[0]} (+${issues.length - 1} more validation issues)`;
+}
+
+function officialPackageName(packageId: string): string {
+  if (packageId === 'design.retake.image-studio') {
+    return 'Retake Image Studio';
+  }
+  if (packageId === 'design.retake.video-studio') {
+    return 'Retake Video Studio';
+  }
+  return packageId;
 }
 
 function requiredPackageId(value: unknown): string {
