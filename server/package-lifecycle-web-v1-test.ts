@@ -178,6 +178,19 @@ try {
   assert.match(updateMarkup, /Update available/);
   assert.match(updateMarkup, /v1\.1\.0 → v1\.2\.0/);
   assert.match(updateMarkup, />Update</);
+  assert.ok(
+    updateMarkup.lastIndexOf('plugin-manager-package-primary-action')
+      < updateMarkup.lastIndexOf('plugin-manager-package-modules'),
+  );
+  assert.ok(
+    updateMarkup.lastIndexOf('plugin-manager-package-footer')
+      > updateMarkup.lastIndexOf('plugin-manager-package-modules'),
+  );
+  assert.doesNotMatch(updateMarkup, /Enablement scope/);
+  assert.match(
+    updateMarkup,
+    /<details class="plugin-manager-module-details">/,
+  );
   const addMarkup = renderManager(installedTwo, 'add');
   assert.match(addMarkup, /Install source/);
   assert.match(
@@ -276,6 +289,8 @@ try {
     isolatedLocalSourceRepair: true,
     pluginRuntimeReadUsesFreshPersistedAuthority: true,
     sourceUpdateCapabilityIsExact: true,
+    packageLifecycleActionsSeparatedByPriority: true,
+    pluginTechnicalDetailsCollapsedByDefault: true,
     webLibraryRendersLifecycleActions: true,
   })}\n`);
 } finally {

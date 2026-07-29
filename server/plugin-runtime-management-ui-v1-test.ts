@@ -9,6 +9,7 @@ import {
   type PluginRuntimeSnapshotV1,
 } from '@retake-tools/package-sdk';
 import { PluginManager } from '../src/components/PluginManager';
+import { ProjectBoardManager } from '../src/components/ProjectBoardManager';
 import type {
   PackageLifecycleControllerV1,
 } from '../src/core/packageLifecycleClient';
@@ -20,6 +21,7 @@ import {
   type PluginRuntimeControllerV1,
 } from '../src/core/pluginRuntimeManagementClient';
 import { I18nProvider } from '../src/i18n';
+import type { WorkspaceSummary } from '../src/core/types';
 
 Object.defineProperty(globalThis, 'localStorage', {
   configurable: true,
@@ -75,8 +77,11 @@ const enabled = runtimeSnapshot({
   },
 });
 assert.match(renderSettings(enabled), />Disable</);
-assert.match(renderSettings(enabled), /Enablement scope/);
-assert.match(renderSettings(enabled), /Effective: Enabled · Workspace/);
+assert.doesNotMatch(renderSettings(enabled), /Enablement scope/);
+assert.match(
+  renderSettings(enabled),
+  /<details class="plugin-manager-module-details">/,
+);
 assert.match(renderSettings({ ...enabled, safeMode: true }), /Leave safe mode/);
 const partialGrant = structuredClone(enabled);
 partialGrant.modules[0]!.grant!.permissions = [
@@ -88,6 +93,12 @@ assert.equal(
   partialGrant.modules[0]!.manifest.permissions.length,
 );
 assert.equal(partialGrantMarkup.match(/checked=""/g)?.length, 1);
+const projectBoardMarkup = renderProjectBoardManager(enabled);
+assert.match(projectBoardMarkup, /Projects and boards/);
+assert.match(projectBoardMarkup, /Plugin settings/);
+assert.match(projectBoardMarkup, /1\/1 Plugins enabled/);
+assert.match(projectBoardMarkup, /Current project/);
+assert.match(projectBoardMarkup, /Current board/);
 
 const originalFetch = globalThis.fetch;
 const calls: string[] = [];
@@ -291,6 +302,7 @@ process.stdout.write(`${JSON.stringify({
   exactNextRuntimeAction: true,
   lazyPanelUsesStableExternalStore: true,
   partialPermissionControlsRendered: true,
+  projectBoardPluginSettingsEntryRendered: true,
   runtimeMutationsSerialized: true,
   runtimeSnapshotReconciledBeforeNotification: true,
 })}\n`);
@@ -367,6 +379,79 @@ function renderSettings(snapshot: PluginRuntimeSnapshotV1): string {
         onClose: () => {},
         packageController,
         pluginController,
+      }),
+    ),
+  );
+}
+
+function renderProjectBoardManager(snapshot: PluginRuntimeSnapshotV1): string {
+  const profile = emptyPluginProfileStateV1();
+  const projection = projectPluginRuntimeForProfileV1({
+    boardId: 'board.fixture',
+    profile,
+    projectId: 'project.fixture',
+    runtime: snapshot,
+  });
+  const pluginController: PluginRuntimeControllerV1 = {
+    getDemand: () => ({
+      boardBound: true,
+      hasBlocks: false,
+      hasOperationBlocks: false,
+      managerOpen: false,
+      selectedBlockCount: 0,
+    }),
+    getProfileProjection: () => projection,
+    getProfileState: () => profile,
+    getScope: () => ({
+      boardId: 'board.fixture',
+      projectId: 'project.fixture',
+    }),
+    getSnapshot: () => snapshot,
+    manageModule: async () => snapshot,
+    refresh: async () => snapshot,
+    replace: async () => snapshot,
+    setPermissions: async () => snapshot,
+    setSafeMode: async () => snapshot,
+    setDemand: async () => snapshot,
+    setScope: async () => snapshot,
+    subscribe: () => () => {},
+    updateProfile: async () => snapshot,
+  };
+  const workspace: WorkspaceSummary = {
+    defaultProjectId: 'project.fixture',
+    projects: [{
+      boards: [{
+        boardId: 'board.fixture',
+        createdAt: snapshot.updatedAt,
+        name: 'Fixture board',
+        projectId: 'project.fixture',
+        updatedAt: snapshot.updatedAt,
+      }],
+      createdAt: snapshot.updatedAt,
+      defaultBoardId: 'board.fixture',
+      name: 'Fixture project',
+      projectId: 'project.fixture',
+      updatedAt: snapshot.updatedAt,
+    }],
+  };
+  return renderToStaticMarkup(
+    createElement(
+      I18nProvider,
+      null,
+      createElement(ProjectBoardManager, {
+        currentBoardId: 'board.fixture',
+        currentProjectId: 'project.fixture',
+        onClose: () => {},
+        onCreateBoard: () => {},
+        onCreateProject: () => {},
+        onDeleteBoard: () => {},
+        onDeleteProject: () => {},
+        onDuplicateBoard: () => {},
+        onOpenBoard: () => {},
+        onRenameBoard: () => {},
+        onRenameProject: () => {},
+        pluginController,
+        workspace,
       }),
     ),
   );

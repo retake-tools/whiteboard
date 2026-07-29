@@ -32,14 +32,43 @@
 }
 
 .project-board-menu-body {
-  max-height: calc(min(560px, calc(100vh - 92px)) - 46px);
-  overflow: visible;
+  max-height: calc(min(560px, calc(100vh - 92px)) - 88px);
+  overflow: auto;
   padding: 8px;
 }
 
 .project-board-menu-body.is-board-only {
-  max-height: min(420px, calc(100vh - 92px));
+  max-height: min(372px, calc(100vh - 140px));
   padding: 6px;
+}
+
+.project-board-menu-footer {
+  position: relative;
+  z-index: 95;
+  padding: 7px;
+  border-top: 1px solid #eef2f6;
+  background: #fff;
+}
+
+.project-board-menu-footer button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 34px;
+  gap: 7px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #475467;
+  font-size: 11px;
+  font-weight: 740;
+  cursor: pointer;
+}
+
+.project-board-menu-footer button:hover {
+  background: #f2f4f7;
+  color: #101828;
 }
 
 .project-board-project {
