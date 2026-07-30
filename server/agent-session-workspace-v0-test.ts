@@ -23,7 +23,17 @@ import { loadSnapshot, resetWorkspace, saveSnapshot } from './local-store/snapsh
 import { agentRuntimeDecisionSchema, parseAgentRuntimeDecision } from './agent-runtime-port';
 import './studio-domain-test-fixtures';
 
-const [portSource, workspaceSource, composerSource, sharedComposerSource, controllerSource, appServerSource, apiSource, runtimeClientSource] = await Promise.all([
+const [
+  portSource,
+  workspaceSource,
+  composerSource,
+  sharedComposerSource,
+  controllerSource,
+  appServerSource,
+  apiSource,
+  runtimeClientSource,
+  canvasControllerSource,
+] = await Promise.all([
   readFile(new URL('./agent-runtime-port.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentWorkspace.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentWorkspaceComposer.tsx', import.meta.url), 'utf8'),
@@ -32,6 +42,7 @@ const [portSource, workspaceSource, composerSource, sharedComposerSource, contro
   readFile(new URL('./codex-app-server-client.ts', import.meta.url), 'utf8'),
   readFile(new URL('./vite-local-api.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/core/agentRuntimeClient.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/app/useCanvasController.ts', import.meta.url), 'utf8'),
 ]);
 
 assert.match(portSource, /implements AgentRuntimePort/);
@@ -57,6 +68,10 @@ assert.match(controllerSource, /applyAgentRuntimeTurn/);
 assert.match(controllerSource, /applyAgentOperationExecutionRequest/);
 assert.match(controllerSource, /retake:run-operation/);
 assert.match(controllerSource, /revealOnStart: true/);
+assert.match(
+  canvasControllerSource,
+  /event\.target instanceof HTMLElement && isInteractiveNodeTarget\(event\.target\)/,
+);
 assert.match(controllerSource, /ensureDefaultAgentSession/);
 assert.match(controllerSource, /const agentSessionId = selectedSessionId \?\? ensureDefaultSession\(\)/);
 assert.match(apiSource, /application\/x-ndjson/);

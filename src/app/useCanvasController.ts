@@ -249,6 +249,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
         }
       }
       if ((event.key === 'Delete' || event.key === 'Backspace') && selectedBlockIdsRef.current.length > 0) {
+        if (event.target instanceof HTMLElement && isInteractiveNodeTarget(event.target)) return;
         event.preventDefault();
         actionPortsRef.current.deleteBlockIds(selectedBlockIdsRef.current);
       }
