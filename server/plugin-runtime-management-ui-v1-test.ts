@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
@@ -34,6 +35,19 @@ Object.defineProperty(globalThis, 'navigator', {
   configurable: true,
   value: { language: 'en-US' },
 });
+
+const pluginManagerStyles = readFileSync(
+  new URL('../src/components/plugin-manager.css', import.meta.url),
+  'utf8',
+);
+assert.match(
+  pluginManagerStyles,
+  /\.plugin-manager-panel\s*\{[^}]*display:\s*flex;[^}]*min-height:\s*0;/s,
+);
+assert.match(
+  pluginManagerStyles,
+  /\.plugin-manager-content\s*\{[^}]*flex:\s*1;[^}]*min-height:\s*0;[^}]*overflow:\s*auto;/s,
+);
 
 const installed = runtimeSnapshot({
   desiredState: 'disabled',

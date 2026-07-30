@@ -121,7 +121,9 @@
 }
 
 .plugin-manager-panel {
+  display: flex;
   min-height: 0;
+  flex-direction: column;
   overflow: hidden;
 }
 
@@ -188,7 +190,8 @@
 }
 
 .plugin-manager-content {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 20px 26px 28px;
 }
