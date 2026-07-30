@@ -5,6 +5,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import {
+  useEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -35,6 +36,7 @@ export function AnnotationOperationInlineControls({
   const { t } = useI18n();
   const controlsRef = useRef<HTMLDivElement | null>(null);
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
+  const [isParamsOpen, setIsParamsOpen] = useState(false);
   const providerSettings = useSyncExternalStore(
     subscribeExecutionProviderSettings,
     currentExecutionProviderSettings,
@@ -61,10 +63,19 @@ export function AnnotationOperationInlineControls({
     || !selectedConnection
     || selectedConnection.status !== 'ready';
 
+  useEffect(() => {
+    if (data.groupContentLocked !== true) return;
+    setIsGeneratorOpen(false);
+    setIsParamsOpen(false);
+  }, [data.groupContentLocked]);
+
   useDismissiblePopover({
-    active: isGeneratorOpen,
+    active: isGeneratorOpen || isParamsOpen,
     insideSelector: '.operation-option-popover-wrap',
-    onDismiss: () => setIsGeneratorOpen(false),
+    onDismiss: () => {
+      setIsGeneratorOpen(false);
+      setIsParamsOpen(false);
+    },
     rootRef: controlsRef,
   });
 
@@ -88,6 +99,7 @@ export function AnnotationOperationInlineControls({
           onClick={(event) => {
             event.stopPropagation();
             setIsGeneratorOpen((current) => !current);
+            setIsParamsOpen(false);
           }}
         >
           <span>{t('operationToolbar.generator')}</span>
@@ -139,26 +151,57 @@ export function AnnotationOperationInlineControls({
           </div>
         ) : null}
       </div>
-      <label className="operation-option-row">
-        <span>{t('operationToolbar.count')}</span>
-        <select
-          aria-label={t('operationToolbar.count')}
+      <div className="operation-option-popover-wrap">
+        <button
+          type="button"
+          className="operation-option-row"
+          aria-expanded={isParamsOpen}
           disabled={data.groupContentLocked === true}
-          value={outputCount}
           onPointerDown={(event) => event.stopPropagation()}
-          onChange={(event) => dispatchUpdateOperationGenerationParams(
-            blockId,
-            {
-              ...params,
-              variationCount: Number(event.target.value),
-            },
-          )}
+          onClick={(event) => {
+            event.stopPropagation();
+            setIsParamsOpen((current) => !current);
+            setIsGeneratorOpen(false);
+          }}
         >
-          {[1, 2, 3, 4].map((count) => (
-            <option key={count} value={count}>{count}</option>
-          ))}
-        </select>
-      </label>
+          <span>{t('operationToolbar.params')}</span>
+          <strong>{outputCount}x</strong>
+          <ChevronRight size={15} />
+        </button>
+        {isParamsOpen && data.groupContentLocked !== true ? (
+          <div className="operation-side-popover operation-param-popover">
+            <div className="operation-param-group">
+              <div className="operation-param-heading">
+                <span className="operation-param-title">
+                  {t('operationToolbar.count')}
+                </span>
+              </div>
+              <div className="operation-param-options">
+                {[1, 2, 3, 4].map((count) => (
+                  <button
+                    key={count}
+                    type="button"
+                    className={outputCount === count ? 'is-selected' : undefined}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      dispatchUpdateOperationGenerationParams(
+                        blockId,
+                        {
+                          ...params,
+                          variationCount: count,
+                        },
+                      );
+                    }}
+                  >
+                    {count}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
       <button
         type="button"
         className={`operation-run-button ${

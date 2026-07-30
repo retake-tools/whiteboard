@@ -363,7 +363,9 @@ const completedAnnotationOperationMarkup = renderToStaticMarkup(
   </I18nProvider>,
 );
 assert.match(completedAnnotationOperationMarkup, /Generator/);
-assert.match(completedAnnotationOperationMarkup, /Count/);
+assert.match(completedAnnotationOperationMarkup, /Params/);
+assert.match(completedAnnotationOperationMarkup, />1x</);
+assert.doesNotMatch(completedAnnotationOperationMarkup, /<select/);
 assert.match(completedAnnotationOperationMarkup, /Generate again/);
 assert.doesNotMatch(completedAnnotationOperationMarkup, /Managed by Plugin/);
 

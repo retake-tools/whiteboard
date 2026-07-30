@@ -76,6 +76,11 @@ export function createFlowNodes(
             edgeId: edge.edgeId,
             role: edge.inputRole,
             roleOptions: executionInputRoleOptionsFor(sourceBlock, selectedOperation),
+            targetCapabilityId:
+              selectedOperation.type === 'operation'
+              && typeof selectedOperation.data.capabilityId === 'string'
+                ? selectedOperation.data.capabilityId
+                : undefined,
             disabledRoleOptions: disabledExecutionInputRolesFor(
               snapshot,
               sourceBlock,
@@ -219,6 +224,8 @@ export function createFlowNodes(
       operationInputRolePending:
         Boolean(inputMetadataByBlockId.get(block.blockId)?.edgeId) &&
         !inputMetadataByBlockId.get(block.blockId)?.role,
+      operationInputTargetCapabilityId:
+        inputMetadataByBlockId.get(block.blockId)?.targetCapabilityId,
       operationCanRun,
       operationChangeCount: operationChanges.length,
       operationChangeKinds: configurationChangeKinds(operationChanges),

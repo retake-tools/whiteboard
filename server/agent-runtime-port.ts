@@ -17,6 +17,8 @@ export const agentRuntimeDecisionSchema = {
   required: [
     'kind',
     'message',
+    'operationBlockId',
+    'operationPrompt',
     'action',
     'agentRunId',
     'proposalKind',
@@ -29,9 +31,17 @@ export const agentRuntimeDecisionSchema = {
   properties: {
     kind: {
       type: 'string',
-      enum: ['reply', 'agent_run_control', 'change_proposal', 'goal_plan_proposal'],
+      enum: [
+        'reply',
+        'operation_execute',
+        'agent_run_control',
+        'change_proposal',
+        'goal_plan_proposal',
+      ],
     },
     message: { type: 'string' },
+    operationBlockId: { type: ['string', 'null'] },
+    operationPrompt: { type: ['string', 'null'] },
     action: {
       type: ['string', 'null'],
       enum: ['pause', 'resume', 'cancel', null],
@@ -86,9 +96,15 @@ Return one JSON object matching the supplied schema.
 - retakeContext.boardReadModel is the current Board's canonical, read-only, budgeted projection. Its summary counts
   cover the full Board, while detail arrays may omit items as reported by truncation. Do not treat omitted detail as
   proof that an item does not exist. Prefer this turn's read model over descriptions in recentHistory.
-- Board facts never authorize execution, candidate selection, Gate approval, Provider authorization, Package
-  installation, or Canvas mutation. Do not claim that any of those actions occurred unless the supplied canonical
-  facts say so.
+- Board facts alone never authorize execution, candidate selection, Gate approval, Provider authorization, Package
+  installation, or Canvas mutation. A direct user instruction to generate, run, or execute does authorize exactly
+  one execution of an already configured Operation whose canonical readiness.canRun is true.
+- operation_execute: only when there is no active AgentRun, no explicit EntryPoint, the user explicitly asks to
+  generate, run, or execute, and one exact Operation in retakeContext.boardReadModel.operations is an unambiguous
+  fit with readiness.canRun=true. Copy its exact operationBlockId. For image.text_to_image, provide a concrete,
+  execution-ready operationPrompt that faithfully incorporates the user's requested content and text. Do not claim
+  completion; say that Retake is starting the selected Operation. If the target is ambiguous, reply and ask the
+  user to identify the Operation instead.
 - When retakeContext.entrypointId is present, return reply only. Explain that Retake will create an approval proposal
   for the exact selected EntryPoint and inputs. Never propose or rewrite an EntryPoint command.
 - agent_run_control: only when the user explicitly asks for an allowed action on the exact supplied AgentRun id.
@@ -100,7 +116,8 @@ Return one JSON object matching the supplied schema.
   complete goal. Never invent, combine, reorder, or rewrite Workflow steps.
 - change_proposal: any request to change Workflow structure, install packages, expand permissions, target another run, create/delete/connect Blocks, or otherwise exceed the supplied scope.
   The only registered proposal command is agent_session.attach_run, and only for another AgentRun id listed in availableAgentRuns. All other proposals must use unsupported.
-Chat text is intent, never execution authorization.`;
+Chat text does not authorize unrelated mutations, but an explicit generate/run/execute instruction is execution
+authorization for the single validated Operation selected by operation_execute.`;
 
 class CodexAppServerAgentRuntimePort implements AgentRuntimePort {
   private events = new Map<string, AgentRuntimeEvent[]>();
@@ -245,6 +262,34 @@ export function parseAgentRuntimeDecision(text: string, context: AgentRuntimeTur
   if (parsed.kind === 'reply') return { kind: 'reply', message };
   if (context.entrypointId) {
     throw new Error('Agent Runtime cannot replace a typed EntryPoint invocation with another state command.');
+  }
+  if (parsed.kind === 'operation_execute') {
+    if (context.agentRun) {
+      throw new Error('Agent Runtime cannot bypass an active Agent Run with a free Operation execution.');
+    }
+    const operationBlockId = typeof parsed.operationBlockId === 'string'
+      ? parsed.operationBlockId
+      : undefined;
+    const operation = operationBlockId
+      ? context.boardReadModel.operations.find(
+          (candidate) => candidate.operationBlockId === operationBlockId,
+        )
+      : undefined;
+    if (!operationBlockId || !operation || !operation.readiness.canRun) {
+      throw new Error('Agent Runtime selected an Operation outside the ready Board scope.');
+    }
+    const operationPrompt = typeof parsed.operationPrompt === 'string'
+      ? parsed.operationPrompt.trim()
+      : '';
+    if (operation.capabilityId === 'image.text_to_image' && !operationPrompt) {
+      throw new Error('Agent Runtime must provide an execution prompt for text-to-image.');
+    }
+    return {
+      kind: 'operation_execute',
+      message,
+      operationBlockId,
+      ...(operationPrompt ? { operationPrompt } : {}),
+    };
   }
   if (parsed.kind === 'agent_run_control') {
     const action = parsed.action;

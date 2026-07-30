@@ -15,6 +15,8 @@ import {
 } from '../src/core/agentSession';
 import { appendAgentRuntimeEvent, decideChangeProposal } from '../src/core/agentChangeApplication';
 import { cancelAgentRun, createAgentRunForOperation, startAgentRun } from '../src/core/agentRuntime';
+import { applyAgentOperationExecutionRequest } from '../src/core/agentOperationExecution';
+import { createDraftTextToImageOperation } from '../src/core/imageOperations';
 import { createDraftSkillOperation } from '../src/core/textOperations';
 import type { BoardSnapshot } from '../src/core/types';
 import { loadSnapshot, resetWorkspace, saveSnapshot } from './local-store/snapshot-store';
@@ -52,6 +54,8 @@ assert.match(sharedComposerSource, /listPackageEntryPoints/);
 assert.match(sharedComposerSource, /listPackageComposerMentionOptions/);
 assert.match(controllerSource, /persistSnapshot\(withUserMessage, \{ requireLocalApi: true \}\)/);
 assert.match(controllerSource, /applyAgentRuntimeTurn/);
+assert.match(controllerSource, /applyAgentOperationExecutionRequest/);
+assert.match(controllerSource, /retake:run-operation/);
 assert.match(controllerSource, /ensureDefaultAgentSession/);
 assert.match(controllerSource, /const agentSessionId = selectedSessionId \?\? ensureDefaultSession\(\)/);
 assert.match(apiSource, /application\/x-ndjson/);
@@ -104,6 +108,86 @@ assert.deepEqual(parseAgentRuntimeDecision(JSON.stringify({
 assert.throws(
   () => parseAgentRuntimeDecision('{"kind":"agent_run_control","message":"resume","action":"resume","agentRunId":"agent_run_parser"}', parserContext),
   /outside the authorized scope/,
+);
+
+const operationSnapshot = await emptySnapshot();
+const operationDraft = createDraftTextToImageOperation(operationSnapshot, {
+  operationTitle: 'Generate image',
+  textBlockBody: 'Old prompt.',
+  textBlockTitle: 'Prompt',
+});
+const operationSession = createAgentSession(
+  operationSnapshot,
+  { model: 'test-model' },
+).session;
+const operationMessage = appendAgentUserMessage(
+  operationSnapshot,
+  operationSession.agentSessionId,
+  { content: '生成一张主打落地灯的温馨家居海报，需要中文文字。' },
+);
+const operationContext = agentRuntimeTurnContext(
+  operationSnapshot,
+  operationSession.agentSessionId,
+  operationMessage.agentMessageId,
+);
+const operationDecision = parseAgentRuntimeDecision(JSON.stringify({
+  kind: 'operation_execute',
+  message: '正在使用当前文生图 Operation 生成海报。',
+  operationBlockId: operationDraft.operationBlock.blockId,
+  operationPrompt: '温馨现代客厅，落地灯为主体，海报文字：让一盏灯，点亮家的温度。',
+}), operationContext);
+const operationTurn = applyAgentRuntimeTurn(operationSnapshot, {
+  agentSessionId: operationSession.agentSessionId,
+  decision: operationDecision,
+  externalThreadId: 'thread_operation_execute',
+  runtimeModel: 'test-model',
+  runtimeTurnId: 'turn_operation_execute',
+  sourceMessageId: operationMessage.agentMessageId,
+});
+assert.equal(
+  operationTurn.operationExecution?.operationBlockId,
+  operationDraft.operationBlock.blockId,
+);
+applyAgentOperationExecutionRequest(
+  operationSnapshot,
+  operationTurn.operationExecution!,
+);
+assert.equal(
+  operationDraft.textBlock.data.body,
+  '温馨现代客厅，落地灯为主体，海报文字：让一盏灯，点亮家的温度。',
+);
+const blockedOperationSnapshot = structuredClone(operationSnapshot);
+const blockedOperation = blockedOperationSnapshot.blocks.find(
+  (block) => block.blockId === operationDraft.operationBlock.blockId,
+);
+const blockedPrompt = blockedOperationSnapshot.blocks.find(
+  (block) => block.blockId === operationDraft.textBlock.blockId,
+);
+assert.ok(blockedOperation);
+assert.ok(blockedPrompt);
+blockedOperation.data.capabilityId = 'image.image_to_image';
+blockedOperation.data.operationMode = 'image_to_image';
+const promptBeforeBlockedRequest = blockedPrompt.data.body;
+assert.throws(
+  () => applyAgentOperationExecutionRequest(blockedOperationSnapshot, {
+    operationBlockId: blockedOperation.blockId,
+    operationPrompt: 'This prompt must not be committed.',
+  }),
+  /no longer ready/,
+);
+assert.equal(
+  blockedPrompt.data.body,
+  promptBeforeBlockedRequest,
+  'A failed Agent execution request must not partially update the Operation prompt',
+);
+assert.throws(
+  () => parseAgentRuntimeDecision(JSON.stringify({
+    kind: 'operation_execute',
+    message: '执行另一个 Operation。',
+    operationBlockId: 'block_foreign',
+    operationPrompt: 'Prompt',
+  }), operationContext),
+  /outside the ready Board scope/,
 );
 
 const snapshot = await emptySnapshot();
@@ -357,7 +441,7 @@ console.log(JSON.stringify({
   boundedRunControl: true,
   outOfScopeProposal: true,
   staleSaveProtected: true,
-  noChatAsExecutionContract: true,
+  explicitOperationExecutionContract: true,
   currentBoardReadModelPerTurn: true,
 }));
 

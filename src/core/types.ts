@@ -366,6 +366,7 @@ export interface BlockData {
   operationInputRoleLocked?: boolean;
   operationInputRoleOptions?: ExecutionInputRole[];
   operationInputRolePending?: boolean;
+  operationInputTargetCapabilityId?: string;
   operationCanRun?: boolean;
   operationChangeCount?: number;
   operationChangeKinds?: ExecutionConfigurationChangeKind[];

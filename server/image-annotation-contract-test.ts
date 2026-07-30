@@ -69,6 +69,10 @@ const pluginDraftSource = await readFile(
   'src/app/usePluginDraftController.ts',
   'utf8',
 );
+const annotationOperationControlsSource = await readFile(
+  'src/nodes/AnnotationOperationInlineControls.tsx',
+  'utf8',
+);
 
 assert.doesNotMatch(toolbarSource, /annotation-edit|ImageAnnotationEditor/);
 assert.doesNotMatch(canvasSource, /onRunAnnotationEdit|annotationController/);
@@ -89,6 +93,21 @@ assert.match(executionDetailSource, /PluginOperationInspectorActions/);
 assert.doesNotMatch(executionDetailSource, /onOpenAnnotationEditor/);
 assert.match(pluginDraftSource, /block\.data\.annotationDraft/);
 assert.match(pluginDraftSource, /legacy: true/);
+assert.match(
+  annotationOperationControlsSource,
+  /operation-param-popover/,
+  'Annotation result count must use the same parameter popover pattern as other Operations',
+);
+assert.doesNotMatch(
+  annotationOperationControlsSource,
+  /<select/,
+  'Annotation result count must not render as a direct select control',
+);
+assert.match(
+  blockNodeSource,
+  /operationInputTargetCapabilityId === 'image\.annotation_edit'/,
+  'Annotation source inputs must hide the redundant source-role badge',
+);
 
 const manifest: AnnotationManifest = {
   schemaVersion: 1,
@@ -215,6 +234,13 @@ const execution: ExecutionRecord = {
 };
 snapshot.assets.unshift(sourceAsset, compositeAsset);
 snapshot.blocks.push(sourceBlock, operationBlock);
+snapshot.edges.push({
+  edgeId: 'edge.annotation-source',
+  sourceBlockId: sourceBlock.blockId,
+  targetBlockId: operationBlock.blockId,
+  kind: 'execution_input',
+  inputRole: 'source',
+});
 snapshot.executions.unshift(execution);
 snapshot.historyEvents = [{
   actor: 'user',
@@ -244,6 +270,15 @@ assert.equal(
   compositeAsset.previewUrl,
 );
 assert.equal(projectedOperation?.data.annotationMarkCount, 2);
+const projectedSource = createFlowNodes(snapshot, {
+  selectedOperationBlockId: operationBlock.blockId,
+}).find(
+  (node) => node.id === sourceBlock.blockId,
+);
+assert.equal(
+  projectedSource?.data.operationInputTargetCapabilityId,
+  'image.annotation_edit',
+);
 
 assert.deepEqual(
   pluginHostBoundScope(

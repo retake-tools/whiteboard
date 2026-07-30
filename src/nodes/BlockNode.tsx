@@ -269,7 +269,10 @@ function OperationInputRoleBadge({ data }: { data: BlockData }): ReactElement | 
   if (
     !isPending
     && role === 'source'
-    && options.length <= 1
+    && (
+      options.length <= 1
+      || data.operationInputTargetCapabilityId === 'image.annotation_edit'
+    )
   ) return null;
 
   return (

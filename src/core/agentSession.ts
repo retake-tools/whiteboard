@@ -11,6 +11,9 @@ import type {
   AgentSessionRecord,
   ChangeProposalRecord,
 } from './agentSessionContracts';
+import type {
+  AgentOperationExecutionRequest,
+} from './agentOperationExecution';
 import { createId, nowIso } from './id';
 import {
   listPackageComposerInlineInputOptions,
@@ -125,7 +128,11 @@ export function applyAgentRuntimeTurn(
     runtimeTurnId: string;
     sourceMessageId: string;
   },
-): { assistantMessage: AgentMessageRecord; proposal?: ChangeProposalRecord } {
+): {
+  assistantMessage: AgentMessageRecord;
+  operationExecution?: AgentOperationExecutionRequest;
+  proposal?: ChangeProposalRecord;
+} {
   const session = requireActiveSession(snapshot, input.agentSessionId);
   const source = requireMessage(snapshot, input.sourceMessageId);
   if (source.agentSessionId !== session.agentSessionId || source.role !== 'user') {
@@ -140,6 +147,14 @@ export function applyAgentRuntimeTurn(
   touchVersioned(binding);
 
   let proposal: ChangeProposalRecord | undefined;
+  const operationExecution = input.decision.kind === 'operation_execute'
+    ? {
+        operationBlockId: input.decision.operationBlockId,
+        ...(input.decision.operationPrompt
+          ? { operationPrompt: input.decision.operationPrompt }
+          : {}),
+      }
+    : undefined;
   const explicitEntrypoint = source.contextRefs.find((ref) => ref.kind === 'entrypoint');
   if (explicitEntrypoint) {
     if (input.decision.kind !== 'reply') {
@@ -175,7 +190,11 @@ export function applyAgentRuntimeTurn(
   snapshot.agentMessages ??= [];
   snapshot.agentMessages.push(assistantMessage);
   touchSession(session);
-  return { assistantMessage, ...(proposal ? { proposal } : {}) };
+  return {
+    assistantMessage,
+    ...(operationExecution ? { operationExecution } : {}),
+    ...(proposal ? { proposal } : {}),
+  };
 }
 
 export function markAgentRuntimeFailure(

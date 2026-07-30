@@ -298,6 +298,12 @@ export type AgentRunControlAction = 'cancel' | 'pause' | 'resume';
 export type AgentRuntimeTurnDecision =
   | { kind: 'reply'; message: string }
   | {
+      kind: 'operation_execute';
+      message: string;
+      operationBlockId: string;
+      operationPrompt?: string;
+    }
+  | {
       action: AgentRunControlAction;
       agentRunId: string;
       kind: 'agent_run_control';

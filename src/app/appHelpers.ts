@@ -159,6 +159,11 @@ export function applyOperationInputRoleBadges(
             edgeId: edge.edgeId,
             role: edge.inputRole,
             roleOptions: executionInputRoleOptionsFor(sourceBlock, selectedOperation),
+            targetCapabilityId:
+              selectedOperation.type === 'operation'
+              && typeof selectedOperation.data.capabilityId === 'string'
+                ? selectedOperation.data.capabilityId
+                : undefined,
             disabledRoleOptions: disabledExecutionInputRolesFor(
               snapshot,
               sourceBlock,
@@ -176,12 +181,14 @@ export function applyOperationInputRoleBadges(
     const nextEdgeId = nextMetadata?.edgeId;
     const nextRole = nextMetadata?.role;
     const nextRoleOptions = nextMetadata?.roleOptions;
+    const nextTargetCapabilityId = nextMetadata?.targetCapabilityId;
     const nextDisabledRoleOptions = nextMetadata?.disabledRoleOptions;
     if (
       node.data.operationInputEdgeId === nextEdgeId &&
       node.data.operationInputRole === nextRole &&
       arraysEqual(node.data.operationInputRoleOptions ?? [], nextRoleOptions ?? []) &&
       arraysEqual(node.data.operationInputRoleDisabledOptions ?? [], nextDisabledRoleOptions ?? []) &&
+      node.data.operationInputTargetCapabilityId === nextTargetCapabilityId &&
       node.data.operationInputRolePending === Boolean(nextEdgeId && !nextRole)
     ) {
       return node;
@@ -195,11 +202,13 @@ export function applyOperationInputRoleBadges(
       nextData.operationInputRoleOptions = nextRoleOptions;
       nextData.operationInputRoleDisabledOptions = nextDisabledRoleOptions;
       nextData.operationInputRolePending = false;
+      nextData.operationInputTargetCapabilityId = nextTargetCapabilityId;
     } else if (nextEdgeId) {
       nextData.operationInputEdgeId = nextEdgeId;
       nextData.operationInputRoleOptions = nextRoleOptions;
       nextData.operationInputRoleDisabledOptions = nextDisabledRoleOptions;
       nextData.operationInputRolePending = true;
+      nextData.operationInputTargetCapabilityId = nextTargetCapabilityId;
       delete nextData.operationInputRole;
     } else {
       delete nextData.operationInputEdgeId;
@@ -207,6 +216,7 @@ export function applyOperationInputRoleBadges(
       delete nextData.operationInputRoleDisabledOptions;
       delete nextData.operationInputRoleOptions;
       delete nextData.operationInputRolePending;
+      delete nextData.operationInputTargetCapabilityId;
     }
     return { ...node, data: nextData };
   });

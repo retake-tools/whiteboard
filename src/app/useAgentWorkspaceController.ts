@@ -33,6 +33,10 @@ import {
   buildGoalPlanDraftLaunchCommand,
   stageGoalPlanAgentLaunch,
 } from '../core/goalPlanAgentLaunchApplication';
+import {
+  applyAgentOperationExecutionRequest,
+  type AgentOperationExecutionRequest,
+} from '../core/agentOperationExecution';
 import { reconcileWorkflowArtifactGates } from '../core/workflowArtifactGateClient';
 import { resolvedWorkflowUiDefinitionFor } from '../core/workflowRegistry';
 import type { useI18n } from '../i18n';
@@ -318,6 +322,7 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     setIsSending(true);
     setError(undefined);
     let sourceMessageId = '';
+    let operationExecution: AgentOperationExecutionRequest | undefined;
     try {
       const contextRefs: AgentMessageContextRef[] = [
         ...(input.entrypointId ? [{ kind: 'entrypoint' as const, entrypointId: input.entrypointId }] : []),
@@ -349,7 +354,7 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
         await persistSnapshot(withEvent, { requireLocalApi: true });
       });
       const withRuntimeResult = updateSnapshot((current) => {
-        applyAgentRuntimeTurn(current, {
+        const applied = applyAgentRuntimeTurn(current, {
           agentSessionId,
           decision: runtimeResult.decision,
           externalThreadId: runtimeResult.externalThreadId,
@@ -357,9 +362,24 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
           runtimeTurnId: runtimeResult.runtimeTurnId,
           sourceMessageId,
         });
+        operationExecution = applied.operationExecution;
         return current;
       }, { syncFlow: false });
       await persistSnapshot(withRuntimeResult, { requireLocalApi: true });
+      const executionRequest = operationExecution;
+      if (executionRequest) {
+        const executionSnapshot = updateSnapshot((current) => {
+          applyAgentOperationExecutionRequest(current, executionRequest);
+          return current;
+        }, { history: true, syncFlow: true });
+        await persistSnapshot(executionSnapshot, { requireLocalApi: true });
+        window.dispatchEvent(new CustomEvent('retake:run-operation', {
+          detail: {
+            blockId: executionRequest.operationBlockId,
+            queuedConfigurationStale: false,
+          },
+        }));
+      }
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
       setError(message);
