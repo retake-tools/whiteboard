@@ -74,6 +74,7 @@ assert.match(workspaceSource, /AgentOperationRunCard/);
 assert.match(operationCardSource, /latestExecutionForOperation/);
 assert.match(operationCardSource, /currentExecutionProviderSettings/);
 assert.doesNotMatch(operationCardSource, /agentWorkspace\.scope/);
+assert.doesNotMatch(operationCardSource, /operationToolbar\.capability/);
 assert.match(operationCardSource, /onClick=\{operation \? \(\) => onLocateBlock/);
 assert.doesNotMatch(operationCardSource, /role=\{operation \? 'button'/);
 assert.match(composerSource, /<SkillQuickInputComposer/);

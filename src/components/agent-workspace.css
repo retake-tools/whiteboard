@@ -246,7 +246,7 @@
 .agent-workspace-operation-card > header span { display: inline-flex; align-items: center; gap: 5px; color: var(--retake-text-muted); font-size: 10px; font-weight: 750; text-transform: uppercase; }
 .agent-workspace-operation-card > header strong { color: var(--retake-accent-strong); font-size: 10px; }
 .agent-workspace-operation-card > p { margin: 0; color: var(--retake-text-secondary); font-size: 11px; line-height: 1.45; }
-.agent-workspace-operation-card dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 0; }
+.agent-workspace-operation-card dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; }
 .agent-workspace-operation-card dl > div { min-width: 0; }
 .agent-workspace-operation-card dt { color: var(--retake-text-muted); font-size: 9px; font-weight: 750; text-transform: uppercase; }
 .agent-workspace-operation-card dd { margin: 2px 0 0; overflow: hidden; color: var(--retake-text-secondary); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }

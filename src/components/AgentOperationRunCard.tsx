@@ -68,10 +68,6 @@ export function AgentOperationRunCard({
       </p>
       <dl>
         <div>
-          <dt>{t('operationToolbar.capability')}</dt>
-          <dd>{stringValue(operation?.data.capabilityId) ?? '—'}</dd>
-        </div>
-        <div>
           <dt>{t('agentWorkspace.provider')}</dt>
           <dd>{provider}{model ? ` · ${model}` : ''}</dd>
         </div>
