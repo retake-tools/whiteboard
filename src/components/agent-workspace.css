@@ -225,26 +225,31 @@
 .agent-workspace-run-card dt { color: var(--retake-text-muted); font-size: 9px; font-weight: 750; text-transform: uppercase; }
 .agent-workspace-run-card dd { margin: 0; overflow-wrap: anywhere; color: var(--retake-text-secondary); font-size: 10px; }
 .agent-workspace-operation-card {
+  --operation-status-color: var(--retake-text-subtle);
   display: grid;
   gap: 7px;
   padding: 9px;
   border: 1px solid var(--retake-border);
-  border-left: 3px solid var(--retake-accent);
+  border-left: 3px solid var(--operation-status-color);
   border-radius: 8px;
   background: var(--retake-surface);
 }
+.agent-workspace-operation-card.is-queued { --operation-status-color: var(--retake-warning); }
+.agent-workspace-operation-card.is-running { --operation-status-color: var(--retake-accent); }
+.agent-workspace-operation-card.is-succeeded { --operation-status-color: var(--retake-success); }
+.agent-workspace-operation-card.is-failed { --operation-status-color: var(--retake-danger, #d92d20); }
+.agent-workspace-operation-card.is-canceled { --operation-status-color: var(--retake-text-muted); }
 .agent-workspace-operation-card.is-locatable { cursor: pointer; }
 .agent-workspace-operation-card.is-locatable:hover,
 .agent-workspace-operation-card.is-locatable:focus-visible {
   border-color: var(--retake-accent-border);
+  border-left-color: var(--operation-status-color);
   background: var(--retake-accent-soft);
   outline: none;
 }
-.agent-workspace-operation-card.is-failed,
-.agent-workspace-operation-card.is-canceled { border-left-color: var(--retake-danger, #d92d20); }
 .agent-workspace-operation-card > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .agent-workspace-operation-card > header span { display: inline-flex; align-items: center; gap: 5px; color: var(--retake-text-muted); font-size: 10px; font-weight: 750; text-transform: uppercase; }
-.agent-workspace-operation-card > header strong { color: var(--retake-accent-strong); font-size: 10px; }
+.agent-workspace-operation-card > header strong { color: var(--operation-status-color); font-size: 10px; }
 .agent-workspace-operation-card > p { margin: 0; color: var(--retake-text-secondary); font-size: 11px; line-height: 1.45; }
 .agent-workspace-operation-card dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; }
 .agent-workspace-operation-card dl > div { min-width: 0; }

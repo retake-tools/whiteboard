@@ -36,6 +36,7 @@ const [
   runtimeClientSource,
   canvasControllerSource,
   operationCardSource,
+  agentWorkspaceCssSource,
   appEventBindingsSource,
   operationControlsSource,
   textBlockEditorSource,
@@ -51,6 +52,7 @@ const [
   readFile(new URL('../src/core/agentRuntimeClient.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/useCanvasController.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentOperationRunCard.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/agent-workspace.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/useAppEventBindings.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/nodes/OperationInlineControls.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/TextBlockEditorDialog.tsx', import.meta.url), 'utf8'),
@@ -77,6 +79,10 @@ assert.doesNotMatch(operationCardSource, /agentWorkspace\.scope/);
 assert.doesNotMatch(operationCardSource, /operationToolbar\.capability/);
 assert.match(operationCardSource, /onClick=\{operation \? \(\) => onLocateBlock/);
 assert.doesNotMatch(operationCardSource, /role=\{operation \? 'button'/);
+for (const status of ['queued', 'running', 'succeeded', 'failed', 'canceled']) {
+  assert.match(agentWorkspaceCssSource, new RegExp(`agent-workspace-operation-card\\.is-${status}`));
+}
+assert.match(agentWorkspaceCssSource, /border-left-color: var\(--operation-status-color\)/);
 assert.match(composerSource, /<SkillQuickInputComposer/);
 assert.match(composerSource, /mode="agent"/);
 assert.doesNotMatch(composerSource, /onInvokeEntryPoint/);
