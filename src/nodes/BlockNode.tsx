@@ -108,6 +108,12 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
           event.target instanceof HTMLElement &&
           isInteractiveDoubleClickTarget(event.target)
         ) return;
+        if (blockType === 'image' && hasExecutionDetails(data as BlockData)) {
+          dispatchOpenExecutionInspector(id);
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
         window.dispatchEvent(new CustomEvent('retake:select-connected-workflow', { detail: { blockId: id } }));
         event.preventDefault();
         event.stopPropagation();
@@ -734,6 +740,12 @@ function dispatchOpenTextBlockEditor(blockId: string): void {
   }));
 }
 
+function dispatchOpenExecutionInspector(blockId: string): void {
+  window.dispatchEvent(new CustomEvent('retake:open-execution-inspector', {
+    detail: { blockId },
+  }));
+}
+
 function dispatchPreviewTextBlock(blockId: string, body: string): void {
   window.dispatchEvent(new CustomEvent('retake:preview-text-block', { detail: { blockId, body } }));
 }
@@ -759,7 +771,7 @@ function ExecutionInfoButton({
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => {
         event.stopPropagation();
-        window.dispatchEvent(new CustomEvent('retake:open-execution-inspector', { detail: { blockId } }));
+        dispatchOpenExecutionInspector(blockId);
       }}
     >
       <Info size={15} />

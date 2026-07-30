@@ -20,10 +20,15 @@ assert.match(canvasSource, /nodeDragActiveRef\.current = true/);
 assert.match(canvasSource, /if \(!nodeDragActiveRef\.current\) setNodes\(createFlowNodesForSelection\(remoteSnapshot\)\)/);
 const canvasViewSource = await readFile('src/app/WhiteboardCanvas.tsx', 'utf8');
 const canvasCss = await readFile('src/styles/canvas.css', 'utf8');
+const blockNodeSource = await readFile('src/nodes/BlockNode.tsx', 'utf8');
 const blockNodeCss = await readFile('src/nodes/block-node.css', 'utf8');
 assert.match(canvasViewSource, /zoomOnDoubleClick=\{false\}/);
 assert.match(canvasSource, /function selectConnectedWorkflow[\s\S]*?window\.requestAnimationFrame/);
 assert.match(canvasViewSource, /data-pointer-moving="false"[\s\S]*?onPointerMoveCapture=\{handleCanvasPointerMove\}/);
+assert.match(
+  blockNodeSource,
+  /blockType === 'image' && hasExecutionDetails\(data as BlockData\)[\s\S]*?dispatchOpenExecutionInspector\(id\)/,
+);
 assert.match(canvasCss, /\[data-pointer-moving='true'\] \.react-flow__node:not\(\.dragging\)[\s\S]*?cursor: default !important;/);
 assert.match(blockNodeCss, /\.image-preview img \{[\s\S]*?pointer-events: none;[\s\S]*?-webkit-user-drag: none;/);
 assert.match(blockNodeCss, /\.operation-input-quick-add \{[\s\S]*?pointer-events: none;/);
