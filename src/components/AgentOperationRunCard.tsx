@@ -51,14 +51,7 @@ export function AgentOperationRunCard({
   return (
     <article
       className={`agent-workspace-operation-card${status ? ` is-${status}` : ''}${operation ? ' is-locatable' : ''}`}
-      role={operation ? 'button' : undefined}
-      tabIndex={operation ? 0 : undefined}
       onClick={operation ? () => onLocateBlock(operation.blockId) : undefined}
-      onKeyDown={operation ? (event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        onLocateBlock(operation.blockId);
-      } : undefined}
     >
       <header>
         <span><Activity size={13} />{t('agentWorkspace.operationRun')}</span>
