@@ -189,11 +189,14 @@ export async function runCodexAppServerTurn(
         if (item?.type === 'agentMessage' && !text && typeof item.text === 'string') text = item.text;
         if (item?.type === 'imageGeneration' && typeof item.id === 'string') {
           const savedPath = typeof item.savedPath === 'string' ? item.savedPath : undefined;
+          const result = typeof item.result === 'string' && item.result.trim()
+            ? item.result
+            : undefined;
           image = {
             itemId: item.id,
             ...(typeof item.revisedPrompt === 'string' ? { revisedPrompt: item.revisedPrompt } : {}),
             ...(savedPath ? { savedPath } : {}),
-            ...(!savedPath && typeof item.result === 'string' ? { dataUrl: normalizeImageDataUrl(item.result) } : {}),
+            ...(!savedPath && result ? { dataUrl: normalizeImageDataUrl(result) } : {}),
           };
         }
         return;

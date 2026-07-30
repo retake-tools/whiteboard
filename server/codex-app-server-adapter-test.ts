@@ -38,6 +38,8 @@ const codexAppServerAvailability = () => ({
   executablePath: process.execPath,
   version: '0.144.6',
 });
+const validPngDataUrl =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mNk+M8AAQUBAScY42YAAAAASUVORK5CYII=';
 
 const initialSettings = await listExecutionProviderSettings();
 assert.equal(
@@ -240,7 +242,7 @@ const imageStarted = await startCodexAppServerImageGeneration({
       text: '',
       image: {
         itemId: `image_item_test_${callIndex}`,
-        dataUrl: `data:image/png;base64,${Buffer.from(`codex-image-test-${callIndex}`).toString('base64')}`,
+        dataUrl: validPngDataUrl,
       },
     };
   },
@@ -259,6 +261,60 @@ assert.deepEqual([...imageCandidatePrompts].sort(), ['1', '2', '3', '4']);
 assert.ok(imageResult?.data.assetId);
 assert.equal(completed.assets.some((candidate) => candidate.assetId === imageResult.data.assetId), true);
 assert.equal(imageExecution?.params?.codexAppServer && typeof imageExecution.params.codexAppServer, 'object');
+
+const emptyImageDraft = createDraftTextToImageOperation(completed, {
+  operationTitle: 'Reject empty App Server image',
+  textBlockBody: 'This result must fail when the image payload is empty.',
+  textBlockTitle: 'Prompt',
+  generationParams: {
+    aspectRatioPreset: '1:1',
+    targetAspectRatio: 1,
+    variationCount: 1,
+  },
+});
+emptyImageDraft.operationBlock.data.connectionId = connection!.connectionId;
+const emptyImageRun = executeExistingImageOperationBlock(completed, {
+  connection: connection!,
+  generationParams: emptyImageDraft.operationBlock.data.generationParams,
+  instruction: '',
+  operation: 'text_to_image',
+  operationBlockId: emptyImageDraft.operationBlock.blockId,
+});
+const assetCountBeforeEmptyImage = completed.assets.length;
+await saveSnapshot(completed);
+const emptyImageStarted = await startCodexAppServerImageGeneration({
+  projectId: completed.project.projectId,
+  boardId: completed.board.boardId,
+  executionId: emptyImageRun.execution.executionId,
+  connectionId: connection!.connectionId,
+}, {
+  connectionCheck: { codexAppServerAvailability },
+  runTurn: async () => ({
+    threadId: 'thread_empty_image',
+    turnId: 'turn_empty_image',
+    text: '',
+    image: {
+      itemId: 'image_item_empty',
+      dataUrl: 'data:image/png;base64,',
+    },
+  }),
+});
+await assert.rejects(
+  emptyImageStarted.completion,
+  /not a supported raster image/,
+);
+completed = await loadSnapshot(completed.project.projectId, completed.board.boardId);
+const emptyImageExecution = completed.executions.find(
+  (candidate) => candidate.executionId === emptyImageRun.execution.executionId,
+);
+const emptyImageResult = completed.blocks.find(
+  (candidate) => candidate.blockId === emptyImageRun.resultBlock.blockId,
+);
+assert.equal(emptyImageExecution?.status, 'failed');
+assert.deepEqual(emptyImageExecution?.outputAssetIds, []);
+assert.equal(emptyImageExecution?.resultSummary?.succeeded, 0);
+assert.equal(emptyImageResult?.data.status, 'failed');
+assert.equal(completed.assets.length, assetCountBeforeEmptyImage);
 
 const partialImageDraft = createDraftTextToImageOperation(completed, {
   operationTitle: 'Generate partial App Server batch',
@@ -326,7 +382,7 @@ const retriedImage = await startCodexAppServerImageGeneration({
       text: '',
       image: {
         itemId: 'image_retry_success',
-        dataUrl: `data:image/png;base64,${Buffer.from('codex-retry-success').toString('base64')}`,
+        dataUrl: validPngDataUrl,
       },
     };
   },
@@ -479,7 +535,7 @@ const annotationStarted = await startCodexAppServerImageGeneration({
       text: '',
       image: {
         itemId: 'annotation_image_item_test',
-        dataUrl: `data:image/png;base64,${Buffer.from('annotation-image-test').toString('base64')}`,
+        dataUrl: validPngDataUrl,
       },
     };
   },
@@ -593,7 +649,7 @@ const storyboardStarted = await startCodexAppServerImageGeneration({
       text: '',
       image: {
         itemId: `storyboard_sheet_item_${storyboardImageCalls}`,
-        dataUrl: `data:image/png;base64,${Buffer.from(`storyboard-sheet-${storyboardImageCalls}`).toString('base64')}`,
+        dataUrl: validPngDataUrl,
       },
     };
   },

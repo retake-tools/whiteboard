@@ -184,13 +184,7 @@ async function executeCodexImageRun(
         : image.savedPath
           ? await importCodexImagePath(execution, image.savedPath)
           : image.dataUrl
-            ? await createAssetFromDataUrl({
-              projectId: execution.projectId,
-              sourceExecutionId: execution.executionId,
-              dataUrl: image.dataUrl,
-              fileName: `codex-image-${index + 1}.png`,
-              kind: 'image',
-            })
+            ? await importCodexImageDataUrl(execution, image.dataUrl, index)
             : undefined;
       if (!asset) throw new Error('Codex App Server image result did not contain a saved path or image data.');
       await recordProviderResult(execution, {
@@ -420,6 +414,23 @@ async function importCodexImagePath(execution: ExecutionRecord, sourcePath: stri
   });
 }
 
+async function importCodexImageDataUrl(
+  execution: ExecutionRecord,
+  dataUrl: string,
+  index: number,
+) {
+  const bytes = parseDataUrl(dataUrl).bytes;
+  assertCodexRasterBytes(bytes);
+  const mimeType = rasterMimeType(bytes)!;
+  return createAssetFromDataUrl({
+    projectId: execution.projectId,
+    sourceExecutionId: execution.executionId,
+    dataUrl: `data:${mimeType};base64,${bytes.toString('base64')}`,
+    fileName: `codex-image-${index + 1}${rasterExtension(mimeType)}`,
+    kind: 'image',
+  });
+}
+
 async function readCodexImagePath(sourcePath: string): Promise<Buffer> {
   const resolvedPath = await realpath(sourcePath);
   const generatedImagesRoot = path.resolve(process.env.CODEX_HOME || path.join(homedir(), '.codex'), 'generated_images');
@@ -452,6 +463,12 @@ function rasterMimeType(bytes: Buffer): 'image/jpeg' | 'image/png' | 'image/webp
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
   if (bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
   return undefined;
+}
+
+function rasterExtension(mimeType: 'image/jpeg' | 'image/png' | 'image/webp'): string {
+  if (mimeType === 'image/jpeg') return '.jpg';
+  if (mimeType === 'image/webp') return '.webp';
+  return '.png';
 }
 
 async function recordProviderResult(

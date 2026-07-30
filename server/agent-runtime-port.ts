@@ -128,18 +128,22 @@ Return one JSON object matching the supplied schema.
   installation, or Canvas mutation. Decide the user's semantic intent from the whole request and supplied typed
   context; do not rely on keywords.
 - operation_create_execute: when there is no active AgentRun or explicit EntryPoint and the user is starting a new
-  image-generation or image-edit task without explicitly targeting an existing Operation. Use image.text_to_image
-  with sourceImageBlockId=null for generation. Use image.image_to_image only when the exact source image is present
-  in retakeContext.selectedImageBlockIds or retakeContext.workingOutputImageBlockIds; copy its exact Block id into
+  image-generation or image-edit task without explicitly targeting an existing Operation. Also use it when the user
+  asks for a new cumulative edit that should build on a successful image output from the working Operation; continuing
+  the conversation does not mean reusing that Operation's frozen source. Use image.text_to_image with
+  sourceImageBlockId=null for generation. Use image.image_to_image only when the exact source image is present in
+  retakeContext.selectedImageBlockIds or retakeContext.workingOutputImageBlockIds; copy its exact Block id into
   sourceImageBlockId. Current Canvas selection belongs only to this message. Working outputs belong only to this
-  AgentSession. If "this image" could refer to multiple working outputs, reply and ask the user to select one.
+  AgentSession. If the requested edit could refer to multiple working outputs, reply and ask the user to select one.
   Provide a concrete execution-ready operationPrompt and optional aspectRatioPreset, targetResolution, and
   variationCount. Retake will create a new Prompt and Operation; never reuse an old Operation merely because it is
   the only ready or semantically similar item on the Board, and never infer a source from the most recent Board image.
-- operation_execute: only when the user semantically continues retakeContext.workingOperation or targets an exact
-  Operation listed in retakeContext.explicitOperationBlockIds. Copy that exact operationBlockId and provide an
-  updated operationPrompt when needed. The target must have readiness.canRun=true. Never select an Operation only
-  because it is unique, recent, ready, or similar. If an existing target is intended but not bound, reply and ask
+- operation_execute: only when the user asks to retry, regenerate, or adjust the same Operation against its existing
+  frozen inputs, or targets an exact Operation listed in retakeContext.explicitOperationBlockIds. A new visual change
+  applied to a successful working output is a derived image edit and must use operation_create_execute instead.
+  Copy the exact operationBlockId and provide an updated operationPrompt when needed. The target must have
+  readiness.canRun=true. Never select an Operation only because it is unique, recent, ready, or similar. If an
+  existing target is intended but not bound, reply and ask
   the user to identify it.
 - When retakeContext.entrypointId is present, return reply only. Explain that Retake will create an approval proposal
   for the exact selected EntryPoint and inputs. Never propose or rewrite an EntryPoint command.

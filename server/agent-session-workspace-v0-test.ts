@@ -64,6 +64,8 @@ assert.match(portSource, /outputSchema: agentRuntimeDecisionSchema/);
 assert.match(portSource, /publishedDecisionDelta/);
 assert.match(portSource, /sandbox: 'read-only'/);
 assert.match(portSource, /Do not call tools/);
+assert.match(portSource, /new cumulative edit/);
+assert.match(portSource, /must use operation_create_execute instead/);
 assert.doesNotMatch(portSource, /saveSnapshot|createBlock|projectWorkflowDraft/);
 assert.match(appServerSource, /thread\/resume/);
 assert.doesNotMatch(appServerSource, /excludeTurns/);
