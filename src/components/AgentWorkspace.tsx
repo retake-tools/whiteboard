@@ -40,6 +40,7 @@ import {
   resolvedWorkflowUiDefinitionFor,
 } from '../core/workflowRegistry';
 import { useI18n } from '../i18n';
+import { AgentMessageCard } from './AgentMessageCard';
 import { AgentWorkspaceComposer } from './AgentWorkspaceComposer';
 import { AgentSessionHistoryMenu } from './AgentSessionHistoryMenu';
 import { TooltipIconButton } from './Tooltip';
@@ -223,11 +224,7 @@ export function AgentWorkspace({
                   : [];
                 return (
                   <div key={message.agentMessageId} className="agent-workspace-timeline-item">
-                    <article className={`agent-workspace-message is-${message.role}`}>
-                      <span>{message.role === 'user' ? t('agentWorkspace.you') : t('agentWorkspace.agent')}</span>
-                      <p>{message.content}</p>
-                      {message.contextRefs.length > 0 ? <small>{message.contextRefs.map(contextRefLabel).join(' · ')}</small> : null}
-                    </article>
+                    <AgentMessageCard message={message} />
                     {messageProposals.map((proposal) => (
                       <ProposalCard
                         agentSessionId={selectedSession.agentSessionId}
@@ -910,15 +907,6 @@ function typedEntryPointName(
     resolution.target.workflowDefinitionLock.workflowDefinitionId,
     locale,
   ).name;
-}
-
-function contextRefLabel(ref: NonNullable<ReturnType<typeof messagesForSession>[number]>['contextRefs'][number]): string {
-  if (ref.kind === 'entrypoint') return `/${ref.entrypointId}`;
-  if (ref.kind === 'agent_run') return `Run ${ref.agentRunId.slice(-8)}`;
-  if (ref.kind === 'inline') return `${ref.slotId}: ${inlineValueSummary(ref.value)}`;
-  if (ref.kind === 'parameters') return invocationParameterSummary(ref.value);
-  if (ref.kind === 'block') return `@Block ${ref.blockId.slice(-8)}`;
-  return `@Asset ${ref.assetId.slice(-8)}`;
 }
 
 function invocationParameterSummary(parameters: Record<string, unknown>): string {

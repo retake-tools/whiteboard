@@ -134,8 +134,33 @@
 .agent-workspace-chat { display: grid; height: 100%; min-height: 0; grid-template-rows: minmax(0, 1fr) auto auto; }
 .agent-workspace-messages { display: flex; min-height: 0; flex-direction: column; gap: 10px; padding: 14px; overflow-y: auto; }
 .agent-workspace-timeline-item { display: grid; gap: 8px; }
-.agent-workspace-message { align-self: flex-start; max-width: 88%; padding: 9px 10px; border-radius: 9px; background: var(--retake-surface-subtle); }
+.agent-workspace-message { position: relative; align-self: flex-start; max-width: 88%; padding: 9px 36px 9px 10px; border-radius: 9px; background: var(--retake-surface-subtle); }
 .agent-workspace-message.is-user { align-self: flex-end; justify-self: end; background: var(--retake-accent-soft); }
+.agent-workspace-message-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-grid;
+  width: 23px;
+  height: 23px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--retake-surface) 82%, transparent);
+  color: var(--retake-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 120ms ease, transform 120ms ease, color 120ms ease;
+}
+.agent-workspace-message:hover .agent-workspace-message-copy,
+.agent-workspace-message:focus-within .agent-workspace-message-copy,
+.agent-workspace-message-copy:focus-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.agent-workspace-message-copy:hover { color: var(--retake-accent-strong); }
 .agent-workspace-message > span,
 .agent-workspace-messages > article.is-pending > span { color: var(--retake-text-muted); font-size: 10px; font-weight: 750; }
 .agent-workspace-message p,
@@ -146,6 +171,13 @@
 .agent-workspace-welcome svg { color: var(--retake-accent-strong); }
 .agent-workspace-welcome strong { color: var(--retake-text); font-size: 14px; }
 .agent-workspace-welcome p { max-width: 270px; margin: 0; color: var(--retake-text-muted); font-size: 11px; line-height: 1.5; }
+
+@media (hover: none) {
+  .agent-workspace-message-copy {
+    opacity: .72;
+    transform: none;
+  }
+}
 
 .agent-workspace-error { margin: 0 12px 8px; padding: 8px; border-radius: 7px; background: #fff1f0; color: #b42318; font-size: 11px; }
 .agent-workspace-placeholder { margin: 0; padding: 18px; color: var(--retake-text-muted); font-size: 12px; line-height: 1.5; text-align: center; }

@@ -10,6 +10,7 @@ import { OperationInlineControls } from '../src/nodes/OperationInlineControls';
 import { operationDisplayState } from '../src/core/operationDisplay';
 import { ExecutionDetailContent } from '../src/components/ExecutionDetailContent';
 import { BoardHistoryPanel } from '../src/components/BoardHistoryPanel';
+import { AgentMessageCard } from '../src/components/AgentMessageCard';
 import { ContextToolbar } from '../src/components/ContextToolbar';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import { loadCollapsedGroupIds, saveCollapsedGroupIds } from '../src/core/groupViewState';
@@ -368,6 +369,47 @@ assert.match(completedAnnotationOperationMarkup, />1x</);
 assert.doesNotMatch(completedAnnotationOperationMarkup, /<select/);
 assert.match(completedAnnotationOperationMarkup, /Generate again/);
 assert.doesNotMatch(completedAnnotationOperationMarkup, /Managed by Plugin/);
+
+const agentMessageMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <>
+      <AgentMessageCard
+        message={{
+          agentMessageId: 'message_user',
+          agentSessionId: 'session_render',
+          boardId: snapshot.board.boardId,
+          content: 'Generate a warm home poster.',
+          contextRefs: [],
+          createdAt,
+          projectId: snapshot.project.projectId,
+          recordVersion: 1,
+          role: 'user',
+        }}
+      />
+      <AgentMessageCard
+        message={{
+          agentMessageId: 'message_assistant',
+          agentSessionId: 'session_render',
+          boardId: snapshot.board.boardId,
+          content: 'Starting the ready Operation.',
+          contextRefs: [],
+          createdAt,
+          projectId: snapshot.project.projectId,
+          recordVersion: 1,
+          role: 'assistant',
+        }}
+      />
+    </>
+  </I18nProvider>,
+);
+assert.equal(
+  agentMessageMarkup.match(/aria-label="Copy message"/g)?.length,
+  2,
+);
+assert.equal(
+  agentMessageMarkup.match(/agent-workspace-message-copy/g)?.length,
+  2,
+);
 
 const invalidOperationMarkup = renderToStaticMarkup(
   <I18nProvider>

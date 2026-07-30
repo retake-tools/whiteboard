@@ -73,6 +73,10 @@ const annotationOperationControlsSource = await readFile(
   'src/nodes/AnnotationOperationInlineControls.tsx',
   'utf8',
 );
+const operationInlineControlsStyles = await readFile(
+  'src/nodes/operation-inline-controls.css',
+  'utf8',
+);
 
 assert.doesNotMatch(toolbarSource, /annotation-edit|ImageAnnotationEditor/);
 assert.doesNotMatch(canvasSource, /onRunAnnotationEdit|annotationController/);
@@ -102,6 +106,16 @@ assert.doesNotMatch(
   annotationOperationControlsSource,
   /<select/,
   'Annotation result count must not render as a direct select control',
+);
+assert.match(
+  annotationOperationControlsSource,
+  /operation-param-popover is-count-only/,
+  'Annotation count popover must opt into the compact parameter layout',
+);
+assert.match(
+  operationInlineControlsStyles,
+  /\.operation-param-popover\.is-count-only\s*\{[\s\S]*width:\s*188px/,
+  'The count-only parameter popover must remain compact',
 );
 assert.match(
   blockNodeSource,

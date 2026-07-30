@@ -169,7 +169,7 @@ export function AnnotationOperationInlineControls({
           <ChevronRight size={15} />
         </button>
         {isParamsOpen && data.groupContentLocked !== true ? (
-          <div className="operation-side-popover operation-param-popover">
+          <div className="operation-side-popover operation-param-popover is-count-only">
             <div className="operation-param-group">
               <div className="operation-param-heading">
                 <span className="operation-param-title">

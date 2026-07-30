@@ -97,6 +97,13 @@
   padding: 14px;
 }
 
+.operation-param-popover.is-count-only {
+  width: 188px;
+  max-width: min(188px, calc(100vw - 48px));
+  gap: 8px;
+  padding: 12px;
+}
+
 .operation-param-group {
   display: flex;
   flex-direction: column;

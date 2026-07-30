@@ -669,6 +669,7 @@ export type TranslationKey =
   | 'agentWorkspace.changes'
   | 'agentWorkspace.changesEmpty'
   | 'agentWorkspace.confirmLaunch'
+  | 'agentWorkspace.copyMessage'
   | 'agentWorkspace.chat'
   | 'agentWorkspace.chatEmpty'
   | 'agentWorkspace.createSession'
@@ -713,6 +714,7 @@ export type TranslationKey =
   | 'agentWorkspace.presetTools'
   | 'agentWorkspace.presetRuntime'
   | 'agentWorkspace.newSession'
+  | 'agentWorkspace.messageCopied'
   | 'agentWorkspace.noMatchingSessions'
   | 'agentWorkspace.noRun'
   | 'agentWorkspace.noSession'
@@ -1760,6 +1762,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.changes': 'Changes',
     'agentWorkspace.changesEmpty': 'Out-of-scope requests will appear here as reviewable Change Proposals.',
     'agentWorkspace.confirmLaunch': 'Confirm and start Agent',
+    'agentWorkspace.copyMessage': 'Copy message',
     'agentWorkspace.chat': 'Chat',
     'agentWorkspace.chatEmpty': 'Ask about this Board or control the currently attached Agent Run.',
     'agentWorkspace.createSession': 'Create session',
@@ -1804,6 +1807,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.presetTools': 'Effective tools',
     'agentWorkspace.presetRuntime': 'Runtime requirements',
     'agentWorkspace.newSession': 'New session',
+    'agentWorkspace.messageCopied': 'Message copied',
     'agentWorkspace.noMatchingSessions': 'No matching conversations.',
     'agentWorkspace.noRun': 'No Agent Run attached',
     'agentWorkspace.noSession': 'No active session',
@@ -2846,6 +2850,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.changes': '变更',
     'agentWorkspace.changesEmpty': '超出范围的请求会在这里形成可审阅的 Change Proposal。',
     'agentWorkspace.confirmLaunch': '确认启动 Agent',
+    'agentWorkspace.copyMessage': '复制消息',
     'agentWorkspace.chat': '对话',
     'agentWorkspace.chatEmpty': '可以询问当前画板，或控制已绑定 Agent Run 的允许动作。',
     'agentWorkspace.createSession': '创建会话',
@@ -2890,6 +2895,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.presetTools': '有效工具',
     'agentWorkspace.presetRuntime': 'Runtime 要求',
     'agentWorkspace.newSession': '新建会话',
+    'agentWorkspace.messageCopied': '消息已复制',
     'agentWorkspace.noMatchingSessions': '没有匹配的会话。',
     'agentWorkspace.noRun': '未绑定 Agent Run',
     'agentWorkspace.noSession': '没有活动会话',

@@ -175,8 +175,18 @@ assert.deepEqual(
   ['awaiting_decision', 'failed'],
 );
 
-const [workspaceSource, composerSource, historySource, appSource, topBarSource] = await Promise.all([
+const [
+  workspaceSource,
+  messageSource,
+  messageStyles,
+  composerSource,
+  historySource,
+  appSource,
+  topBarSource,
+] = await Promise.all([
   readFile(new URL('../src/components/AgentWorkspace.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/AgentMessageCard.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/agent-workspace.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/SkillQuickInputComposer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentSessionHistoryMenu.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
@@ -187,6 +197,18 @@ assert.match(workspaceSource, /aria-relevant="additions text"/);
 assert.match(workspaceSource, /role="status"/);
 assert.match(workspaceSource, /trapNarrowWorkspaceFocus/);
 assert.match(workspaceSource, /proposalStatusKey/);
+assert.match(workspaceSource, /<AgentMessageCard message=\{message\}/);
+assert.match(messageSource, /navigator\.clipboard\.writeText/);
+assert.match(messageSource, /agent-workspace-message-copy/);
+assert.match(messageSource, /agentWorkspace\.copyMessage/);
+assert.match(
+  messageStyles,
+  /\.agent-workspace-message:hover \.agent-workspace-message-copy/,
+);
+assert.match(
+  messageStyles,
+  /\.agent-workspace-message:focus-within \.agent-workspace-message-copy/,
+);
 assert.match(composerSource, /autoFocus=\{autoFocus\}/);
 assert.match(composerSource, /skillComposer\.keyboardHint/);
 assert.match(historySource, /triggerRef\.current\?\.focus/);
