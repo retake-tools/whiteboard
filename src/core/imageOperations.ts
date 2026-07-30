@@ -101,6 +101,7 @@ export interface ImageCodexOperationResult {
 }
 
 interface DraftImageToImageOperationInput {
+  generationParams?: ImageGenerationParams;
   operation: Exclude<ImageCodexOperation, 'annotation_edit' | 'generate_image'>;
   sourceBlockId: string;
   textBlockTitle: string;
@@ -548,7 +549,12 @@ export function createDraftImageToImageOperation(
       promptSourceBlockId: textBlock.blockId,
       connectionId: 'codex-managed',
       generationProfileId: defaultGenerationProfileId,
-      generationParams: generationParamsForSourceImage(snapshot, sourceBlock, undefined, true),
+      generationParams: generationParamsForSourceImage(
+        snapshot,
+        sourceBlock,
+        input.generationParams,
+        true,
+      ),
     },
     createdAt,
     updatedAt: createdAt,

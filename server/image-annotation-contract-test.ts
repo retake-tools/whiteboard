@@ -119,7 +119,7 @@ assert.match(
 );
 assert.match(
   blockNodeSource,
-  /operationInputTargetCapabilityId === 'image\.annotation_edit'/,
+  /if \(!isPending && role === 'source'\) return null;/,
   'Annotation source inputs must hide the redundant source-role badge',
 );
 

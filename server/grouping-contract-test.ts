@@ -28,7 +28,7 @@ assert.match(canvasSource, /function selectConnectedWorkflow[\s\S]*?window\.requ
 assert.match(canvasViewSource, /data-pointer-moving="false"[\s\S]*?onPointerMoveCapture=\{handleCanvasPointerMove\}/);
 assert.match(
   blockNodeSource,
-  /blockType === 'image'[\s\S]*?target\?\.closest\('\.image-preview'\)[\s\S]*?dispatchOpenExecutionInspector\(id\)/,
+  /className="image-preview"[\s\S]*?onDoubleClick=\{\(event\) => \{[\s\S]*?dispatchOpenExecutionInspector\(blockId\)/,
 );
 assert.match(blockNodeSource, /if \(!isPending && role === 'source'\) return null;/);
 assert.match(canvasCss, /\[data-pointer-moving='true'\] \.react-flow__node:not\(\.dragging\)[\s\S]*?cursor: default !important;/);

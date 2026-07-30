@@ -6,6 +6,7 @@ import {
   createDraftImageToImageOperation,
   createDraftTextToImageOperation,
 } from './imageOperations';
+import type { ImageGenerationParams } from './imageOperations';
 import {
   agentSessionWorkingOutputImageBlockIds,
   setAgentSessionWorkingOperation,
@@ -116,19 +117,17 @@ function createAndValidateOperation(
   if (!connectionId) {
     throw new Error('No ready automated Connection is available for the Agent-created Operation.');
   }
-  const generationParams = imageComposerGenerationParams(
-    request.decision.generationParams,
-  );
   const draft = capabilityId === 'image.image_to_image'
     ? createAgentImageToImageDraft(
         snapshot,
         request,
         sourceMessage,
         options,
-        generationParams,
       )
     : createDraftTextToImageOperation(snapshot, {
-        generationParams,
+        generationParams: imageComposerGenerationParams(
+          request.decision.generationParams,
+        ),
         operationTitle: options.operationTitle,
         textBlockBody: request.decision.operationPrompt,
         textBlockPlaceholder: options.promptPlaceholder,
@@ -155,7 +154,6 @@ function createAgentImageToImageDraft(
   request: Extract<AgentOperationExecutionRequest, { kind: 'create_execute' }>,
   sourceMessage: NonNullable<BoardSnapshot['agentMessages']>[number],
   options: AgentOperationApplicationOptions,
-  generationParams: ReturnType<typeof imageComposerGenerationParams>,
 ) {
   const sourceImageBlockId = request.decision.sourceImageBlockId;
   const sourceBinding = request.decision.sourceBinding;
@@ -180,6 +178,9 @@ function createAgentImageToImageDraft(
     throw new Error('Agent-created image edit source is outside the typed message or Session binding.');
   }
   const draft = createDraftImageToImageOperation(snapshot, {
+    generationParams: agentImageToImageGenerationParams(
+      request.decision.generationParams,
+    ),
     operation: 'quick_edit',
     operationTitle: options.imageToImageOperationTitle ?? options.operationTitle,
     sourceBlockId: sourceImage.blockId,
@@ -187,11 +188,31 @@ function createAgentImageToImageDraft(
     textBlockPlaceholder: options.imageToImagePromptPlaceholder,
     textBlockTitle: options.promptTitle,
   });
-  draft.operationBlock.data.generationParams = {
-    ...recordValue(draft.operationBlock.data.generationParams),
-    ...generationParams,
-  };
   return draft;
+}
+
+function agentImageToImageGenerationParams(
+  input: ImageGenerationParams | undefined,
+): ImageGenerationParams {
+  const normalized = imageComposerGenerationParams(input);
+  const explicitlyChangesAspectRatio = (
+    (typeof input?.aspectRatioPreset === 'string'
+      && input.aspectRatioPreset !== 'source')
+    || typeof input?.targetAspectRatio === 'number'
+    || (
+      typeof input?.targetWidth === 'number'
+      && typeof input.targetHeight === 'number'
+    )
+  );
+  if (explicitlyChangesAspectRatio) return normalized;
+  const {
+    aspectRatioPreset: _aspectRatioPreset,
+    targetAspectRatio: _targetAspectRatio,
+    targetHeight: _targetHeight,
+    targetWidth: _targetWidth,
+    ...sourcePreservingParams
+  } = normalized;
+  return sourcePreservingParams;
 }
 
 function sessionWorkingOutputImages(
@@ -203,12 +224,6 @@ function sessionWorkingOutputImages(
   )?.workingOperation?.operationBlockId;
   if (!operationBlockId) return [];
   return agentSessionWorkingOutputImageBlockIds(snapshot, operationBlockId);
-}
-
-function recordValue(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
 }
 
 function updateAndValidateExistingOperation(

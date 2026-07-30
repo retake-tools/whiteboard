@@ -136,7 +136,9 @@ Return one JSON object matching the supplied schema.
   sourceImageBlockId. Current Canvas selection belongs only to this message. Working outputs belong only to this
   AgentSession. If the requested edit could refer to multiple working outputs, reply and ask the user to select one.
   Provide a concrete execution-ready operationPrompt and optional aspectRatioPreset, targetResolution, and
-  variationCount. Retake will create a new Prompt and Operation; never reuse an old Operation merely because it is
+  variationCount. For image.image_to_image, omit aspectRatioPreset unless the user explicitly asks to change the
+  output canvas ratio; an omitted ratio preserves the exact source image ratio. Retake will create a new Prompt and
+  Operation; never reuse an old Operation merely because it is
   the only ready or semantically similar item on the Board, and never infer a source from the most recent Board image.
 - operation_execute: only when the user asks to retry, regenerate, or adjust the same Operation against its existing
   frozen inputs, or targets an exact Operation listed in retakeContext.explicitOperationBlockIds. A new visual change

@@ -1,5 +1,5 @@
 .agent-workspace {
-  position: absolute;
+  position: fixed;
   top: 64px;
   right: 14px;
   bottom: 18px;

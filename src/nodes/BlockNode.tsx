@@ -558,7 +558,15 @@ function BlockBody({
     }
 
     return (
-      <div className="image-preview">
+      <div
+        className="image-preview"
+        onDoubleClick={(event) => {
+          if (!hasExecutionDetails(data)) return;
+          dispatchOpenExecutionInspector(blockId);
+          event.preventDefault();
+          event.stopPropagation();
+        }}
+      >
         <img src={data.previewUrl} alt={title} />
         <ResultBatchBadge data={data} />
         {hasExecutionDetails(data) ? (

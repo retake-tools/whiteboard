@@ -66,6 +66,7 @@ assert.match(portSource, /sandbox: 'read-only'/);
 assert.match(portSource, /Do not call tools/);
 assert.match(portSource, /new cumulative edit/);
 assert.match(portSource, /must use operation_create_execute instead/);
+assert.match(portSource, /an omitted ratio preserves the exact source image ratio/);
 assert.doesNotMatch(portSource, /saveSnapshot|createBlock|projectWorkflowDraft/);
 assert.match(appServerSource, /thread\/resume/);
 assert.doesNotMatch(appServerSource, /excludeTurns/);
@@ -371,6 +372,12 @@ assert.equal(
 const imageEditSnapshot = await emptySnapshot();
 const selectedSourceImage = addTestImageBlock(imageEditSnapshot, 'Selected source');
 const unrelatedImage = addTestImageBlock(imageEditSnapshot, 'Unrelated image');
+const selectedSourceAsset = imageEditSnapshot.assets.find(
+  (asset) => asset.assetId === selectedSourceImage.data.assetId,
+);
+assert.ok(selectedSourceAsset);
+selectedSourceAsset.width = 1024;
+selectedSourceAsset.height = 1536;
 const imageEditSession = createAgentSession(
   imageEditSnapshot,
   { model: 'test-model' },
@@ -442,6 +449,12 @@ const selectedEditOperation = selectedImageApplication.stagedSnapshot.blocks.fin
   (block) => block.blockId === selectedImageApplication.receipt.operationBlockId,
 );
 assert.equal(selectedEditOperation?.data.capabilityId, 'image.image_to_image');
+assert.deepEqual(selectedEditOperation?.data.generationParams, {
+  aspectRatioPreset: 'source',
+  targetAspectRatio: 2 / 3,
+  targetResolution: '2K',
+  variationCount: 1,
+});
 assert.ok(
   selectedImageApplication.stagedSnapshot.edges.some(
     (edge) =>
