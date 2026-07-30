@@ -1,4 +1,4 @@
-import { AlertCircle, Check, ChevronRight, Clipboard, FileText, Loader2, Play, RefreshCw } from 'lucide-react';
+import { AlertCircle, Bot, Check, ChevronRight, Clipboard, FileText, Loader2, Play, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { operationReadinessMessageKey, schemaForCapability } from '../core/capabilities';
 import { isTextDocumentCapability } from '../core/capabilityRegistry';
@@ -536,6 +536,19 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
       ) : null}
       <button
         type="button"
+        className="operation-agent-button"
+        disabled={isLocked}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          dispatchBindAgentOperation(blockId);
+        }}
+      >
+        <Bot size={14} />
+        {t('operationToolbar.continueInAgent')}
+      </button>
+      <button
+        type="button"
         className={`operation-run-button ${isRunning ? 'is-running' : ''} ${isQueued ? 'is-queued' : ''}`}
         aria-describedby={showReadinessIssue ? readinessId : undefined}
         disabled={runDisabled}
@@ -665,6 +678,12 @@ function ParameterGroup({
 function dispatchRunOperation(blockId: string, queuedConfigurationStale: boolean): void {
   window.dispatchEvent(new CustomEvent('retake:run-operation', {
     detail: { blockId, queuedConfigurationStale },
+  }));
+}
+
+function dispatchBindAgentOperation(blockId: string): void {
+  window.dispatchEvent(new CustomEvent('retake:bind-agent-operation', {
+    detail: { blockId },
   }));
 }
 

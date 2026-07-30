@@ -20,6 +20,9 @@ export function AgentMessageCard({
   const { t } = useI18n();
   const [isCopied, setIsCopied] = useState(false);
   const copiedTimerRef = useRef<number | undefined>(undefined);
+  const visibleContextRefs = message.contextRefs.filter(
+    (ref) => ref.kind !== 'operation_receipt',
+  );
 
   useEffect(() => () => {
     if (copiedTimerRef.current) window.clearTimeout(copiedTimerRef.current);
@@ -54,8 +57,8 @@ export function AgentMessageCard({
         {isCopied ? <Check size={13} /> : <Clipboard size={13} />}
       </TooltipIconButton>
       <p>{message.content}</p>
-      {message.contextRefs.length > 0 ? (
-        <small>{message.contextRefs.map(contextRefLabel).join(' · ')}</small>
+      {visibleContextRefs.length > 0 ? (
+        <small>{visibleContextRefs.map(contextRefLabel).join(' · ')}</small>
       ) : null}
     </article>
   );
@@ -81,6 +84,10 @@ async function copyTextToClipboard(text: string): Promise<void> {
 function contextRefLabel(ref: AgentMessageContextRef): string {
   if (ref.kind === 'entrypoint') return `/${ref.entrypointId}`;
   if (ref.kind === 'agent_run') return `Run ${ref.agentRunId.slice(-8)}`;
+  if (ref.kind === 'operation') return `Operation ${ref.operationBlockId.slice(-8)}`;
+  if (ref.kind === 'operation_receipt') {
+    return `${ref.action === 'created' ? 'Created' : 'Continued'} Operation ${ref.operationBlockId.slice(-8)}`;
+  }
   if (ref.kind === 'inline') return `${ref.slotId}: ${inlineValueSummary(ref.value)}`;
   if (ref.kind === 'parameters') return invocationParameterSummary(ref.value);
   if (ref.kind === 'block') return `@Block ${ref.blockId.slice(-8)}`;

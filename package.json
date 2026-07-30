@@ -120,7 +120,7 @@
     "agent-e2e-v1-2:ui-fixture": "RETAKE_WORKSPACE_DIR=.retake-test-agent-e2e-v1-2-ui tsx server/agent-e2e-v1-2-ui-fixture.ts",
     "agent-e2e-v1-3:live-fixture": "RETAKE_WORKSPACE_DIR=.retake-test-agent-e2e-v1-3 tsx server/agent-e2e-v1-3-live-fixture.ts",
     "agent-board-read-model-v1-4:live": "RETAKE_WORKSPACE_DIR=.retake-test-agent-board-read-model-v1-4 tsx server/agent-board-read-model-v1-4-live-test.ts",
-    "agent-operation-execution-v0:live": "RETAKE_WORKSPACE_DIR=.retake-test-agent-operation-execution-v0 tsx server/agent-operation-execution-v0-live-test.ts",
+    "agent-operation-intent-v1:live": "RETAKE_WORKSPACE_DIR=.retake-test-agent-operation-intent-v1 tsx server/agent-operation-intent-routing-v1-live-test.ts",
     "agent-entrypoint-proposal-v0:test": "RETAKE_WORKSPACE_DIR=.retake-test-agent-entrypoint-proposal-v0 tsx server/agent-entrypoint-proposal-runtime-v0-test.ts",
     "agent-draft-launch-v0:test": "RETAKE_WORKSPACE_DIR=.retake-test-agent-draft-launch-v0 tsx server/agent-draft-launch-runtime-v0-test.ts",
     "agent-preset-v0:test": "RETAKE_WORKSPACE_DIR=.retake-test-agent-preset-v0 tsx server/agent-preset-runtime-v0-test.ts",

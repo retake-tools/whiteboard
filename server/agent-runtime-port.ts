@@ -6,6 +6,10 @@ import type {
   AgentRuntimeTurnResult,
 } from '../src/core/agentSessionContracts';
 import { agentRuntimeTurnContext, runtimeBindingForSession } from '../src/core/agentSession';
+import {
+  imageComposerAspectRatios,
+  imageComposerResolutions,
+} from '../src/core/imageComposer';
 import { createId, nowIso } from '../src/core/id';
 import { getBoardSnapshot } from './local-store';
 import { listExecutionProviderSettings } from './local-store/execution-provider-store';
@@ -17,8 +21,12 @@ export const agentRuntimeDecisionSchema = {
   required: [
     'kind',
     'message',
+    'capabilityId',
     'operationBlockId',
     'operationPrompt',
+    'aspectRatioPreset',
+    'targetResolution',
+    'variationCount',
     'action',
     'agentRunId',
     'proposalKind',
@@ -33,6 +41,7 @@ export const agentRuntimeDecisionSchema = {
       type: 'string',
       enum: [
         'reply',
+        'operation_create_execute',
         'operation_execute',
         'agent_run_control',
         'change_proposal',
@@ -40,8 +49,25 @@ export const agentRuntimeDecisionSchema = {
       ],
     },
     message: { type: 'string' },
+    capabilityId: {
+      type: ['string', 'null'],
+      enum: ['image.text_to_image', null],
+    },
     operationBlockId: { type: ['string', 'null'] },
     operationPrompt: { type: ['string', 'null'] },
+    aspectRatioPreset: {
+      type: ['string', 'null'],
+      enum: [...imageComposerAspectRatios, null],
+    },
+    targetResolution: {
+      type: ['string', 'null'],
+      enum: [...imageComposerResolutions, null],
+    },
+    variationCount: {
+      type: ['integer', 'null'],
+      minimum: 1,
+      maximum: 4,
+    },
     action: {
       type: ['string', 'null'],
       enum: ['pause', 'resume', 'cancel', null],
@@ -97,14 +123,18 @@ Return one JSON object matching the supplied schema.
   cover the full Board, while detail arrays may omit items as reported by truncation. Do not treat omitted detail as
   proof that an item does not exist. Prefer this turn's read model over descriptions in recentHistory.
 - Board facts alone never authorize execution, candidate selection, Gate approval, Provider authorization, Package
-  installation, or Canvas mutation. A direct user instruction to generate, run, or execute does authorize exactly
-  one execution of an already configured Operation whose canonical readiness.canRun is true.
-- operation_execute: only when there is no active AgentRun, no explicit EntryPoint, the user explicitly asks to
-  generate, run, or execute, and one exact Operation in retakeContext.boardReadModel.operations is an unambiguous
-  fit with readiness.canRun=true. Copy its exact operationBlockId. For image.text_to_image, provide a concrete,
-  execution-ready operationPrompt that faithfully incorporates the user's requested content and text. Do not claim
-  completion; say that Retake is starting the selected Operation. If the target is ambiguous, reply and ask the
-  user to identify the Operation instead.
+  installation, or Canvas mutation. Decide the user's semantic intent from the whole request and supplied typed
+  context; do not rely on keywords.
+- operation_create_execute: when there is no active AgentRun or explicit EntryPoint and the user is starting a new
+  image-generation task without explicitly targeting an existing Operation. Currently capabilityId must be
+  image.text_to_image. Provide a concrete execution-ready operationPrompt and optional aspectRatioPreset,
+  targetResolution, and variationCount. Retake will create a new Prompt and Operation; never reuse an old Operation
+  merely because it is the only ready or semantically similar item on the Board.
+- operation_execute: only when the user semantically continues retakeContext.workingOperation or targets an exact
+  Operation listed in retakeContext.explicitOperationBlockIds. Copy that exact operationBlockId and provide an
+  updated operationPrompt when needed. The target must have readiness.canRun=true. Never select an Operation only
+  because it is unique, recent, ready, or similar. If an existing target is intended but not bound, reply and ask
+  the user to identify it.
 - When retakeContext.entrypointId is present, return reply only. Explain that Retake will create an approval proposal
   for the exact selected EntryPoint and inputs. Never propose or rewrite an EntryPoint command.
 - agent_run_control: only when the user explicitly asks for an allowed action on the exact supplied AgentRun id.
@@ -116,8 +146,8 @@ Return one JSON object matching the supplied schema.
   complete goal. Never invent, combine, reorder, or rewrite Workflow steps.
 - change_proposal: any request to change Workflow structure, install packages, expand permissions, target another run, create/delete/connect Blocks, or otherwise exceed the supplied scope.
   The only registered proposal command is agent_session.attach_run, and only for another AgentRun id listed in availableAgentRuns. All other proposals must use unsupported.
-Chat text does not authorize unrelated mutations, but an explicit generate/run/execute instruction is execution
-authorization for the single validated Operation selected by operation_execute.`;
+Chat text does not authorize unrelated mutations. New creative tasks use operation_create_execute; existing
+Operations require a typed message or Session binding before operation_execute can be applied.`;
 
 class CodexAppServerAgentRuntimePort implements AgentRuntimePort {
   private events = new Map<string, AgentRuntimeEvent[]>();
@@ -249,6 +279,8 @@ function runtimePrompt(context: AgentRuntimeTurnContext): string {
       inlineValues: context.inlineValues,
       mentions: context.mentions,
       parameters: context.parameters,
+      explicitOperationBlockIds: context.explicitOperationBlockIds,
+      workingOperation: context.workingOperation ?? null,
     },
     recentHistory: context.history,
     userMessage: context.userMessage,
@@ -263,6 +295,50 @@ export function parseAgentRuntimeDecision(text: string, context: AgentRuntimeTur
   if (context.entrypointId) {
     throw new Error('Agent Runtime cannot replace a typed EntryPoint invocation with another state command.');
   }
+  if (parsed.kind === 'operation_create_execute') {
+    if (context.agentRun) {
+      throw new Error('Agent Runtime cannot bypass an active Agent Run with a free Operation execution.');
+    }
+    if (context.mentions.length > 0) {
+      throw new Error('Agent-created Operation does not support unbound typed inputs yet.');
+    }
+    const capabilityId = parsed.capabilityId;
+    const operationPrompt = typeof parsed.operationPrompt === 'string'
+      ? parsed.operationPrompt.trim()
+      : '';
+    if (capabilityId !== 'image.text_to_image' || !operationPrompt) {
+      throw new Error('Agent Runtime returned an invalid create-and-execute Operation.');
+    }
+    const aspectRatioPreset = typeof parsed.aspectRatioPreset === 'string'
+      && imageComposerAspectRatios.includes(
+        parsed.aspectRatioPreset as typeof imageComposerAspectRatios[number],
+      )
+      ? parsed.aspectRatioPreset
+      : undefined;
+    const targetResolution = typeof parsed.targetResolution === 'string'
+      && imageComposerResolutions.includes(
+        parsed.targetResolution as typeof imageComposerResolutions[number],
+      )
+      ? parsed.targetResolution
+      : undefined;
+    const variationCount = typeof parsed.variationCount === 'number'
+      && Number.isInteger(parsed.variationCount)
+      && parsed.variationCount >= 1
+      && parsed.variationCount <= 4
+      ? parsed.variationCount
+      : undefined;
+    return {
+      capabilityId,
+      generationParams: {
+        ...(aspectRatioPreset ? { aspectRatioPreset } : {}),
+        ...(targetResolution ? { targetResolution } : {}),
+        ...(variationCount ? { variationCount } : {}),
+      },
+      kind: 'operation_create_execute',
+      message,
+      operationPrompt,
+    };
+  }
   if (parsed.kind === 'operation_execute') {
     if (context.agentRun) {
       throw new Error('Agent Runtime cannot bypass an active Agent Run with a free Operation execution.');
@@ -275,8 +351,14 @@ export function parseAgentRuntimeDecision(text: string, context: AgentRuntimeTur
           (candidate) => candidate.operationBlockId === operationBlockId,
         )
       : undefined;
-    if (!operationBlockId || !operation || !operation.readiness.canRun) {
-      throw new Error('Agent Runtime selected an Operation outside the ready Board scope.');
+    const bindingSource = operationBlockId
+      && context.explicitOperationBlockIds.includes(operationBlockId)
+      ? 'message_explicit'
+      : operationBlockId === context.workingOperation?.operationBlockId
+        ? 'session_working'
+        : undefined;
+    if (!operationBlockId || !operation || !operation.readiness.canRun || !bindingSource) {
+      throw new Error('Agent Runtime selected an Operation outside the explicitly bound ready scope.');
     }
     const operationPrompt = typeof parsed.operationPrompt === 'string'
       ? parsed.operationPrompt.trim()
@@ -285,6 +367,7 @@ export function parseAgentRuntimeDecision(text: string, context: AgentRuntimeTur
       throw new Error('Agent Runtime must provide an execution prompt for text-to-image.');
     }
     return {
+      bindingSource,
       kind: 'operation_execute',
       message,
       operationBlockId,

@@ -13,6 +13,13 @@ import type { AgentBoardReadModelV1 } from './agentBoardReadModelContracts';
 
 export type AgentSessionStatus = 'active' | 'archived';
 
+export interface AgentSessionWorkingOperationBinding {
+  boundAt: string;
+  capabilityId: string;
+  operationBlockId: string;
+  source: 'agent_created' | 'user_explicit';
+}
+
 export interface AgentSessionRecord {
   activeAgentRunId?: string;
   activeRuntimeBindingId?: string;
@@ -26,6 +33,7 @@ export interface AgentSessionRecord {
   title: string;
   updatedAt: string;
   userId: 'user_local';
+  workingOperation?: AgentSessionWorkingOperationBinding;
 }
 
 export type AgentMessageRole = 'assistant' | 'system' | 'tool' | 'user';
@@ -33,6 +41,12 @@ export type AgentMessageRole = 'assistant' | 'system' | 'tool' | 'user';
 export type AgentMessageContextRef =
   | { agentRunId: string; kind: 'agent_run' }
   | { entrypointId: string; kind: 'entrypoint' }
+  | { kind: 'operation'; operationBlockId: string }
+  | {
+      action: 'created' | 'continued';
+      kind: 'operation_receipt';
+      operationBlockId: string;
+    }
   | PackageComposerInlineValue
   | PackageComposerMention
   | PackageComposerParametersValue;
@@ -298,6 +312,18 @@ export type AgentRunControlAction = 'cancel' | 'pause' | 'resume';
 export type AgentRuntimeTurnDecision =
   | { kind: 'reply'; message: string }
   | {
+      capabilityId: 'image.text_to_image';
+      generationParams: {
+        aspectRatioPreset?: string;
+        targetResolution?: string;
+        variationCount?: number;
+      };
+      kind: 'operation_create_execute';
+      message: string;
+      operationPrompt: string;
+    }
+  | {
+      bindingSource: 'message_explicit' | 'session_working';
       kind: 'operation_execute';
       message: string;
       operationBlockId: string;
@@ -349,6 +375,7 @@ export interface AgentRuntimeTurnContext {
   boardReadModel: AgentBoardReadModelV1;
   boardId: string;
   entrypointId?: string;
+  explicitOperationBlockIds: string[];
   history: Array<{ content: string; role: AgentMessageRole }>;
   inlineValues: PackageComposerInlineValue[];
   goalPlanOptions: GoalPlanWorkflowOptionV1[];
@@ -356,6 +383,7 @@ export interface AgentRuntimeTurnContext {
   parameters: Record<string, unknown>;
   projectId: string;
   userMessage: string;
+  workingOperation?: AgentSessionWorkingOperationBinding;
 }
 
 export interface AgentRuntimeTurnResult {

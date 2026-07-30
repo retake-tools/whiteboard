@@ -554,6 +554,13 @@ function ReadyApp({
     addOperationInputBlock,
     directImageImportInputRef,
     isMiniMapVisible,
+    onBindAgentOperation: (operationBlockId) => {
+      agentWorkspaceController.bindWorkingOperation(operationBlockId);
+      setInspectorBlockId(undefined);
+      setIsHistoryOpen(false);
+      setIsArtifactLibraryOpen(false);
+      setIsAgentWorkspaceOpen(true);
+    },
     pendingDirectImageImportBlockIdRef,
     retryFailedImageResult,
     setHistoryOpen: setIsHistoryOpen,

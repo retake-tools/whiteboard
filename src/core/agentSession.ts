@@ -9,6 +9,7 @@ import type {
   AgentRuntimeTurnContext,
   AgentRuntimeTurnDecision,
   AgentSessionRecord,
+  AgentSessionWorkingOperationBinding,
   ChangeProposalRecord,
 } from './agentSessionContracts';
 import type {
@@ -147,14 +148,6 @@ export function applyAgentRuntimeTurn(
   touchVersioned(binding);
 
   let proposal: ChangeProposalRecord | undefined;
-  const operationExecution = input.decision.kind === 'operation_execute'
-    ? {
-        operationBlockId: input.decision.operationBlockId,
-        ...(input.decision.operationPrompt
-          ? { operationPrompt: input.decision.operationPrompt }
-          : {}),
-      }
-    : undefined;
   const explicitEntrypoint = source.contextRefs.find((ref) => ref.kind === 'entrypoint');
   if (explicitEntrypoint) {
     if (input.decision.kind !== 'reply') {
@@ -189,6 +182,24 @@ export function applyAgentRuntimeTurn(
   };
   snapshot.agentMessages ??= [];
   snapshot.agentMessages.push(assistantMessage);
+  const operationExecution: AgentOperationExecutionRequest | undefined =
+    input.decision.kind === 'operation_create_execute'
+      ? {
+          agentSessionId: session.agentSessionId,
+          assistantMessageId: assistantMessage.agentMessageId,
+          decision: input.decision,
+          kind: 'create_execute',
+          sourceMessageId: source.agentMessageId,
+        }
+      : input.decision.kind === 'operation_execute'
+        ? {
+            agentSessionId: session.agentSessionId,
+            assistantMessageId: assistantMessage.agentMessageId,
+            decision: input.decision,
+            kind: 'execute_existing',
+            sourceMessageId: source.agentMessageId,
+          }
+        : undefined;
   touchSession(session);
   return {
     assistantMessage,
@@ -229,6 +240,35 @@ export function setAgentSessionRun(
   return session;
 }
 
+export function setAgentSessionWorkingOperation(
+  snapshot: BoardSnapshot,
+  agentSessionId: string,
+  input?: {
+    operationBlockId: string;
+    source: AgentSessionWorkingOperationBinding['source'];
+  },
+): AgentSessionRecord {
+  const session = requireActiveSession(snapshot, agentSessionId);
+  if (!input) {
+    delete session.workingOperation;
+    touchSession(session);
+    return session;
+  }
+  const operation = requireScopedOperation(snapshot, input.operationBlockId);
+  const capabilityId = typeof operation.data.capabilityId === 'string'
+    ? operation.data.capabilityId
+    : '';
+  if (!capabilityId) throw new Error('Agent working Operation has no Capability.');
+  session.workingOperation = {
+    boundAt: nowIso(),
+    capabilityId,
+    operationBlockId: operation.blockId,
+    source: input.source,
+  };
+  touchSession(session);
+  return session;
+}
+
 export function agentRuntimeTurnContext(
   snapshot: BoardSnapshot,
   agentSessionId: string,
@@ -243,7 +283,10 @@ export function agentRuntimeTurnContext(
   const mentions = message.contextRefs.filter((ref) => ref.kind === 'block' || ref.kind === 'asset');
   const inlineValues = message.contextRefs.filter((ref) => ref.kind === 'inline');
   const parameters = message.contextRefs.find((ref) => ref.kind === 'parameters');
+  const explicitOperationBlockIds = message.contextRefs.flatMap((ref) =>
+    ref.kind === 'operation' ? [ref.operationBlockId] : []);
   const run = session.activeAgentRunId ? requireScopedAgentRun(snapshot, session.activeAgentRunId) : undefined;
+  const workingOperation = scopedWorkingOperation(snapshot, session);
   return {
     ...(run ? {
       agentRun: {
@@ -276,11 +319,16 @@ export function agentRuntimeTurnContext(
       })),
     boardReadModel: buildAgentBoardReadModel(snapshot, {
       ...(run ? { activeAgentRun: run } : {}),
-      mentionedBlockIds: mentions.flatMap((mention) =>
-        mention.kind === 'block' ? [mention.blockId] : []),
+      mentionedBlockIds: [
+        ...mentions.flatMap((mention) =>
+          mention.kind === 'block' ? [mention.blockId] : []),
+        ...explicitOperationBlockIds,
+        ...(workingOperation ? [workingOperation.operationBlockId] : []),
+      ],
     }),
     boardId: snapshot.board.boardId,
     ...(entrypoint?.kind === 'entrypoint' ? { entrypointId: entrypoint.entrypointId } : {}),
+    explicitOperationBlockIds,
     history: messagesForSession(snapshot, agentSessionId)
       .filter((candidate) => candidate.agentMessageId !== sourceMessageId)
       .slice(-20)
@@ -293,6 +341,7 @@ export function agentRuntimeTurnContext(
     parameters: parameters?.kind === 'parameters' ? structuredClone(parameters.value) : {},
     projectId: snapshot.project.projectId,
     userMessage: message.content,
+    ...(workingOperation ? { workingOperation } : {}),
   };
 }
 
@@ -483,6 +532,10 @@ function assertContextRefs(
     if (ref.kind === 'agent_run') {
       if (session.activeAgentRunId !== ref.agentRunId) throw new Error('Agent message Agent Run ref is outside Session scope.');
       requireScopedAgentRun(snapshot, ref.agentRunId);
+    } else if (ref.kind === 'operation') {
+      requireScopedOperation(snapshot, ref.operationBlockId);
+    } else if (ref.kind === 'operation_receipt') {
+      throw new Error('Agent message Operation receipt is reserved for the Host.');
     } else if (ref.kind === 'block') {
       const block = snapshot.blocks.find((candidate) => candidate.blockId === ref.blockId);
       if (!block || block.boardId !== session.boardId) throw new Error('Agent message Block ref is outside Session scope.');
@@ -522,6 +575,35 @@ function requireScopedAgentRun(snapshot: BoardSnapshot, agentRunId: string) {
     throw new Error(`Agent Run is outside the current Board scope: ${agentRunId}`);
   }
   return run;
+}
+
+function requireScopedOperation(snapshot: BoardSnapshot, operationBlockId: string) {
+  const operation = snapshot.blocks.find(
+    (candidate) =>
+      candidate.blockId === operationBlockId
+      && candidate.boardId === snapshot.board.boardId
+      && candidate.type === 'operation',
+  );
+  if (!operation) {
+    throw new Error(`Operation is outside the current Board scope: ${operationBlockId}`);
+  }
+  return operation;
+}
+
+function scopedWorkingOperation(
+  snapshot: BoardSnapshot,
+  session: AgentSessionRecord,
+): AgentSessionWorkingOperationBinding | undefined {
+  const binding = session.workingOperation;
+  if (!binding) return undefined;
+  const operation = snapshot.blocks.find(
+    (candidate) =>
+      candidate.blockId === binding.operationBlockId
+      && candidate.boardId === session.boardId
+      && candidate.type === 'operation',
+  );
+  if (!operation || operation.data.capabilityId !== binding.capabilityId) return undefined;
+  return structuredClone(binding);
 }
 
 function latestBoardAgentRun(snapshot: BoardSnapshot) {

@@ -12,10 +12,11 @@ import {
   runtimeEventsForSession,
   runtimeBindingForSession,
   setAgentSessionRun,
+  setAgentSessionWorkingOperation,
 } from '../src/core/agentSession';
 import { appendAgentRuntimeEvent, decideChangeProposal } from '../src/core/agentChangeApplication';
 import { cancelAgentRun, createAgentRunForOperation, startAgentRun } from '../src/core/agentRuntime';
-import { applyAgentOperationExecutionRequest } from '../src/core/agentOperationExecution';
+import { stageAgentOperationExecution } from '../src/core/agentOperationExecution';
 import { createDraftTextToImageOperation } from '../src/core/imageOperations';
 import { createDraftSkillOperation } from '../src/core/textOperations';
 import type { BoardSnapshot } from '../src/core/types';
@@ -33,6 +34,9 @@ const [
   apiSource,
   runtimeClientSource,
   canvasControllerSource,
+  operationCardSource,
+  appEventBindingsSource,
+  operationControlsSource,
 ] = await Promise.all([
   readFile(new URL('./agent-runtime-port.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentWorkspace.tsx', import.meta.url), 'utf8'),
@@ -43,6 +47,9 @@ const [
   readFile(new URL('./vite-local-api.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/core/agentRuntimeClient.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/useCanvasController.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/AgentOperationRunCard.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/app/useAppEventBindings.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/nodes/OperationInlineControls.tsx', import.meta.url), 'utf8'),
 ]);
 
 assert.match(portSource, /implements AgentRuntimePort/);
@@ -58,6 +65,9 @@ assert.doesNotMatch(workspaceSource, /\['chat', 'run', 'changes'\]/);
 assert.doesNotMatch(workspaceSource, /agentWorkspace\.createSession/);
 assert.match(workspaceSource, /AgentSessionHistoryMenu/);
 assert.match(workspaceSource, /AgentRunSummaryCard/);
+assert.match(workspaceSource, /AgentOperationRunCard/);
+assert.match(operationCardSource, /latestExecutionForOperation/);
+assert.match(operationCardSource, /currentExecutionProviderSettings/);
 assert.match(composerSource, /<SkillQuickInputComposer/);
 assert.match(composerSource, /mode="agent"/);
 assert.doesNotMatch(composerSource, /onInvokeEntryPoint/);
@@ -65,7 +75,7 @@ assert.match(sharedComposerSource, /listPackageEntryPoints/);
 assert.match(sharedComposerSource, /listPackageComposerMentionOptions/);
 assert.match(controllerSource, /persistSnapshot\(withUserMessage, \{ requireLocalApi: true \}\)/);
 assert.match(controllerSource, /applyAgentRuntimeTurn/);
-assert.match(controllerSource, /applyAgentOperationExecutionRequest/);
+assert.match(controllerSource, /stageAgentOperationExecution/);
 assert.match(controllerSource, /retake:run-operation/);
 assert.match(controllerSource, /revealOnStart: true/);
 assert.match(
@@ -74,6 +84,9 @@ assert.match(
 );
 assert.match(controllerSource, /ensureDefaultAgentSession/);
 assert.match(controllerSource, /const agentSessionId = selectedSessionId \?\? ensureDefaultSession\(\)/);
+assert.match(controllerSource, /setAgentSessionWorkingOperation/);
+assert.match(appEventBindingsSource, /retake:bind-agent-operation/);
+assert.match(operationControlsSource, /dispatchBindAgentOperation/);
 assert.match(apiSource, /application\/x-ndjson/);
 assert.match(runtimeClientSource, /response\.body\.getReader/);
 assert.equal(agentRuntimeDecisionSchema.type, 'object');
@@ -127,7 +140,7 @@ assert.throws(
 );
 
 const operationSnapshot = await emptySnapshot();
-const operationDraft = createDraftTextToImageOperation(operationSnapshot, {
+const legacyOperationDraft = createDraftTextToImageOperation(operationSnapshot, {
   operationTitle: 'Generate image',
   textBlockBody: 'Old prompt.',
   textBlockTitle: 'Prompt',
@@ -147,10 +160,13 @@ const operationContext = agentRuntimeTurnContext(
   operationMessage.agentMessageId,
 );
 const operationDecision = parseAgentRuntimeDecision(JSON.stringify({
-  kind: 'operation_execute',
-  message: '正在使用当前文生图 Operation 生成海报。',
-  operationBlockId: operationDraft.operationBlock.blockId,
+  aspectRatioPreset: '9:16',
+  capabilityId: 'image.text_to_image',
+  kind: 'operation_create_execute',
+  message: '正在为这个新任务创建文生图 Operation。',
   operationPrompt: '温馨现代客厅，落地灯为主体，海报文字：让一盏灯，点亮家的温度。',
+  targetResolution: '2K',
+  variationCount: 2,
 }), operationContext);
 const operationTurn = applyAgentRuntimeTurn(operationSnapshot, {
   agentSessionId: operationSession.agentSessionId,
@@ -160,35 +176,226 @@ const operationTurn = applyAgentRuntimeTurn(operationSnapshot, {
   runtimeTurnId: 'turn_operation_execute',
   sourceMessageId: operationMessage.agentMessageId,
 });
-assert.equal(
-  operationTurn.operationExecution?.operationBlockId,
-  operationDraft.operationBlock.blockId,
-);
-applyAgentOperationExecutionRequest(
+assert.equal(operationTurn.operationExecution?.kind, 'create_execute');
+const createdApplication = stageAgentOperationExecution(
   operationSnapshot,
   operationTurn.operationExecution!,
+  {
+    connectionIdForCapability: () => 'codex-app-server',
+    operationTitle: 'Generate image',
+    promptTitle: 'Prompt',
+  },
 );
 assert.equal(
-  operationDraft.textBlock.data.body,
+  legacyOperationDraft.textBlock.data.body,
+  'Old prompt.',
+  'A new Agent task must not overwrite the old Operation prompt',
+);
+const createdOperation = createdApplication.stagedSnapshot.blocks.find(
+  (block) => block.blockId === createdApplication.receipt.operationBlockId,
+);
+const createdPrompt = createdApplication.stagedSnapshot.blocks.find(
+  (block) => block.blockId === createdApplication.receipt.promptBlockId,
+);
+assert.equal(createdApplication.receipt.action, 'created');
+assert.notEqual(createdOperation?.blockId, legacyOperationDraft.operationBlock.blockId);
+assert.equal(
+  createdPrompt?.data.body,
   '温馨现代客厅，落地灯为主体，海报文字：让一盏灯，点亮家的温度。',
 );
-const blockedOperationSnapshot = structuredClone(operationSnapshot);
+assert.equal(
+  createdApplication.stagedSnapshot.agentSessions?.find(
+    (candidate) => candidate.agentSessionId === operationSession.agentSessionId,
+  )?.workingOperation?.operationBlockId,
+  createdApplication.receipt.operationBlockId,
+);
+assert.deepEqual(
+  createdApplication.stagedSnapshot.agentMessages?.find(
+    (message) => message.agentMessageId === operationTurn.assistantMessage.agentMessageId,
+  )?.contextRefs.find((ref) => ref.kind === 'operation_receipt'),
+  {
+    action: 'created',
+    kind: 'operation_receipt',
+    operationBlockId: createdApplication.receipt.operationBlockId,
+  },
+);
+
+const continuationMessage = appendAgentUserMessage(
+  createdApplication.stagedSnapshot,
+  operationSession.agentSessionId,
+  { content: '沿用刚才的任务，再来一版更克制的构图。' },
+);
+const continuationContext = agentRuntimeTurnContext(
+  createdApplication.stagedSnapshot,
+  operationSession.agentSessionId,
+  continuationMessage.agentMessageId,
+);
+assert.equal(
+  continuationContext.workingOperation?.operationBlockId,
+  createdApplication.receipt.operationBlockId,
+);
+assert.ok(
+  continuationContext.boardReadModel.operations.some(
+    (operation) => operation.operationBlockId === createdApplication.receipt.operationBlockId,
+  ),
+  'The working Operation must remain in the bounded Board read-model details',
+);
+const continuationDecision = parseAgentRuntimeDecision(JSON.stringify({
+  kind: 'operation_execute',
+  message: '继续当前会话绑定的文生图 Operation。',
+  operationBlockId: createdApplication.receipt.operationBlockId,
+  operationPrompt: '温馨现代客厅，落地灯为主体，使用更克制的留白构图。',
+}), continuationContext);
+assert.equal(
+  continuationDecision.kind === 'operation_execute'
+    ? continuationDecision.bindingSource
+    : undefined,
+  'session_working',
+);
+const continuationTurn = applyAgentRuntimeTurn(createdApplication.stagedSnapshot, {
+  agentSessionId: operationSession.agentSessionId,
+  decision: continuationDecision,
+  externalThreadId: 'thread_operation_execute',
+  runtimeModel: 'test-model',
+  runtimeTurnId: 'turn_operation_continue',
+  sourceMessageId: continuationMessage.agentMessageId,
+});
+const continuedApplication = stageAgentOperationExecution(
+  createdApplication.stagedSnapshot,
+  continuationTurn.operationExecution!,
+  {
+    connectionIdForCapability: () => 'codex-app-server',
+    operationTitle: 'Generate image',
+    promptTitle: 'Prompt',
+  },
+);
+assert.equal(continuedApplication.receipt.action, 'continued');
+assert.equal(continuedApplication.receipt.createdBlockIds.length, 0);
+assert.equal(
+  continuedApplication.stagedSnapshot.blocks.find(
+    (block) => block.blockId === createdApplication.receipt.promptBlockId,
+  )?.data.body,
+  '温馨现代客厅，落地灯为主体，使用更克制的留白构图。',
+);
+assert.equal(
+  continuedApplication.stagedSnapshot.agentMessages?.find(
+    (message) => message.agentMessageId === continuationTurn.assistantMessage.agentMessageId,
+  )?.contextRefs.find((ref) => ref.kind === 'operation_receipt')?.kind,
+  'operation_receipt',
+);
+assert.throws(
+  () => parseAgentRuntimeDecision(JSON.stringify({
+    kind: 'operation_execute',
+    message: '执行旧 Operation。',
+    operationBlockId: legacyOperationDraft.operationBlock.blockId,
+    operationPrompt: 'This must not run.',
+  }), continuationContext),
+  /outside the explicitly bound ready scope/,
+);
+
+const explicitLegacyMessage = appendAgentUserMessage(
+  continuedApplication.stagedSnapshot,
+  operationSession.agentSessionId,
+  {
+    content: '继续这个明确指定的旧 Operation。',
+    contextRefs: [{
+      kind: 'operation',
+      operationBlockId: legacyOperationDraft.operationBlock.blockId,
+    }],
+  },
+);
+const explicitLegacyContext = agentRuntimeTurnContext(
+  continuedApplication.stagedSnapshot,
+  operationSession.agentSessionId,
+  explicitLegacyMessage.agentMessageId,
+);
+const explicitLegacyDecision = parseAgentRuntimeDecision(JSON.stringify({
+  kind: 'operation_execute',
+  message: '继续明确指定的旧 Operation。',
+  operationBlockId: legacyOperationDraft.operationBlock.blockId,
+  operationPrompt: 'Explicitly updated old prompt.',
+}), explicitLegacyContext);
+assert.equal(
+  explicitLegacyDecision.kind === 'operation_execute'
+    ? explicitLegacyDecision.bindingSource
+    : undefined,
+  'message_explicit',
+);
+const explicitLegacyTurn = applyAgentRuntimeTurn(continuedApplication.stagedSnapshot, {
+  agentSessionId: operationSession.agentSessionId,
+  decision: explicitLegacyDecision,
+  externalThreadId: 'thread_operation_execute',
+  runtimeModel: 'test-model',
+  runtimeTurnId: 'turn_operation_explicit',
+  sourceMessageId: explicitLegacyMessage.agentMessageId,
+});
+const explicitLegacyApplication = stageAgentOperationExecution(
+  continuedApplication.stagedSnapshot,
+  explicitLegacyTurn.operationExecution!,
+  {
+    connectionIdForCapability: () => 'codex-app-server',
+    operationTitle: 'Generate image',
+    promptTitle: 'Prompt',
+  },
+);
+assert.equal(
+  explicitLegacyApplication.stagedSnapshot.blocks.find(
+    (block) => block.blockId === legacyOperationDraft.textBlock.blockId,
+  )?.data.body,
+  'Explicitly updated old prompt.',
+);
+
+const blockedOperationSnapshot = structuredClone(explicitLegacyApplication.stagedSnapshot);
 const blockedOperation = blockedOperationSnapshot.blocks.find(
-  (block) => block.blockId === operationDraft.operationBlock.blockId,
+  (block) => block.blockId === legacyOperationDraft.operationBlock.blockId,
 );
 const blockedPrompt = blockedOperationSnapshot.blocks.find(
-  (block) => block.blockId === operationDraft.textBlock.blockId,
+  (block) => block.blockId === legacyOperationDraft.textBlock.blockId,
 );
 assert.ok(blockedOperation);
 assert.ok(blockedPrompt);
 blockedOperation.data.capabilityId = 'image.image_to_image';
 blockedOperation.data.operationMode = 'image_to_image';
 const promptBeforeBlockedRequest = blockedPrompt.data.body;
-assert.throws(
-  () => applyAgentOperationExecutionRequest(blockedOperationSnapshot, {
+setAgentSessionWorkingOperation(
+  blockedOperationSnapshot,
+  operationSession.agentSessionId,
+  {
+    operationBlockId: blockedOperation.blockId,
+    source: 'user_explicit',
+  },
+);
+const blockedMessage = appendAgentUserMessage(
+  blockedOperationSnapshot,
+  operationSession.agentSessionId,
+  { content: '继续当前绑定的 Operation。' },
+);
+const blockedTurn = applyAgentRuntimeTurn(blockedOperationSnapshot, {
+  agentSessionId: operationSession.agentSessionId,
+  decision: {
+    bindingSource: 'session_working',
+    kind: 'operation_execute',
+    message: '尝试继续当前绑定的 Operation。',
     operationBlockId: blockedOperation.blockId,
     operationPrompt: 'This prompt must not be committed.',
-  }),
+  },
+  externalThreadId: 'thread_operation_execute',
+  runtimeModel: 'test-model',
+  runtimeTurnId: 'turn_operation_blocked',
+  sourceMessageId: blockedMessage.agentMessageId,
+});
+assert.throws(
+  () => stageAgentOperationExecution(
+    blockedOperationSnapshot,
+    {
+      ...blockedTurn.operationExecution!,
+    },
+    {
+      connectionIdForCapability: () => 'codex-app-server',
+      operationTitle: 'Generate image',
+      promptTitle: 'Prompt',
+    },
+  ),
   /no longer ready/,
 );
 assert.equal(
@@ -196,14 +403,16 @@ assert.equal(
   promptBeforeBlockedRequest,
   'A failed Agent execution request must not partially update the Operation prompt',
 );
-assert.throws(
-  () => parseAgentRuntimeDecision(JSON.stringify({
-    kind: 'operation_execute',
-    message: '执行另一个 Operation。',
-    operationBlockId: 'block_foreign',
-    operationPrompt: 'Prompt',
-  }), operationContext),
-  /outside the ready Board scope/,
+await saveSnapshot(explicitLegacyApplication.stagedSnapshot);
+const persistedOperationSession = await loadSnapshot(
+  explicitLegacyApplication.stagedSnapshot.project.projectId,
+  explicitLegacyApplication.stagedSnapshot.board.boardId,
+);
+assert.equal(
+  persistedOperationSession.agentSessions?.find(
+    (candidate) => candidate.agentSessionId === operationSession.agentSessionId,
+  )?.workingOperation?.operationBlockId,
+  legacyOperationDraft.operationBlock.blockId,
 );
 
 const snapshot = await emptySnapshot();
@@ -458,6 +667,8 @@ console.log(JSON.stringify({
   outOfScopeProposal: true,
   staleSaveProtected: true,
   explicitOperationExecutionContract: true,
+  agentOperationIntentRoutingV1: true,
+  factDrivenOperationRunCard: true,
   currentBoardReadModelPerTurn: true,
 }));
 

@@ -365,6 +365,7 @@ export type TranslationKey =
   | 'operationToolbar.capability'
   | 'operationToolbar.codexMcpHint'
   | 'operationToolbar.count'
+  | 'operationToolbar.continueInAgent'
   | 'operationToolbar.duration'
   | 'operationToolbar.executor'
   | 'operationToolbar.generatePrompt'
@@ -719,6 +720,10 @@ export type TranslationKey =
   | 'agentWorkspace.noRun'
   | 'agentWorkspace.noSession'
   | 'agentWorkspace.open'
+  | 'agentWorkspace.operationContinued'
+  | 'agentWorkspace.operationCreated'
+  | 'agentWorkspace.operationPreparing'
+  | 'agentWorkspace.operationRun'
   | 'agentWorkspace.package'
   | 'agentWorkspace.parameters'
   | 'agentWorkspace.pendingChanges'
@@ -736,6 +741,8 @@ export type TranslationKey =
   | 'agentWorkspace.runId'
   | 'agentWorkspace.runDetails'
   | 'agentWorkspace.runtime'
+  | 'agentWorkspace.provider'
+  | 'agentWorkspace.candidates'
   | 'agentWorkspace.scope'
   | 'agentWorkspace.send'
   | 'agentWorkspace.session'
@@ -1458,6 +1465,7 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.capability': 'Capability',
     'operationToolbar.codexMcpHint': 'Codex MCP',
     'operationToolbar.count': 'Count',
+    'operationToolbar.continueInAgent': 'Continue in Agent',
     'operationToolbar.duration': 'Duration',
     'operationToolbar.executor': 'Executor',
     'operationToolbar.generatePrompt': 'Generate prompt',
@@ -1812,6 +1820,10 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.noRun': 'No Agent Run attached',
     'agentWorkspace.noSession': 'No active session',
     'agentWorkspace.open': 'Open Agent Workspace',
+    'agentWorkspace.operationContinued': 'Continued the bound Operation',
+    'agentWorkspace.operationCreated': 'Created a new Operation',
+    'agentWorkspace.operationPreparing': 'Preparing',
+    'agentWorkspace.operationRun': 'Operation run',
     'agentWorkspace.package': 'Package',
     'agentWorkspace.parameters': 'Parameters',
     'agentWorkspace.pendingChanges': 'Waiting for review',
@@ -1825,10 +1837,12 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.proposalStatus.superseded': 'Superseded',
     'agentWorkspace.rejectProposal': 'Reject proposal',
     'agentWorkspace.run': 'Run',
-    'agentWorkspace.runEmpty': 'Attach an Agent Run for scoped workflow control, or explicitly ask Agent to run one ready Board Operation.',
+    'agentWorkspace.runEmpty': 'Attach an Agent Run for scoped workflow control. New creative tasks create a new Operation; only an explicitly bound Operation can be continued.',
     'agentWorkspace.runId': 'Agent Run ID',
     'agentWorkspace.runDetails': 'Run details',
     'agentWorkspace.runtime': 'Runtime binding',
+    'agentWorkspace.provider': 'Provider',
+    'agentWorkspace.candidates': 'Candidates',
     'agentWorkspace.scope': 'Authorized scope',
     'agentWorkspace.send': 'Send message',
     'agentWorkspace.session': 'Session',
@@ -2546,6 +2560,7 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.capability': '能力',
     'operationToolbar.codexMcpHint': 'Codex MCP',
     'operationToolbar.count': '数量',
+    'operationToolbar.continueInAgent': '在 Agent 中继续',
     'operationToolbar.duration': '时长',
     'operationToolbar.executor': '执行方式',
     'operationToolbar.generatePrompt': '生成 Prompt',
@@ -2900,6 +2915,10 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.noRun': '未绑定 Agent Run',
     'agentWorkspace.noSession': '没有活动会话',
     'agentWorkspace.open': '打开 Agent Workspace',
+    'agentWorkspace.operationContinued': '继续已绑定 Operation',
+    'agentWorkspace.operationCreated': '已创建新 Operation',
+    'agentWorkspace.operationPreparing': '正在准备',
+    'agentWorkspace.operationRun': 'Operation 运行',
     'agentWorkspace.package': 'Package',
     'agentWorkspace.parameters': '参数',
     'agentWorkspace.pendingChanges': '等待审阅',
@@ -2913,10 +2932,12 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.proposalStatus.superseded': '已被替代',
     'agentWorkspace.rejectProposal': '拒绝提案',
     'agentWorkspace.run': '运行',
-    'agentWorkspace.runEmpty': '绑定 Agent Run 以控制流程，或明确要求 Agent 执行一个已就绪的画板 Operation。',
+    'agentWorkspace.runEmpty': '绑定 Agent Run 以控制流程。新的创作任务会新建 Operation；只有显式绑定的 Operation 才能继续执行。',
     'agentWorkspace.runId': 'Agent Run ID',
     'agentWorkspace.runDetails': '运行详情',
     'agentWorkspace.runtime': 'Runtime 绑定',
+    'agentWorkspace.provider': 'Provider',
+    'agentWorkspace.candidates': '候选数量',
     'agentWorkspace.scope': '授权范围',
     'agentWorkspace.send': '发送消息',
     'agentWorkspace.session': '会话',

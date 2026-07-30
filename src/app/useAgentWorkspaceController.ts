@@ -9,6 +9,7 @@ import {
   markAgentRuntimeFailure,
   runtimeBindingForSession,
   setAgentSessionRun,
+  setAgentSessionWorkingOperation,
 } from '../core/agentSession';
 import { appendAgentRuntimeEvent, decideChangeProposal } from '../core/agentChangeApplication';
 import type {
@@ -34,9 +35,13 @@ import {
   stageGoalPlanAgentLaunch,
 } from '../core/goalPlanAgentLaunchApplication';
 import {
-  applyAgentOperationExecutionRequest,
+  stageAgentOperationExecution,
   type AgentOperationExecutionRequest,
 } from '../core/agentOperationExecution';
+import {
+  imageOperationDefaultPrompt,
+  imageOperationTitle,
+} from '../core/imageOperationText';
 import { reconcileWorkflowArtifactGates } from '../core/workflowArtifactGateClient';
 import { resolvedWorkflowUiDefinitionFor } from '../core/workflowRegistry';
 import type { useI18n } from '../i18n';
@@ -144,6 +149,19 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
       setAgentSessionRun(current, selectedSessionId, agentRunId);
       return current;
     }, { persist: true, syncFlow: false });
+  }
+
+  function bindWorkingOperation(operationBlockId: string): void {
+    const agentSessionId = selectedSessionId ?? ensureDefaultSession();
+    updateSnapshot((current) => {
+      setAgentSessionWorkingOperation(current, agentSessionId, {
+        operationBlockId,
+        source: 'user_explicit',
+      });
+      return current;
+    }, { persist: true, syncFlow: false });
+    setSelectedSessionId(agentSessionId);
+    setError(undefined);
   }
 
   function archiveSession(): void {
@@ -368,14 +386,34 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
       await persistSnapshot(withRuntimeResult, { requireLocalApi: true });
       const executionRequest = operationExecution;
       if (executionRequest) {
+        let operationBlockId = '';
+        let operationScopeIds: string[] = [];
         const executionSnapshot = updateSnapshot((current) => {
-          applyAgentOperationExecutionRequest(current, executionRequest);
-          return current;
+          const staged = stageAgentOperationExecution(current, executionRequest, {
+            connectionIdForCapability: (capabilityId, applicationSnapshot) =>
+              resolveAgentExecutionConnection({
+                capabilityId,
+                initialConnectionId: 'codex-app-server',
+                projectId: applicationSnapshot.project.projectId,
+              })?.connectionId,
+            operationTitle: imageOperationTitle('generate_image', t),
+            promptPlaceholder: imageOperationDefaultPrompt('generate_image', t),
+            promptTitle: t('operationToolbar.prompt'),
+          });
+          operationBlockId = staged.receipt.operationBlockId;
+          operationScopeIds = staged.receipt.createdBlockIds.length > 0
+            ? staged.receipt.createdBlockIds
+            : [staged.receipt.operationBlockId];
+          return staged.stagedSnapshot;
         }, { history: true, syncFlow: true });
         await persistSnapshot(executionSnapshot, { requireLocalApi: true });
+        if (operationScopeIds.length > 0) {
+          setSelectedBlocks(executionSnapshot, operationScopeIds);
+          focusWorkflowBlocks(operationScopeIds);
+        }
         window.dispatchEvent(new CustomEvent('retake:run-operation', {
           detail: {
-            blockId: executionRequest.operationBlockId,
+            blockId: operationBlockId,
             queuedConfigurationStale: false,
             revealOnStart: true,
           },
@@ -404,6 +442,7 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
 
   return {
     archiveSession,
+    bindWorkingOperation,
     decideProposal,
     error,
     focusedAgentRunId,

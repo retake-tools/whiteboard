@@ -41,6 +41,7 @@ import {
 } from '../core/workflowRegistry';
 import { useI18n } from '../i18n';
 import { AgentMessageCard } from './AgentMessageCard';
+import { AgentOperationRunCard } from './AgentOperationRunCard';
 import { AgentWorkspaceComposer } from './AgentWorkspaceComposer';
 import { AgentSessionHistoryMenu } from './AgentSessionHistoryMenu';
 import { TooltipIconButton } from './Tooltip';
@@ -222,9 +223,19 @@ export function AgentWorkspace({
                 const messageProposals = message.role === 'assistant' && message.sourceMessageId
                   ? proposals.filter((proposal) => proposal.sourceMessageId === message.sourceMessageId)
                   : [];
+                const operationReceipt = message.role === 'assistant'
+                  ? message.contextRefs.find((ref) => ref.kind === 'operation_receipt')
+                  : undefined;
                 return (
                   <div key={message.agentMessageId} className="agent-workspace-timeline-item">
                     <AgentMessageCard message={message} />
+                    {operationReceipt ? (
+                      <AgentOperationRunCard
+                        onLocateBlock={onLocateBlock}
+                        receipt={operationReceipt}
+                        snapshot={snapshot}
+                      />
+                    ) : null}
                     {messageProposals.map((proposal) => (
                       <ProposalCard
                         agentSessionId={selectedSession.agentSessionId}
