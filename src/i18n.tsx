@@ -354,6 +354,10 @@ export type TranslationKey =
   | 'inspector.status'
   | 'inspector.title'
   | 'inspector.versionChanges'
+  | 'inspector.zoomControls'
+  | 'inspector.zoomIn'
+  | 'inspector.zoomOut'
+  | 'inspector.zoomReset'
   | 'operation.createSimilar.prompt'
   | 'operation.createSimilar.title'
   | 'operation.generateImage.prompt'
@@ -1463,6 +1467,10 @@ const translations: Record<Locale, Translations> = {
     'inspector.status': 'Status',
     'inspector.title': 'Execution',
     'inspector.versionChanges': 'Changes in this version',
+    'inspector.zoomControls': 'Image zoom controls',
+    'inspector.zoomIn': 'Zoom in',
+    'inspector.zoomOut': 'Zoom out',
+    'inspector.zoomReset': 'Reset view',
     'operation.createSimilar.prompt': 'Create similar image',
     'operation.createSimilar.title': 'Create similar image',
     'operation.generateImage.prompt': 'Generate image from prompt',
@@ -2567,6 +2575,10 @@ const translations: Record<Locale, Translations> = {
     'inspector.status': '状态',
     'inspector.title': '执行记录',
     'inspector.versionChanges': '此版本的变更',
+    'inspector.zoomControls': '图片缩放控制',
+    'inspector.zoomIn': '放大',
+    'inspector.zoomOut': '缩小',
+    'inspector.zoomReset': '重置视图',
     'operation.createSimilar.prompt': '生成同款图片',
     'operation.createSimilar.title': '生成同款图片',
     'operation.generateImage.prompt': '根据 prompt 生成图片',

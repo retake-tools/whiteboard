@@ -68,6 +68,7 @@ assert.doesNotMatch(documentBlock, /^<button/);
 const documentBlockSource = await readFile('src/nodes/DocumentBlockBody.tsx', 'utf8');
 const executionDetailSource = await readFile('src/components/ExecutionDetailContent.tsx', 'utf8');
 const executionInspectorSource = await readFile('src/components/ExecutionInspector.tsx', 'utf8');
+const executionImageViewerSource = await readFile('src/components/ExecutionImageViewer.tsx', 'utf8');
 assert.match(documentBlockSource, /'retake:open-execution-inspector'\s*:\s*'retake:open-document-review'/);
 assert.match(executionInspectorSource, /executionOutputDocuments/);
 assert.match(executionInspectorSource, /<ExecutionDocumentViewer document=\{selectedDocument\}/);
@@ -80,6 +81,13 @@ assert.match(executionInspectorSource, /if \(!assetPreviewUrl\) return/);
 assert.match(executionInspectorSource, /setPendingHeadingAnchorId\(item\.anchorId\)/);
 assert.match(executionInspectorSource, /heading\.scrollIntoView/);
 assert.match(executionInspectorSource, /heading\.focus/);
+assert.match(executionInspectorSource, /executionImageBrowserItems\(snapshot, selectedBlock\.blockId\)/);
+assert.match(executionInspectorSource, /setActiveImageBlockId\(image\.blockId\)/);
+assert.match(executionInspectorSource, /<ExecutionImageViewer/);
+assert.match(executionImageViewerSource, /onWheel=/);
+assert.match(executionImageViewerSource, /setPointerCapture/);
+assert.match(executionImageViewerSource, /onDoubleClick=/);
+assert.match(executionImageViewerSource, /inspector\.zoomReset/);
 assert.match(executionDetailSource, /annotatedCompositeAsset \|\| inputImages\.length/);
 
 console.log(JSON.stringify({

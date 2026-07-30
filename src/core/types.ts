@@ -378,6 +378,7 @@ export interface BlockData {
   packageId?: string;
   packageVersion?: string;
   sourceExecutionId?: string;
+  executionDetailsAvailable?: boolean;
   executionChangeCount?: number;
   executionChangeKinds?: ExecutionConfigurationChangeKind[];
   executionVersion?: number;

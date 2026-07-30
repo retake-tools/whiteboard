@@ -1,0 +1,55 @@
+.execution-result-stage.is-zoomed {
+  cursor: grab;
+}
+
+.execution-result-stage.is-zoomed:active {
+  cursor: grabbing;
+}
+
+.execution-result-stage > img {
+  transform-origin: center;
+  will-change: transform;
+}
+
+.execution-image-zoom-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid rgb(226 232 240 / 78%);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 8px 22px rgb(0 0 0 / 20%);
+  backdrop-filter: blur(10px);
+}
+
+.execution-image-zoom-controls > span {
+  min-width: 42px;
+  color: #475569;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 760;
+  text-align: center;
+}
+
+.execution-image-zoom-controls > .tooltipped-button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #334155;
+}
+
+.execution-image-zoom-controls > .tooltipped-button:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.execution-image-zoom-controls > .tooltipped-button:disabled {
+  color: #a8b2c1;
+  cursor: not-allowed;
+}

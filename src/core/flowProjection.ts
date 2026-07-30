@@ -146,6 +146,9 @@ export function createFlowNodes(
     }),
   );
   const executionById = new Map(snapshot.executions.map((execution) => [execution.executionId, execution]));
+  const executionOutputBlockIds = new Set(
+    snapshot.executions.flatMap((execution) => execution.outputBlockIds),
+  );
   const orderedBlocks = snapshot.blocks.filter((block) => !hiddenBlockIds.has(block.blockId)).sort((left, right) => {
     const depthDifference = groupAncestorIds(snapshot, left.blockId).length - groupAncestorIds(snapshot, right.blockId).length;
     if (depthDifference !== 0) return depthDifference;
@@ -213,6 +216,9 @@ export function createFlowNodes(
       executionChangeCount: groupExecutionMetadata?.changeCount,
       executionChangeKinds: groupExecutionMetadata?.changeKinds,
       executionAdapter: sourceExecution?.adapter,
+      executionDetailsAvailable:
+        Boolean(sourceExecution)
+        || executionOutputBlockIds.has(block.blockId),
       executionTriggerMode: sourceExecution?.triggerMode,
       executionVersion: groupExecutionMetadata?.version,
       executionStatus: groupExecutionMetadata?.status,

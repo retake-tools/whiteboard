@@ -102,13 +102,13 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
         .filter(Boolean)
         .join(' ')}
       onDoubleClick={(event) => {
+        const target = event.target instanceof HTMLElement ? event.target : undefined;
+        if (target && isInteractiveDoubleClickTarget(target)) return;
         if (
-          blockType !== 'text' &&
-          blockType !== 'operation' &&
-          event.target instanceof HTMLElement &&
-          isInteractiveDoubleClickTarget(event.target)
-        ) return;
-        if (blockType === 'image' && hasExecutionDetails(data as BlockData)) {
+          blockType === 'image'
+          && target?.closest('.image-preview')
+          && hasExecutionDetails(data as BlockData)
+        ) {
           dispatchOpenExecutionInspector(id);
           event.preventDefault();
           event.stopPropagation();
@@ -287,14 +287,7 @@ function OperationInputRoleBadge({ data }: { data: BlockData }): ReactElement | 
   });
 
   if (!edgeId) return null;
-  if (
-    !isPending
-    && role === 'source'
-    && (
-      options.length <= 1
-      || data.operationInputTargetCapabilityId === 'image.annotation_edit'
-    )
-  ) return null;
+  if (!isPending && role === 'source') return null;
 
   return (
     <div ref={controlRef} className="operation-input-role-control nodrag nopan">
@@ -780,7 +773,9 @@ function ExecutionInfoButton({
 }
 
 function hasExecutionDetails(data: BlockData): boolean {
-  return typeof data.sourceExecutionId === 'string' || typeof data.agentPrompt === 'string';
+  return data.executionDetailsAvailable === true
+    || typeof data.sourceExecutionId === 'string'
+    || typeof data.agentPrompt === 'string';
 }
 
 function visibleBlockStatus(data: BlockData): BlockData['status'] | undefined {

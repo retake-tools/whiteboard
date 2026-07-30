@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { executionImageBrowserItems } from '../src/core/executionImageBrowser';
 import { createFlowEdges, createFlowNodes, nodeColor, nodeStrokeColor } from '../src/core/flowProjection';
 import {
   arrangeGroupChildren,
@@ -27,8 +28,9 @@ assert.match(canvasSource, /function selectConnectedWorkflow[\s\S]*?window\.requ
 assert.match(canvasViewSource, /data-pointer-moving="false"[\s\S]*?onPointerMoveCapture=\{handleCanvasPointerMove\}/);
 assert.match(
   blockNodeSource,
-  /blockType === 'image' && hasExecutionDetails\(data as BlockData\)[\s\S]*?dispatchOpenExecutionInspector\(id\)/,
+  /blockType === 'image'[\s\S]*?target\?\.closest\('\.image-preview'\)[\s\S]*?dispatchOpenExecutionInspector\(id\)/,
 );
+assert.match(blockNodeSource, /if \(!isPending && role === 'source'\) return null;/);
 assert.match(canvasCss, /\[data-pointer-moving='true'\] \.react-flow__node:not\(\.dragging\)[\s\S]*?cursor: default !important;/);
 assert.match(blockNodeCss, /\.image-preview img \{[\s\S]*?pointer-events: none;[\s\S]*?-webkit-user-drag: none;/);
 assert.match(blockNodeCss, /\.operation-input-quick-add \{[\s\S]*?pointer-events: none;/);
@@ -321,6 +323,82 @@ batchSnapshot.blocks.push(unrelatedGroup, unrelatedChild);
 assert.equal(createGroupAroundBlocks(batchSnapshot, [resultOne.blockId, unrelatedChild.blockId]), undefined);
 assert.equal(resultOne.parentGroupId, batchGroup.blockId);
 assert.equal(unrelatedChild.parentGroupId, unrelatedGroup.blockId);
+
+const imageBrowserSnapshot = structuredClone(batchSnapshot);
+const originalImage = block('image_browser_original', 'image', -700, 0);
+originalImage.data.assetId = 'asset_image_browser_original';
+const derivedOperation = block('image_browser_operation', 'operation', 700, 0);
+const derivedImage = block('image_browser_derived', 'image', 1100, 0);
+derivedImage.data.assetId = 'asset_image_browser_derived';
+imageBrowserSnapshot.blocks.push(originalImage, derivedOperation, derivedImage);
+imageBrowserSnapshot.assets.push(
+  {
+    assetId: 'asset_image_browser_original',
+    projectId: 'project_test',
+    kind: 'image',
+    mimeType: 'image/png',
+    storageProvider: 'local',
+    storageKey: 'image-browser-original.png',
+    previewUrl: '/image-browser-original.png',
+    createdAt,
+  },
+  {
+    assetId: 'asset_image_browser_derived',
+    projectId: 'project_test',
+    kind: 'image',
+    mimeType: 'image/png',
+    storageProvider: 'local',
+    storageKey: 'image-browser-derived.png',
+    previewUrl: '/image-browser-derived.png',
+    createdAt,
+  },
+);
+imageBrowserSnapshot.edges.push(
+  {
+    edgeId: 'edge_image_browser_original',
+    sourceBlockId: originalImage.blockId,
+    targetBlockId: operation.blockId,
+    kind: 'execution_input',
+    inputRole: 'source',
+  },
+  {
+    edgeId: 'edge_image_browser_input',
+    sourceBlockId: resultOne.blockId,
+    targetBlockId: derivedOperation.blockId,
+    kind: 'execution_input',
+    inputRole: 'source',
+  },
+  {
+    edgeId: 'edge_image_browser_output',
+    sourceBlockId: derivedOperation.blockId,
+    targetBlockId: derivedImage.blockId,
+    kind: 'execution_output',
+  },
+);
+imageBrowserSnapshot.executions.push({
+  executionId: 'exec_image_browser_derived',
+  projectId: 'project_test',
+  boardId: 'board_test',
+  capabilityId: 'image.image_to_image',
+  adapter: 'mcp_agent',
+  status: 'succeeded',
+  inputBlockIds: [resultOne.blockId],
+  outputBlockIds: [derivedImage.blockId],
+  outputAssetIds: ['asset_image_browser_derived'],
+  params: { operationBlockId: derivedOperation.blockId },
+  startedAt: createdAt,
+});
+assert.deepEqual(
+  executionImageBrowserItems(imageBrowserSnapshot, resultOne.blockId)
+    .map((item) => item.block.blockId),
+  [resultOne.blockId, resultTwo.blockId, derivedImage.blockId],
+);
+assert.equal(
+  createFlowNodes(imageBrowserSnapshot)
+    .find((node) => node.id === derivedImage.blockId)
+    ?.data.executionDetailsAvailable,
+  true,
+);
 
 const cycleOne = block('cycle_one', 'group', 0, 0);
 const cycleTwo = block('cycle_two', 'group', 0, 0);

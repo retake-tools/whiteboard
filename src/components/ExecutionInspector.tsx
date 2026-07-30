@@ -1,6 +1,7 @@
-import { Braces, ChevronLeft, ChevronRight, Eye, FileText, ImageIcon, Loader2, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { Braces, Eye, FileText, Loader2, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { useDocumentStream } from '../core/documentStreamStore';
+import { executionImageBrowserItems } from '../core/executionImageBrowser';
 import { inputRoleDefinition } from '../core/inputRoles';
 import { markdownHeadingAnchorId, markdownHeadings } from '../core/markdownDocument';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
@@ -10,6 +11,7 @@ import {
   getExecutionDetailContextForBlock,
   type ExecutionDetailCopySource,
 } from './ExecutionDetailContent';
+import { ExecutionImageViewer } from './ExecutionImageViewer';
 import { SafeMarkdown } from './SafeMarkdown';
 import { TooltipIconButton } from './Tooltip';
 import type {
@@ -27,6 +29,12 @@ interface CopyPromptInput {
 interface DocumentOutlineItem {
   anchorId?: string;
   label: string;
+}
+
+interface ViewerImage {
+  asset: AssetRecord;
+  blockId?: string;
+  title: string;
 }
 
 interface ExecutionInspectorProps {
@@ -60,42 +68,68 @@ export function ExecutionInspector({
   pluginContributionRegistry,
 }: ExecutionInspectorProps): ReactElement | null {
   const { t } = useI18n();
+  const [activeImageBlockId, setActiveImageBlockId] = useState<string | undefined>();
   const [selectedAssetId, setSelectedAssetId] = useState<string | undefined>();
-  const context = selectedBlock ? getExecutionDetailContextForBlock(snapshot, selectedBlock) : undefined;
-  const isOpen = Boolean(selectedBlock && context);
+  const chainImages = useMemo(
+    () => selectedBlock?.type === 'image'
+      ? executionImageBrowserItems(snapshot, selectedBlock.blockId)
+      : [],
+    [selectedBlock?.blockId, selectedBlock?.type, snapshot],
+  );
+  const activeImageBlock = chainImages.find((image) => image.block.blockId === activeImageBlockId)?.block;
+  const detailBlock = activeImageBlock ?? selectedBlock;
+  const context = detailBlock ? getExecutionDetailContextForBlock(snapshot, detailBlock) : undefined;
+  const isOpen = Boolean(detailBlock && context);
   const outputImages = context ? executionOutputImages(snapshot, context.execution.outputBlockIds) : [];
   const outputDocuments = context ? executionOutputDocuments(snapshot, context.execution.outputBlockIds) : [];
-  const selectedDocument = selectedBlock?.type === 'document'
-    ? documentOutputForBlock(snapshot, selectedBlock)
+  const selectedDocument = detailBlock?.type === 'document'
+    ? documentOutputForBlock(snapshot, detailBlock)
     : outputDocuments[0];
   const fallbackImages = context?.inputImages.map((inputImage) => ({
     asset: inputImage.asset,
     title: inputImage.inputRole ? t(inputRoleDefinition(inputImage.inputRole).titleKey) : t('inspector.inputAssets'),
   })) ?? [];
-  const viewerImages = outputImages.length ? outputImages : fallbackImages;
+  const viewerImages: ViewerImage[] = chainImages.length
+    ? chainImages.map((image) => ({
+        asset: image.asset,
+        blockId: image.block.blockId,
+        title: image.block.data.title,
+      }))
+    : outputImages.length
+      ? outputImages
+      : fallbackImages;
   const selectedViewerImage = viewerImages.find((image) => image.asset.assetId === selectedAssetId);
   const selectedSourceImage = fallbackImages.find((image) => image.asset.assetId === selectedAssetId);
   const selectedImage =
     selectedViewerImage ??
     selectedSourceImage ??
     viewerImages[0];
-  const selectedOutputIndex = selectedImage
-    ? outputImages.findIndex((image) => image.asset.assetId === selectedImage.asset.assetId)
+  const selectedViewerIndex = selectedImage
+    ? viewerImages.findIndex((image) => image.asset.assetId === selectedImage.asset.assetId)
     : -1;
 
   function selectSibling(offset: number): void {
-    if (outputImages.length < 2) return;
-    const currentIndex = selectedOutputIndex >= 0 ? selectedOutputIndex : 0;
-    const nextIndex = (currentIndex + offset + outputImages.length) % outputImages.length;
-    setSelectedAssetId(outputImages[nextIndex].asset.assetId);
+    if (viewerImages.length < 2) return;
+    const currentIndex = selectedViewerIndex >= 0 ? selectedViewerIndex : 0;
+    const nextIndex = (currentIndex + offset + viewerImages.length) % viewerImages.length;
+    selectViewerImage(viewerImages[nextIndex]);
+  }
+
+  function selectViewerImage(image: ViewerImage): void {
+    setSelectedAssetId(image.asset.assetId);
+    if (image.blockId) setActiveImageBlockId(image.blockId);
   }
 
   useEffect(() => {
     if (!isOpen) return;
-    const selectedBlockAssetId =
-      typeof selectedBlock?.data.assetId === 'string' ? selectedBlock.data.assetId : undefined;
-    setSelectedAssetId(selectedBlockAssetId ?? outputImages[0]?.asset.assetId ?? fallbackImages[0]?.asset.assetId);
-  }, [context?.execution.executionId, isOpen, selectedBlock?.blockId]);
+    const detailBlockAssetId =
+      typeof detailBlock?.data.assetId === 'string' ? detailBlock.data.assetId : undefined;
+    setSelectedAssetId(detailBlockAssetId ?? outputImages[0]?.asset.assetId ?? fallbackImages[0]?.asset.assetId);
+  }, [context?.execution.executionId, detailBlock?.blockId, isOpen]);
+
+  useEffect(() => {
+    setActiveImageBlockId(selectedBlock?.type === 'image' ? selectedBlock.blockId : undefined);
+  }, [selectedBlock?.blockId, selectedBlock?.type]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -121,9 +155,9 @@ export function ExecutionInspector({
 
     window.addEventListener('keydown', onViewerKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', onViewerKeyDown, { capture: true });
-  }, [isOpen, onClose, outputImages, selectedOutputIndex]);
+  }, [isOpen, onClose, selectedViewerIndex, viewerImages]);
 
-  if (!selectedBlock || !context) return null;
+  if (!detailBlock || !context) return null;
 
   return (
     <div
@@ -141,12 +175,12 @@ export function ExecutionInspector({
         <header>
           <div>
             <span>{selectedDocument ? t('document.reviewWorkspace') : t('inspector.title')}</span>
-            <strong>{selectedBlock.data.title}</strong>
+            <strong>{detailBlock.data.title}</strong>
           </div>
           <div className="execution-inspector-header-actions">
-            {outputImages.length > 1 ? (
+            {viewerImages.length > 1 ? (
               <span className="execution-result-counter">
-                {Math.max(0, selectedOutputIndex) + 1} / {outputImages.length}
+                {Math.max(0, selectedViewerIndex) + 1} / {viewerImages.length}
               </span>
             ) : null}
             <TooltipIconButton label={t('inspector.close')} onClick={onClose}>
@@ -160,46 +194,22 @@ export function ExecutionInspector({
             {selectedDocument ? (
               <ExecutionDocumentViewer document={selectedDocument} />
             ) : (
-              <div className="execution-result-stage">
-                {selectedImage ? (
-                  <img src={selectedImage.asset.previewUrl} alt={selectedImage.title} />
-                ) : (
-                  <div className="execution-result-empty">
-                    <ImageIcon size={28} />
-                    <span>{t('inspector.none')}</span>
-                  </div>
-                )}
-                {outputImages.length > 1 ? (
-                  <>
-                    <button
-                      type="button"
-                      className="execution-result-navigation is-previous"
-                      aria-label={t('inspector.previousPreview')}
-                      onClick={() => selectSibling(-1)}
-                    >
-                      <ChevronLeft size={26} />
-                    </button>
-                    <button
-                      type="button"
-                      className="execution-result-navigation is-next"
-                      aria-label={t('inspector.nextPreview')}
-                      onClick={() => selectSibling(1)}
-                    >
-                      <ChevronRight size={26} />
-                    </button>
-                  </>
-                ) : null}
-              </div>
+              <ExecutionImageViewer
+                hasSiblings={viewerImages.length > 1}
+                image={selectedImage}
+                onNext={() => selectSibling(1)}
+                onPrevious={() => selectSibling(-1)}
+              />
             )}
-            {!selectedDocument && outputImages.length > 1 ? (
+            {!selectedDocument && viewerImages.length > 1 ? (
               <div className="execution-result-thumbnails">
-                {outputImages.map((image, index) => (
+                {viewerImages.map((image, index) => (
                   <button
                     key={image.asset.assetId}
                     type="button"
                     className={image.asset.assetId === selectedImage?.asset.assetId ? 'is-selected' : undefined}
                     aria-label={`${image.title} ${index + 1}`}
-                    onClick={() => setSelectedAssetId(image.asset.assetId)}
+                    onClick={() => selectViewerImage(image)}
                   >
                     <img src={image.asset.previewUrl} alt="" />
                     <span>{index + 1}</span>
@@ -223,7 +233,11 @@ export function ExecutionInspector({
                   ? () => onRestoreConfiguration(context.execution.executionId)
                   : undefined
               }
-              onSelectAsset={(asset) => setSelectedAssetId(asset.assetId)}
+              onSelectAsset={(asset) => {
+                const image = viewerImages.find((candidate) => candidate.asset.assetId === asset.assetId);
+                if (image) selectViewerImage(image);
+                else setSelectedAssetId(asset.assetId);
+              }}
               pluginContributionRegistry={pluginContributionRegistry}
             />
           </aside>

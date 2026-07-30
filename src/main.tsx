@@ -6,6 +6,7 @@ import './feedback.css';
 import './components/board-history-panel.css';
 import './components/agent-workspace.css';
 import './components/execution-inspector.css';
+import './components/execution-image-viewer.css';
 import './components/execution-providers-settings.css';
 import './components/group-toolbar.css';
 import './components/group-inspector.css';
