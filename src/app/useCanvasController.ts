@@ -60,6 +60,8 @@ import type {
   RegisteredPluginCommandV1,
 } from '../core/pluginContributionRegistry';
 
+const terminalImageStatusDismissDelayMs = 500;
+
 interface CanvasControllerOptions {
   connectSessionPorts: (ports: BoardSessionPorts) => void;
   onPluginContributionFatalFailure?: (
@@ -103,6 +105,9 @@ export function useCanvasController(options: CanvasControllerOptions) {
   const textBlockDraftsRef = useRef<Map<string, string>>(new Map());
   const pendingFlowSelectionRef = useRef<string[] | undefined>(undefined);
   const flowSelectionSyncTokenRef = useRef(0);
+  const terminalImageStatusDismissTimerRef = useRef<number | undefined>(
+    undefined,
+  );
   const collapsedGroupIdsRef = useRef<string[]>(
     loadCollapsedGroupIds(snapshot.project.projectId, snapshot.board.boardId),
   );
@@ -139,6 +144,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
 
   connectSessionPorts({
     onBoardLoaded: (loadedSnapshot) => {
+      cancelTerminalImageStatusDismiss();
       flushScheduledViewportPersist();
       nodeDragActiveRef.current = false;
       setNodes(createFlowNodesForSelection(loadedSnapshot, []));
@@ -161,6 +167,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
 
   useEffect(() => {
     restoreBoardViewport(snapshotRef.current);
+    return cancelTerminalImageStatusDismiss;
   }, []);
 
   useEffect(() => {
@@ -391,8 +398,13 @@ export function useCanvasController(options: CanvasControllerOptions) {
     if (!sameBlockSelection(selectedBlockIdsRef.current, nextSelectedBlockIds)) setSelectedBlocks(snapshotRef.current, nextSelectedBlockIds, { source: 'flow' });
   }
 
-  const onNodeClick: NodeMouseHandler<RetakeNode> = (_event, node) => dismissTerminalImageStatus(node.id);
+  const onNodeClick: NodeMouseHandler<RetakeNode> = (event, node) => {
+    cancelTerminalImageStatusDismiss();
+    if (event.detail > 1) return;
+    scheduleTerminalImageStatusDismiss(node.id);
+  };
   const onNodeDoubleClick: NodeMouseHandler<RetakeNode> = (event, node) => {
+    cancelTerminalImageStatusDismiss();
     if (node.type !== 'text' && node.type !== 'operation' && event.target instanceof HTMLElement && isInteractiveNodeTarget(event.target)) return;
     selectConnectedWorkflow(node.id);
   };
@@ -405,16 +417,25 @@ export function useCanvasController(options: CanvasControllerOptions) {
     });
   }
 
-  function dismissTerminalImageStatus(blockId: string): void {
+  function scheduleTerminalImageStatusDismiss(blockId: string): void {
     const block = snapshotRef.current.blocks.find((candidate) => candidate.blockId === blockId);
     if (block?.type !== 'image' || block.data.status !== 'succeeded' || block.data.statusVisualDismissed) return;
-    updateSnapshot((current) => {
-      const targetBlock = current.blocks.find((candidate) => candidate.blockId === blockId);
-      if (targetBlock?.type !== 'image') return current;
-      targetBlock.data.statusVisualDismissed = true;
-      targetBlock.updatedAt = nowIso();
-      return touchBoard(current);
-    }, { persist: true });
+    terminalImageStatusDismissTimerRef.current = window.setTimeout(() => {
+      terminalImageStatusDismissTimerRef.current = undefined;
+      updateSnapshot((current) => {
+        const targetBlock = current.blocks.find((candidate) => candidate.blockId === blockId);
+        if (targetBlock?.type !== 'image') return current;
+        targetBlock.data.statusVisualDismissed = true;
+        targetBlock.updatedAt = nowIso();
+        return touchBoard(current);
+      }, { persist: true });
+    }, terminalImageStatusDismissDelayMs);
+  }
+
+  function cancelTerminalImageStatusDismiss(): void {
+    if (terminalImageStatusDismissTimerRef.current === undefined) return;
+    window.clearTimeout(terminalImageStatusDismissTimerRef.current);
+    terminalImageStatusDismissTimerRef.current = undefined;
   }
 
   function updateTextBlockBody(blockId: string, body: string): void {

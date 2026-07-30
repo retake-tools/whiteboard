@@ -25,6 +25,14 @@ const blockNodeSource = await readFile('src/nodes/BlockNode.tsx', 'utf8');
 const blockNodeCss = await readFile('src/nodes/block-node.css', 'utf8');
 assert.match(canvasViewSource, /zoomOnDoubleClick=\{false\}/);
 assert.match(canvasSource, /function selectConnectedWorkflow[\s\S]*?window\.requestAnimationFrame/);
+assert.match(
+  canvasSource,
+  /const onNodeClick[\s\S]*?event\.detail > 1[\s\S]*?scheduleTerminalImageStatusDismiss/,
+);
+assert.match(
+  canvasSource,
+  /const onNodeDoubleClick[\s\S]*?cancelTerminalImageStatusDismiss\(\)/,
+);
 assert.match(canvasViewSource, /data-pointer-moving="false"[\s\S]*?onPointerMoveCapture=\{handleCanvasPointerMove\}/);
 assert.match(
   blockNodeSource,
