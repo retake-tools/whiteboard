@@ -31,6 +31,7 @@ interface DocumentOutlineItem {
 
 interface ExecutionInspectorProps {
   copiedPromptKey?: string;
+  reserveAgentWorkspace?: boolean;
   selectedBlock?: BlockRecord;
   snapshot: BoardSnapshot;
   onClose: () => void;
@@ -50,6 +51,7 @@ export function ExecutionInspector({
   copiedPromptKey,
   onClose,
   onBeforePluginOperationAction,
+  reserveAgentWorkspace = false,
   selectedBlock,
   snapshot,
   onCopyPrompt,
@@ -124,11 +126,15 @@ export function ExecutionInspector({
   if (!selectedBlock || !context) return null;
 
   return (
-    <div className="execution-inspector-backdrop" role="presentation" onClick={onClose}>
+    <div
+      className={`execution-inspector-backdrop${reserveAgentWorkspace ? ' has-agent-workspace' : ''}`}
+      role="presentation"
+      onClick={onClose}
+    >
       <section
         className="execution-inspector"
         role="dialog"
-        aria-modal="true"
+        aria-modal={!reserveAgentWorkspace}
         aria-label={t(selectedDocument ? 'document.reviewWorkspace' : 'inspector.title')}
         onClick={(event) => event.stopPropagation()}
       >

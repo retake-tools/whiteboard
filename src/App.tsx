@@ -246,7 +246,6 @@ function ReadyApp({
   useEffect(() => {
     setInspectorBlockId(undefined);
     setIsHistoryOpen(false);
-    setIsAgentWorkspaceOpen(false);
     setIsArtifactLibraryOpen(false);
   }, [snapshot.board.boardId, snapshot.project.projectId]);
   const canvasController = useCanvasController({
@@ -570,7 +569,6 @@ function ReadyApp({
       const next = !current;
       if (next) {
         setInspectorBlockId(undefined);
-        setIsAgentWorkspaceOpen(false);
         setIsArtifactLibraryOpen(false);
       }
       return next;
@@ -599,7 +597,6 @@ function ReadyApp({
       if (next) {
         setInspectorBlockId(undefined);
         setIsHistoryOpen(false);
-        setIsAgentWorkspaceOpen(false);
       }
       return next;
     });
@@ -607,7 +604,6 @@ function ReadyApp({
 
   useEffect(() => {
     if (inspectorBlockId || isHistoryOpen) {
-      setIsAgentWorkspaceOpen(false);
       setIsArtifactLibraryOpen(false);
     }
   }, [inspectorBlockId, isHistoryOpen]);
@@ -787,6 +783,7 @@ function ReadyApp({
       />
       <ExecutionInspector
         copiedPromptKey={copiedPromptKey}
+        reserveAgentWorkspace={isAgentWorkspaceOpen}
         selectedBlock={inspectorBlock}
         snapshot={snapshot}
         onClose={() => setInspectorBlockId(undefined)}

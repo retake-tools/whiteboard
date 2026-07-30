@@ -1,4 +1,5 @@
 .execution-inspector-backdrop {
+  box-sizing: border-box;
   position: fixed;
   inset: 0;
   z-index: 2200;
@@ -6,12 +7,11 @@
   place-items: center;
   padding: 20px;
   background: rgb(15 23 42 / 68%);
-  backdrop-filter: blur(8px);
 }
 
 .execution-inspector {
   display: grid;
-  width: min(1440px, calc(100vw - 40px));
+  width: min(1440px, 100%);
   height: min(900px, calc(100vh - 40px));
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
@@ -393,8 +393,15 @@
   min-height: 0;
   padding: 14px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   border-left: 1px solid #e2e8f0;
   background: #ffffff;
+}
+
+@media (min-width: 1120px) {
+  .execution-inspector-backdrop.has-agent-workspace {
+    right: 438px;
+  }
 }
 
 .execution-inspector > header .icon-tooltip,
