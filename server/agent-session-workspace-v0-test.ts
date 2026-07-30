@@ -56,6 +56,7 @@ assert.match(controllerSource, /persistSnapshot\(withUserMessage, \{ requireLoca
 assert.match(controllerSource, /applyAgentRuntimeTurn/);
 assert.match(controllerSource, /applyAgentOperationExecutionRequest/);
 assert.match(controllerSource, /retake:run-operation/);
+assert.match(controllerSource, /revealOnStart: true/);
 assert.match(controllerSource, /ensureDefaultAgentSession/);
 assert.match(controllerSource, /const agentSessionId = selectedSessionId \?\? ensureDefaultSession\(\)/);
 assert.match(apiSource, /application\/x-ndjson/);

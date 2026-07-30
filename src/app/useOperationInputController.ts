@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { ReferenceImageOption } from '../components/InputReferencePicker';
 import { getAssetPreviewUrl } from '../core/assetStore';
 import { localizedBlockData } from '../core/blockLocalization';
@@ -56,6 +56,7 @@ interface OperationInputControllerOptions {
   startExistingOperationBlock: (input: {
     block: BlockRecord;
     operation: SwitchableOperationMode;
+    revealOnStart?: boolean;
   }) => Promise<void>;
   startTextGenerationOperation: (block: BlockRecord) => Promise<void>;
   t: ReturnType<typeof useI18n>['t'];
@@ -255,7 +256,11 @@ export function useOperationInputController(options: OperationInputControllerOpt
     return () => window.removeEventListener('retake:request-image-mention', onRequestImageMention);
   }, []);
 
-  async function runOperation(blockId: string, queuedConfigurationStale = false): Promise<void> {
+  async function runOperation(
+    blockId: string,
+    queuedConfigurationStale = false,
+    revealOnStart = false,
+  ): Promise<void> {
     const block = snapshotRef.current.blocks.find((candidate) => candidate.blockId === blockId && candidate.type === 'operation');
     if (!block || blockLockedByGroup(snapshotRef.current, block.blockId) || block.data.status === 'running') return;
     if (block.data.capabilityId === domainVideoGenerationCapabilityId) {
@@ -285,15 +290,30 @@ export function useOperationInputController(options: OperationInputControllerOpt
     if (isTextDocument) {
       await startTextGenerationOperation(block);
     } else {
-      await startExistingOperationBlock({ block, operation: operationModeFromBlock(block) });
+      await startExistingOperationBlock({
+        block,
+        operation: operationModeFromBlock(block),
+        revealOnStart,
+      });
     }
   }
 
+  const runOperationRef = useRef(runOperation);
+  runOperationRef.current = runOperation;
+
   useEffect(() => {
     function onRunOperation(event: Event): void {
-      const detail = (event as CustomEvent<{ blockId?: string; queuedConfigurationStale?: boolean }>).detail;
+      const detail = (event as CustomEvent<{
+        blockId?: string;
+        queuedConfigurationStale?: boolean;
+        revealOnStart?: boolean;
+      }>).detail;
       if (!detail?.blockId) return;
-      void runOperation(detail.blockId, detail.queuedConfigurationStale);
+      void runOperationRef.current(
+        detail.blockId,
+        detail.queuedConfigurationStale,
+        detail.revealOnStart,
+      );
     }
     window.addEventListener('retake:run-operation', onRunOperation);
     return () => window.removeEventListener('retake:run-operation', onRunOperation);

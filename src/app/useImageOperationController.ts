@@ -467,7 +467,11 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     }
   }
 
-  async function startExistingOperationBlock(input: { block: BlockRecord; operation: SwitchableOperationMode }): Promise<void> {
+  async function startExistingOperationBlock(input: {
+    block: BlockRecord;
+    operation: SwitchableOperationMode;
+    revealOnStart?: boolean;
+  }): Promise<void> {
     if (blockLockedByGroup(snapshotRef.current, input.block.blockId)) return;
     let operationPrompt = '';
     let resultBlockIds: string[] = [];
@@ -544,6 +548,9 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         });
         const runningSnapshot = updateSnapshot(() => started.snapshot, { persist: false, history: true });
         setSelectedBlocks(runningSnapshot, started.execution.outputBlockIds);
+        if (input.revealOnStart) {
+          focusWorkflowBlocks([input.block.blockId, ...started.execution.outputBlockIds]);
+        }
         setOperationToast({
           id: executionId,
           title: t('feedback.seedreamStarted'),
@@ -562,6 +569,9 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         });
         const runningSnapshot = updateSnapshot(() => started.snapshot, { persist: false, history: true });
         setSelectedBlocks(runningSnapshot, started.execution.outputBlockIds);
+        if (input.revealOnStart) {
+          focusWorkflowBlocks([input.block.blockId, ...started.execution.outputBlockIds]);
+        }
         setOperationToast({
           id: executionId,
           title: t('feedback.codexImageStarted'),

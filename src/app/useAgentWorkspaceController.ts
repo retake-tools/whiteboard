@@ -377,6 +377,7 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
           detail: {
             blockId: executionRequest.operationBlockId,
             queuedConfigurationStale: false,
+            revealOnStart: true,
           },
         }));
       }
