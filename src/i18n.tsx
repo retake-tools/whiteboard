@@ -86,6 +86,15 @@ export type TranslationKey =
   | 'codex.binding.connected'
   | 'codex.binding.connect'
   | 'common.dismiss'
+  | 'textEditor.body'
+  | 'textEditor.cancel'
+  | 'textEditor.close'
+  | 'textEditor.eyebrow'
+  | 'textEditor.open'
+  | 'textEditor.save'
+  | 'textEditor.saved'
+  | 'textEditor.title'
+  | 'textEditor.unsaved'
   | 'context.addArrow'
   | 'context.arrowTool'
   | 'context.annotateForCodex'
@@ -1186,6 +1195,15 @@ const translations: Record<Locale, Translations> = {
     'codex.binding.connected': 'Copy Codex binding prompt for this board',
     'codex.binding.connect': 'Copy Codex binding prompt and connect this board',
     'common.dismiss': 'Dismiss',
+    'textEditor.body': 'Text content',
+    'textEditor.cancel': 'Close',
+    'textEditor.close': 'Close editor',
+    'textEditor.eyebrow': 'Text Block',
+    'textEditor.open': 'Open large editor',
+    'textEditor.save': 'Save',
+    'textEditor.saved': 'No unsaved changes',
+    'textEditor.title': 'Edit text',
+    'textEditor.unsaved': 'Unsaved changes',
     'context.addArrow': 'Add arrow',
     'context.arrowTool': 'Arrow',
     'context.annotateForCodex': 'Annotation Edit',
@@ -1852,7 +1870,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.streaming': 'Receiving structured decision…',
     'agentWorkspace.searchSessions': 'Search conversations',
     'agentWorkspace.targetRun': 'Attached Agent Run',
-    'agentWorkspace.thinking': 'Working within the attached scope…',
+    'agentWorkspace.thinking': 'Working…',
     'agentWorkspace.title': 'Agent Workspace',
     'agentWorkspace.viewOnCanvas': 'View on canvas',
     'agentWorkspace.viewRun': 'View Run',
@@ -2281,6 +2299,15 @@ const translations: Record<Locale, Translations> = {
     'codex.binding.connected': '复制当前画板的 Codex 绑定提示',
     'codex.binding.connect': '复制 Codex 绑定提示并连接当前画板',
     'common.dismiss': '关闭提示',
+    'textEditor.body': '文本内容',
+    'textEditor.cancel': '关闭',
+    'textEditor.close': '关闭编辑器',
+    'textEditor.eyebrow': '文本 Block',
+    'textEditor.open': '打开大窗口编辑',
+    'textEditor.save': '保存',
+    'textEditor.saved': '没有未保存的修改',
+    'textEditor.title': '编辑文本',
+    'textEditor.unsaved': '有未保存的修改',
     'context.addArrow': '添加箭头',
     'context.arrowTool': '箭头',
     'context.annotateForCodex': '标注编辑',
@@ -2947,7 +2974,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.streaming': '正在接收结构化决策…',
     'agentWorkspace.searchSessions': '搜索会话',
     'agentWorkspace.targetRun': '已绑定 Agent Run',
-    'agentWorkspace.thinking': '正在已授权范围内处理…',
+    'agentWorkspace.thinking': '正在处理…',
     'agentWorkspace.title': 'Agent Workspace',
     'agentWorkspace.viewOnCanvas': '在画布中查看',
     'agentWorkspace.viewRun': '查看 Run',

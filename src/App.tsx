@@ -10,6 +10,7 @@ import { OperationFeedback } from './components/OperationFeedback';
 import { ProjectBoardDialog } from './components/ProjectBoardDialog';
 import { getProjectBoardDialogView } from './components/projectBoardDialogView';
 import { TopBar } from './components/TopBar';
+import { TextBlockEditorDialog } from './components/TextBlockEditorDialog';
 import { UnifiedComposerProvider } from './components/UnifiedComposerProvider';
 import { WorkflowContinuationDialog } from './components/WorkflowContinuationDialog';
 import { getAssetPreviewUrl } from './core/assetStore';
@@ -525,6 +526,7 @@ function ReadyApp({
     focusWorkflowBlocks,
     locale,
     persistSnapshot,
+    selectedBlockIdsRef,
     setSelectedBlocks,
     snapshot,
     snapshotRef,
@@ -755,6 +757,7 @@ function ReadyApp({
           setIsArtifactLibraryOpen(false);
         }}
       />
+      <TextBlockEditorDialog snapshot={snapshot} />
       {projectBoardDialog && projectBoardDialogView ? (
         <ProjectBoardDialog
           cancelLabel={t('projectBoard.cancel')}

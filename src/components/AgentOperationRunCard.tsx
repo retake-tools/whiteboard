@@ -49,7 +49,17 @@ export function AgentOperationRunCard({
   const model = execution?.model ?? connection?.modelId;
 
   return (
-    <article className={`agent-workspace-operation-card${status ? ` is-${status}` : ''}`}>
+    <article
+      className={`agent-workspace-operation-card${status ? ` is-${status}` : ''}${operation ? ' is-locatable' : ''}`}
+      role={operation ? 'button' : undefined}
+      tabIndex={operation ? 0 : undefined}
+      onClick={operation ? () => onLocateBlock(operation.blockId) : undefined}
+      onKeyDown={operation ? (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        onLocateBlock(operation.blockId);
+      } : undefined}
+    >
       <header>
         <span><Activity size={13} />{t('agentWorkspace.operationRun')}</span>
         <strong>{status
@@ -65,7 +75,7 @@ export function AgentOperationRunCard({
       </p>
       <dl>
         <div>
-          <dt>{t('agentWorkspace.scope')}</dt>
+          <dt>{t('operationToolbar.capability')}</dt>
           <dd>{stringValue(operation?.data.capabilityId) ?? '—'}</dd>
         </div>
         <div>
@@ -78,7 +88,13 @@ export function AgentOperationRunCard({
         </div>
       </dl>
       {operation ? (
-        <button type="button" onClick={() => onLocateBlock(operation.blockId)}>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onLocateBlock(operation.blockId);
+          }}
+        >
           <MapPin size={12} />
           {t('agentWorkspace.viewOnCanvas')}
         </button>

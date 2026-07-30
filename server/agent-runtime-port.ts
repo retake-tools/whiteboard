@@ -22,6 +22,7 @@ export const agentRuntimeDecisionSchema = {
     'kind',
     'message',
     'capabilityId',
+    'sourceImageBlockId',
     'operationBlockId',
     'operationPrompt',
     'aspectRatioPreset',
@@ -51,8 +52,9 @@ export const agentRuntimeDecisionSchema = {
     message: { type: 'string' },
     capabilityId: {
       type: ['string', 'null'],
-      enum: ['image.text_to_image', null],
+      enum: ['image.image_to_image', 'image.text_to_image', null],
     },
+    sourceImageBlockId: { type: ['string', 'null'] },
     operationBlockId: { type: ['string', 'null'] },
     operationPrompt: { type: ['string', 'null'] },
     aspectRatioPreset: {
@@ -126,10 +128,14 @@ Return one JSON object matching the supplied schema.
   installation, or Canvas mutation. Decide the user's semantic intent from the whole request and supplied typed
   context; do not rely on keywords.
 - operation_create_execute: when there is no active AgentRun or explicit EntryPoint and the user is starting a new
-  image-generation task without explicitly targeting an existing Operation. Currently capabilityId must be
-  image.text_to_image. Provide a concrete execution-ready operationPrompt and optional aspectRatioPreset,
-  targetResolution, and variationCount. Retake will create a new Prompt and Operation; never reuse an old Operation
-  merely because it is the only ready or semantically similar item on the Board.
+  image-generation or image-edit task without explicitly targeting an existing Operation. Use image.text_to_image
+  with sourceImageBlockId=null for generation. Use image.image_to_image only when the exact source image is present
+  in retakeContext.selectedImageBlockIds or retakeContext.workingOutputImageBlockIds; copy its exact Block id into
+  sourceImageBlockId. Current Canvas selection belongs only to this message. Working outputs belong only to this
+  AgentSession. If "this image" could refer to multiple working outputs, reply and ask the user to select one.
+  Provide a concrete execution-ready operationPrompt and optional aspectRatioPreset, targetResolution, and
+  variationCount. Retake will create a new Prompt and Operation; never reuse an old Operation merely because it is
+  the only ready or semantically similar item on the Board, and never infer a source from the most recent Board image.
 - operation_execute: only when the user semantically continues retakeContext.workingOperation or targets an exact
   Operation listed in retakeContext.explicitOperationBlockIds. Copy that exact operationBlockId and provide an
   updated operationPrompt when needed. The target must have readiness.canRun=true. Never select an Operation only
@@ -280,7 +286,9 @@ function runtimePrompt(context: AgentRuntimeTurnContext): string {
       mentions: context.mentions,
       parameters: context.parameters,
       explicitOperationBlockIds: context.explicitOperationBlockIds,
+      selectedImageBlockIds: context.selectedImageBlockIds,
       workingOperation: context.workingOperation ?? null,
+      workingOutputImageBlockIds: context.workingOutputImageBlockIds,
     },
     recentHistory: context.history,
     userMessage: context.userMessage,
@@ -303,11 +311,39 @@ export function parseAgentRuntimeDecision(text: string, context: AgentRuntimeTur
       throw new Error('Agent-created Operation does not support unbound typed inputs yet.');
     }
     const capabilityId = parsed.capabilityId;
+    const sourceImageBlockId = typeof parsed.sourceImageBlockId === 'string'
+      ? parsed.sourceImageBlockId
+      : undefined;
     const operationPrompt = typeof parsed.operationPrompt === 'string'
       ? parsed.operationPrompt.trim()
       : '';
-    if (capabilityId !== 'image.text_to_image' || !operationPrompt) {
+    if (
+      (capabilityId !== 'image.text_to_image' && capabilityId !== 'image.image_to_image')
+      || !operationPrompt
+    ) {
       throw new Error('Agent Runtime returned an invalid create-and-execute Operation.');
+    }
+    const sourceBinding = sourceImageBlockId
+      && context.selectedImageBlockIds.includes(sourceImageBlockId)
+      ? 'message_selection'
+      : sourceImageBlockId
+        && context.workingOutputImageBlockIds.includes(sourceImageBlockId)
+        ? 'session_working_output'
+        : undefined;
+    const sourceImage = sourceImageBlockId
+      ? context.boardReadModel.blocks.find(
+          (candidate) =>
+            candidate.blockId === sourceImageBlockId
+            && candidate.type === 'image'
+            && candidate.media?.kind === 'image',
+        )
+      : undefined;
+    if (
+      capabilityId === 'image.text_to_image'
+        ? Boolean(sourceImageBlockId)
+        : !sourceImageBlockId || !sourceImage || !sourceBinding
+    ) {
+      throw new Error('Agent Runtime selected an image source outside the typed message or Session binding.');
     }
     const aspectRatioPreset = typeof parsed.aspectRatioPreset === 'string'
       && imageComposerAspectRatios.includes(
@@ -337,6 +373,8 @@ export function parseAgentRuntimeDecision(text: string, context: AgentRuntimeTur
       kind: 'operation_create_execute',
       message,
       operationPrompt,
+      ...(sourceBinding ? { sourceBinding } : {}),
+      ...(sourceImageBlockId ? { sourceImageBlockId } : {}),
     };
   }
   if (parsed.kind === 'operation_execute') {

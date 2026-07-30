@@ -15,6 +15,7 @@ import type {
 import type {
   AgentOperationExecutionRequest,
 } from './agentOperationExecution';
+import { executionsForOperation } from './executionConfiguration';
 import { createId, nowIso } from './id';
 import {
   listPackageComposerInlineInputOptions,
@@ -285,8 +286,13 @@ export function agentRuntimeTurnContext(
   const parameters = message.contextRefs.find((ref) => ref.kind === 'parameters');
   const explicitOperationBlockIds = message.contextRefs.flatMap((ref) =>
     ref.kind === 'operation' ? [ref.operationBlockId] : []);
+  const selectedImageBlockIds = message.contextRefs.flatMap((ref) =>
+    ref.kind === 'canvas_image_selection' ? ref.imageBlockIds : []);
   const run = session.activeAgentRunId ? requireScopedAgentRun(snapshot, session.activeAgentRunId) : undefined;
   const workingOperation = scopedWorkingOperation(snapshot, session);
+  const workingOutputImageBlockIds = workingOperation
+    ? agentSessionWorkingOutputImageBlockIds(snapshot, workingOperation.operationBlockId)
+    : [];
   return {
     ...(run ? {
       agentRun: {
@@ -323,7 +329,9 @@ export function agentRuntimeTurnContext(
         ...mentions.flatMap((mention) =>
           mention.kind === 'block' ? [mention.blockId] : []),
         ...explicitOperationBlockIds,
+        ...selectedImageBlockIds,
         ...(workingOperation ? [workingOperation.operationBlockId] : []),
+        ...workingOutputImageBlockIds,
       ],
     }),
     boardId: snapshot.board.boardId,
@@ -340,8 +348,10 @@ export function agentRuntimeTurnContext(
     inlineValues,
     parameters: parameters?.kind === 'parameters' ? structuredClone(parameters.value) : {},
     projectId: snapshot.project.projectId,
+    selectedImageBlockIds,
     userMessage: message.content,
     ...(workingOperation ? { workingOperation } : {}),
+    workingOutputImageBlockIds,
   };
 }
 
@@ -534,6 +544,25 @@ function assertContextRefs(
       requireScopedAgentRun(snapshot, ref.agentRunId);
     } else if (ref.kind === 'operation') {
       requireScopedOperation(snapshot, ref.operationBlockId);
+    } else if (ref.kind === 'canvas_image_selection') {
+      if (
+        ref.imageBlockIds.length === 0
+        || ref.imageBlockIds.length !== new Set(ref.imageBlockIds).size
+      ) {
+        throw new Error('Agent message Canvas image selection is invalid.');
+      }
+      for (const blockId of ref.imageBlockIds) {
+        const block = snapshot.blocks.find(
+          (candidate) =>
+            candidate.blockId === blockId
+            && candidate.boardId === session.boardId
+            && candidate.type === 'image'
+            && typeof candidate.data.assetId === 'string',
+        );
+        if (!block) {
+          throw new Error('Agent message Canvas image selection is outside Session scope.');
+        }
+      }
     } else if (ref.kind === 'operation_receipt') {
       throw new Error('Agent message Operation receipt is reserved for the Host.');
     } else if (ref.kind === 'block') {
@@ -604,6 +633,25 @@ function scopedWorkingOperation(
   );
   if (!operation || operation.data.capabilityId !== binding.capabilityId) return undefined;
   return structuredClone(binding);
+}
+
+export function agentSessionWorkingOutputImageBlockIds(
+  snapshot: BoardSnapshot,
+  operationBlockId: string,
+): string[] {
+  const execution = executionsForOperation(snapshot, operationBlockId)
+    .find((candidate) => candidate.status === 'succeeded');
+  if (!execution) return [];
+  return execution.outputBlockIds.filter((blockId) => {
+    const block = snapshot.blocks.find(
+      (candidate) =>
+        candidate.blockId === blockId
+        && candidate.boardId === snapshot.board.boardId
+        && candidate.type === 'image'
+        && typeof candidate.data.assetId === 'string',
+    );
+    return Boolean(block);
+  });
 }
 
 function latestBoardAgentRun(snapshot: BoardSnapshot) {

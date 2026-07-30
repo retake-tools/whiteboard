@@ -21,7 +21,9 @@ export function AgentMessageCard({
   const [isCopied, setIsCopied] = useState(false);
   const copiedTimerRef = useRef<number | undefined>(undefined);
   const visibleContextRefs = message.contextRefs.filter(
-    (ref) => ref.kind !== 'operation_receipt',
+    (ref) =>
+      ref.kind !== 'operation_receipt'
+      && ref.kind !== 'canvas_image_selection',
   );
 
   useEffect(() => () => {
@@ -85,6 +87,9 @@ function contextRefLabel(ref: AgentMessageContextRef): string {
   if (ref.kind === 'entrypoint') return `/${ref.entrypointId}`;
   if (ref.kind === 'agent_run') return `Run ${ref.agentRunId.slice(-8)}`;
   if (ref.kind === 'operation') return `Operation ${ref.operationBlockId.slice(-8)}`;
+  if (ref.kind === 'canvas_image_selection') {
+    return `${ref.imageBlockIds.length} selected image${ref.imageBlockIds.length === 1 ? '' : 's'}`;
+  }
   if (ref.kind === 'operation_receipt') {
     return `${ref.action === 'created' ? 'Created' : 'Continued'} Operation ${ref.operationBlockId.slice(-8)}`;
   }

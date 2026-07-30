@@ -41,6 +41,7 @@ export type AgentMessageRole = 'assistant' | 'system' | 'tool' | 'user';
 export type AgentMessageContextRef =
   | { agentRunId: string; kind: 'agent_run' }
   | { entrypointId: string; kind: 'entrypoint' }
+  | { imageBlockIds: string[]; kind: 'canvas_image_selection' }
   | { kind: 'operation'; operationBlockId: string }
   | {
       action: 'created' | 'continued';
@@ -312,7 +313,7 @@ export type AgentRunControlAction = 'cancel' | 'pause' | 'resume';
 export type AgentRuntimeTurnDecision =
   | { kind: 'reply'; message: string }
   | {
-      capabilityId: 'image.text_to_image';
+      capabilityId: 'image.image_to_image' | 'image.text_to_image';
       generationParams: {
         aspectRatioPreset?: string;
         targetResolution?: string;
@@ -321,6 +322,8 @@ export type AgentRuntimeTurnDecision =
       kind: 'operation_create_execute';
       message: string;
       operationPrompt: string;
+      sourceBinding?: 'message_selection' | 'session_working_output';
+      sourceImageBlockId?: string;
     }
   | {
       bindingSource: 'message_explicit' | 'session_working';
@@ -382,8 +385,10 @@ export interface AgentRuntimeTurnContext {
   mentions: PackageComposerMention[];
   parameters: Record<string, unknown>;
   projectId: string;
+  selectedImageBlockIds: string[];
   userMessage: string;
   workingOperation?: AgentSessionWorkingOperationBinding;
+  workingOutputImageBlockIds: string[];
 }
 
 export interface AgentRuntimeTurnResult {

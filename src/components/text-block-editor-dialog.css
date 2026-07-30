@@ -1,0 +1,108 @@
+.text-block-editor-layer {
+  position: fixed;
+  z-index: 2300;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgb(15 23 42 / 38%);
+  backdrop-filter: blur(6px);
+}
+
+.text-block-editor-dialog {
+  display: grid;
+  width: min(760px, calc(100vw - 56px));
+  height: min(680px, calc(100vh - 72px));
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid var(--retake-border);
+  border-radius: 14px;
+  background: var(--retake-surface);
+  box-shadow: 0 24px 80px rgb(15 23 42 / 24%);
+}
+
+.text-block-editor-dialog > header,
+.text-block-editor-dialog > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+}
+
+.text-block-editor-dialog > header { border-bottom: 1px solid var(--retake-border); }
+.text-block-editor-dialog > footer { border-top: 1px solid var(--retake-border); }
+.text-block-editor-dialog > header > div { min-width: 0; }
+.text-block-editor-dialog > header span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--retake-text-muted);
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+.text-block-editor-dialog h2 {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--retake-text);
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.text-block-editor-dialog > textarea {
+  width: 100%;
+  min-height: 0;
+  resize: none;
+  border: 0;
+  outline: 0;
+  padding: 20px;
+  background: var(--retake-surface);
+  color: var(--retake-text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.text-block-editor-dialog button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--retake-border);
+  border-radius: 7px;
+  background: var(--retake-surface);
+  color: var(--retake-text-secondary);
+  cursor: pointer;
+}
+.text-block-editor-dialog > header > button {
+  width: 32px;
+  padding: 0;
+}
+.text-block-editor-dialog > footer > span {
+  color: var(--retake-text-muted);
+  font-size: 11px;
+}
+.text-block-editor-dialog > footer > div {
+  display: flex;
+  gap: 8px;
+}
+.text-block-editor-dialog button.is-primary {
+  border-color: var(--retake-accent);
+  background: var(--retake-accent);
+  color: white;
+}
+.text-block-editor-dialog button:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+@media (max-width: 640px) {
+  .text-block-editor-layer { padding: 0; }
+  .text-block-editor-dialog {
+    width: 100vw;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+}

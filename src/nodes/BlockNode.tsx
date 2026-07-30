@@ -1,5 +1,5 @@
 import { Handle, NodeResizer, Position, type NodeProps, type ResizeParams } from '@xyflow/react';
-import { ArrowRight, Check, ChevronDown, Clock, FileText, ImageIcon, Info, Layers3, LockKeyhole, Play, Plus, RefreshCw, Video } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, Clock, Expand, FileText, ImageIcon, Info, Layers3, LockKeyhole, Play, Plus, RefreshCw, Video } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { schemaForCapability } from '../core/capabilities';
 import type { SwitchableOperationMode } from '../core/imageOperations';
@@ -161,6 +161,21 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
             className="block-heading-info-button nodrag nopan"
             label={t('inspector.openDetails')}
           />
+        ) : null}
+        {blockType === 'text' ? (
+          <button
+            type="button"
+            className="block-heading-info-button nodrag nopan"
+            aria-label={t('textEditor.open')}
+            title={t('textEditor.open')}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              dispatchOpenTextBlockEditor(id);
+            }}
+          >
+            <Expand size={14} />
+          </button>
         ) : null}
         {hasWorkflowContinuation ? (
           <button
@@ -652,7 +667,7 @@ function TextBlockBody({
 
   return (
     <textarea
-      className="text-body-input nodrag nopan"
+      className="text-body-input nodrag nopan nowheel"
       aria-label={title}
       placeholder={placeholder}
       readOnly={readOnly}
@@ -686,7 +701,7 @@ function TextBlockBody({
         }
       }}
       onDoubleClick={(event) => {
-        window.dispatchEvent(new CustomEvent('retake:select-connected-workflow', { detail: { blockId } }));
+        dispatchOpenTextBlockEditor(blockId);
         event.preventDefault();
         event.stopPropagation();
       }}
@@ -711,6 +726,12 @@ function dispatchRequestImageMention(
 
 function dispatchUpdateTextBlock(blockId: string, body: string): void {
   window.dispatchEvent(new CustomEvent('retake:update-text-block', { detail: { blockId, body } }));
+}
+
+function dispatchOpenTextBlockEditor(blockId: string): void {
+  window.dispatchEvent(new CustomEvent('retake:open-text-block-editor', {
+    detail: { blockId },
+  }));
 }
 
 function dispatchPreviewTextBlock(blockId: string, body: string): void {

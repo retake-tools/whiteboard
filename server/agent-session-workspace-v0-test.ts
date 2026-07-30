@@ -17,6 +17,7 @@ import {
 import { appendAgentRuntimeEvent, decideChangeProposal } from '../src/core/agentChangeApplication';
 import { cancelAgentRun, createAgentRunForOperation, startAgentRun } from '../src/core/agentRuntime';
 import { stageAgentOperationExecution } from '../src/core/agentOperationExecution';
+import { createBlockRecord } from '../src/core/blockFactory';
 import { createDraftTextToImageOperation } from '../src/core/imageOperations';
 import { createDraftSkillOperation } from '../src/core/textOperations';
 import type { BoardSnapshot } from '../src/core/types';
@@ -37,6 +38,8 @@ const [
   operationCardSource,
   appEventBindingsSource,
   operationControlsSource,
+  textBlockEditorSource,
+  blockNodeSource,
 ] = await Promise.all([
   readFile(new URL('./agent-runtime-port.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentWorkspace.tsx', import.meta.url), 'utf8'),
@@ -50,6 +53,8 @@ const [
   readFile(new URL('../src/components/AgentOperationRunCard.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/useAppEventBindings.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/nodes/OperationInlineControls.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/TextBlockEditorDialog.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/nodes/BlockNode.tsx', import.meta.url), 'utf8'),
 ]);
 
 assert.match(portSource, /implements AgentRuntimePort/);
@@ -68,6 +73,8 @@ assert.match(workspaceSource, /AgentRunSummaryCard/);
 assert.match(workspaceSource, /AgentOperationRunCard/);
 assert.match(operationCardSource, /latestExecutionForOperation/);
 assert.match(operationCardSource, /currentExecutionProviderSettings/);
+assert.doesNotMatch(operationCardSource, /agentWorkspace\.scope/);
+assert.match(operationCardSource, /role=\{operation \? 'button'/);
 assert.match(composerSource, /<SkillQuickInputComposer/);
 assert.match(composerSource, /mode="agent"/);
 assert.doesNotMatch(composerSource, /onInvokeEntryPoint/);
@@ -87,6 +94,11 @@ assert.match(controllerSource, /const agentSessionId = selectedSessionId \?\? en
 assert.match(controllerSource, /setAgentSessionWorkingOperation/);
 assert.match(appEventBindingsSource, /retake:bind-agent-operation/);
 assert.match(operationControlsSource, /dispatchBindAgentOperation/);
+assert.match(controllerSource, /canvasImageSelectionRefs/);
+assert.match(textBlockEditorSource, /retake:update-text-block/);
+assert.match(textBlockEditorSource, /isDirty/);
+assert.match(blockNodeSource, /text-body-input nodrag nopan nowheel/);
+assert.match(blockNodeSource, /retake:open-text-block-editor/);
 assert.match(apiSource, /application\/x-ndjson/);
 assert.match(runtimeClientSource, /response\.body\.getReader/);
 assert.equal(agentRuntimeDecisionSchema.type, 'object');
@@ -165,6 +177,7 @@ const operationDecision = parseAgentRuntimeDecision(JSON.stringify({
   kind: 'operation_create_execute',
   message: '正在为这个新任务创建文生图 Operation。',
   operationPrompt: '温馨现代客厅，落地灯为主体，海报文字：让一盏灯，点亮家的温度。',
+  sourceImageBlockId: null,
   targetResolution: '2K',
   variationCount: 2,
 }), operationContext);
@@ -343,6 +356,185 @@ assert.equal(
     (block) => block.blockId === legacyOperationDraft.textBlock.blockId,
   )?.data.body,
   'Explicitly updated old prompt.',
+);
+
+const imageEditSnapshot = await emptySnapshot();
+const selectedSourceImage = addTestImageBlock(imageEditSnapshot, 'Selected source');
+const unrelatedImage = addTestImageBlock(imageEditSnapshot, 'Unrelated image');
+const imageEditSession = createAgentSession(
+  imageEditSnapshot,
+  { model: 'test-model' },
+).session;
+const selectedImageMessage = appendAgentUserMessage(
+  imageEditSnapshot,
+  imageEditSession.agentSessionId,
+  {
+    content: '把选中图片里的“把温暖带回家”改为“把温暖带回你家”，其他不变。',
+    contextRefs: [{
+      imageBlockIds: [selectedSourceImage.blockId],
+      kind: 'canvas_image_selection',
+    }],
+  },
+);
+const selectedImageContext = agentRuntimeTurnContext(
+  imageEditSnapshot,
+  imageEditSession.agentSessionId,
+  selectedImageMessage.agentMessageId,
+);
+assert.deepEqual(selectedImageContext.selectedImageBlockIds, [selectedSourceImage.blockId]);
+assert.ok(
+  selectedImageContext.boardReadModel.blocks.some(
+    (block) => block.blockId === selectedSourceImage.blockId,
+  ),
+);
+assert.throws(
+  () => parseAgentRuntimeDecision(JSON.stringify({
+    capabilityId: 'image.image_to_image',
+    kind: 'operation_create_execute',
+    message: '错误选择了未绑定图片。',
+    operationPrompt: 'Do not apply.',
+    sourceImageBlockId: unrelatedImage.blockId,
+  }), selectedImageContext),
+  /outside the typed message or Session binding/,
+);
+const selectedImageDecision = parseAgentRuntimeDecision(JSON.stringify({
+  capabilityId: 'image.image_to_image',
+  kind: 'operation_create_execute',
+  message: '正在从选中图片创建新的图片编辑 Operation。',
+  operationPrompt: '仅把画面文字“把温暖带回家”改为“把温暖带回你家”，其他内容保持不变。',
+  sourceImageBlockId: selectedSourceImage.blockId,
+}), selectedImageContext);
+assert.equal(
+  selectedImageDecision.kind === 'operation_create_execute'
+    ? selectedImageDecision.sourceBinding
+    : undefined,
+  'message_selection',
+);
+const selectedImageTurn = applyAgentRuntimeTurn(imageEditSnapshot, {
+  agentSessionId: imageEditSession.agentSessionId,
+  decision: selectedImageDecision,
+  externalThreadId: 'thread_image_edit',
+  runtimeModel: 'test-model',
+  runtimeTurnId: 'turn_image_edit_selection',
+  sourceMessageId: selectedImageMessage.agentMessageId,
+});
+const selectedImageApplication = stageAgentOperationExecution(
+  imageEditSnapshot,
+  selectedImageTurn.operationExecution!,
+  {
+    connectionIdForCapability: () => 'codex-app-server',
+    imageToImageOperationTitle: 'Quick edit',
+    operationTitle: 'Generate image',
+    promptTitle: 'Prompt',
+  },
+);
+const selectedEditOperation = selectedImageApplication.stagedSnapshot.blocks.find(
+  (block) => block.blockId === selectedImageApplication.receipt.operationBlockId,
+);
+assert.equal(selectedEditOperation?.data.capabilityId, 'image.image_to_image');
+assert.ok(
+  selectedImageApplication.stagedSnapshot.edges.some(
+    (edge) =>
+      edge.kind === 'execution_input'
+      && edge.inputRole === 'source'
+      && edge.sourceBlockId === selectedSourceImage.blockId
+      && edge.targetBlockId === selectedEditOperation?.blockId,
+  ),
+);
+
+const workingOutputImage = addTestImageBlock(
+  selectedImageApplication.stagedSnapshot,
+  'Agent working output',
+);
+selectedImageApplication.stagedSnapshot.executions.push({
+  adapter: 'codex_app_server',
+  boardId: selectedImageApplication.stagedSnapshot.board.boardId,
+  capabilityId: 'image.image_to_image',
+  completedAt: '2026-07-30T12:02:00.000Z',
+  connectionId: 'codex-app-server',
+  executionId: 'exec_agent_working_output',
+  inputBlockIds: [selectedSourceImage.blockId],
+  outputAssetIds: [workingOutputImage.data.assetId!],
+  outputBlockIds: [workingOutputImage.blockId],
+  params: { operationBlockId: selectedEditOperation?.blockId },
+  projectId: selectedImageApplication.stagedSnapshot.project.projectId,
+  startedAt: '2026-07-30T12:01:00.000Z',
+  status: 'succeeded',
+});
+const workingImageMessage = appendAgentUserMessage(
+  selectedImageApplication.stagedSnapshot,
+  imageEditSession.agentSessionId,
+  { content: '再把这张图的整体色温调暖一点。' },
+);
+const workingImageContext = agentRuntimeTurnContext(
+  selectedImageApplication.stagedSnapshot,
+  imageEditSession.agentSessionId,
+  workingImageMessage.agentMessageId,
+);
+assert.deepEqual(
+  workingImageContext.workingOutputImageBlockIds,
+  [workingOutputImage.blockId],
+);
+const isolatedImageSession = createAgentSession(
+  selectedImageApplication.stagedSnapshot,
+  { model: 'test-model', title: 'Isolated image chat' },
+).session;
+const isolatedImageMessage = appendAgentUserMessage(
+  selectedImageApplication.stagedSnapshot,
+  isolatedImageSession.agentSessionId,
+  { content: '修改这张图。' },
+);
+assert.deepEqual(
+  agentRuntimeTurnContext(
+    selectedImageApplication.stagedSnapshot,
+    isolatedImageSession.agentSessionId,
+    isolatedImageMessage.agentMessageId,
+  ).workingOutputImageBlockIds,
+  [],
+  'Agent image context must not cross AgentSession boundaries',
+);
+const workingImageDecision = parseAgentRuntimeDecision(JSON.stringify({
+  capabilityId: 'image.image_to_image',
+  kind: 'operation_create_execute',
+  message: '正在从当前会话的图片结果创建新的编辑 Operation。',
+  operationPrompt: '保持构图和文字不变，仅把整体色温调暖一点。',
+  sourceImageBlockId: workingOutputImage.blockId,
+}), workingImageContext);
+assert.equal(
+  workingImageDecision.kind === 'operation_create_execute'
+    ? workingImageDecision.sourceBinding
+    : undefined,
+  'session_working_output',
+);
+const workingImageTurn = applyAgentRuntimeTurn(
+  selectedImageApplication.stagedSnapshot,
+  {
+    agentSessionId: imageEditSession.agentSessionId,
+    decision: workingImageDecision,
+    externalThreadId: 'thread_image_edit',
+    runtimeModel: 'test-model',
+    runtimeTurnId: 'turn_image_edit_working_output',
+    sourceMessageId: workingImageMessage.agentMessageId,
+  },
+);
+const workingImageApplication = stageAgentOperationExecution(
+  selectedImageApplication.stagedSnapshot,
+  workingImageTurn.operationExecution!,
+  {
+    connectionIdForCapability: () => 'codex-app-server',
+    imageToImageOperationTitle: 'Quick edit',
+    operationTitle: 'Generate image',
+    promptTitle: 'Prompt',
+  },
+);
+assert.ok(
+  workingImageApplication.stagedSnapshot.edges.some(
+    (edge) =>
+      edge.kind === 'execution_input'
+      && edge.inputRole === 'source'
+      && edge.sourceBlockId === workingOutputImage.blockId
+      && edge.targetBlockId === workingImageApplication.receipt.operationBlockId,
+  ),
 );
 
 const blockedOperationSnapshot = structuredClone(explicitLegacyApplication.stagedSnapshot);
@@ -668,7 +860,9 @@ console.log(JSON.stringify({
   staleSaveProtected: true,
   explicitOperationExecutionContract: true,
   agentOperationIntentRoutingV1: true,
+  agentImageContextBindingV1: true,
   factDrivenOperationRunCard: true,
+  textBlockLargeEditorV1: true,
   currentBoardReadModelPerTurn: true,
 }));
 
@@ -689,6 +883,30 @@ async function emptySnapshot(): Promise<BoardSnapshot> {
   snapshot.workflowStepRuns = [];
   snapshot.historyEvents = [];
   return snapshot;
+}
+
+function addTestImageBlock(snapshot: BoardSnapshot, title: string) {
+  const block = createBlockRecord(snapshot, 'image');
+  const assetId = `asset_${block.blockId}`;
+  block.data = {
+    ...block.data,
+    assetId,
+    title,
+  };
+  snapshot.blocks.push(block);
+  snapshot.assets.push({
+    assetId,
+    createdAt: block.createdAt,
+    height: 1024,
+    kind: 'image',
+    mimeType: 'image/png',
+    previewUrl: `data:image/png;base64,${block.blockId}`,
+    projectId: snapshot.project.projectId,
+    storageKey: `test/${block.blockId}.png`,
+    storageProvider: 'local',
+    width: 1024,
+  });
+  return block;
 }
 
 function assertSchemaDiscriminatorsDeclareStringType(value: unknown): void {

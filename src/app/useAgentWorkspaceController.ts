@@ -57,6 +57,7 @@ interface AgentWorkspaceControllerOptions {
   snapshot: BoardSnapshot;
   snapshotRef: RefObject<BoardSnapshot>;
   setSelectedBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
+  selectedBlockIdsRef: RefObject<string[]>;
   t: ReturnType<typeof useI18n>['t'];
   updateSnapshot: (
     updater: (current: BoardSnapshot) => BoardSnapshot,
@@ -69,6 +70,7 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     focusWorkflowBlocks,
     locale,
     persistSnapshot,
+    selectedBlockIdsRef,
     setSelectedBlocks,
     snapshot,
     snapshotRef,
@@ -344,6 +346,7 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     try {
       const contextRefs: AgentMessageContextRef[] = [
         ...(input.entrypointId ? [{ kind: 'entrypoint' as const, entrypointId: input.entrypointId }] : []),
+        ...canvasImageSelectionRefs(snapshotRef.current, selectedBlockIdsRef.current),
         ...input.inlineValues,
         ...input.mentions,
         ...(Object.keys(input.parameters).length > 0
@@ -397,6 +400,8 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
                 projectId: applicationSnapshot.project.projectId,
               })?.connectionId,
             operationTitle: imageOperationTitle('generate_image', t),
+            imageToImageOperationTitle: imageOperationTitle('quick_edit', t),
+            imageToImagePromptPlaceholder: imageOperationDefaultPrompt('quick_edit', t),
             promptPlaceholder: imageOperationDefaultPrompt('generate_image', t),
             promptTitle: t('operationToolbar.prompt'),
           });
@@ -468,6 +473,22 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
       (candidate) => candidate.connectionId === 'codex-app-server',
     );
   }
+}
+
+function canvasImageSelectionRefs(
+  snapshot: BoardSnapshot,
+  selectedBlockIds: readonly string[],
+): Extract<AgentMessageContextRef, { kind: 'canvas_image_selection' }>[] {
+  const imageBlockIds = selectedBlockIds.filter((blockId) =>
+    snapshot.blocks.some(
+      (block) =>
+        block.blockId === blockId
+        && block.type === 'image'
+        && typeof block.data.assetId === 'string',
+    ));
+  return imageBlockIds.length > 0
+    ? [{ imageBlockIds, kind: 'canvas_image_selection' }]
+    : [];
 }
 
 async function reconcileDraftLaunchTarget(

@@ -233,6 +233,13 @@
   border-radius: 8px;
   background: var(--retake-surface);
 }
+.agent-workspace-operation-card.is-locatable { cursor: pointer; }
+.agent-workspace-operation-card.is-locatable:hover,
+.agent-workspace-operation-card.is-locatable:focus-visible {
+  border-color: var(--retake-accent-border);
+  background: var(--retake-accent-soft);
+  outline: none;
+}
 .agent-workspace-operation-card.is-failed,
 .agent-workspace-operation-card.is-canceled { border-left-color: var(--retake-danger, #d92d20); }
 .agent-workspace-operation-card > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

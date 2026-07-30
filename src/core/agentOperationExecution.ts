@@ -2,8 +2,12 @@ import { operationReadinessFor } from './capabilities';
 import {
   imageComposerGenerationParams,
 } from './imageComposer';
-import { createDraftTextToImageOperation } from './imageOperations';
 import {
+  createDraftImageToImageOperation,
+  createDraftTextToImageOperation,
+} from './imageOperations';
+import {
+  agentSessionWorkingOutputImageBlockIds,
   setAgentSessionWorkingOperation,
 } from './agentSession';
 import type {
@@ -34,6 +38,8 @@ export interface AgentOperationApplicationOptions {
     snapshot: BoardSnapshot,
   ) => string | undefined;
   operationTitle: string;
+  imageToImageOperationTitle?: string;
+  imageToImagePromptPlaceholder?: string;
   promptPlaceholder?: string;
   promptTitle: string;
 }
@@ -73,7 +79,7 @@ export function stageAgentOperationExecution(
   const assistantMessage = requireAssistantMessage(stagedSnapshot, request);
   const sourceMessage = requireSourceMessage(stagedSnapshot, request);
   const receipt = request.kind === 'create_execute'
-    ? createAndValidateOperation(stagedSnapshot, request, options)
+    ? createAndValidateOperation(stagedSnapshot, request, sourceMessage, options)
     : updateAndValidateExistingOperation(stagedSnapshot, request, sourceMessage);
 
   const session = stagedSnapshot.agentSessions?.find(
@@ -102,6 +108,7 @@ export function stageAgentOperationExecution(
 function createAndValidateOperation(
   snapshot: BoardSnapshot,
   request: Extract<AgentOperationExecutionRequest, { kind: 'create_execute' }>,
+  sourceMessage: NonNullable<BoardSnapshot['agentMessages']>[number],
   options: AgentOperationApplicationOptions,
 ): AgentOperationApplicationReceipt {
   const capabilityId = request.decision.capabilityId;
@@ -109,13 +116,24 @@ function createAndValidateOperation(
   if (!connectionId) {
     throw new Error('No ready automated Connection is available for the Agent-created Operation.');
   }
-  const draft = createDraftTextToImageOperation(snapshot, {
-    generationParams: imageComposerGenerationParams(request.decision.generationParams),
-    operationTitle: options.operationTitle,
-    textBlockBody: request.decision.operationPrompt,
-    textBlockPlaceholder: options.promptPlaceholder,
-    textBlockTitle: options.promptTitle,
-  });
+  const generationParams = imageComposerGenerationParams(
+    request.decision.generationParams,
+  );
+  const draft = capabilityId === 'image.image_to_image'
+    ? createAgentImageToImageDraft(
+        snapshot,
+        request,
+        sourceMessage,
+        options,
+        generationParams,
+      )
+    : createDraftTextToImageOperation(snapshot, {
+        generationParams,
+        operationTitle: options.operationTitle,
+        textBlockBody: request.decision.operationPrompt,
+        textBlockPlaceholder: options.promptPlaceholder,
+        textBlockTitle: options.promptTitle,
+      });
   draft.operationBlock.data.connectionId = connectionId;
   const readiness = operationReadinessFor(snapshot, draft.operationBlock);
   if (!readiness.canRun) {
@@ -130,6 +148,67 @@ function createAndValidateOperation(
     operationBlockId: draft.operationBlock.blockId,
     promptBlockId: draft.textBlock.blockId,
   };
+}
+
+function createAgentImageToImageDraft(
+  snapshot: BoardSnapshot,
+  request: Extract<AgentOperationExecutionRequest, { kind: 'create_execute' }>,
+  sourceMessage: NonNullable<BoardSnapshot['agentMessages']>[number],
+  options: AgentOperationApplicationOptions,
+  generationParams: ReturnType<typeof imageComposerGenerationParams>,
+) {
+  const sourceImageBlockId = request.decision.sourceImageBlockId;
+  const sourceBinding = request.decision.sourceBinding;
+  if (!sourceImageBlockId || !sourceBinding) {
+    throw new Error('Agent-created image edit has no typed source binding.');
+  }
+  const sourceIsBound = sourceBinding === 'message_selection'
+    ? sourceMessage.contextRefs.some(
+        (ref) =>
+          ref.kind === 'canvas_image_selection'
+          && ref.imageBlockIds.includes(sourceImageBlockId),
+      )
+    : sessionWorkingOutputImages(snapshot, request.agentSessionId)
+      .includes(sourceImageBlockId);
+  const sourceImage = snapshot.blocks.find(
+    (block) =>
+      block.blockId === sourceImageBlockId
+      && block.type === 'image'
+      && typeof block.data.assetId === 'string',
+  );
+  if (!sourceIsBound || !sourceImage) {
+    throw new Error('Agent-created image edit source is outside the typed message or Session binding.');
+  }
+  const draft = createDraftImageToImageOperation(snapshot, {
+    operation: 'quick_edit',
+    operationTitle: options.imageToImageOperationTitle ?? options.operationTitle,
+    sourceBlockId: sourceImage.blockId,
+    textBlockBody: request.decision.operationPrompt,
+    textBlockPlaceholder: options.imageToImagePromptPlaceholder,
+    textBlockTitle: options.promptTitle,
+  });
+  draft.operationBlock.data.generationParams = {
+    ...recordValue(draft.operationBlock.data.generationParams),
+    ...generationParams,
+  };
+  return draft;
+}
+
+function sessionWorkingOutputImages(
+  snapshot: BoardSnapshot,
+  agentSessionId: string,
+): string[] {
+  const operationBlockId = snapshot.agentSessions?.find(
+    (session) => session.agentSessionId === agentSessionId,
+  )?.workingOperation?.operationBlockId;
+  if (!operationBlockId) return [];
+  return agentSessionWorkingOutputImageBlockIds(snapshot, operationBlockId);
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 }
 
 function updateAndValidateExistingOperation(
