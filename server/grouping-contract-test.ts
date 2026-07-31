@@ -21,11 +21,11 @@ assert.match(canvasSource, /nodeDragActiveRef\.current = true/);
 assert.match(canvasSource, /if \(!nodeDragActiveRef\.current\) setNodes\(createFlowNodesForSelection\(remoteSnapshot\)\)/);
 const canvasViewSource = await readFile('src/app/WhiteboardCanvas.tsx', 'utf8');
 const canvasCss = await readFile('src/styles/canvas.css', 'utf8');
+const canvasImageDoubleTapSource = await readFile('src/app/useCanvasImageDoubleTap.ts', 'utf8');
 const blockNodeSource = await readFile('src/nodes/BlockNode.tsx', 'utf8');
 const executionInspectorSource = await readFile('src/components/ExecutionInspector.tsx', 'utf8');
 const operationControlsSource = await readFile('src/nodes/OperationInlineControls.tsx', 'utf8');
 const operationReferenceInputsSource = await readFile('src/nodes/OperationReferenceInputs.tsx', 'utf8');
-const imagePreviewDoubleTapSource = await readFile('src/nodes/useImagePreviewDoubleTap.ts', 'utf8');
 const blockNodeCss = await readFile('src/nodes/block-node.css', 'utf8');
 assert.match(canvasViewSource, /zoomOnDoubleClick=\{false\}/);
 assert.match(canvasSource, /function selectConnectedWorkflow[\s\S]*?window\.requestAnimationFrame/);
@@ -34,17 +34,17 @@ assert.match(
   /const onNodeClick[\s\S]*?event\.detail > 1[\s\S]*?scheduleTerminalImageStatusDismiss/,
 );
 assert.match(
-  blockNodeSource,
-  /useImagePreviewDoubleTap\(\{[\s\S]*?gestureKey: id[\s\S]*?dispatchOpenExecutionInspector\(id\)[\s\S]*?onClickCapture=\{blockType === 'image' \? \(event\)[\s\S]*?imagePreviewDoubleTap\.onClickCapture\(event\)[\s\S]*?onDoubleClickCapture=\{blockType === 'image' \? \(event\)[\s\S]*?imagePreviewDoubleTap\.onDoubleClickCapture\(event\)[\s\S]*?onPointerDownCapture=\{blockType === 'image' \? \(event\)[\s\S]*?imagePreviewDoubleTap\.onPointerDown\(event\)/,
+  canvasViewSource,
+  /useCanvasImageDoubleTap\(\{[\s\S]*?gestureKeyForTarget: imageBlockIdFromGestureTarget[\s\S]*?retake:open-execution-inspector[\s\S]*?onClickCapture=\{imageDoubleTap\.onClickCapture\}[\s\S]*?onPointerDownCapture=\{imageDoubleTap\.onPointerDownCapture\}/,
 );
-assert.match(imagePreviewDoubleTapSource, /window\.addEventListener\('pointerup', handlePointerUp, true\)/);
-assert.match(imagePreviewDoubleTapSource, /window\.addEventListener\('pointermove', handlePointerMove, true\)/);
-assert.match(imagePreviewDoubleTapSource, /completedTapsByGestureKey[\s\S]*?onClickCapture/);
 assert.match(
-  imagePreviewDoubleTapSource,
-  /const previousTap = completedTapsByGestureKey\.get\(gestureKey\)[\s\S]*?matchesPreviousTap\(previousTap, event\)[\s\S]*?openDoubleTap\(event\.timeStamp\)[\s\S]*?event\.preventDefault\(\)/,
+  canvasViewSource,
+  /function imageBlockIdFromGestureTarget[\s\S]*?blockIdFromNodeTarget\(target\)[\s\S]*?block\?\.type === 'image'/,
 );
-assert.match(imagePreviewDoubleTapSource, /suppressedClicksUntilByGestureKey/);
+assert.match(
+  canvasImageDoubleTapSource,
+  /completedTapRef[\s\S]*?onPointerDownCapture[\s\S]*?matchesCompletedTap[\s\S]*?openDoubleTap/,
+);
 assert.match(
   executionInspectorSource,
   /className=\{`execution-inspector-backdrop[\s\S]*?onPointerDown=\{\(event\) => \{\s*if \(event\.target === event\.currentTarget\) onClose\(\);/,
@@ -62,7 +62,6 @@ assert.match(
   blockNodeSource,
   /function isImageDetailGestureTarget[\s\S]*?\.block-heading[\s\S]*?\.react-flow__resize-control/,
 );
-assert.match(blockNodeSource, /enabled: blockType === 'image' && hasImagePreview/);
 assert.doesNotMatch(
   blockNodeSource,
   /onDoubleClick=\{\(event\) => \{\s*if \(!hasExecutionDetails\(data\)\) return;/,

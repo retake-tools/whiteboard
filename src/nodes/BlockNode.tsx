@@ -15,7 +15,6 @@ import { PluginBlockRendererSlot } from '../components/PluginBlockRendererHost';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { DocumentBlockBody } from './DocumentBlockBody';
 import { OperationInlineControls } from './OperationInlineControls';
-import { useImagePreviewDoubleTap } from './useImagePreviewDoubleTap';
 import { VideoBlockBody } from './VideoBlockBody';
 
 const iconByType = {
@@ -51,11 +50,6 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
     && typeof data.artifactRevisionId === 'string'
     && typeof data.artifactType === 'string';
   const [isHeadingHovered, setIsHeadingHovered] = useState(false);
-  const imagePreviewDoubleTap = useImagePreviewDoubleTap({
-    enabled: blockType === 'image' && hasImagePreview,
-    gestureKey: id,
-    onDoubleTap: () => dispatchOpenExecutionInspector(id),
-  });
 
   if (blockType === 'group') {
     const color = typeof data.groupColor === 'string' ? data.groupColor : 'neutral';
@@ -130,16 +124,6 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
       ]
         .filter(Boolean)
         .join(' ')}
-      onClickCapture={blockType === 'image' ? (event) => {
-        if (isImageDetailGestureTarget(event.target)) {
-          imagePreviewDoubleTap.onClickCapture(event);
-        }
-      } : undefined}
-      onDoubleClickCapture={blockType === 'image' ? (event) => {
-        if (isImageDetailGestureTarget(event.target)) {
-          imagePreviewDoubleTap.onDoubleClickCapture(event);
-        }
-      } : undefined}
       onDoubleClick={(event) => {
         const target = event.target instanceof Element ? event.target : undefined;
         if (target && isInteractiveDoubleClickTarget(target)) return;
@@ -153,11 +137,6 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
         event.preventDefault();
         event.stopPropagation();
       }}
-      onPointerDownCapture={blockType === 'image' ? (event) => {
-        if (isImageDetailGestureTarget(event.target)) {
-          imagePreviewDoubleTap.onPointerDown(event);
-        }
-      } : undefined}
     >
       <Handle type="target" position={Position.Left} />
       {blockType === 'operation'

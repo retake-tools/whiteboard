@@ -52,6 +52,7 @@ import type { useI18n } from '../i18n';
 import { BlockNode } from '../nodes/BlockNode';
 import { downloadAsset, operationModeFromBlock } from './appHelpers';
 import type { useBlockActions } from './useBlockActions';
+import { useCanvasImageDoubleTap } from './useCanvasImageDoubleTap';
 import type { useCanvasController } from './useCanvasController';
 import type { useGroupController } from './useGroupController';
 import type { useImageOperationController } from './useImageOperationController';
@@ -122,6 +123,14 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
       && window.matchMedia('(hover: hover) and (pointer: fine)').matches,
   );
   const [hoveredImageBlockId, setHoveredImageBlockId] = useState<string>();
+  const imageDoubleTap = useCanvasImageDoubleTap({
+    gestureKeyForTarget: imageBlockIdFromGestureTarget,
+    onDoubleTap: (blockId) => {
+      window.dispatchEvent(new CustomEvent('retake:open-execution-inspector', {
+        detail: { blockId },
+      }));
+    },
+  });
   const selectedImageActionBlocks = canvas.selectedBlockIds.flatMap(
     (blockId) => {
       const block = snapshot.blocks.find(
@@ -287,6 +296,29 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
       ?.dataset.id;
   }
 
+  function imageBlockIdFromGestureTarget(
+    target: EventTarget | null,
+  ): string | undefined {
+    if (!(target instanceof Element)) return undefined;
+    if (target.closest([
+      '.block-heading',
+      '.image-context-toolbar-bridge',
+      '.react-flow__handle',
+      '.react-flow__resize-control',
+      'button',
+      'input',
+      'select',
+      'textarea',
+    ].join(','))) return undefined;
+    const blockId = blockIdFromNodeTarget(target);
+    const block = blockId
+      ? snapshot.blocks.find((candidate) => candidate.blockId === blockId)
+      : undefined;
+    return block?.type === 'image' && typeof block.data.assetId === 'string'
+      ? block.blockId
+      : undefined;
+  }
+
   function handleCanvasFocus(event: ReactFocusEvent<HTMLElement>): void {
     const blockId = blockIdFromNodeTarget(event.target);
     if (blockId) showImageToolbarPreview(blockId);
@@ -358,7 +390,9 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
       data-pointer-moving="false"
       aria-label="Retake board canvas"
       onBlurCapture={handleCanvasBlur}
+      onClickCapture={imageDoubleTap.onClickCapture}
       onFocusCapture={handleCanvasFocus}
+      onPointerDownCapture={imageDoubleTap.onPointerDownCapture}
       onPointerMoveCapture={handleCanvasPointerMove}
       onPointerLeave={handleCanvasPointerLeave}
     >
