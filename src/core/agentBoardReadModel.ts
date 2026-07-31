@@ -204,15 +204,21 @@ function operationSummary(
     .flatMap((edge) => {
       const source = blockById.get(edge.sourceBlockId);
       return source ? [{
-        ...(edge.inputRole ? { inputRole: edge.inputRole } : {}),
         ...(edge.inputSlotId ? { inputSlotId: edge.inputSlotId } : {}),
+        ...(edge.referenceIntent
+          ? {
+              referenceIntent: {
+                instruction: edge.referenceIntent.instruction,
+                label: edge.referenceIntent.label,
+              },
+            }
+          : {}),
         sourceBlockId: source.blockId,
         sourceBlockType: source.type,
       }] : [];
     })
     .sort((left, right) =>
       (left.inputSlotId ?? '').localeCompare(right.inputSlotId ?? '')
-        || (left.inputRole ?? '').localeCompare(right.inputRole ?? '')
         || left.sourceBlockId.localeCompare(right.sourceBlockId));
   const outputBlockIds = snapshot.edges
     .filter((edge) => edge.kind === 'execution_output' && edge.sourceBlockId === block.blockId)

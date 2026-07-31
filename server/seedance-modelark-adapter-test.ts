@@ -44,7 +44,7 @@ snapshot.edges.push({
   sourceBlockId: firstFrameBlock.blockId,
   targetBlockId: successTarget.blockId,
   kind: 'execution_input',
-  inputRole: 'first_frame',
+  inputSlotId: 'first_frame',
 });
 await saveSnapshot(snapshot);
 

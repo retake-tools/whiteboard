@@ -1,9 +1,6 @@
 import { getAssetPreviewUrl } from './assetStore';
-import {
-  disabledExecutionInputRolesFor,
-  executionInputRoleOptionsFor,
-  operationReadinessFor,
-} from './capabilities';
+import { operationReadinessFor } from './capabilities';
+import { capabilityDefinitionFor } from './capabilityRegistry';
 import {
   blockLockedByGroup,
   descendantBlockIds,
@@ -22,7 +19,13 @@ import {
   previousExecutionFor,
   queuedOperationConfigurationIsStale,
 } from './executionConfiguration';
-import type { BoardSnapshot, GroupColor, RetakeEdge, RetakeNode } from './types';
+import type {
+  BoardSnapshot,
+  GroupColor,
+  OperationReferenceInputPresentation,
+  RetakeEdge,
+  RetakeNode,
+} from './types';
 import { sourceImageAspectRatio } from './operationAspectRatio';
 import { workflowStepRuntimeForOperation } from './workflowRuntime';
 import type { CanvasProjectionMode } from './canvasProjectionViewState';
@@ -66,42 +69,6 @@ export function createFlowNodes(
     options.selectedBlockIds ?? [],
   );
   const selectionScopeBlockIds = new Set(groupSelectionScopeBlockIds(snapshot, options.selectedBlockIds ?? []));
-  const selectedOperation = snapshot.blocks.find(
-    (block) =>
-      block.blockId === options.selectedOperationBlockId &&
-      (block.type === 'operation' || block.type === 'video'),
-  );
-  const inputMetadataByBlockId = new Map(
-    snapshot.edges
-      .filter((edge) => edge.kind === 'execution_input' && edge.targetBlockId === options.selectedOperationBlockId)
-      .flatMap((edge) => {
-        const sourceBlock = snapshot.blocks.find((block) => block.blockId === edge.sourceBlockId);
-        if (sourceBlock?.type !== 'image' || !selectedOperation) return [];
-        return [[
-          edge.sourceBlockId,
-          {
-            edgeId: edge.edgeId,
-            role: edge.inputRole,
-            roleOptions: executionInputRoleOptionsFor(sourceBlock, selectedOperation),
-            targetCapabilityId:
-              selectedOperation.type === 'operation'
-              && typeof selectedOperation.data.capabilityId === 'string'
-                ? selectedOperation.data.capabilityId
-                : undefined,
-            disabledRoleOptions: disabledExecutionInputRolesFor(
-              snapshot,
-              sourceBlock,
-              selectedOperation,
-              edge.edgeId,
-            ),
-            locked:
-              blockLockedByGroup(snapshot, sourceBlock.blockId) ||
-              blockLockedByGroup(snapshot, selectedOperation.blockId),
-          },
-        ] as const];
-      }),
-  );
-
   const blockById = new Map(snapshot.blocks.map((block) => [block.blockId, block]));
   const readinessSnapshot = options.textBlockDrafts?.size
     ? {
@@ -240,16 +207,9 @@ export function createFlowNodes(
       executionTriggerMode: sourceExecution?.triggerMode,
       executionVersion: groupExecutionMetadata?.version,
       executionStatus: groupExecutionMetadata?.status,
-      operationInputEdgeId: inputMetadataByBlockId.get(block.blockId)?.edgeId,
-      operationInputRole: inputMetadataByBlockId.get(block.blockId)?.role,
-      operationInputRoleDisabledOptions: inputMetadataByBlockId.get(block.blockId)?.disabledRoleOptions,
-      operationInputRoleLocked: inputMetadataByBlockId.get(block.blockId)?.locked,
-      operationInputRoleOptions: inputMetadataByBlockId.get(block.blockId)?.roleOptions,
-      operationInputRolePending:
-        Boolean(inputMetadataByBlockId.get(block.blockId)?.edgeId) &&
-        !inputMetadataByBlockId.get(block.blockId)?.role,
-      operationInputTargetCapabilityId:
-        inputMetadataByBlockId.get(block.blockId)?.targetCapabilityId,
+      operationReferenceInputs: block.type === 'operation'
+        ? operationReferenceInputsFor(snapshot, block)
+        : undefined,
       operationCanRun,
       operationCompact: compactOperation,
       operationCompactResultCount: compactOperation
@@ -360,7 +320,7 @@ export function createFlowEdges(
     if (source === target) continue;
     const isProxy = source !== edge.sourceBlockId || target !== edge.targetBlockId;
     const key = isProxy
-      ? `${source}:${target}:${edge.kind}:${edge.inputRole ?? ''}:${edge.inputSlotId ?? ''}`
+      ? `${source}:${target}:${edge.kind}:${edge.inputSlotId ?? ''}`
       : edge.edgeId;
     const existing = projectedEdges.get(key);
     if (existing) {
@@ -384,7 +344,6 @@ export function createFlowEdges(
         .filter(Boolean)
         .join(' ') || undefined,
       data: {
-        inputRole: edge.inputRole,
         inputSlotId: edge.inputSlotId,
         kind: edge.kind,
         proxyEdgeIds: isProxy ? [edge.edgeId] : undefined,
@@ -402,6 +361,58 @@ export function createFlowEdges(
     });
   }
   return [...projectedEdges.values()];
+}
+
+function operationReferenceInputsFor(
+  snapshot: BoardSnapshot,
+  operation: BoardSnapshot['blocks'][number],
+): OperationReferenceInputPresentation[] {
+  if (operation.type !== 'operation') return [];
+  const capabilityId = typeof operation.data.capabilityId === 'string'
+    ? operation.data.capabilityId
+    : 'image.text_to_image';
+  let definition: ReturnType<typeof capabilityDefinitionFor> | undefined;
+  try {
+    definition = capabilityDefinitionFor(capabilityId);
+  } catch {
+    definition = undefined;
+  }
+  const slotById = new Map(
+    definition?.inputSlots.map((slot) => [slot.slotId, slot]) ?? [],
+  );
+  const editable = operation.data.status !== 'queued'
+    && operation.data.status !== 'running'
+    && !blockLockedByGroup(snapshot, operation.blockId);
+  return snapshot.edges.flatMap((edge) => {
+    if (
+      edge.kind !== 'execution_input'
+      || edge.targetBlockId !== operation.blockId
+    ) return [];
+    const block = snapshot.blocks.find(
+      (candidate) => candidate.blockId === edge.sourceBlockId,
+    );
+    if (block?.type !== 'image') return [];
+    const semanticRole = edge.inputSlotId
+      ? slotById.get(edge.inputSlotId)?.semanticRole
+      : undefined;
+    const bindingKind = semanticRole === 'source'
+      ? 'source'
+      : semanticRole === 'reference' || semanticRole === 'general_reference'
+        ? 'reference'
+        : 'slot';
+    return [{
+      bindingKind,
+      blockId: block.blockId,
+      edgeId: edge.edgeId,
+      editable: editable && !blockLockedByGroup(snapshot, block.blockId),
+      inputSlotId: edge.inputSlotId,
+      previewUrl: getAssetPreviewUrl(snapshot.assets, block.data.assetId),
+      ...(edge.referenceIntent
+        ? { referenceIntent: structuredClone(edge.referenceIntent) }
+        : {}),
+      title: block.data.title,
+    } satisfies OperationReferenceInputPresentation];
+  });
 }
 
 function creativeProjectionFor(

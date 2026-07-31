@@ -45,6 +45,7 @@ import {
   normalizeDomainVideoGenerationParameters,
 } from '../core/domainVideoGenerationContracts';
 import { AnnotationOperationInlineControls } from './AnnotationOperationInlineControls';
+import { OperationReferenceInputs } from './OperationReferenceInputs';
 
 type AspectPreset = 'source' | ImageComposerAspectRatio;
 type ResolutionPreset = ImageComposerResolution;
@@ -77,6 +78,7 @@ export function OperationInlineControls({ blockId, data }: { blockId: string; da
     return (
       <PluginOwnedOperationControls
         capabilityName={pluginDefinition?.displayName ?? data.title}
+        data={data}
       />
     );
   }
@@ -98,6 +100,7 @@ function LocalCanvasOperationControls({ data }: { data: BlockData }): ReactEleme
         <span>{t('operationToolbar.params')}</span>
         <strong>{localCanvasParameterSummary(params, t)}</strong>
       </div>
+      <OperationReferenceInputs data={data} />
     </div>
   );
 }
@@ -528,6 +531,7 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
           ) : null}
         </div>
       ) : null}
+      <OperationReferenceInputs data={data} />
       {showReadinessIssue && readinessIssue ? (
         <div id={readinessId} className="operation-readiness" role="status">
           <AlertCircle size={14} />

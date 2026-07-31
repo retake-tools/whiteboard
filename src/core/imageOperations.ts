@@ -6,7 +6,6 @@ import type {
   BlockRecord,
   BoardHistoryEvent,
   BoardSnapshot,
-  ExecutionInputRole,
   ExecutionRecord,
   GenerationProfileSnapshot,
 } from './types';
@@ -62,11 +61,13 @@ export interface ImageGenerationParams {
 interface ImageCodexOperationInput {
   additionalInputAssets?: Array<{
     asset: AssetRecord;
-    inputRole: Exclude<ExecutionInputRole, 'source'>;
+    inputSlotId: string;
+    referenceIntent?: BoardSnapshot['edges'][number]['referenceIntent'];
   }>;
   additionalInputBlocks?: Array<{
     blockId: string;
-    inputRole: Exclude<ExecutionInputRole, 'source'>;
+    inputSlotId: string;
+    referenceIntent?: BoardSnapshot['edges'][number]['referenceIntent'];
   }>;
   capabilityId?: string;
   connection?: ExecutionConnectionSummary;
@@ -162,13 +163,18 @@ export function addImageCodexOperation(
           'Additional image operation inputs require distinct Image Blocks with Assets.',
         );
       }
-      return { block, inputRole: binding.inputRole };
+      return {
+        block,
+        inputSlotId: binding.inputSlotId,
+        referenceIntent: binding.referenceIntent,
+      };
     },
   );
   const additionalInputAssets = (input.additionalInputAssets ?? []).map(
-    ({ asset, inputRole }) => ({
+    ({ asset, inputSlotId, referenceIntent }) => ({
       asset: structuredClone(asset),
-      inputRole,
+      inputSlotId,
+      referenceIntent,
     }),
   );
 
@@ -183,8 +189,8 @@ export function addImageCodexOperation(
   const connectionId = input.connection?.connectionId ?? 'codex-managed';
   const title = input.taskTitle ?? titleForOperation(input.operation);
   const instruction = input.instruction?.trim();
-  const sourceInputRole: ExecutionInputRole | undefined =
-    input.operation === 'generate_image' ? undefined : 'source';
+  const sourceInputSlotId =
+    input.operation === 'generate_image' ? undefined : 'source_image';
   const generationProfileId = input.generationProfileId ?? defaultGenerationProfileId;
   const requestedGenerationParams = generationParamsForSourceImage(
     snapshot,
@@ -228,31 +234,37 @@ export function addImageCodexOperation(
   }
   const referenceAssetIds = input.referenceAssets?.map((asset) => asset.assetId) ?? [];
   const inputBindings = [
-    ...(sourceInputRole && sourceBlock.data.assetId
+    ...(sourceInputSlotId && sourceBlock.data.assetId
       ? [{
           assetId: sourceBlock.data.assetId,
           blockId: sourceBlock.blockId,
-          inputRole: sourceInputRole,
+          inputSlotId: sourceInputSlotId,
         }]
       : []),
     ...referenceAssetIds.map((assetId) => ({
       assetId,
-      inputRole: 'general_reference' as const,
+      inputSlotId: 'references',
     })),
     ...(input.annotatedCompositeAsset
       ? [{
           assetId: input.annotatedCompositeAsset.assetId,
-          inputRole: 'annotated_composite' as const,
+          inputSlotId: 'annotated_composite',
         }]
       : []),
-    ...additionalInputBlocks.map(({ block, inputRole }) => ({
+    ...additionalInputBlocks.map(({ block, inputSlotId, referenceIntent }) => ({
       assetId: block.data.assetId!,
       blockId: block.blockId,
-      inputRole,
+      inputSlotId,
+      ...(referenceIntent
+        ? { referenceIntent: structuredClone(referenceIntent) }
+        : {}),
     })),
-    ...additionalInputAssets.map(({ asset, inputRole }) => ({
+    ...additionalInputAssets.map(({ asset, inputSlotId, referenceIntent }) => ({
       assetId: asset.assetId,
-      inputRole,
+      inputSlotId,
+      ...(referenceIntent
+        ? { referenceIntent: structuredClone(referenceIntent) }
+        : {}),
     })),
   ];
   const annotationEditControls = input.operation === 'annotation_edit' && input.annotationManifest
@@ -345,11 +357,11 @@ export function addImageCodexOperation(
     adapter,
     status: 'queued',
     inputBlockIds: [
-      sourceInputRole ? sourceBlock.blockId : undefined,
+      sourceInputSlotId ? sourceBlock.blockId : undefined,
       ...additionalInputBlocks.map(({ block }) => block.blockId),
     ].filter((blockId): blockId is string => Boolean(blockId)),
     inputAssetIds: [
-      sourceInputRole ? sourceBlock.data.assetId : undefined,
+      sourceInputSlotId ? sourceBlock.data.assetId : undefined,
       input.annotatedCompositeAsset?.assetId,
       ...referenceAssetIds,
       ...additionalInputBlocks.map(({ block }) => block.data.assetId),
@@ -395,15 +407,18 @@ export function addImageCodexOperation(
     sourceBlockId: sourceBlock.blockId,
     targetBlockId: operationBlock.blockId,
     kind: 'execution_input',
-    inputRole: sourceInputRole,
+    inputSlotId: sourceInputSlotId,
   });
-  for (const { block, inputRole } of additionalInputBlocks) {
+  for (const { block, inputSlotId, referenceIntent } of additionalInputBlocks) {
     snapshot.edges.push({
       edgeId: createId('edge'),
       sourceBlockId: block.blockId,
       targetBlockId: operationBlock.blockId,
       kind: 'execution_input',
-      inputRole,
+      inputSlotId,
+      ...(referenceIntent
+        ? { referenceIntent: structuredClone(referenceIntent) }
+        : {}),
     });
   }
   for (const outputBlock of resultBlocks) {
@@ -564,8 +579,8 @@ export function createDraftImageToImageOperation(
 
   snapshot.blocks.push(textBlock, operationBlock);
   if (operationBlock.parentGroupId) expandGroupToContents(snapshot, operationBlock.parentGroupId);
-  ensureEdge(snapshot, sourceBlock.blockId, operationBlock.blockId, 'execution_input', 'source');
-  ensureEdge(snapshot, textBlock.blockId, operationBlock.blockId, 'execution_input');
+  ensureEdge(snapshot, sourceBlock.blockId, operationBlock.blockId, 'execution_input', 'source_image');
+  ensureEdge(snapshot, textBlock.blockId, operationBlock.blockId, 'execution_input', 'prompt');
   touchBoard(snapshot);
 
   return { operationBlock, textBlock };
@@ -638,7 +653,7 @@ export function createDraftTextToImageOperation(
   };
   snapshot.blocks.push(textBlock, operationBlock);
   if (operationBlock.parentGroupId) expandGroupToContents(snapshot, operationBlock.parentGroupId);
-  ensureEdge(snapshot, textBlock.blockId, operationBlock.blockId, 'execution_input');
+  ensureEdge(snapshot, textBlock.blockId, operationBlock.blockId, 'execution_input', 'prompt');
   touchBoard(snapshot);
 
   return { operationBlock, textBlock };
@@ -723,7 +738,7 @@ export function addPluginImageOperation(
       inputBindings: [{
         assetId: sourceBlock.data.assetId,
         blockId: sourceBlock.blockId,
-        inputRole: 'source',
+        inputSlotId: 'source_image',
       }],
       operationBlockId: operationBlock.blockId,
     },
@@ -732,7 +747,7 @@ export function addPluginImageOperation(
 
   snapshot.blocks.push(operationBlock, resultBlock);
   if (operationBlock.parentGroupId) expandGroupToContents(snapshot, operationBlock.parentGroupId);
-  ensureEdge(snapshot, sourceBlock.blockId, operationBlock.blockId, 'execution_input', 'source');
+  ensureEdge(snapshot, sourceBlock.blockId, operationBlock.blockId, 'execution_input', 'source_image');
   ensureEdge(snapshot, operationBlock.blockId, resultBlock.blockId, 'execution_output');
   recordExecutionConfiguration(snapshot, execution, operationBlock);
   snapshot.executions.unshift(execution);
@@ -898,16 +913,18 @@ export function executeExistingImageOperationBlock(
   }
   const imageInputBindings = operationImageInputBindings(snapshot, operationBlock);
   const unresolvedImageInput = imageInputBindings.find(
-    (binding) => binding.block.data.assetId && !binding.inputRole,
+    (binding) => binding.block.data.assetId && !binding.inputSlotId,
   );
   if (unresolvedImageInput) {
-    throw new Error(`Choose an input role for image block ${unresolvedImageInput.block.blockId} before running.`);
+    throw new Error(`Choose an input binding for image block ${unresolvedImageInput.block.blockId} before running.`);
   }
   const inputState = operationInputStateForCapability(inputBlocks, capabilityId);
   if (inputState.missingRequiredTypes.includes('image')) {
     throw new Error('Connect an image block to this operation before running image edit.');
   }
-  const sourceBlock = imageInputBindings.find((binding) => binding.inputRole === 'source')?.block;
+  const sourceBlock = imageInputBindings.find(
+    (binding) => binding.inputSlotId === 'source_image',
+  )?.block;
   if (codexOperation !== 'generate_image' && (!sourceBlock || !sourceBlock.data.assetId)) {
     throw new Error('Image-to-image operations require a connected source Image Block with an asset.');
   }
@@ -1014,11 +1031,10 @@ export function executeExistingImageOperationBlock(
       ...(annotatedCompositeAssetId ? { annotatedCompositeAssetId } : {}),
       ...(annotationManifest ? { annotationEditControls: annotationEditControlsFromManifest(annotationManifest) } : {}),
       inputBindings: imageInputBindings
-        .filter((binding): binding is typeof binding & { inputRole: ExecutionInputRole } => Boolean(binding.inputRole))
+        .filter((binding): binding is typeof binding & { inputSlotId: string } => Boolean(binding.inputSlotId))
         .map((binding) => ({
           assetId: binding.block.data.assetId,
           blockId: binding.block.blockId,
-          inputRole: binding.inputRole,
           inputSlotId: binding.inputSlotId,
           ...(binding.referenceIntent
             ? { referenceIntent: structuredClone(binding.referenceIntent) }
@@ -1258,7 +1274,6 @@ function operationImageInputBindings(
   operationBlock: BlockRecord,
 ): Array<{
   block: BlockRecord;
-  inputRole?: ExecutionInputRole;
   inputSlotId?: string;
   referenceIntent?: BoardSnapshot['edges'][number]['referenceIntent'];
 }> {
@@ -1269,7 +1284,6 @@ function operationImageInputBindings(
       return block?.type === 'image'
         ? [{
             block,
-            inputRole: edge.inputRole,
             inputSlotId: edge.inputSlotId,
             ...(edge.referenceIntent
               ? { referenceIntent: structuredClone(edge.referenceIntent) }
@@ -1410,7 +1424,7 @@ function ensureEdge(
   sourceBlockId: string,
   targetBlockId: string,
   kind: 'execution_input' | 'execution_output',
-  inputRole?: ExecutionInputRole,
+  inputSlotId?: string,
 ): void {
   const existingEdge = snapshot.edges.find(
     (edge) =>
@@ -1419,7 +1433,9 @@ function ensureEdge(
       edge.kind === kind,
   );
   if (existingEdge) {
-    if (inputRole && !existingEdge.inputRole) existingEdge.inputRole = inputRole;
+    if (inputSlotId && !existingEdge.inputSlotId) {
+      existingEdge.inputSlotId = inputSlotId;
+    }
     return;
   }
 
@@ -1428,6 +1444,6 @@ function ensureEdge(
     sourceBlockId,
     targetBlockId,
     kind,
-    inputRole,
+    inputSlotId,
   });
 }

@@ -1,10 +1,5 @@
 import type { AssetRecord, BlockRecord, BlockType, BoardSnapshot, RetakeNode } from '../core/types';
-import { arraysEqual } from '../core/listUtils';
-import {
-  disabledExecutionInputRolesFor,
-  executionInputRoleOptionsFor,
-  schemaForCapability,
-} from '../core/capabilities';
+import { schemaForCapability } from '../core/capabilities';
 import {
   displaySlotSizeForGenerationParams,
   type ImageGenerationParams,
@@ -119,7 +114,7 @@ export function isInteractiveNodeTarget(target: HTMLElement): boolean {
         '[role="menu"]',
         '.operation-param-popover',
         '.operation-input-quick-add',
-        '.operation-input-role-control',
+        '.operation-reference-inputs',
         '.block-heading-info-button',
       ].join(','),
     ),
@@ -136,92 +131,6 @@ export function isEditableNodeTarget(target: HTMLElement): boolean {
   return Boolean(target.closest(
     'input, textarea, select, [contenteditable="true"], [data-retake-plugin-ui]',
   ));
-}
-
-export function applyOperationInputRoleBadges(
-  nodes: RetakeNode[],
-  snapshot: BoardSnapshot,
-  selectedBlockIds: string[],
-): RetakeNode[] {
-  const selectedOperationBlockId = selectedOperationBlockIdFor(snapshot, selectedBlockIds);
-  const selectedOperation = snapshot.blocks.find(
-    (block) => block.blockId === selectedOperationBlockId && (block.type === 'operation' || block.type === 'video'),
-  );
-  const inputMetadataByBlockId = new Map(
-    snapshot.edges
-      .filter((edge) => edge.kind === 'execution_input' && edge.targetBlockId === selectedOperationBlockId)
-      .flatMap((edge) => {
-        const sourceBlock = snapshot.blocks.find((block) => block.blockId === edge.sourceBlockId);
-        if (sourceBlock?.type !== 'image' || !selectedOperation) return [];
-        return [[
-          edge.sourceBlockId,
-          {
-            edgeId: edge.edgeId,
-            role: edge.inputRole,
-            roleOptions: executionInputRoleOptionsFor(sourceBlock, selectedOperation),
-            targetCapabilityId:
-              selectedOperation.type === 'operation'
-              && typeof selectedOperation.data.capabilityId === 'string'
-                ? selectedOperation.data.capabilityId
-                : undefined,
-            disabledRoleOptions: disabledExecutionInputRolesFor(
-              snapshot,
-              sourceBlock,
-              selectedOperation,
-              edge.edgeId,
-            ),
-          },
-        ] as const];
-      }),
-  );
-
-  let changed = false;
-  const nextNodes = nodes.map((node) => {
-    const nextMetadata = inputMetadataByBlockId.get(node.id);
-    const nextEdgeId = nextMetadata?.edgeId;
-    const nextRole = nextMetadata?.role;
-    const nextRoleOptions = nextMetadata?.roleOptions;
-    const nextTargetCapabilityId = nextMetadata?.targetCapabilityId;
-    const nextDisabledRoleOptions = nextMetadata?.disabledRoleOptions;
-    if (
-      node.data.operationInputEdgeId === nextEdgeId &&
-      node.data.operationInputRole === nextRole &&
-      arraysEqual(node.data.operationInputRoleOptions ?? [], nextRoleOptions ?? []) &&
-      arraysEqual(node.data.operationInputRoleDisabledOptions ?? [], nextDisabledRoleOptions ?? []) &&
-      node.data.operationInputTargetCapabilityId === nextTargetCapabilityId &&
-      node.data.operationInputRolePending === Boolean(nextEdgeId && !nextRole)
-    ) {
-      return node;
-    }
-
-    changed = true;
-    const nextData = { ...node.data };
-    if (nextRole) {
-      nextData.operationInputEdgeId = nextEdgeId;
-      nextData.operationInputRole = nextRole;
-      nextData.operationInputRoleOptions = nextRoleOptions;
-      nextData.operationInputRoleDisabledOptions = nextDisabledRoleOptions;
-      nextData.operationInputRolePending = false;
-      nextData.operationInputTargetCapabilityId = nextTargetCapabilityId;
-    } else if (nextEdgeId) {
-      nextData.operationInputEdgeId = nextEdgeId;
-      nextData.operationInputRoleOptions = nextRoleOptions;
-      nextData.operationInputRoleDisabledOptions = nextDisabledRoleOptions;
-      nextData.operationInputRolePending = true;
-      nextData.operationInputTargetCapabilityId = nextTargetCapabilityId;
-      delete nextData.operationInputRole;
-    } else {
-      delete nextData.operationInputEdgeId;
-      delete nextData.operationInputRole;
-      delete nextData.operationInputRoleDisabledOptions;
-      delete nextData.operationInputRoleOptions;
-      delete nextData.operationInputRolePending;
-      delete nextData.operationInputTargetCapabilityId;
-    }
-    return { ...node, data: nextData };
-  });
-
-  return changed ? nextNodes : nodes;
 }
 
 export function operationModeFromBlock(block: BlockRecord): SwitchableOperationMode {

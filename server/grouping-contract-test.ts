@@ -22,6 +22,8 @@ assert.match(canvasSource, /if \(!nodeDragActiveRef\.current\) setNodes\(createF
 const canvasViewSource = await readFile('src/app/WhiteboardCanvas.tsx', 'utf8');
 const canvasCss = await readFile('src/styles/canvas.css', 'utf8');
 const blockNodeSource = await readFile('src/nodes/BlockNode.tsx', 'utf8');
+const operationControlsSource = await readFile('src/nodes/OperationInlineControls.tsx', 'utf8');
+const operationReferenceInputsSource = await readFile('src/nodes/OperationReferenceInputs.tsx', 'utf8');
 const imagePreviewDoubleTapSource = await readFile('src/nodes/useImagePreviewDoubleTap.ts', 'utf8');
 const blockNodeCss = await readFile('src/nodes/block-node.css', 'utf8');
 assert.match(canvasViewSource, /zoomOnDoubleClick=\{false\}/);
@@ -51,7 +53,11 @@ assert.doesNotMatch(
   blockNodeSource,
   /onDoubleClick=\{\(event\) => \{\s*if \(!hasExecutionDetails\(data\)\) return;/,
 );
-assert.match(blockNodeSource, /if \(!isPending && role === 'source'\) return null;/);
+assert.match(operationControlsSource, /<OperationReferenceInputs[\s\S]*?data=\{data\}/);
+assert.match(operationReferenceInputsSource, /if \(!input\.editable\) return;/);
+assert.match(operationReferenceInputsSource, /<header>[\s\S]*?operationReference\.inputs[\s\S]*?inputs\.map/);
+assert.doesNotMatch(operationReferenceInputsSource, /operation-reference-popover|aria-expanded|useDismissiblePopover/);
+assert.match(blockNodeCss, /\.operation-reference-inputs > div \{[\s\S]*?display: flex;[\s\S]*?overflow-x: auto;/);
 assert.match(canvasCss, /\[data-pointer-moving='true'\] \.react-flow__node:not\(\.dragging\)[\s\S]*?cursor: default !important;/);
 assert.match(blockNodeCss, /\.image-preview img \{[\s\S]*?pointer-events: none;[\s\S]*?-webkit-user-drag: none;/);
 assert.match(blockNodeCss, /\.operation-input-quick-add \{[\s\S]*?pointer-events: none;/);
@@ -166,7 +172,7 @@ simpleWorkflowSnapshot.edges.push(
     sourceBlockId: simpleSource.blockId,
     targetBlockId: simpleOperation.blockId,
     kind: 'execution_input',
-    inputRole: 'source',
+    inputSlotId: 'source_image',
   },
 );
 const simpleWorkflowIds = new Set([simplePrompt.blockId, simpleSource.blockId, simpleOperation.blockId]);
@@ -380,14 +386,14 @@ imageBrowserSnapshot.edges.push(
     sourceBlockId: originalImage.blockId,
     targetBlockId: operation.blockId,
     kind: 'execution_input',
-    inputRole: 'source',
+    inputSlotId: 'source_image',
   },
   {
     edgeId: 'edge_image_browser_input',
     sourceBlockId: resultOne.blockId,
     targetBlockId: derivedOperation.blockId,
     kind: 'execution_input',
-    inputRole: 'source',
+    inputSlotId: 'source_image',
   },
   {
     edgeId: 'edge_image_browser_output',

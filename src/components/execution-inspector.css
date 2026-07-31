@@ -452,6 +452,7 @@
 
 .execution-inspector-assets,
 .execution-inspector-image-comparison,
+.execution-inspector-reference-inputs,
 .execution-annotation-manifest,
 .execution-inspector-annotation-text,
 .execution-inspector-prompt,
@@ -459,6 +460,51 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.execution-inspector-reference-inputs ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.execution-inspector-reference-inputs li {
+  display: grid;
+  gap: 4px;
+  padding: 8px 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.execution-inspector-reference-inputs li > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.execution-inspector-reference-inputs strong {
+  color: #334155;
+}
+
+.execution-inspector-reference-inputs span {
+  overflow: hidden;
+  color: #64748b;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.execution-inspector-reference-inputs p {
+  margin: 0;
+  color: #475569;
+  font-size: 11px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .execution-annotation-manifest {

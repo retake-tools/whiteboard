@@ -148,7 +148,7 @@ try {
     edge.targetBlockId === operation.blockId
     && edge.sourceBlockId === sourceImage.blockId
     && edge.inputSlotId === 'source_image'
-    && edge.inputRole === 'source'
+    && edge.inputSlotId === 'source_image'
   )));
   assert.ok(staged.edges.some((edge) => (
     edge.targetBlockId === operation.blockId

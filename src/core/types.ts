@@ -40,27 +40,10 @@ export type GroupLayoutMode = 'free' | 'grid' | 'row';
 
 export type GroupColor = 'blue' | 'green' | 'neutral' | 'rose' | 'transparent' | 'yellow';
 
-export type ExecutionInputRole =
-  | 'annotated_composite'
-  | 'character_reference'
-  | 'composition_reference'
-  | 'control_image'
-  | 'depth_map'
-  | 'edge_map'
-  | 'environment_reference'
-  | 'first_frame'
-  | 'general_reference'
-  | 'inpaint_mask'
-  | 'last_frame'
-  | 'object_reference'
-  | 'pose_reference'
-  | 'source'
-  | 'style_reference';
-
 export type OperationReadinessIssue =
   | 'image_asset_missing'
   | 'image_input_missing'
-  | 'image_role_missing'
+  | 'image_binding_missing'
   | 'prompt_empty'
   | 'source_image_missing'
   | 'text_input_missing'
@@ -235,7 +218,6 @@ export interface ExecutionResultSummary {
 export interface ExecutionConfigurationInputSnapshot {
   assetId?: string;
   blockId: string;
-  inputRole?: ExecutionInputRole;
   inputSlotId?: string;
   referenceIntent?: ReferenceIntentV1;
   title: string;
@@ -275,8 +257,18 @@ export type ExecutionConfigurationChangeKind =
   | 'input'
   | 'parameter'
   | 'profile'
-  | 'prompt'
-  | 'role';
+  | 'prompt';
+
+export interface OperationReferenceInputPresentation {
+  bindingKind: 'reference' | 'source' | 'slot';
+  blockId: string;
+  edgeId: string;
+  editable: boolean;
+  inputSlotId?: string;
+  previewUrl?: string;
+  referenceIntent?: ReferenceIntentV1;
+  title: string;
+}
 
 export interface ExecutionConfigurationChange {
   blockId?: string;
@@ -363,13 +355,7 @@ export interface BlockData {
   groupPositionLocked?: boolean;
   groupRunningCount?: number;
   groupScopeSelected?: boolean;
-  operationInputEdgeId?: string;
-  operationInputRole?: ExecutionInputRole;
-  operationInputRoleDisabledOptions?: ExecutionInputRole[];
-  operationInputRoleLocked?: boolean;
-  operationInputRoleOptions?: ExecutionInputRole[];
-  operationInputRolePending?: boolean;
-  operationInputTargetCapabilityId?: string;
+  operationReferenceInputs?: OperationReferenceInputPresentation[];
   operationCanRun?: boolean;
   operationCompact?: boolean;
   operationCompactResultCount?: number;
@@ -428,7 +414,6 @@ export interface BoardEdgeRecord {
   sourceBlockId: string;
   targetBlockId: string;
   kind: ConnectionKind;
-  inputRole?: ExecutionInputRole;
   inputSlotId?: string;
   referenceIntent?: ReferenceIntentV1;
 }
@@ -484,7 +469,6 @@ export interface WorkspaceSummary {
 
 export type RetakeNode = Node<BlockRecord['data'], BlockType>;
 export type RetakeEdge = Edge<{
-  inputRole?: ExecutionInputRole;
   inputSlotId?: string;
   kind: ConnectionKind;
   proxyEdgeIds?: string[];

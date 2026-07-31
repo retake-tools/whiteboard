@@ -25,7 +25,7 @@ import { imageOperationDefaultPrompt, imageOperationTitle } from '../core/imageO
 import { nowIso } from '../core/id';
 import { createImageResultRetryPrompt } from '../core/prompts';
 import {
-  executionInputRoleOptionsFor,
+  compatibleInputSlotIdsFor,
   operationReadinessFor,
   operationReadinessMessageKey,
 } from '../core/capabilities';
@@ -393,12 +393,21 @@ export function useImageOperationController(options: ImageOperationControllerOpt
       });
       result.operationBlock.data.connectionId = preferredImageConnection(current, 'image.image_to_image');
       selectedWorkflowIds = imageBranchDraftSelectionBlockIds(block, result.textBlock, result.operationBlock);
-      if (draftOptions.centerWorkflow) centerWorkflowBlocks(current, selectedWorkflowIds);
+      if (draftOptions.centerWorkflow) {
+        layoutImageComposerWorkflow(current, {
+          operationBlockId: result.operationBlock.blockId,
+          referenceBlockIds: [block.blockId],
+          textBlockId: result.textBlock.blockId,
+        });
+      }
       return current;
     }, { persist: true, history: true });
     if (selectedWorkflowIds.length > 0) {
       setSelectedBlocks(nextSnapshot, selectedWorkflowIds);
-      focusWorkflowBlocks(selectedWorkflowIds);
+      focusWorkflowBlocks(
+        selectedWorkflowIds,
+        draftOptions.centerWorkflow ? { maxZoom: 0.95 } : undefined,
+      );
     }
   }
 
@@ -573,12 +582,14 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         }
         usesVolcengineArk = connection.connectorId === 'volcengine-ark';
         usesCodexAppServer = connection.connectorId === 'codex-app-server';
-        const hasPendingImageRole = currentCapabilityId !== storyboardSheetCapabilityId && current.edges.some((edge) => {
-          if (edge.targetBlockId !== input.block.blockId || edge.kind !== 'execution_input' || edge.inputRole) return false;
+        const hasPendingImageBinding = currentCapabilityId !== storyboardSheetCapabilityId && current.edges.some((edge) => {
+          if (edge.targetBlockId !== input.block.blockId || edge.kind !== 'execution_input' || edge.inputSlotId) return false;
           const sourceBlock = current.blocks.find((block) => block.blockId === edge.sourceBlockId);
           return sourceBlock?.type === 'image' && Boolean(sourceBlock.data.assetId);
         });
-        if (hasPendingImageRole) throw new Error(t('operationInputRole.required'));
+        if (hasPendingImageBinding) {
+          throw new Error(t('operationReference.bindingRequired'));
+        }
         const result = currentCapabilityId === storyboardSheetCapabilityId
           ? executeExistingStoryboardSheetOperation(current, {
               operationBlockId: input.block.blockId,
@@ -770,8 +781,11 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         if (edge.targetBlockId !== operationBlock.blockId || edge.kind !== 'execution_input') continue;
         const sourceBlock = current.blocks.find((block) => block.blockId === edge.sourceBlockId);
         if (!sourceBlock) continue;
-        const supportedRoles = executionInputRoleOptionsFor(sourceBlock, operationBlock);
-        if (!edge.inputRole || !supportedRoles.includes(edge.inputRole)) delete edge.inputRole;
+        const supportedSlotIds = compatibleInputSlotIdsFor(sourceBlock, operationBlock);
+        if (!edge.inputSlotId || !supportedSlotIds.includes(edge.inputSlotId)) {
+          delete edge.inputSlotId;
+          delete edge.referenceIntent;
+        }
       }
       return touchBoard(current);
     }, { persist: true, history: true });

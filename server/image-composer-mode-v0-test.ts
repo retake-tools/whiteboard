@@ -26,6 +26,8 @@ const [
   controllerSource,
   controlsSource,
   providerSource,
+  referenceEditorSource,
+  operationFromImagePickerSource,
   referenceTraySource,
   toolbarStyles,
 ] = await Promise.all([
@@ -36,6 +38,8 @@ const [
   readFile(new URL('../src/app/useImageOperationController.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/ImageComposerControls.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/UnifiedComposerProvider.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/ReferenceIntentEditor.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/OperationFromImagePicker.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/ImageComposerReferenceTray.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/styles/toolbars.css', import.meta.url), 'utf8'),
 ]);
@@ -52,8 +56,12 @@ assert.match(controllerSource, /void startExistingOperationBlock\(\{/);
 assert.match(controllerSource, /imageComposerWorkflowLayoutBlockIds/);
 assert.match(controllerSource, /focusWorkflowBlocks\(revealBlockIds, \{ maxZoom: 1 \}\)/);
 assert.match(attachmentControllerSource, /composerSourceAssetId: asset\.assetId/);
-assert.match(canvasControllerSource, /block\?\.data\.composerSourceAssetId/);
-assert.match(canvasControllerSource, /getViewportForBounds/);
+assert.match(attachmentControllerSource, /layoutAttachmentBlocks\(attachmentBlocks, center\)/);
+assert.match(attachmentControllerSource, /moveBlockGroupToNearestFreeArea\(current, attachmentBlocks, center\)/);
+assert.match(canvasControllerSource, /block\?\.type === 'image'/);
+assert.match(appSource, /referenceBlockIds: \[sourceBlock\.blockId\]/);
+assert.match(appSource, /maxZoom: 0\.95/);
+assert.match(canvasControllerSource, /safeViewportForBounds/);
 assert.match(controlsSource, /image\.text_to_image/);
 assert.match(controlsSource, /connection\.connectorId !== 'codex-managed'/);
 assert.match(controlsSource, /currentExecutionProviderSettings/);
@@ -74,11 +82,14 @@ assert.match(referenceTraySource, /aria-pressed/);
 assert.match(referenceTraySource, /image-composer-reference-preview/);
 assert.match(referenceTraySource, /function dismissFloatingContent\(\): void/);
 assert.match(referenceTraySource, /onKeyDownCapture=\{dismissOnEscape\}/);
-assert.match(referenceTraySource, /referenceModeSource/);
-assert.match(referenceTraySource, /referenceIntentPlaceholder/);
 assert.match(referenceTraySource, /dispatchOpenImageDetails/);
-assert.match(referenceTraySource, /referenceIntentSuggestions/);
 assert.match(referenceTraySource, /referenceSettingBadgeLabel/);
+assert.match(referenceEditorSource, /referenceModeSource/);
+assert.match(referenceEditorSource, /referenceIntentPlaceholder/);
+assert.match(referenceEditorSource, /referenceIntentSuggestions/);
+assert.match(referenceEditorSource, /toggleReferenceSuggestion/);
+assert.match(operationFromImagePickerSource, /onSelect\('similar'\)/);
+assert.match(appSource, /mode === 'similar' \? 'create_similar' : 'quick_edit'/);
 assert.match(toolbarStyles, /\.image-composer-reference-thumbnail/);
 assert.match(toolbarStyles, /\.image-composer-reference-preview/);
 
@@ -344,7 +355,7 @@ assert.deepEqual(imageToImageResult.operationBlock.data.generationParams, {
 assert.ok(imageToImageSnapshot.edges.some((edge) => (
   edge.sourceBlockId === sourceBlock.blockId
   && edge.targetBlockId === imageToImageResult.operationBlock.blockId
-  && edge.inputRole === 'source'
+  && edge.inputSlotId === 'source_image'
 )));
 assert.ok(imageToImageSnapshot.edges.some((edge) => (
   edge.targetBlockId === imageToImageResult.operationBlock.blockId

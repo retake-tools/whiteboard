@@ -1,7 +1,6 @@
 import { annotationEditControlDescription, readAnnotationEditControlManifest } from '../src/core/annotationEditControls';
-import { inputRoleDefinition, isExecutionInputRole } from '../src/core/inputRoles';
 import { normalizeReferenceIntent, type ReferenceIntentV1 } from '../src/core/referenceIntent';
-import type { ExecutionInputRole, ExecutionRecord } from '../src/core/types';
+import type { ExecutionRecord } from '../src/core/types';
 import {
   outpaintCapabilityId,
   readOutpaintParameters,
@@ -10,22 +9,27 @@ import {
 export interface ImageExecutionInputAssignment {
   artifactType?: string;
   assetId: string;
-  inputRole: ExecutionInputRole;
+  inputSlotId: string;
   order?: number;
   referenceIntent?: ReferenceIntentV1;
   title?: string;
 }
 
 export function imageExecutionInputAssignments(execution: ExecutionRecord): ImageExecutionInputAssignment[] {
-  const explicitRoles = new Map<string, ExecutionInputRole>();
+  const explicitSlots = new Map<string, string>();
   const explicitReferenceIntents = new Map<string, ReferenceIntentV1>();
   const explicitAssetIds: string[] = [];
   const rawBindings = Array.isArray(execution.params?.inputBindings) ? execution.params.inputBindings : [];
   for (const rawBinding of rawBindings) {
-    if (!isRecord(rawBinding) || typeof rawBinding.assetId !== 'string' || !isExecutionInputRole(rawBinding.inputRole)) {
+    if (
+      !isRecord(rawBinding)
+      || typeof rawBinding.assetId !== 'string'
+      || typeof rawBinding.inputSlotId !== 'string'
+      || !rawBinding.inputSlotId.trim()
+    ) {
       continue;
     }
-    explicitRoles.set(rawBinding.assetId, rawBinding.inputRole);
+    explicitSlots.set(rawBinding.assetId, rawBinding.inputSlotId);
     const referenceIntent = normalizeReferenceIntent(rawBinding.referenceIntent);
     if (referenceIntent) {
       explicitReferenceIntents.set(rawBinding.assetId, referenceIntent);
@@ -33,15 +37,13 @@ export function imageExecutionInputAssignments(execution: ExecutionRecord): Imag
     explicitAssetIds.push(rawBinding.assetId);
   }
 
-  const snapshotRoles = new Map<string, ExecutionInputRole>();
+  const snapshotSlots = new Map<string, string>();
   const snapshotAssetIds: string[] = [];
   for (const binding of execution.inputBindingsSnapshot ?? []) {
-    const role = inputRoleForSlot(binding.slotId);
-    if (!role) continue;
     for (const value of binding.values) {
       if (value.kind !== 'asset') continue;
       snapshotAssetIds.push(value.assetId);
-      if (role) snapshotRoles.set(value.assetId, role);
+      snapshotSlots.set(value.assetId, binding.slotId);
     }
   }
 
@@ -68,19 +70,23 @@ export function imageExecutionInputAssignments(execution: ExecutionRecord): Imag
     }),
   );
   let sourceAssigned = assetIds.some(
-    (assetId) => (explicitRoles.get(assetId) ?? snapshotRoles.get(assetId)) === 'source',
+    (assetId) => (
+      explicitSlots.get(assetId) ?? snapshotSlots.get(assetId)
+    ) === 'source_image',
   );
   const assignments = assetIds.map((assetId): ImageExecutionInputAssignment => {
-    let inputRole = explicitRoles.get(assetId) ?? snapshotRoles.get(assetId);
-    if (assetId === annotatedCompositeAssetId) inputRole = 'annotated_composite';
-    if (!inputRole && referenceSet.has(assetId)) inputRole = 'general_reference';
-    if (!inputRole && execution.capabilityId !== 'image.text_to_image' && !sourceAssigned) inputRole = 'source';
-    inputRole ??= 'general_reference';
-    if (inputRole === 'source') sourceAssigned = true;
+    let inputSlotId = explicitSlots.get(assetId) ?? snapshotSlots.get(assetId);
+    if (assetId === annotatedCompositeAssetId) inputSlotId = 'annotated_composite';
+    if (!inputSlotId && referenceSet.has(assetId)) inputSlotId = 'references';
+    if (!inputSlotId && execution.capabilityId !== 'image.text_to_image' && !sourceAssigned) {
+      inputSlotId = 'source_image';
+    }
+    inputSlotId ??= 'references';
+    if (inputSlotId === 'source_image') sourceAssigned = true;
     const storyboardReference = storyboardReferenceByAssetId.get(assetId);
     return {
       assetId,
-      inputRole,
+      inputSlotId,
       ...(typeof storyboardReference?.artifactType === 'string'
         ? { artifactType: storyboardReference.artifactType }
         : {}),
@@ -92,7 +98,9 @@ export function imageExecutionInputAssignments(execution: ExecutionRecord): Imag
     };
   });
 
-  return assignments.sort((left, right) => inputRoleOrder(left.inputRole) - inputRoleOrder(right.inputRole));
+  return assignments.sort((left, right) => (
+    inputSlotOrder(left.inputSlotId) - inputSlotOrder(right.inputSlotId)
+  ));
 }
 
 export function createProviderImagePrompt(
@@ -116,7 +124,7 @@ export function createProviderImagePrompt(
 
   if (execution.capabilityId === 'image.annotation_edit') {
     const annotationInstructions = annotationPromptInstructions(execution);
-    const sourceIndex = attachmentIndex(inputAssignments, 'source');
+    const sourceIndex = attachmentIndex(inputAssignments, 'source_image');
     const compositeIndex = attachmentIndex(inputAssignments, 'annotated_composite');
     const source = sourceIndex ? `attachment ${sourceIndex}` : 'the clean source image';
     const composite = compositeIndex
@@ -126,7 +134,7 @@ export function createProviderImagePrompt(
   }
 
   if (execution.capabilityId === 'image.masked_edit') {
-    const sourceIndex = attachmentIndex(inputAssignments, 'source');
+    const sourceIndex = attachmentIndex(inputAssignments, 'source_image');
     const maskIndex = attachmentIndex(inputAssignments, 'inpaint_mask');
     const source = sourceIndex
       ? `attachment ${sourceIndex}`
@@ -141,8 +149,8 @@ export function createProviderImagePrompt(
     const parameters = readOutpaintParameters(
       execution.params?.pluginParameters,
     );
-    const sourceIndex = attachmentIndex(inputAssignments, 'source');
-    const guideIndex = attachmentIndex(inputAssignments, 'control_image');
+    const sourceIndex = attachmentIndex(inputAssignments, 'source_image');
+    const guideIndex = attachmentIndex(inputAssignments, 'outpaint_guide');
     const maskIndex = attachmentIndex(inputAssignments, 'inpaint_mask');
     const source = sourceIndex
       ? `attachment ${sourceIndex}`
@@ -158,7 +166,7 @@ export function createProviderImagePrompt(
   }
 
   if (execution.capabilityId === 'image.image_to_image') {
-    const sourceIndex = attachmentIndex(inputAssignments, 'source');
+    const sourceIndex = attachmentIndex(inputAssignments, 'source_image');
     const source = sourceIndex ? `attachment ${sourceIndex}` : 'the attached source image';
     return `${command}Edit ${source} according to this instruction: ${sentence(instruction)}${inputContract}${geometry} Preserve its subject, composition, and all unmentioned primary content unless the instruction, a reference intent, or the requested output canvas explicitly changes it.${variant} Generate exactly one clean revised image.${toolRule}`;
   }
@@ -184,10 +192,10 @@ function imageInputContractInstruction(assignments: readonly ImageExecutionInput
     const intent = assignment.referenceIntent;
     const directive = intent
       ? `Reference content ${JSON.stringify(intent.label)}: ${intent.instruction}`
-      : inputRoleDefinition(assignment.inputRole).promptDirective;
-    return `attachment ${index + 1} [${assignment.inputRole}]${identity ? ` (${identity})` : ''}: ${directive}`;
+      : inputSlotDirective(assignment.inputSlotId);
+    return `attachment ${index + 1} [${assignment.inputSlotId}]${identity ? ` (${identity})` : ''}: ${directive}`;
   });
-  return ` Authoritative image input contract: ${descriptions.join(' ')} Do not reassign these roles, reinterpret a source as a reference, or replace the declared reference intent.`;
+  return ` Authoritative image input contract: ${descriptions.join(' ')} Do not move images between input slots, reinterpret a source as a reference, or replace the declared reference intent.`;
 }
 
 function imageGenerationGeometryInstruction(execution: ExecutionRecord): string {
@@ -242,25 +250,38 @@ function imageVariantInstruction(index: number, count: number): string {
 
 function attachmentIndex(
   assignments: readonly ImageExecutionInputAssignment[],
-  role: ExecutionInputRole,
+  inputSlotId: string,
 ): number | undefined {
-  const index = assignments.findIndex((assignment) => assignment.inputRole === role);
+  const index = assignments.findIndex(
+    (assignment) => assignment.inputSlotId === inputSlotId,
+  );
   return index >= 0 ? index + 1 : undefined;
 }
 
-function inputRoleForSlot(slotId: string): ExecutionInputRole | undefined {
-  if (slotId === 'source_image') return 'source';
-  if (slotId === 'annotated_composite') return 'annotated_composite';
-  if (slotId === 'references') return 'general_reference';
-  return isExecutionInputRole(slotId) ? slotId : undefined;
+function inputSlotOrder(inputSlotId: string): number {
+  if (inputSlotId === 'source_image') return 0;
+  if (inputSlotId === 'control_image' || inputSlotId === 'outpaint_guide') return 1;
+  if (inputSlotId === 'inpaint_mask') return 2;
+  if (inputSlotId === 'annotated_composite') return 3;
+  return 4;
 }
 
-function inputRoleOrder(role: ExecutionInputRole): number {
-  if (role === 'source') return 0;
-  if (role === 'control_image') return 1;
-  if (role === 'inpaint_mask') return 2;
-  if (role === 'annotated_composite') return 3;
-  return 4;
+function inputSlotDirective(inputSlotId: string): string {
+  if (inputSlotId === 'source_image') {
+    return 'Use as the editable base image and preserve unmentioned content.';
+  }
+  if (inputSlotId === 'annotated_composite') {
+    return 'Use as the authoritative visual annotation layer, not as output content.';
+  }
+  if (inputSlotId === 'control_image' || inputSlotId === 'outpaint_guide') {
+    return 'Use as the structural control guide.';
+  }
+  if (inputSlotId === 'inpaint_mask') {
+    return 'Use as the exact editable-region mask.';
+  }
+  if (inputSlotId === 'first_frame') return 'Use as the exact first frame.';
+  if (inputSlotId === 'last_frame') return 'Use as the exact last frame.';
+  return 'Use only as a visual reference according to the prompt and reference intent.';
 }
 
 function finiteNumber(value: unknown): number | undefined {

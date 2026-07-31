@@ -74,11 +74,16 @@ export function restoreExecutionConfiguration(
       sourceBlockId: block.blockId,
       targetBlockId: operationBlock.blockId,
       kind: 'execution_input',
-      inputRole: input.inputRole,
+      inputSlotId: input.inputSlotId,
+      ...(input.referenceIntent
+        ? { referenceIntent: structuredClone(input.referenceIntent) }
+        : {}),
     });
   }
 
-  const sourceIndex = configuration.imageInputs.findIndex((input) => input.inputRole === 'source');
+  const sourceIndex = configuration.imageInputs.findIndex(
+    (input) => input.inputSlotId === 'source_image',
+  );
   const sourceBlock = sourceIndex >= 0 ? restoredImageBlocks[sourceIndex] : undefined;
   operationBlock.data = {
     ...operationBlock.data,

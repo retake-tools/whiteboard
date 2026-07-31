@@ -245,7 +245,7 @@ assert.equal(
     edge.sourceBlockId === heroReference.blockId
     && edge.targetBlockId === videoOperation.blockId
     && edge.inputSlotId === 'character_references'
-    && edge.inputRole === 'character_reference'),
+    && edge.inputSlotId === 'character_references'),
   true,
 );
 assert.equal(
@@ -263,7 +263,7 @@ legacyOccupiedOperation.data = {
 targetBoard.blocks.push(legacyOccupiedOperation);
 targetBoard.edges.push({
   edgeId: 'edge_legacy_first_frame',
-  inputRole: 'first_frame',
+  inputSlotId: 'first_frame',
   kind: 'execution_input',
   sourceBlockId: heroReference.blockId,
   targetBlockId: legacyOccupiedOperation.blockId,
@@ -291,7 +291,7 @@ videoTarget.data.executionDraft = {
 targetBoard.blocks.push(videoTarget);
 targetBoard.edges.push({
   edgeId: 'edge_library_reference_to_video',
-  inputRole: 'character_reference',
+  inputSlotId: 'character_references',
   inputSlotId: 'character_references',
   kind: 'execution_input',
   sourceBlockId: heroReference.blockId,

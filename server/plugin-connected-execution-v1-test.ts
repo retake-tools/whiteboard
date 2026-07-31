@@ -343,12 +343,12 @@ assert.deepEqual(execution.params?.inputBindings, [
   {
     assetId: sourceAsset.assetId,
     blockId: source.blockId,
-    inputRole: 'source',
+    inputSlotId: 'source_image',
   },
   {
     assetId: maskAsset.assetId,
     blockId: mask.blockId,
-    inputRole: 'inpaint_mask',
+    inputSlotId: 'inpaint_mask',
   },
 ]);
 assert.match(execution.agentPrompt ?? '', /inpaint_mask/);
@@ -356,7 +356,7 @@ assert.equal(
   snapshotRef.current.edges.some((edge) => (
     edge.sourceBlockId === mask.blockId
     && edge.kind === 'execution_input'
-    && edge.inputRole === 'inpaint_mask'
+    && edge.inputSlotId === 'inpaint_mask'
   )),
   true,
 );
@@ -392,12 +392,12 @@ assert.equal(
     importedExecution.params?.inputBindings as Array<{
       assetId: string;
       blockId?: string;
-      inputRole: string;
+      inputSlotId: string;
     }>
   ).some((binding) => (
     binding.assetId === importedMask.assetId
     && binding.blockId === undefined
-    && binding.inputRole === 'inpaint_mask'
+    && binding.inputSlotId === 'inpaint_mask'
   )),
   true,
 );
@@ -471,11 +471,11 @@ assert.deepEqual(annotationExecution.params?.inputBindings, [
   {
     assetId: sourceAsset.assetId,
     blockId: source.blockId,
-    inputRole: 'source',
+    inputSlotId: 'source_image',
   },
   {
     assetId: importedComposite.assetId,
-    inputRole: 'annotated_composite',
+    inputSlotId: 'annotated_composite',
   },
 ]);
 assert.deepEqual(annotationExecution.inputBindingsSnapshot, [
@@ -567,15 +567,15 @@ assert.deepEqual(outpaintExecution.params?.inputBindings, [
   {
     assetId: sourceAsset.assetId,
     blockId: source.blockId,
-    inputRole: 'source',
+    inputSlotId: 'source_image',
   },
   {
     assetId: importedGuide.assetId,
-    inputRole: 'control_image',
+    inputSlotId: 'outpaint_guide',
   },
   {
     assetId: importedOutpaintMask.assetId,
-    inputRole: 'inpaint_mask',
+    inputSlotId: 'inpaint_mask',
   },
 ]);
 const outpaintPrompt = createProviderImagePrompt(

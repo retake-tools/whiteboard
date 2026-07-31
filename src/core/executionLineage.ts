@@ -33,7 +33,7 @@ function sourceBindingBlockId(execution: ExecutionRecord): string | undefined {
     (binding) =>
       binding &&
       typeof binding === 'object' &&
-      (binding as Record<string, unknown>).inputRole === 'source',
+      (binding as Record<string, unknown>).inputSlotId === 'source_image',
   ) as Record<string, unknown> | undefined;
   return typeof sourceBinding?.blockId === 'string' ? sourceBinding.blockId : undefined;
 }

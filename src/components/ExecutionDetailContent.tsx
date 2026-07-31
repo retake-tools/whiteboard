@@ -1,7 +1,6 @@
 import { ChevronRight, FileText, ImageIcon, RotateCcw, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useEffect, useState, type ReactElement } from 'react';
-import { inputRoleDefinition, isExecutionInputRole } from '../core/inputRoles';
 import { executionSourceLineage } from '../core/executionLineage';
 import {
   configurationChanges,
@@ -19,7 +18,6 @@ import type {
   ExecutionConfigurationChange,
   ExecutionConfigurationChangeKind,
   ExecutionConfigurationInputSnapshot,
-  ExecutionInputRole,
   ExecutionRecord,
 } from '../core/types';
 import {
@@ -27,6 +25,7 @@ import {
   type ReferenceIntentV1,
 } from '../core/referenceIntent';
 import { useI18n } from '../i18n';
+import { referenceInputSlotLabel } from './referenceInputLabels';
 import type { AnnotationManifest, AnnotationMarkKind } from '../core/imageAnnotations';
 import {
   annotationDraftRestoreContext,
@@ -56,7 +55,7 @@ export interface ExecutionDetailContext {
   execution: ExecutionRecord;
   inputImages: Array<{
     asset: AssetRecord;
-    inputRole?: ExecutionInputRole;
+    inputSlotId?: string;
     referenceIntent?: ReferenceIntentV1;
   }>;
   operationBlock?: BlockRecord;
@@ -234,15 +233,20 @@ export function ExecutionDetailContent({
       />
 
       {annotatedCompositeAsset || inputImages.length ? (
-        <ImageComparison
-          annotatedAsset={annotatedCompositeAsset}
-          annotatedLabel={t('inspector.annotatedComposite')}
-          emptyLabel={t('inspector.none')}
-          inputImages={inputImages}
-          onPreview={openImagePreview}
-          sourceLabel={t('inspector.inputAssets')}
-          title={t('inspector.imageComparison')}
-        />
+        <>
+          <ImageComparison
+            annotatedAsset={annotatedCompositeAsset}
+            annotatedLabel={t('inspector.annotatedComposite')}
+            emptyLabel={t('inspector.none')}
+            inputImages={inputImages}
+            onPreview={openImagePreview}
+            sourceLabel={t('inspector.inputAssets')}
+            title={t('inspector.imageComparison')}
+          />
+          {inputImages.length ? (
+            <ExecutionImageInputDetails inputImages={inputImages} />
+          ) : null}
+        </>
       ) : null}
       <AnnotationText emptyLabel={t('inspector.none')} text={annotationText} title={t('inspector.annotationText')} />
       {annotationManifest ? (
@@ -333,7 +337,7 @@ function createExecutionDetailContext(
     const asset = snapshot.assets.find((candidate) => candidate.assetId === assetId && candidate.kind === 'image');
     return asset ? [{
       asset,
-      inputRole: binding.inputRole,
+      inputSlotId: binding.inputSlotId,
       ...(binding.referenceIntent
         ? { referenceIntent: binding.referenceIntent }
         : {}),
@@ -346,7 +350,10 @@ function createExecutionDetailContext(
       inputImages.push({ asset });
     }
   }
-  inputImages.sort((left, right) => Number(right.inputRole === 'source') - Number(left.inputRole === 'source'));
+  inputImages.sort((left, right) => (
+    Number(right.inputSlotId === 'source_image')
+    - Number(left.inputSlotId === 'source_image')
+  ));
   const { sourceBlock, sourceExecutionVersion } = executionSourceLineage(snapshot, execution);
   const annotatedCompositeAssetId =
     typeof operationBlock?.data.annotatedCompositeAssetId === 'string'
@@ -614,9 +621,6 @@ function formatConfigurationValue(
     const input = value as ExecutionConfigurationInputSnapshot;
     return input.title || input.assetId || input.blockId;
   }
-  if (change.kind === 'role' && typeof value === 'string' && isExecutionInputRole(value)) {
-    return t(inputRoleDefinition(value).titleKey);
-  }
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
   return JSON.stringify(value);
 }
@@ -635,19 +639,21 @@ function readExecutionInputBindings(
 ): Array<{
   assetId?: string;
   blockId: string;
-  inputRole: ExecutionInputRole;
+  inputSlotId?: string;
   referenceIntent?: ReferenceIntentV1;
 }> {
   if (!Array.isArray(value)) return [];
   return value.flatMap((binding) => {
     if (!binding || typeof binding !== 'object') return [];
     const candidate = binding as Record<string, unknown>;
-    if (typeof candidate.blockId !== 'string' || !isExecutionInputRole(candidate.inputRole)) return [];
+    if (typeof candidate.blockId !== 'string') return [];
     const referenceIntent = normalizeReferenceIntent(candidate.referenceIntent);
     return [{
       assetId: typeof candidate.assetId === 'string' ? candidate.assetId : undefined,
       blockId: candidate.blockId,
-      inputRole: candidate.inputRole,
+      inputSlotId: typeof candidate.inputSlotId === 'string'
+        ? candidate.inputSlotId
+        : undefined,
       ...(referenceIntent
         ? { referenceIntent }
         : {}),
@@ -692,7 +698,7 @@ function ImageComparison({
     ...inputImages.map((inputImage) => ({
       asset: inputImage.asset,
       title: inputImage.referenceIntent?.label
-        ?? (inputImage.inputRole ? t(inputRoleDefinition(inputImage.inputRole).titleKey) : sourceLabel),
+        ?? referenceInputSlotLabel({ inputSlotId: inputImage.inputSlotId }, t),
     })),
     annotatedAsset ? { asset: annotatedAsset, title: annotatedLabel } : undefined,
   ].filter((item): item is PreviewImageItem => Boolean(item));
@@ -713,6 +719,38 @@ function ImageComparison({
           <ImagePreviewCard emptyLabel={emptyLabel} label={sourceLabel} onPreview={() => undefined} />
         )}
       </div>
+    </section>
+  );
+}
+
+function ExecutionImageInputDetails({
+  inputImages,
+}: {
+  inputImages: ExecutionDetailContext['inputImages'];
+}): ReactElement {
+  const { t } = useI18n();
+  return (
+    <section className="execution-inspector-reference-inputs">
+      <h3>{t('operationReference.inputs')}</h3>
+      <ul>
+        {inputImages.map((inputImage) => {
+          const slotLabel = referenceInputSlotLabel(
+            { inputSlotId: inputImage.inputSlotId },
+            t,
+          );
+          const intentLabel = inputImage.referenceIntent?.label;
+          const instruction = inputImage.referenceIntent?.instruction;
+          return (
+            <li key={`${inputImage.asset.assetId}-${inputImage.inputSlotId ?? 'image'}`}>
+              <div>
+                <strong>{slotLabel}</strong>
+                {intentLabel ? <span>{intentLabel}</span> : null}
+              </div>
+              {instruction && instruction !== intentLabel ? <p>{instruction}</p> : null}
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }

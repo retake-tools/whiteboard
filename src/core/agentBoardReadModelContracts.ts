@@ -4,7 +4,6 @@ import type { PackageLock } from './packageContracts';
 import type {
   AssetKind,
   BlockType,
-  ExecutionInputRole,
   ExecutionResultSummary,
   ExecutionStatus,
 } from './types';
@@ -110,8 +109,11 @@ export interface AgentBoardBlockSummaryV1 {
 export interface AgentBoardOperationSummaryV1 {
   capabilityId?: string;
   inputBindings: Array<{
-    inputRole?: ExecutionInputRole;
     inputSlotId?: string;
+    referenceIntent?: {
+      instruction: string;
+      label: string;
+    };
     sourceBlockId: string;
     sourceBlockType: BlockType;
   }>;

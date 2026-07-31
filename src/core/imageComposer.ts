@@ -1,5 +1,4 @@
 import { createBlockRecord, touchBoard } from './blockFactory';
-import { capabilityDefinitionFor } from './capabilityRegistry';
 import { expandGroupToContents } from './grouping';
 import { createId } from './id';
 import {
@@ -15,9 +14,7 @@ import {
 import type {
   BlockRecord,
   BoardSnapshot,
-  ExecutionInputRole,
 } from './types';
-import { legacyInputRoleForSlot } from './creativeRequestCompiler';
 import type {
   ImageReferenceBindingKind,
   ReferenceIntentV1,
@@ -168,7 +165,6 @@ export function createImageComposerDraft(
     }
   }
   const capabilityId = input.capabilityId ?? 'image.text_to_image';
-  const definition = capabilityDefinitionFor(capabilityId);
   const sourceReferences = input.references.filter(
     ({ bindingKind }) => bindingKind === 'source',
   );
@@ -231,7 +227,6 @@ export function createImageComposerDraft(
       block.blockId,
       result.operationBlock.blockId,
       'execution_input',
-      legacyInputRoleForSlot(definition, reference.inputSlotId),
       reference.inputSlotId,
       reference.referenceIntent,
     );
@@ -368,7 +363,6 @@ function ensureImageComposerEdge(
   sourceBlockId: string,
   targetBlockId: string,
   kind: 'execution_input' | 'execution_output',
-  inputRole?: ExecutionInputRole,
   inputSlotId?: string,
   referenceIntent?: ReferenceIntentV1,
 ): void {
@@ -378,7 +372,6 @@ function ensureImageComposerEdge(
     && edge.kind === kind
   ));
   if (existing) {
-    if (inputRole) existing.inputRole = inputRole;
     if (inputSlotId) existing.inputSlotId = inputSlotId;
     if (referenceIntent) existing.referenceIntent = structuredClone(referenceIntent);
     return;
@@ -388,7 +381,6 @@ function ensureImageComposerEdge(
     sourceBlockId,
     targetBlockId,
     kind,
-    inputRole,
     inputSlotId,
     ...(referenceIntent
       ? { referenceIntent: structuredClone(referenceIntent) }

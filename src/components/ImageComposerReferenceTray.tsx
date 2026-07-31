@@ -14,12 +14,12 @@ import {
 } from '../core/packageComposer';
 import type {
   ComposerImageReferenceSetting,
-  ComposerImageReferenceMode,
 } from '../core/referenceIntent';
 import { referenceIntentSummary, createReferenceIntent } from '../core/referenceIntent';
 import type { BoardSnapshot } from '../core/types';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
+import { ReferenceIntentEditor } from './ReferenceIntentEditor';
 
 interface ImageComposerReferenceTrayProps {
   mentionOptionsById: ReadonlyMap<string, PackageComposerMentionOption>;
@@ -40,33 +40,6 @@ export interface ImageComposerReferencePresentation {
   previewUrl?: string;
   title: string;
 }
-
-const referenceIntentSuggestions = [
-  {
-    instructionKey: 'skillComposer.referenceSuggestionSceneInstruction',
-    labelKey: 'skillComposer.referenceSuggestionScene',
-  },
-  {
-    instructionKey: 'skillComposer.referenceSuggestionSubjectInstruction',
-    labelKey: 'skillComposer.referenceSuggestionSubject',
-  },
-  {
-    instructionKey: 'skillComposer.referenceSuggestionStyleInstruction',
-    labelKey: 'skillComposer.referenceSuggestionStyle',
-  },
-  {
-    instructionKey: 'skillComposer.referenceSuggestionCompositionInstruction',
-    labelKey: 'skillComposer.referenceSuggestionComposition',
-  },
-  {
-    instructionKey: 'skillComposer.referenceSuggestionLightInstruction',
-    labelKey: 'skillComposer.referenceSuggestionLight',
-  },
-  {
-    instructionKey: 'skillComposer.referenceSuggestionDetailInstruction',
-    labelKey: 'skillComposer.referenceSuggestionDetail',
-  },
-] as const;
 
 const automaticReferenceSetting: ComposerImageReferenceSetting = {
   instruction: '',
@@ -215,7 +188,7 @@ export function ImageComposerReferenceTray({
       </div>
       {editingMentionId && activePresentation && activeSetting ? (
         <ReferenceIntentEditor
-          presentation={activePresentation}
+          title={activePresentation.title}
           setting={activeSetting}
           onChange={(setting) => onChangeSetting(editingMentionId, setting)}
           onClose={() => setEditingMentionId(undefined)}
@@ -236,92 +209,6 @@ export function ImageComposerReferenceTray({
           </figcaption>
         </figure>
       ) : null}
-    </div>
-  );
-}
-
-function ReferenceIntentEditor({
-  onChange,
-  onClose,
-  presentation,
-  setting,
-}: {
-  onChange: (setting: ComposerImageReferenceSetting) => void;
-  onClose: () => void;
-  presentation: ImageComposerReferencePresentation;
-  setting: ComposerImageReferenceSetting;
-}): ReactElement {
-  const { t } = useI18n();
-  function selectMode(mode: ComposerImageReferenceMode): void {
-    onChange({
-      instruction: mode === 'source' ? '' : setting.instruction,
-      mode,
-    });
-  }
-  return (
-    <div className="image-composer-reference-editor" role="dialog" aria-label={t('skillComposer.referenceIntent')}>
-      <header>
-        <strong>{presentation.title}</strong>
-        <button type="button" aria-label={t('context.close')} onClick={onClose}>
-          <X aria-hidden="true" size={12} />
-        </button>
-      </header>
-      <div className="image-composer-reference-mode-options">
-        {([
-          ['auto', 'skillComposer.referenceModeAuto'],
-          ['source', 'skillComposer.referenceModeSource'],
-          ['reference', 'skillComposer.referenceModeReference'],
-        ] as const).map(([mode, labelKey]) => (
-          <button
-            key={mode}
-            type="button"
-            className={setting.mode === mode ? 'is-selected' : ''}
-            aria-pressed={setting.mode === mode}
-            onClick={() => selectMode(mode)}
-          >
-            {t(labelKey)}
-          </button>
-        ))}
-      </div>
-      {setting.mode === 'reference' ? (
-        <div
-          className="image-composer-reference-suggestions"
-          aria-label={t('skillComposer.referenceSuggestions')}
-        >
-          {referenceIntentSuggestions.map((suggestion) => {
-            const instruction = t(suggestion.instructionKey);
-            return (
-              <button
-                key={suggestion.labelKey}
-                type="button"
-                className={setting.instruction.includes(instruction) ? 'is-selected' : ''}
-                onClick={() => onChange({
-                  instruction: appendReferenceSuggestion(setting.instruction, instruction),
-                  mode: 'reference',
-                })}
-              >
-                {t(suggestion.labelKey)}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-      <label>
-        <span>{t('skillComposer.referenceIntent')}</span>
-        <textarea
-          rows={2}
-          disabled={setting.mode === 'source'}
-          placeholder={t('skillComposer.referenceIntentPlaceholder')}
-          value={setting.instruction}
-          onChange={(event) => onChange({
-            instruction: event.target.value,
-            mode: 'reference',
-          })}
-        />
-      </label>
-      <small>{t(setting.mode === 'source'
-        ? 'skillComposer.referenceSourceHint'
-        : 'skillComposer.referenceIntentHint')}</small>
     </div>
   );
 }
@@ -363,6 +250,10 @@ export function referenceSettingBadgeLabel(
   t: ReturnType<typeof useI18n>['t'],
 ): string {
   if (setting.mode === 'source') return t('skillComposer.referenceBadgeSource');
+  const summary = referenceIntentSummary(
+    createReferenceIntent(setting.instruction, 'user'),
+  );
+  if (summary) return summary;
   if (setting.mode === 'reference') return t('skillComposer.referenceBadgeReference');
   return t('skillComposer.referenceBadgeAuto');
 }
@@ -378,13 +269,6 @@ function referenceSettingLabel(
   return setting.mode === 'reference'
     ? t('skillComposer.referenceModeReference')
     : t('skillComposer.referenceModeAuto');
-}
-
-function appendReferenceSuggestion(current: string, suggestion: string): string {
-  const normalized = current.trim();
-  if (!normalized) return suggestion;
-  if (normalized.includes(suggestion)) return current;
-  return `${normalized}；${suggestion}`;
 }
 
 function dispatchOpenImageDetails(blockId: string): void {

@@ -406,7 +406,7 @@ referenceOnlyExecution.params = {
 const referenceAssignments = imageExecutionInputAssignments(referenceOnlyExecution);
 assert.deepEqual(referenceAssignments, [{
   assetId: 'asset_reference_prompt_test',
-  inputRole: 'general_reference',
+  inputSlotId: 'references',
 }]);
 const referencedTextToImagePrompt = createProviderImagePrompt(referenceOnlyExecution, referenceAssignments, {
   dialect: 'codex_imagegen',
@@ -416,7 +416,7 @@ const referencedTextToImagePrompt = createProviderImagePrompt(referenceOnlyExecu
 assert.match(referencedTextToImagePrompt, /^\$imagegen Generate exactly one image/);
 assert.match(referencedTextToImagePrompt, /create a new image instead of treating any reference as the editable output base/);
 assert.doesNotMatch(referencedTextToImagePrompt, /\.\./);
-assert.match(referencedTextToImagePrompt, /attachment 1 \[general_reference\]/);
+assert.match(referencedTextToImagePrompt, /attachment 1 \[references\]/);
 assert.doesNotMatch(referencedTextToImagePrompt, /^\$imagegen Edit/);
 
 const roleAwareEditExecution = structuredClone(imageRun.execution);
@@ -425,20 +425,20 @@ roleAwareEditExecution.inputAssetIds = ['asset_source_prompt_test', 'asset_style
 roleAwareEditExecution.params = {
   ...roleAwareEditExecution.params,
   inputBindings: [
-    { assetId: 'asset_source_prompt_test', blockId: 'block_source_prompt_test', inputRole: 'source' },
-    { assetId: 'asset_style_prompt_test', blockId: 'block_style_prompt_test', inputRole: 'style_reference' },
+    { assetId: 'asset_source_prompt_test', blockId: 'block_source_prompt_test', inputSlotId: 'source_image' },
+    { assetId: 'asset_style_prompt_test', blockId: 'block_style_prompt_test', inputSlotId: 'references' },
   ],
 };
 const editAssignments = imageExecutionInputAssignments(roleAwareEditExecution);
-assert.deepEqual(editAssignments.map((assignment) => assignment.inputRole), ['source', 'style_reference']);
+assert.deepEqual(editAssignments.map((assignment) => assignment.inputSlotId), ['source_image', 'references']);
 const roleAwareEditPrompt = createProviderImagePrompt(roleAwareEditExecution, editAssignments, {
   dialect: 'codex_imagegen',
   variantIndex: 1,
   variantCount: 2,
 });
 assert.match(roleAwareEditPrompt, /^\$imagegen Edit attachment 1/);
-assert.match(roleAwareEditPrompt, /attachment 2 \[style_reference\]/);
-assert.match(roleAwareEditPrompt, /Do not reassign these roles/);
+assert.match(roleAwareEditPrompt, /attachment 2 \[references\]/);
+assert.match(roleAwareEditPrompt, /Do not move images between input slots/);
 assert.match(roleAwareEditPrompt, /candidate 2 of 2/);
 
 const maskedEditExecution = structuredClone(roleAwareEditExecution);
@@ -453,12 +453,12 @@ maskedEditExecution.params = {
     {
       assetId: 'asset_source_prompt_test',
       blockId: 'block_source_prompt_test',
-      inputRole: 'source',
+      inputSlotId: 'source_image',
     },
     {
       assetId: 'asset_mask_prompt_test',
       blockId: 'block_mask_prompt_test',
-      inputRole: 'inpaint_mask',
+      inputSlotId: 'inpaint_mask',
     },
   ],
 };
@@ -524,7 +524,7 @@ const annotationStarted = await startCodexAppServerImageGeneration({
   runTurn: async (input) => {
     assert.equal(input.localImagePaths?.length, 2, 'Annotation edit must attach the clean source and annotated composite.');
     assert.match(input.prompt, /final attached annotated composite/);
-    assert.match(input.prompt, /attachment 1 \[source\]/);
+    assert.match(input.prompt, /attachment 1 \[source_image\]/);
     assert.match(input.prompt, /attachment 2 \[annotated_composite\]/);
     assert.match(input.prompt, /Change only the collar to royal blue/);
     assert.match(input.prompt, /do not retain them in the final image/);

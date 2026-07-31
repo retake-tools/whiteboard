@@ -1,15 +1,20 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import type { ReferenceImageOption } from '../components/InputReferencePicker';
+import type {
+  ReferenceImageOption,
+  ReferenceInputSlotOption,
+} from '../components/InputReferencePicker';
+import { referenceInputSlotLabel } from '../components/referenceInputLabels';
 import { getAssetPreviewUrl } from '../core/assetStore';
 import { localizedBlockData } from '../core/blockLocalization';
 import { createBlockRecord, touchBoard } from '../core/blockFactory';
 import {
-  disabledExecutionInputRolesFor,
-  executionInputRoleOptionsFor,
+  compatibleInputSlotIdsFor,
+  disabledInputSlotIdsFor,
   nextRequiredInputSlotId,
   operationReadinessFor,
   operationReadinessMessageKey,
 } from '../core/capabilities';
+import { capabilityDefinitionFor } from '../core/capabilityRegistry';
 import { blockLockedByGroup, expandGroupToContents } from '../core/grouping';
 import { imageOperationDefaultPrompt } from '../core/imageOperationText';
 import type {
@@ -26,9 +31,14 @@ import { resolvedSkillUiDefinitionFor, skillsForCapability } from '../core/skill
 import type {
   BlockRecord,
   BlockType,
+  BoardEdgeRecord,
   BoardSnapshot,
-  ExecutionInputRole,
 } from '../core/types';
+import {
+  createReferenceIntent,
+  type ComposerImageReferenceMode,
+  type ComposerImageReferenceSetting,
+} from '../core/referenceIntent';
 import type { OperationToast } from '../components/OperationFeedback';
 import type { useI18n } from '../i18n';
 import {
@@ -38,11 +48,14 @@ import {
 
 interface InputReferencePickerState {
   anchor: { x: number; y: number };
-  body: string;
-  cursorIndex: number;
+  body?: string;
+  cursorIndex?: number;
+  edgeId?: string;
+  inputSlotId?: string;
   operationBlockId: string;
+  setting: ComposerImageReferenceSetting;
   sourceBlockId?: string;
-  textBlockId: string;
+  textBlockId?: string;
 }
 
 interface OperationInputControllerOptions {
@@ -163,31 +176,6 @@ export function useOperationInputController(options: OperationInputControllerOpt
     if (newBlockId) setSelectedBlock(nextSnapshot, newBlockId);
   }
 
-  function updateOperationInputRole(edgeId: string, inputRole: ExecutionInputRole): void {
-    let operationBlockId = '';
-    const nextSnapshot = updateSnapshot((current) => {
-      const edge = current.edges.find(
-        (candidate) => candidate.edgeId === edgeId && candidate.kind === 'execution_input',
-      );
-      if (!edge) return current;
-      const sourceBlock = current.blocks.find((block) => block.blockId === edge.sourceBlockId);
-      const operationBlock = current.blocks.find(
-        (block) =>
-          block.blockId === edge.targetBlockId &&
-          (block.type === 'operation' || block.type === 'video'),
-      );
-      if (!sourceBlock || !operationBlock || blockLockedByGroup(current, sourceBlock.blockId) || blockLockedByGroup(current, operationBlock.blockId)) return current;
-      const supportedRoles = executionInputRoleOptionsFor(sourceBlock, operationBlock);
-      if (!supportedRoles.includes(inputRole)) return current;
-      const disabledRoles = disabledExecutionInputRolesFor(current, sourceBlock, operationBlock, edge.edgeId);
-      if (disabledRoles.includes(inputRole) && edge.inputRole !== inputRole) return current;
-      operationBlockId = operationBlock.blockId;
-      edge.inputRole = inputRole;
-      return touchBoard(current);
-    }, { persist: true, history: true });
-    if (operationBlockId) setSelectedBlock(nextSnapshot, operationBlockId);
-  }
-
   function removeOperationInput(edgeId: string): void {
     updateSnapshot((current) => {
       const edge = current.edges.find((candidate) => candidate.edgeId === edgeId);
@@ -199,31 +187,71 @@ export function useOperationInputController(options: OperationInputControllerOpt
     }, { persist: true, history: true });
   }
 
-  function completeInputReferenceMention(inputRole: ExecutionInputRole): void {
+  function completeInputReferenceMention(): void {
     const picker = inputReferencePicker;
     if (!picker?.sourceBlockId) return;
     let selectedOperationId = '';
     const nextSnapshot = updateSnapshot((current) => {
       const sourceBlock = current.blocks.find((block) => block.blockId === picker.sourceBlockId && block.type === 'image' && block.data.assetId);
-      const textBlock = current.blocks.find((block) => block.blockId === picker.textBlockId && block.type === 'text');
+      const textBlock = picker.textBlockId
+        ? current.blocks.find((block) => block.blockId === picker.textBlockId && block.type === 'text')
+        : undefined;
       const operationBlock = current.blocks.find((block) => block.blockId === picker.operationBlockId && block.type === 'operation');
-      if (!sourceBlock || !textBlock || !operationBlock || blockLockedByGroup(current, textBlock.blockId) || blockLockedByGroup(current, operationBlock.blockId)) return current;
-      const supportedRoles = executionInputRoleOptionsFor(sourceBlock, operationBlock);
-      if (!supportedRoles.includes(inputRole)) return current;
-      let inputEdge = current.edges.find((edge) => edge.sourceBlockId === sourceBlock.blockId && edge.targetBlockId === operationBlock.blockId && edge.kind === 'execution_input');
-      const disabledRoles = disabledExecutionInputRolesFor(current, sourceBlock, operationBlock, inputEdge?.edgeId);
-      if (disabledRoles.includes(inputRole) && inputEdge?.inputRole !== inputRole) return current;
-      if (inputEdge) inputEdge.inputRole = inputRole;
-      else {
-        inputEdge = { edgeId: createId('edge'), sourceBlockId: sourceBlock.blockId, targetBlockId: operationBlock.blockId, kind: 'execution_input', inputRole };
+      if (
+        !sourceBlock
+        || !operationBlock
+        || (textBlock && blockLockedByGroup(current, textBlock.blockId))
+        || blockLockedByGroup(current, operationBlock.blockId)
+      ) return current;
+      let inputEdge = picker.edgeId
+        ? current.edges.find((edge) => edge.edgeId === picker.edgeId)
+        : current.edges.find((edge) => edge.sourceBlockId === sourceBlock.blockId && edge.targetBlockId === operationBlock.blockId && edge.kind === 'execution_input');
+      const compatibleSlots = compatibleInputSlotIdsFor(sourceBlock, operationBlock);
+      const disabledSlots = disabledInputSlotIdsFor(
+        current,
+        sourceBlock,
+        operationBlock,
+        inputEdge?.edgeId,
+      );
+      const inputSlotId = inputSlotIdForReferenceSetting(
+        operationBlock,
+        compatibleSlots.filter((slotId) => !disabledSlots.includes(slotId)),
+        picker.setting,
+        picker.inputSlotId,
+      );
+      if (!inputSlotId) return current;
+      if (inputEdge) {
+        inputEdge.inputSlotId = inputSlotId;
+      } else {
+        inputEdge = {
+          edgeId: createId('edge'),
+          sourceBlockId: sourceBlock.blockId,
+          targetBlockId: operationBlock.blockId,
+          kind: 'execution_input',
+          inputSlotId,
+        };
         current.edges.push(inputEdge);
       }
-      const imageTitle = sourceBlock.data.title.trim() || t('block.image.title');
-      const mentionStart = Math.max(0, picker.cursorIndex - 1);
-      const afterMention = picker.body.slice(picker.cursorIndex);
-      const separator = afterMention.length > 0 && !/^\s/.test(afterMention) ? ' ' : '';
-      textBlock.data.body = `${picker.body.slice(0, mentionStart)}@${imageTitle}${separator}${afterMention}`;
-      textBlock.updatedAt = nowIso();
+      const referenceIntent = picker.setting.mode === 'source'
+        ? undefined
+        : createReferenceIntent(picker.setting.instruction, 'user');
+      if (referenceIntent) {
+        inputEdge.referenceIntent = referenceIntent;
+      } else {
+        delete inputEdge.referenceIntent;
+      }
+      if (
+        textBlock
+        && typeof picker.body === 'string'
+        && typeof picker.cursorIndex === 'number'
+      ) {
+        const imageTitle = sourceBlock.data.title.trim() || t('block.image.title');
+        const mentionStart = Math.max(0, picker.cursorIndex - 1);
+        const afterMention = picker.body.slice(picker.cursorIndex);
+        const separator = afterMention.length > 0 && !/^\s/.test(afterMention) ? ' ' : '';
+        textBlock.data.body = `${picker.body.slice(0, mentionStart)}@${imageTitle}${separator}${afterMention}`;
+        textBlock.updatedAt = nowIso();
+      }
       selectedOperationId = operationBlock.blockId;
       return touchBoard(current);
     }, { persist: true, history: true });
@@ -249,11 +277,46 @@ export function useOperationInputController(options: OperationInputControllerOpt
         body: detail.body,
         cursorIndex: detail.cursorIndex,
         operationBlockId: promptEdge.targetBlockId,
+        setting: { instruction: '', mode: 'auto' },
         textBlockId: detail.textBlockId,
       });
     }
     window.addEventListener('retake:request-image-mention', onRequestImageMention);
-    return () => window.removeEventListener('retake:request-image-mention', onRequestImageMention);
+    function onConfigureOperationReference(event: Event): void {
+      const detail = (event as CustomEvent<{
+        anchor?: { x: number; y: number };
+        edgeId?: string;
+      }>).detail;
+      if (!detail?.anchor || !detail.edgeId) return;
+      const edge = snapshotRef.current.edges.find(
+        (candidate) => candidate.edgeId === detail.edgeId
+          && candidate.kind === 'execution_input',
+      );
+      if (!edge) return;
+      const operation = snapshotRef.current.blocks.find(
+        (block) => block.blockId === edge.targetBlockId && block.type === 'operation',
+      );
+      if (!operation) return;
+      setInputReferencePicker({
+        anchor: detail.anchor,
+        edgeId: edge.edgeId,
+        inputSlotId: edge.inputSlotId,
+        operationBlockId: operation.blockId,
+        setting: referenceSettingForEdge(operation, edge),
+        sourceBlockId: edge.sourceBlockId,
+      });
+    }
+    window.addEventListener(
+      'retake:configure-operation-reference',
+      onConfigureOperationReference,
+    );
+    return () => {
+      window.removeEventListener('retake:request-image-mention', onRequestImageMention);
+      window.removeEventListener(
+        'retake:configure-operation-reference',
+        onConfigureOperationReference,
+      );
+    };
   }, []);
 
   async function runOperation(
@@ -369,10 +432,6 @@ export function useOperationInputController(options: OperationInputControllerOpt
       const detail = (event as CustomEvent<{ blockId?: string; operation?: SwitchableOperationMode }>).detail;
       if (detail?.blockId && detail.operation) updateOperationCapability(detail.blockId, detail.operation);
     }
-    function onUpdateRole(event: Event): void {
-      const detail = (event as CustomEvent<{ edgeId?: string; inputRole?: ExecutionInputRole }>).detail;
-      if (detail?.edgeId && detail.inputRole) updateOperationInputRole(detail.edgeId, detail.inputRole);
-    }
     function onRemoveInput(event: Event): void {
       const detail = (event as CustomEvent<{ edgeId?: string }>).detail;
       if (detail?.edgeId) removeOperationInput(detail.edgeId);
@@ -383,7 +442,6 @@ export function useOperationInputController(options: OperationInputControllerOpt
     window.addEventListener('retake:update-domain-video-parameters', onUpdateDomainVideoParameters);
     window.addEventListener('retake:update-operation-skill', onUpdateSkill);
     window.addEventListener('retake:update-operation-capability', onUpdateCapability);
-    window.addEventListener('retake:update-operation-input-role', onUpdateRole);
     window.addEventListener('retake:remove-operation-input', onRemoveInput);
     return () => {
       window.removeEventListener('retake:update-operation-generation-params', onUpdateParams);
@@ -392,7 +450,6 @@ export function useOperationInputController(options: OperationInputControllerOpt
       window.removeEventListener('retake:update-domain-video-parameters', onUpdateDomainVideoParameters);
       window.removeEventListener('retake:update-operation-skill', onUpdateSkill);
       window.removeEventListener('retake:update-operation-capability', onUpdateCapability);
-      window.removeEventListener('retake:update-operation-input-role', onUpdateRole);
       window.removeEventListener('retake:remove-operation-input', onRemoveInput);
     };
   }, []);
@@ -412,25 +469,125 @@ export function useOperationInputController(options: OperationInputControllerOpt
   const mentionSourceBlock = selectedReferenceImage
     ? snapshot.blocks.find((block) => block.blockId === selectedReferenceImage.blockId)
     : undefined;
-  const mentionRoleOptions = mentionOperation && mentionSourceBlock
-    ? executionInputRoleOptionsFor(mentionSourceBlock, mentionOperation)
+  const mentionCompatibleSlotIds = mentionOperation && mentionSourceBlock
+    ? compatibleInputSlotIdsFor(mentionSourceBlock, mentionOperation)
     : [];
   const mentionExistingEdge = mentionOperation && mentionSourceBlock
     ? snapshot.edges.find((edge) => edge.sourceBlockId === mentionSourceBlock.blockId && edge.targetBlockId === mentionOperation.blockId && edge.kind === 'execution_input')
     : undefined;
-  const mentionDisabledRoles = mentionOperation && mentionSourceBlock
-    ? disabledExecutionInputRolesFor(snapshot, mentionSourceBlock, mentionOperation, mentionExistingEdge?.edgeId)
+  const mentionDisabledSlotIds = mentionOperation && mentionSourceBlock
+    ? disabledInputSlotIdsFor(snapshot, mentionSourceBlock, mentionOperation, mentionExistingEdge?.edgeId)
     : [];
+  const mentionAllowedModes = referenceModesForSlots(
+    mentionOperation,
+    inputReferencePicker?.inputSlotId
+      ? [inputReferencePicker.inputSlotId]
+      : mentionCompatibleSlotIds.filter(
+        (slotId) => !mentionDisabledSlotIds.includes(slotId),
+      ),
+  );
+  const mentionSlotOptions = referenceSlotOptions(
+    mentionOperation,
+    mentionCompatibleSlotIds.filter(
+      (slotId) => !mentionDisabledSlotIds.includes(slotId),
+    ),
+    t,
+  );
 
   return {
     addOperationInputBlock,
     completeInputReferenceMention,
     inputReferencePicker,
-    mentionDisabledRoles,
-    mentionRoleOptions,
+    mentionAllowedModes,
+    mentionSlotOptions,
     referenceImageOptions,
     selectedReferenceImage,
     setInputReferencePicker,
     runOperation,
   };
+}
+
+function referenceModesForSlots(
+  operationBlock: BlockRecord | undefined,
+  slotIds: readonly string[],
+): ComposerImageReferenceMode[] {
+  if (!operationBlock || slotIds.length === 0) return [];
+  const semantics = inputSlotSemantics(operationBlock, slotIds);
+  const modes: ComposerImageReferenceMode[] = [];
+  if (semantics.some(({ semanticRole }) => semanticRole === 'source')) {
+    modes.push('source');
+  }
+  if (semantics.some(({ semanticRole }) => semanticRole !== 'source')) {
+    modes.push('auto', 'reference');
+  }
+  return [...new Set(modes)];
+}
+
+function inputSlotIdForReferenceSetting(
+  operationBlock: BlockRecord,
+  slotIds: readonly string[],
+  setting: ComposerImageReferenceSetting,
+  selectedSlotId?: string,
+): string | undefined {
+  const semantics = inputSlotSemantics(operationBlock, slotIds);
+  if (selectedSlotId && slotIds.includes(selectedSlotId)) return selectedSlotId;
+  if (setting.mode === 'source') {
+    return semantics.find(({ semanticRole }) => semanticRole === 'source')?.slotId;
+  }
+  return semantics.find(({ semanticRole }) => (
+    semanticRole === 'reference'
+    || semanticRole === 'general_reference'
+  ))?.slotId ?? semantics.find(({ semanticRole }) => semanticRole !== 'source')?.slotId;
+}
+
+function referenceSlotOptions(
+  operationBlock: BlockRecord | undefined,
+  slotIds: readonly string[],
+  t: ReturnType<typeof useI18n>['t'],
+): ReferenceInputSlotOption[] {
+  if (!operationBlock) return [];
+  return inputSlotSemantics(operationBlock, slotIds).map((slot) => ({
+    label: referenceInputSlotLabel({
+      inputSlotId: slot.slotId,
+      semanticRole: slot.semanticRole,
+    }, t),
+    mode: slot.semanticRole === 'source' ? 'source' : 'reference',
+    slotId: slot.slotId,
+  }));
+}
+
+function referenceSettingForEdge(
+  operationBlock: BlockRecord,
+  edge: BoardEdgeRecord,
+): ComposerImageReferenceSetting {
+  const semanticRole = edge.inputSlotId
+    ? inputSlotSemantics(operationBlock, [edge.inputSlotId])[0]?.semanticRole
+    : undefined;
+  if (semanticRole === 'source') {
+    return { instruction: '', mode: 'source' };
+  }
+  return {
+    instruction: edge.referenceIntent?.instruction ?? '',
+    mode: edge.referenceIntent ? 'reference' : 'auto',
+  };
+}
+
+function inputSlotSemantics(
+  operationBlock: BlockRecord,
+  slotIds: readonly string[],
+): Array<{ semanticRole: string; slotId: string }> {
+  const capabilityId = typeof operationBlock.data.capabilityId === 'string'
+    ? operationBlock.data.capabilityId
+    : 'image.text_to_image';
+  try {
+    const definition = capabilityDefinitionFor(capabilityId);
+    return slotIds.map((slotId) => ({
+      semanticRole: definition.inputSlots.find(
+        (slot) => slot.slotId === slotId,
+      )?.semanticRole ?? slotId,
+      slotId,
+    }));
+  } catch {
+    return slotIds.map((slotId) => ({ semanticRole: slotId, slotId }));
+  }
 }

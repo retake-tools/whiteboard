@@ -126,7 +126,7 @@ for (const branch of [firstBranch, secondBranch]) {
       edge.sourceBlockId === source.blockId &&
       edge.targetBlockId === branch.operationBlock.blockId &&
       edge.kind === 'execution_input' &&
-      edge.inputRole === 'source',
+      edge.inputSlotId === 'source_image',
   ));
 }
 assert.equal(rectanglesOverlap(firstBranch.textBlock, secondBranch.textBlock), false);
@@ -485,7 +485,7 @@ assert.deepEqual(referenceSlot?.values, [{
   kind: 'asset',
   assetId: assetOnlyReference.assetId,
 }]);
-assert.match(assetOnlyReferenceRun.prompt, /\[general_reference\]/);
+assert.match(assetOnlyReferenceRun.prompt, /\[references\]/);
 
 console.log({
   branchCount: 2,

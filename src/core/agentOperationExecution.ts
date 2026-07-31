@@ -258,10 +258,8 @@ function bindAgentCapabilitySlots(
     }
     const imageInput = imageInputByBlockId.get(edge.sourceBlockId);
     if (imageInput?.bindingKind === 'source' && sourceSlot) {
-      edge.inputRole = 'source';
       edge.inputSlotId = sourceSlot.slotId;
     } else if (imageInput && referenceSlot) {
-      edge.inputRole = 'general_reference';
       edge.inputSlotId = referenceSlot.slotId;
       if (imageInput.referenceIntent) {
         edge.referenceIntent = structuredClone(imageInput.referenceIntent);
@@ -364,9 +362,6 @@ function ensureAgentImageInputEdge(
       && edge.targetBlockId === operationBlockId,
   );
   if (existing) {
-    existing.inputRole = input.bindingKind === 'source'
-      ? 'source'
-      : 'general_reference';
     if (input.referenceIntent) {
       existing.referenceIntent = structuredClone(input.referenceIntent);
     }
@@ -377,9 +372,6 @@ function ensureAgentImageInputEdge(
     kind: 'execution_input',
     sourceBlockId: input.blockId,
     targetBlockId: operationBlockId,
-    inputRole: input.bindingKind === 'source'
-      ? 'source'
-      : 'general_reference',
     ...(input.referenceIntent
       ? { referenceIntent: structuredClone(input.referenceIntent) }
       : {}),

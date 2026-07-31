@@ -49,6 +49,10 @@ const blockNodeSource = await readFile(
   'src/nodes/BlockNode.tsx',
   'utf8',
 );
+const operationReferenceInputsSource = await readFile(
+  'src/nodes/OperationReferenceInputs.tsx',
+  'utf8',
+);
 const executionDetailSource = await readFile(
   'src/components/ExecutionDetailContent.tsx',
   'utf8',
@@ -118,9 +122,9 @@ assert.match(
   'The count-only parameter popover must remain compact',
 );
 assert.match(
-  blockNodeSource,
-  /if \(!isPending && role === 'source'\) return null;/,
-  'Annotation source inputs must hide the redundant source-role badge',
+  operationReferenceInputsSource,
+  /function OperationReferenceInputs/,
+  'Operation inputs must use the shared reference presentation',
 );
 
 const manifest: AnnotationManifest = {
@@ -232,11 +236,11 @@ const execution: ExecutionRecord = {
       {
         assetId: sourceAsset.assetId,
         blockId: sourceBlock.blockId,
-        inputRole: 'source',
+        inputSlotId: 'source_image',
       },
       {
         assetId: compositeAsset.assetId,
-        inputRole: 'annotated_composite',
+        inputSlotId: 'annotated_composite',
       },
     ],
     operationBlockId: operationBlock.blockId,
@@ -253,7 +257,7 @@ snapshot.edges.push({
   sourceBlockId: sourceBlock.blockId,
   targetBlockId: operationBlock.blockId,
   kind: 'execution_input',
-  inputRole: 'source',
+  inputSlotId: 'source_image',
 });
 snapshot.executions.unshift(execution);
 snapshot.historyEvents = [{
@@ -284,15 +288,10 @@ assert.equal(
   compositeAsset.previewUrl,
 );
 assert.equal(projectedOperation?.data.annotationMarkCount, 2);
-const projectedSource = createFlowNodes(snapshot, {
-  selectedOperationBlockId: operationBlock.blockId,
-}).find(
-  (node) => node.id === sourceBlock.blockId,
-);
-assert.equal(
-  projectedSource?.data.operationInputTargetCapabilityId,
-  'image.annotation_edit',
-);
+assert.ok(projectedOperation?.data.operationReferenceInputs?.some(
+  (input) => input.blockId === sourceBlock.blockId
+    && input.inputSlotId === 'source_image',
+));
 
 assert.deepEqual(
   pluginHostBoundScope(
