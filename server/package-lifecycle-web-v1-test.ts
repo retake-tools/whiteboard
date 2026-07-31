@@ -65,7 +65,7 @@ try {
 
   const initial = await service.read();
   assert.equal(initial.schemaVersion, 1);
-  assert.equal(initial.packages.length, 2);
+  assert.equal(initial.packages.length, 1);
   const runtimeService = new PluginRuntimeService({
     hostVersion: '0.1.3',
     workspaceRoot,

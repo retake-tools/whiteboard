@@ -12,6 +12,44 @@
   cursor: grab;
 }
 
+.operation-compact-node {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--retake-success) 42%, var(--retake-border));
+  border-radius: 50%;
+  background: var(--retake-surface);
+  box-shadow: 0 4px 12px rgb(16 24 40 / 10%);
+  color: var(--retake-success);
+}
+
+.operation-compact-node:hover {
+  border-color: var(--retake-success);
+  background: var(--retake-surface-hover);
+  box-shadow: 0 6px 16px rgb(16 24 40 / 14%);
+}
+
+.operation-compact-status {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--retake-success-soft);
+  color: var(--retake-success);
+}
+
+.operation-compact-node .react-flow__handle {
+  width: 7px;
+  height: 7px;
+  border: 1px solid white;
+  background: var(--retake-success);
+}
+
 .block-node-text {
   cursor: text;
 }
@@ -107,6 +145,7 @@
 .react-flow__edge.is-connected-to-selection .react-flow__edge-text {
   fill: var(--retake-accent);
 }
+
 
 .react-flow__node:has(.operation-side-popover),
 .react-flow__node:has(.operation-capability-menu) {
@@ -430,6 +469,7 @@
 }
 
 .block-heading-info-button,
+.block-heading-agent-button,
 .block-heading-status,
 .operation-capability-control {
   pointer-events: auto;
@@ -668,6 +708,32 @@
   background: transparent;
   color: #64748b;
   cursor: pointer;
+}
+
+.block-heading-agent-button {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: currentColor;
+  cursor: pointer;
+}
+
+.block-heading-agent-button:hover:not(:disabled),
+.block-heading-agent-button:focus-visible {
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent);
+  outline: none;
+}
+
+.block-heading-agent-button:disabled {
+  cursor: not-allowed;
+  opacity: .5;
 }
 
 .block-heading-info-button:hover {

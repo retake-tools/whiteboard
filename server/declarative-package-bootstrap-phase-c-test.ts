@@ -76,17 +76,16 @@ try {
   assert.equal(publishedProfile.profileId, 'retake.default-studios');
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.packageId),
-    [imagePackageId, videoPackageId],
+    [imagePackageId],
   );
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.version),
-    ['0.10.4', '0.1.2'],
+    ['0.10.4'],
   );
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.updateSource),
     [
       'github:retake-tools/image-studio@main#subdirectory=plugin',
-      'github:retake-tools/video-studio@main#subdirectory=package',
     ],
   );
   await validateBootstrapProfileArchives(
@@ -95,6 +94,18 @@ try {
   );
 
   const bootstrapCopy = await copyBootstrapFixture('valid-bootstrap');
+  const legacyProfilePath = path.join(bootstrapCopy, 'retake.bootstrap.json');
+  const legacyProfile = await readBootstrapProfile(legacyProfilePath);
+  legacyProfile.packages.push({
+    archiveDigest: 'sha256:a9972f561f1e19cda253302ee9a77afd0a6b5acbe542b4950ca8786762823120',
+    archivePath: 'video-studio-0.1.2.retakepkg',
+    digest: 'sha256:1a377bd022b27ae5bbd029c286ac5785b60977ef51709948f15c552cdfdd8b1e',
+    packageId: videoPackageId,
+    pluginModules: [{ permissions: [], pluginModuleId: videoPluginModuleId }],
+    updateSource: 'github:retake-tools/video-studio@main#subdirectory=package',
+    version: '0.1.2',
+  });
+  await writeFile(legacyProfilePath, `${JSON.stringify(legacyProfile, null, 2)}\n`, 'utf8');
   const workspaceRoot = path.join(temporaryRoot, 'fresh-workspace');
   const sentinelPath = path.join(
     workspaceRoot,

@@ -22,6 +22,8 @@ const [
   responsiveSource,
   dismissiblePopoverSource,
   toolbarStylesSource,
+  agentPreferencesSource,
+  i18nSource,
 ] = await Promise.all([
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/UnifiedComposerProvider.tsx', import.meta.url), 'utf8'),
@@ -30,6 +32,8 @@ const [
   readFile(new URL('../src/styles/responsive.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/hooks/useDismissiblePopover.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/styles/toolbars.css', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/AgentComposerPreferencesControls.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/i18n.tsx', import.meta.url), 'utf8'),
 ]);
 
 assert.match(appSource, /<UnifiedComposerProvider key=/);
@@ -40,7 +44,7 @@ assert.match(agentComposerSource, /<SkillQuickInputComposer/);
 assert.match(agentComposerSource, /mode="agent"/);
 assert.doesNotMatch(agentComposerSource, /onInvokeEntryPoint/);
 assert.match(canvasComposerSource, /onSubmitAgentMessage/);
-assert.match(canvasComposerSource, /listGoalComposerMentionOptions/);
+assert.match(canvasComposerSource, /listAgentComposerMentionOptions/);
 assert.match(canvasComposerSource, /groupMentionOptions/);
 assert.match(canvasComposerSource, /skill-composer-picker-source/);
 assert.match(appSource, /composerVisible=\{!isAgentWorkspaceOpen\}/);
@@ -49,12 +53,19 @@ assert.match(canvasComposerSource, /skill-composer-picker-option/);
 assert.match(canvasComposerSource, /rows=\{3\}/);
 assert.match(canvasComposerSource, /skill-composer-input-shell[\s\S]*skill-composer-controls/);
 assert.match(canvasComposerSource, /skillComposer\.creationMode/);
-assert.match(canvasComposerSource, /<option value="agent">/);
-assert.match(canvasComposerSource, /<option value="image">/);
-assert.match(canvasComposerSource, /<option value="video" disabled>/);
-assert.match(toolbarStylesSource, /\.skill-composer-form \{ display: grid/);
+assert.match(canvasComposerSource, /listAvailableComposerModes/);
+assert.match(canvasComposerSource, /availableComposerModes\.map/);
+assert.doesNotMatch(canvasComposerSource, /<option value="video" disabled>/);
+assert.match(toolbarStylesSource, /\.skill-composer-form \{/);
+assert.match(toolbarStylesSource, /border: 1px solid #d8dee8/);
+assert.match(canvasComposerSource, /insideSelector: '\.skill-composer-picker/);
+assert.match(canvasComposerSource, /skill-composer-attachment-trigger/);
 assert.match(toolbarStylesSource, /\.skill-composer-mode \{/);
 assert.match(toolbarStylesSource, /\.skill-composer-input-shell textarea \{[\s\S]*min-height: 62px/);
+assert.match(agentPreferencesSource, /PreferenceOptionGroup/);
+assert.match(agentPreferencesSource, /agent-composer-preference-options/);
+assert.doesNotMatch(agentPreferencesSource, /<select/);
+assert.match(i18nSource, /'skillComposer\.chooseEntryPoint': '\/ Skill'/);
 assert.match(dismissiblePopoverSource, /focusOnEscapeRef/);
 assert.doesNotMatch(responsiveSource, /\.skill-composer-entrypoint span,[\s\S]*display: none/);
 
@@ -111,6 +122,7 @@ console.log(JSON.stringify({
   multilineInput: true,
   controlsBelowInput: true,
   creationModeShell: true,
+  agentPreferencesUseFlatOptions: true,
   escapeFocusReturn: true,
   canvasGoalSubmission: true,
   goalMentionPicker: true,

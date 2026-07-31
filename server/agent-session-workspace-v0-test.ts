@@ -76,6 +76,9 @@ assert.doesNotMatch(workspaceSource, /agentWorkspace\.createSession/);
 assert.match(workspaceSource, /AgentSessionHistoryMenu/);
 assert.match(workspaceSource, /AgentRunSummaryCard/);
 assert.match(workspaceSource, /AgentOperationRunCard/);
+assert.match(workspaceSource, /agentWorkspace\.quickStartPoster/);
+assert.match(workspaceSource, /message\.suggestions\?\.length/);
+assert.match(workspaceSource, /retake:focus-unified-composer/);
 assert.match(operationCardSource, /latestExecutionForOperation/);
 assert.match(operationCardSource, /currentExecutionProviderSettings/);
 assert.doesNotMatch(operationCardSource, /agentWorkspace\.scope/);
@@ -88,6 +91,14 @@ for (const status of ['queued', 'running', 'succeeded', 'failed', 'canceled']) {
 assert.match(agentWorkspaceCssSource, /border-left-color: var\(--operation-status-color\)/);
 assert.match(composerSource, /<SkillQuickInputComposer/);
 assert.match(composerSource, /mode="agent"/);
+assert.match(sharedComposerSource, /skill-composer-attachment-trigger/);
+assert.match(sharedComposerSource, /insideSelector: '\.skill-composer-picker/);
+assert.match(sharedComposerSource, /AgentComposerPreferencesControls/);
+assert.match(controllerSource, /kind: 'agent_preferences'/);
+assert.match(portSource, /attachedImageBlockIds/);
+assert.match(portSource, /localImagePaths/);
+assert.match(workspaceSource, /agent-workspace-quick-starts/);
+assert.match(blockNodeSource, /operation-compact-node/);
 assert.doesNotMatch(composerSource, /onInvokeEntryPoint/);
 assert.match(sharedComposerSource, /listPackageEntryPoints/);
 assert.match(sharedComposerSource, /listPackageComposerMentionOptions/);
@@ -104,7 +115,8 @@ assert.match(controllerSource, /ensureDefaultAgentSession/);
 assert.match(controllerSource, /const agentSessionId = selectedSessionId \?\? ensureDefaultSession\(\)/);
 assert.match(controllerSource, /setAgentSessionWorkingOperation/);
 assert.match(appEventBindingsSource, /retake:bind-agent-operation/);
-assert.match(operationControlsSource, /dispatchBindAgentOperation/);
+assert.match(blockNodeSource, /dispatchBindAgentOperation/);
+assert.match(blockNodeSource, /retake:use-image-in-agent/);
 assert.match(controllerSource, /canvasImageSelectionRefs/);
 assert.match(textBlockEditorSource, /retake:update-text-block/);
 assert.match(textBlockEditorSource, /isDirty/);
@@ -873,6 +885,156 @@ assert.ok(proposalsForSession(recovered, created.session.agentSessionId).some((p
 assert.equal(runtimeEventsForSession(recovered, created.session.agentSessionId).length, 2);
 assert.equal(recovered.changeDecisions?.length, 2);
 
+const attachmentSnapshot = await emptySnapshot();
+const attachmentImage = addTestImageBlock(attachmentSnapshot, 'Attached reference');
+const attachmentSession = createAgentSession(attachmentSnapshot, { model: 'test-model' }).session;
+const attachmentMessage = appendAgentUserMessage(
+  attachmentSnapshot,
+  attachmentSession.agentSessionId,
+  {
+    content: '根据附件生成一个新版本',
+    contextRefs: [
+      {
+        kind: 'agent_preferences',
+        outputType: 'image',
+        targetResolution: '2K',
+        variationCount: 2,
+      },
+      {
+        blockId: attachmentImage.blockId,
+        kind: 'block',
+        slotId: 'agent_attachment',
+      },
+    ],
+  },
+);
+const attachmentContext = agentRuntimeTurnContext(
+  attachmentSnapshot,
+  attachmentSession.agentSessionId,
+  attachmentMessage.agentMessageId,
+);
+assert.deepEqual(attachmentContext.attachedImageBlockIds, [attachmentImage.blockId]);
+assert.equal(attachmentContext.agentPreferences?.outputType, 'image');
+const attachmentDecision = parseAgentRuntimeDecision(JSON.stringify({
+  kind: 'operation_create_execute',
+  message: '创建一个基于附件的新版本。',
+  capabilityId: 'image.image_to_image',
+  sourceImageBlockId: attachmentImage.blockId,
+  operationPrompt: '保持构图，改为夜景。',
+  suggestions: ['继续调整灯光'],
+}), attachmentContext);
+assert.equal(
+  attachmentDecision.kind === 'operation_create_execute'
+    ? attachmentDecision.sourceBinding
+    : undefined,
+  'message_attachment',
+);
+assert.deepEqual(attachmentDecision.suggestions, ['继续调整灯光']);
+
+const multiReferenceSnapshot = await emptySnapshot();
+const compositionReference = addTestImageBlock(multiReferenceSnapshot, '左侧构图参考');
+const environmentReference = addTestImageBlock(multiReferenceSnapshot, '背景参考');
+const styleReference = addTestImageBlock(multiReferenceSnapshot, '风格参考');
+const multiReferenceSession = createAgentSession(
+  multiReferenceSnapshot,
+  { model: 'test-model' },
+).session;
+const multiReferenceMessage = appendAgentUserMessage(
+  multiReferenceSnapshot,
+  multiReferenceSession.agentSessionId,
+  {
+    content: '生成新图：@图1放左边，背景参考@图2，风格参考@图3。',
+    contextRefs: [
+      { blockId: compositionReference.blockId, kind: 'block', slotId: 'agent_reference' },
+      { blockId: environmentReference.blockId, kind: 'block', slotId: 'agent_reference' },
+      { blockId: styleReference.blockId, kind: 'block', slotId: 'agent_reference' },
+    ],
+  },
+);
+const multiReferenceContext = agentRuntimeTurnContext(
+  multiReferenceSnapshot,
+  multiReferenceSession.agentSessionId,
+  multiReferenceMessage.agentMessageId,
+);
+assert.deepEqual(
+  multiReferenceContext.mentionedImageBlockIds,
+  [compositionReference.blockId, environmentReference.blockId, styleReference.blockId],
+);
+const multiReferenceDecision = parseAgentRuntimeDecision(JSON.stringify({
+  capabilityId: 'image.text_to_image',
+  imageInputs: [
+    { blockId: compositionReference.blockId, inputRole: 'composition_reference' },
+    { blockId: environmentReference.blockId, inputRole: 'environment_reference' },
+    { blockId: styleReference.blockId, inputRole: 'style_reference' },
+  ],
+  kind: 'operation_create_execute',
+  message: '正在按三张参考图创建新的图片任务。',
+  operationPrompt: '主体使用图1的左侧构图，背景参考图2，整体风格参考图3。',
+}), multiReferenceContext);
+assert.deepEqual(
+  multiReferenceDecision.kind === 'operation_create_execute'
+    ? multiReferenceDecision.imageInputs?.map((input) => ({
+        bindingSource: input.bindingSource,
+        inputRole: input.inputRole,
+      }))
+    : undefined,
+  [
+    { bindingSource: 'message_mention', inputRole: 'composition_reference' },
+    { bindingSource: 'message_mention', inputRole: 'environment_reference' },
+    { bindingSource: 'message_mention', inputRole: 'style_reference' },
+  ],
+);
+const multiReferenceTurn = applyAgentRuntimeTurn(multiReferenceSnapshot, {
+  agentSessionId: multiReferenceSession.agentSessionId,
+  decision: multiReferenceDecision,
+  externalThreadId: 'thread_multi_reference',
+  runtimeModel: 'test-model',
+  runtimeTurnId: 'turn_multi_reference',
+  sourceMessageId: multiReferenceMessage.agentMessageId,
+});
+const multiReferenceApplication = stageAgentOperationExecution(
+  multiReferenceSnapshot,
+  multiReferenceTurn.operationExecution!,
+  {
+    connectionIdForCapability: () => 'codex-app-server',
+    operationTitle: 'Generate image',
+    promptTitle: 'Prompt',
+  },
+);
+const multiReferenceInputEdges = multiReferenceApplication.stagedSnapshot.edges
+  .filter(
+    (edge) =>
+      edge.kind === 'execution_input'
+      && edge.targetBlockId === multiReferenceApplication.receipt.operationBlockId
+      && [
+        compositionReference.blockId,
+        environmentReference.blockId,
+        styleReference.blockId,
+      ].includes(edge.sourceBlockId),
+  )
+  .map((edge) => ({
+    inputRole: edge.inputRole,
+    inputSlotId: edge.inputSlotId,
+    sourceBlockId: edge.sourceBlockId,
+  }));
+assert.deepEqual(multiReferenceInputEdges, [
+  {
+    inputRole: 'composition_reference',
+    inputSlotId: 'references',
+    sourceBlockId: compositionReference.blockId,
+  },
+  {
+    inputRole: 'environment_reference',
+    inputSlotId: 'references',
+    sourceBlockId: environmentReference.blockId,
+  },
+  {
+    inputRole: 'style_reference',
+    inputSlotId: 'references',
+    sourceBlockId: styleReference.blockId,
+  },
+]);
+
 console.log(JSON.stringify({
   ok: true,
   boardScopedSessions: true,
@@ -887,6 +1049,10 @@ console.log(JSON.stringify({
   factDrivenOperationRunCard: true,
   textBlockLargeEditorV1: true,
   currentBoardReadModelPerTurn: true,
+  typedAgentAttachments: true,
+  agentPreferences: true,
+  dynamicSuggestions: true,
+  multiImageAgentReferences: true,
 }));
 
 async function emptySnapshot(): Promise<BoardSnapshot> {

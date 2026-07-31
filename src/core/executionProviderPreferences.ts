@@ -122,6 +122,7 @@ export function readyAutomatedExecutionConnections(input: {
 
 export function resolveAgentExecutionConnection(input: {
   capabilityId: string;
+  explicitConnectionId?: string;
   initialConnectionId?: string;
   projectId: string;
   settings?: ExecutionProviderSettingsSnapshot;
@@ -136,6 +137,7 @@ export function resolveAgentExecutionConnection(input: {
   });
   const useCase = executionUseCaseForCapability(input.capabilityId);
   const preferredIds = [
+    input.explicitConnectionId,
     useCase === undefined
       ? undefined
       : settings.projectDefaults.find(

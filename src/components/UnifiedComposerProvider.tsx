@@ -34,6 +34,7 @@ export interface ComposerReferenceSetting {
 }
 
 export interface UnifiedComposerAgentInput {
+  agentPreferences: AgentComposerPreferences;
   content: string;
   entrypointId?: string;
   inlineValues: PackageComposerInlineValue[];
@@ -41,11 +42,28 @@ export interface UnifiedComposerAgentInput {
   parameters: Record<string, unknown>;
 }
 
+export interface AgentComposerPreferences {
+  aspectRatioPreset?: string;
+  connectionId?: string;
+  outputType: 'auto' | 'image' | 'video';
+  targetResolution?: string;
+  variationCount?: 1 | 2 | 3 | 4;
+}
+
 export interface UnifiedComposerImageDraftInput {
   connectionId: string;
   generationParams: ImageGenerationParams;
   instruction: string;
   references: ImageComposerReference[];
+}
+
+export interface UnifiedComposerVideoDraftInput {
+  aspectRatio: string;
+  connectionId: string;
+  durationSeconds: number;
+  instruction: string;
+  outputCount: number;
+  references: PackageComposerMention[];
 }
 
 export interface WorkflowContinuationComposerHandoff {
@@ -56,6 +74,7 @@ export interface WorkflowContinuationComposerHandoff {
 
 export interface UnifiedComposerDraftController {
   clearEntryPoint: () => void;
+  agentPreferences: AgentComposerPreferences;
   composerMode: ComposerMode;
   entrypointId?: string;
   generationParameters: GenerationPreparationParameters;
@@ -71,6 +90,7 @@ export interface UnifiedComposerDraftController {
   resetImageSubmission: () => void;
   selectEntryPoint: (entrypointId: string) => void;
   setComposerMode: (mode: ComposerMode) => void;
+  setAgentPreferences: Dispatch<SetStateAction<AgentComposerPreferences>>;
   setGenerationParameters: Dispatch<SetStateAction<GenerationPreparationParameters>>;
   setImageConnectionId: Dispatch<SetStateAction<string | undefined>>;
   setImageGenerationParams: Dispatch<SetStateAction<ImageGenerationParams>>;
@@ -84,11 +104,26 @@ export interface UnifiedComposerDraftController {
   startWorkflowContinuation: (handoff: WorkflowContinuationComposerHandoff) => void;
   storyboardOutputCount: 1 | 2 | 3 | 4;
   storyboardPanelCount: StoryboardSheetPanelCount;
+  videoConnectionId?: string;
+  videoParameters: {
+    aspectRatio: string;
+    durationSeconds: number;
+    outputCount: number;
+  };
+  setVideoConnectionId: Dispatch<SetStateAction<string | undefined>>;
+  setVideoParameters: Dispatch<SetStateAction<{
+    aspectRatio: string;
+    durationSeconds: number;
+    outputCount: number;
+  }>>;
 }
 
 const UnifiedComposerContext = createContext<UnifiedComposerDraftController | undefined>(undefined);
 
 export function UnifiedComposerProvider({ children }: { children: ReactNode }): ReactElement {
+  const [agentPreferences, setAgentPreferences] = useState<AgentComposerPreferences>({
+    outputType: 'auto',
+  });
   const [composerMode, setComposerModeState] = useState<ComposerMode>('agent');
   const [entrypointId, setEntrypointId] = useState<string>();
   const [instruction, setInstruction] = useState('');
@@ -105,6 +140,12 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     defaultImageComposerGenerationParams,
   );
   const [imageReferenceRoles, setImageReferenceRoles] = useState<Record<string, ImageComposerReferenceRole>>({});
+  const [videoConnectionId, setVideoConnectionId] = useState<string>();
+  const [videoParameters, setVideoParameters] = useState({
+    aspectRatio: '9:16',
+    durationSeconds: 8,
+    outputCount: 1,
+  });
 
   const reset = useCallback((): void => {
     setEntrypointId(undefined);
@@ -180,6 +221,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
   );
 
   const value = useMemo<UnifiedComposerDraftController>(() => ({
+    agentPreferences,
     clearEntryPoint,
     composerMode,
     entrypointId,
@@ -196,6 +238,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     resetImageSubmission,
     selectEntryPoint,
     setComposerMode,
+    setAgentPreferences,
     setGenerationParameters,
     setImageConnectionId,
     setImageGenerationParams,
@@ -209,7 +252,12 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     startWorkflowContinuation,
     storyboardOutputCount,
     storyboardPanelCount,
+    videoConnectionId,
+    videoParameters,
+    setVideoConnectionId,
+    setVideoParameters,
   }), [
+    agentPreferences,
     clearEntryPoint,
     composerMode,
     entrypointId,
@@ -229,6 +277,8 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     startWorkflowContinuation,
     storyboardOutputCount,
     storyboardPanelCount,
+    videoConnectionId,
+    videoParameters,
   ]);
 
   return <UnifiedComposerContext.Provider value={value}>{children}</UnifiedComposerContext.Provider>;

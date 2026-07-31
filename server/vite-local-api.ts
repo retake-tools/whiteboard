@@ -953,7 +953,6 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
                 projectId: body.projectId,
                 dataUrl: body.dataUrl,
                 fileName: body.fileName,
-                kind: 'image',
                 width: body.width,
                 height: body.height,
                 sourceExecutionId: body.sourceExecutionId,

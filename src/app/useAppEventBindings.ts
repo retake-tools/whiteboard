@@ -8,6 +8,7 @@ interface AppEventBindingsOptions {
   directImageImportInputRef: RefObject<HTMLInputElement | null>;
   isMiniMapVisible: boolean;
   onBindAgentOperation: (operationBlockId: string) => void;
+  onUseImageInAgent: (imageBlockId: string) => void;
   pendingDirectImageImportBlockIdRef: RefObject<string | undefined>;
   retryFailedImageResult: (blockId: string) => Promise<void>;
   setHistoryOpen: (open: boolean) => void;
@@ -23,6 +24,7 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
     directImageImportInputRef,
     isMiniMapVisible,
     onBindAgentOperation,
+    onUseImageInAgent,
     pendingDirectImageImportBlockIdRef,
     retryFailedImageResult,
     setHistoryOpen,
@@ -33,6 +35,8 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
   } = options;
   const onBindAgentOperationRef = useRef(onBindAgentOperation);
   onBindAgentOperationRef.current = onBindAgentOperation;
+  const onUseImageInAgentRef = useRef(onUseImageInAgent);
+  onUseImageInAgentRef.current = onUseImageInAgent;
 
   useEffect(() => { saveUiPreferences({ isMiniMapVisible }); }, [isMiniMapVisible]);
   useEffect(() => { saveUiPreferences({ showGrid }); }, [showGrid]);
@@ -73,17 +77,31 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
       if (!operation) return;
       onBindAgentOperationRef.current(blockId);
     }
+    function onUseImageInAgent(event: Event): void {
+      const blockId = (event as CustomEvent<{ blockId?: string }>).detail?.blockId;
+      if (!blockId) return;
+      const image = snapshotRef.current.blocks.find(
+        (candidate) =>
+          candidate.blockId === blockId
+          && candidate.type === 'image'
+          && typeof candidate.data.assetId === 'string',
+      );
+      if (!image) return;
+      onUseImageInAgentRef.current(blockId);
+    }
     window.addEventListener('retake:open-execution-inspector', onOpenInspector);
     window.addEventListener('retake:retry-image-result', onRetryImageResult);
     window.addEventListener('retake:add-operation-input', onAddOperationInput);
     window.addEventListener('retake:request-image-import', onRequestImageImport);
     window.addEventListener('retake:bind-agent-operation', onBindOperationToAgent);
+    window.addEventListener('retake:use-image-in-agent', onUseImageInAgent);
     return () => {
       window.removeEventListener('retake:open-execution-inspector', onOpenInspector);
       window.removeEventListener('retake:retry-image-result', onRetryImageResult);
       window.removeEventListener('retake:add-operation-input', onAddOperationInput);
       window.removeEventListener('retake:request-image-import', onRequestImageImport);
       window.removeEventListener('retake:bind-agent-operation', onBindOperationToAgent);
+      window.removeEventListener('retake:use-image-in-agent', onUseImageInAgent);
     };
   }, []);
 }

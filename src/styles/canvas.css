@@ -5,6 +5,7 @@
   min-width: 0;
   min-height: 0;
   background: #f7f8fa;
+  transition: width 160ms ease;
 }
 
 .board-background-layer {
@@ -61,8 +62,8 @@
   z-index: 9;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px;
+  gap: 4px;
+  padding: 5px;
   border: 1px solid #d8dee8;
   border-radius: 8px;
   background: rgb(255 255 255 / 92%);
@@ -72,21 +73,32 @@
 
 .zoom-readout {
   display: inline-flex;
-  min-width: 52px;
-  height: 34px;
+  min-width: 42px;
+  height: 30px;
   align-items: center;
   justify-content: center;
-  padding: 0 8px;
+  padding: 0 5px;
   color: #202938;
-  font-size: 13px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
-  font-weight: 740;
+  font-weight: 650;
 }
 
 .canvas-utility-buttons {
   display: flex;
-  gap: 5px;
+  gap: 3px;
   align-items: center;
+}
+
+.canvas-utility-dock .icon-button {
+  width: 30px;
+  height: 30px;
+}
+
+.canvas-utility-dock .icon-button svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.75;
 }
 
 @keyframes spin {

@@ -63,6 +63,7 @@ export function AgentWorkspace({
   isSending,
   launchingProposalId,
   onArchiveSession,
+  onAttachFiles,
   onCancelAgentRun,
   onClose,
   onCreateSession,
@@ -88,6 +89,7 @@ export function AgentWorkspace({
   isSending: boolean;
   launchingProposalId?: string;
   onArchiveSession: () => void;
+  onAttachFiles?: Parameters<typeof AgentWorkspaceComposer>[0]['onAttachFiles'];
   onCancelAgentRun: (agentRunId: string) => void;
   onClose: () => void;
   onCreateSession: () => void;
@@ -184,16 +186,16 @@ export function AgentWorkspace({
           <TooltipIconButton className="icon-button" label={t('context.close')} onClick={onClose}><X size={15} /></TooltipIconButton>
         </div>
       </header>
-      {selectedSession ? (
+      {selectedSession && (activeRun || pendingProposalCount > 0) ? (
         <div
           className="agent-workspace-context-bar"
           role="status"
           aria-atomic="true"
           aria-live="polite"
         >
-          <span><Activity size={13} />{activeRun
-            ? `${t('agentWorkspace.run')} · ${t(agentRunStatusKey(activeRun.status))}`
-            : t('agentWorkspace.noRun')}</span>
+          {activeRun ? (
+            <span><Activity size={13} />{`${t('agentWorkspace.run')} · ${t(agentRunStatusKey(activeRun.status))}`}</span>
+          ) : <span />}
           {pendingProposalCount > 0 ? (
             <span className="is-attention">
               <CircleAlert size={13} />
@@ -217,7 +219,31 @@ export function AgentWorkspace({
               aria-relevant="additions text"
             >
               {messages.length === 0 && proposals.length === 0 && !activeRun
-                ? <div className="agent-workspace-welcome"><Bot size={20} /><strong>{t('agentWorkspace.chatEmptyTitle')}</strong><p>{t('agentWorkspace.chatEmpty')}</p></div>
+                ? (
+                  <div className="agent-workspace-welcome">
+                    <Bot size={20} />
+                    <strong>{t('agentWorkspace.chatEmptyTitle')}</strong>
+                    <p>{t('agentWorkspace.chatEmpty')}</p>
+                    <div className="agent-workspace-quick-starts">
+                      {[
+                        t('agentWorkspace.quickStartPoster'),
+                        t('agentWorkspace.quickStartEdit'),
+                        t('agentWorkspace.quickStartPlan'),
+                      ].map((prompt) => (
+                        <button
+                          key={prompt}
+                          type="button"
+                          onClick={() => window.dispatchEvent(new CustomEvent(
+                            'retake:focus-unified-composer',
+                            { detail: { instruction: prompt } },
+                          ))}
+                        >
+                          {prompt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
                 : null}
               {messages.map((message) => {
                 const messageProposals = message.role === 'assistant' && message.sourceMessageId
@@ -229,6 +255,22 @@ export function AgentWorkspace({
                 return (
                   <div key={message.agentMessageId} className="agent-workspace-timeline-item">
                     <AgentMessageCard message={message} />
+                    {message.role === 'assistant' && message.suggestions?.length ? (
+                      <div className="agent-workspace-suggestions" aria-label={t('agentWorkspace.suggestions')}>
+                        {message.suggestions.map((suggestion) => (
+                          <button
+                            key={suggestion}
+                            type="button"
+                            onClick={() => window.dispatchEvent(new CustomEvent(
+                              'retake:focus-unified-composer',
+                              { detail: { instruction: suggestion } },
+                            ))}
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                     {operationReceipt ? (
                       <AgentOperationRunCard
                         onLocateBlock={onLocateBlock}
@@ -267,7 +309,7 @@ export function AgentWorkspace({
                   onViewRun={onViewProposalRun}
                 />
               ))}
-              {agentRuns.length > 0 ? (
+              {activeRun ? (
                 <AgentRunSummaryCard
                   cardRef={runCardRef}
                   activeRun={activeRun}
@@ -300,6 +342,7 @@ export function AgentWorkspace({
             {error ? <p className="agent-workspace-error" role="alert">{error}</p> : null}
             <AgentWorkspaceComposer
               disabled={isSending}
+              onAttachFiles={onAttachFiles}
               snapshot={snapshot}
               onRequestCanvasMode={onRequestCanvasMode}
               onSubmit={onSubmitMessage}

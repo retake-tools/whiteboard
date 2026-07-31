@@ -254,33 +254,6 @@
     transform 120ms ease;
 }
 
-.operation-agent-button {
-  display: inline-flex;
-  width: 100%;
-  min-height: 32px;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 1px solid var(--retake-border);
-  border-radius: 7px;
-  background: var(--retake-surface);
-  color: var(--retake-text-secondary);
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.operation-agent-button:hover:not(:disabled) {
-  border-color: var(--retake-accent-border);
-  background: var(--retake-accent-soft);
-  color: var(--retake-accent-strong);
-}
-
-.operation-agent-button:disabled {
-  cursor: not-allowed;
-  opacity: .55;
-}
-
 .operation-readiness {
   display: flex;
   min-width: 0;

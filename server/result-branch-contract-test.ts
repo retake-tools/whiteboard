@@ -211,6 +211,91 @@ assert.equal(secondRun.resultBlocks.length, 1);
 assert.match(firstRun.execution.agentPrompt ?? '', /As soon as each variant file is ready/);
 assert.match(firstRun.execution.agentPrompt ?? '', /Partial writeback keeps the execution running/);
 
+const creativeProjectionSnapshot = structuredClone(snapshot);
+const creativeProjectionExecution = creativeProjectionSnapshot.executions.find(
+  (execution) => execution.executionId === firstRun.execution.executionId,
+);
+assert.ok(creativeProjectionExecution);
+creativeProjectionExecution.status = 'succeeded';
+for (const [index, outputBlockId] of creativeProjectionExecution.outputBlockIds.entries()) {
+  const output = creativeProjectionSnapshot.blocks.find((block) => block.blockId === outputBlockId);
+  assert.ok(output);
+  output.data.assetId = `asset_creative_projection_${index}`;
+  output.data.status = 'succeeded';
+}
+const creativeNodes = createFlowNodes(
+  creativeProjectionSnapshot,
+  { projectionMode: 'creative' },
+);
+const creativeNodeIds = new Set(creativeNodes.map((node) => node.id));
+assert.equal(
+  creativeNodes.find((node) => node.id === firstBranch.operationBlock.blockId)
+    ?.data.operationCompact,
+  true,
+);
+const compactCreativeOperation = creativeNodes.find(
+  (node) => node.id === firstBranch.operationBlock.blockId,
+);
+assert.equal(compactCreativeOperation?.style?.width, 36);
+assert.equal(compactCreativeOperation?.style?.height, 36);
+assert.equal(
+  compactCreativeOperation?.position.x,
+  firstRun.resultBlocks[0].position.x - 56,
+);
+assert.equal(
+  compactCreativeOperation?.position.y,
+  firstRun.resultBlocks[0].position.y + firstRun.resultBlocks[0].size.height / 2 - 18,
+);
+assert.equal(creativeNodeIds.has(firstBranch.textBlock.blockId), false);
+assert.equal(creativeNodeIds.has(source.blockId), true);
+assert.equal(creativeNodeIds.has(firstRun.resultBlocks[0].blockId), true);
+const creativeLineageEdges = createFlowEdges(
+  creativeProjectionSnapshot,
+  { projectionMode: 'creative' },
+);
+assert.ok(creativeLineageEdges.some(
+  (edge) =>
+    edge.source === source.blockId
+    && edge.target === firstBranch.operationBlock.blockId,
+));
+assert.ok(creativeLineageEdges.some(
+  (edge) =>
+    edge.source === firstBranch.operationBlock.blockId
+    && firstRun.resultBlocks.some((block) => block.blockId === edge.target),
+));
+const flowNodeIds = new Set(
+  createFlowNodes(creativeProjectionSnapshot, { projectionMode: 'flow' })
+    .map((node) => node.id),
+);
+assert.equal(flowNodeIds.has(firstBranch.operationBlock.blockId), true);
+assert.equal(flowNodeIds.has(firstBranch.textBlock.blockId), true);
+assert.equal(
+  createFlowNodes(creativeProjectionSnapshot, { projectionMode: 'flow' })
+    .find((node) => node.id === firstBranch.operationBlock.blockId)
+    ?.data.operationCompact,
+  false,
+);
+assert.equal(
+  createFlowNodes(creativeProjectionSnapshot, {
+    projectionMode: 'creative',
+    selectedBlockIds: [firstBranch.operationBlock.blockId],
+  }).find((node) => node.id === firstBranch.operationBlock.blockId)
+    ?.data.operationCompact,
+  false,
+);
+const changedCreativeProjectionSnapshot = structuredClone(creativeProjectionSnapshot);
+const changedPrompt = changedCreativeProjectionSnapshot.blocks.find(
+  (block) => block.blockId === firstBranch.textBlock.blockId,
+);
+assert.ok(changedPrompt);
+changedPrompt.data.body = 'This prompt changed after the successful execution.';
+assert.equal(
+  createFlowNodes(changedCreativeProjectionSnapshot, { projectionMode: 'creative' })
+    .find((node) => node.id === firstBranch.operationBlock.blockId)
+    ?.data.operationCompact,
+  true,
+);
+
 const retrySnapshot = structuredClone(snapshot);
 const retryExecution = retrySnapshot.executions.find(
   (execution) => execution.executionId === firstRun.execution.executionId,

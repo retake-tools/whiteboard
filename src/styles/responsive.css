@@ -27,9 +27,11 @@
   }
 
   .floating-toolbar {
-    bottom: 10px;
-    max-width: calc(100vw - 20px);
-    overflow-x: auto;
+    top: 50%;
+    bottom: auto;
+    left: 10px;
+    max-height: calc(100vh - 150px);
+    overflow-y: auto;
   }
 
   .skill-composer {
@@ -41,13 +43,13 @@
   .skill-composer-recommended > span { display: none; }
 
   .canvas-utility-dock {
-    bottom: 72px;
+    bottom: 10px;
     left: 10px;
   }
 
   .canvas-minimap {
     left: 10px !important;
-    bottom: 140px !important;
+    bottom: 68px !important;
     width: 150px !important;
     height: 110px !important;
   }
@@ -55,16 +57,14 @@
 }
 
 @media (max-width: 640px) {
-  .image-composer-controls {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .image-composer-connection {
-    grid-column: 1 / -1;
-  }
-
   .skill-composer-controls {
     flex-wrap: wrap;
+  }
+
+  .skill-composer-controls .image-composer-controls {
+    order: 3;
+    width: 100%;
+    flex-basis: 100%;
   }
 
   .skill-composer-mention-trigger {

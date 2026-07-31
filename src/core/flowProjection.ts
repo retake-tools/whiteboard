@@ -25,6 +25,7 @@ import {
 import type { BoardSnapshot, GroupColor, RetakeEdge, RetakeNode } from './types';
 import { sourceImageAspectRatio } from './operationAspectRatio';
 import { workflowStepRuntimeForOperation } from './workflowRuntime';
+import type { CanvasProjectionMode } from './canvasProjectionViewState';
 
 const groupFillColors: Record<GroupColor, string> = {
   transparent: '#f8fafc',
@@ -52,12 +53,18 @@ export function createFlowNodes(
     dropTargetGroupId?: string;
     selectedBlockIds?: string[];
     selectedOperationBlockId?: string;
+    projectionMode?: CanvasProjectionMode;
     textBlockDrafts?: ReadonlyMap<string, string>;
   } = {},
 ): RetakeNode[] {
   const collapsedGroupIds = new Set(options.collapsedGroupIds ?? []);
   const hiddenBlockIds = new Set(descendantBlockIds(snapshot, [...collapsedGroupIds]));
   const selectedBlockIds = new Set(options.selectedBlockIds ?? []);
+  const creativeProjection = creativeProjectionFor(
+    snapshot,
+    options.projectionMode ?? 'creative',
+    options.selectedBlockIds ?? [],
+  );
   const selectionScopeBlockIds = new Set(groupSelectionScopeBlockIds(snapshot, options.selectedBlockIds ?? []));
   const selectedOperation = snapshot.blocks.find(
     (block) =>
@@ -149,7 +156,11 @@ export function createFlowNodes(
   const executionOutputBlockIds = new Set(
     snapshot.executions.flatMap((execution) => execution.outputBlockIds),
   );
-  const orderedBlocks = snapshot.blocks.filter((block) => !hiddenBlockIds.has(block.blockId)).sort((left, right) => {
+  const orderedBlocks = snapshot.blocks.filter(
+    (block) =>
+      !hiddenBlockIds.has(block.blockId)
+      && !creativeProjection.hiddenBlockIds.has(block.blockId),
+  ).sort((left, right) => {
     const depthDifference = groupAncestorIds(snapshot, left.blockId).length - groupAncestorIds(snapshot, right.blockId).length;
     if (depthDifference !== 0) return depthDifference;
     if (left.type === 'group' && right.type !== 'group') return -1;
@@ -177,6 +188,13 @@ export function createFlowNodes(
           ? ['workflow_step_not_ready' as const]
           : [];
     const operationChanges = operationChangesById.get(block.blockId) ?? [];
+    const latestOperationExecution = block.type === 'operation'
+      ? latestStartedExecutionForOperation(readinessSnapshot, block.blockId)
+      : undefined;
+    const compactOperation = creativeProjection.compactOperationIds.has(block.blockId);
+    const projectedPosition = compactOperation
+      ? compactOperationPosition(snapshot, block)
+      : block.position;
     const groupExecutionMetadata = typeof block.data.groupExecutionId === 'string'
       ? executionMetadataById.get(block.data.groupExecutionId)
       : undefined;
@@ -191,8 +209,8 @@ export function createFlowNodes(
     id: block.blockId,
     type: block.type,
     position: parent
-      ? { x: block.position.x - parent.position.x, y: block.position.y - parent.position.y }
-      : block.position,
+      ? { x: projectedPosition.x - parent.position.x, y: projectedPosition.y - parent.position.y }
+      : projectedPosition,
     parentId: parent?.blockId,
     extent: undefined,
     zIndex: block.zIndex,
@@ -233,6 +251,10 @@ export function createFlowNodes(
       operationInputTargetCapabilityId:
         inputMetadataByBlockId.get(block.blockId)?.targetCapabilityId,
       operationCanRun,
+      operationCompact: compactOperation,
+      operationCompactResultCount: compactOperation
+        ? operationResultCount(snapshot, block.blockId, latestOperationExecution?.outputBlockIds)
+        : undefined,
       operationChangeCount: operationChanges.length,
       operationChangeKinds: configurationChangeKinds(operationChanges),
       operationQueuedConfigurationStale:
@@ -259,8 +281,8 @@ export function createFlowNodes(
           : undefined,
     },
     style: {
-      width: isCollapsed ? 260 : block.size.width,
-      height: isCollapsed ? 88 : block.size.height,
+      width: isCollapsed ? 260 : compactOperation ? 36 : block.size.width,
+      height: isCollapsed ? 88 : compactOperation ? 36 : block.size.height,
     },
     connectable: !contentLocked,
     deletable:
@@ -271,6 +293,41 @@ export function createFlowNodes(
   });
 }
 
+function operationResultCount(
+  snapshot: BoardSnapshot,
+  operationBlockId: string,
+  latestOutputBlockIds: string[] | undefined,
+): number {
+  if (latestOutputBlockIds?.length) return latestOutputBlockIds.length;
+  return new Set(snapshot.edges.flatMap((edge) => (
+    edge.kind === 'execution_output' && edge.sourceBlockId === operationBlockId
+      ? [edge.targetBlockId]
+      : []
+  ))).size;
+}
+
+function compactOperationPosition(
+  snapshot: BoardSnapshot,
+  operation: BoardSnapshot['blocks'][number],
+): { x: number; y: number } {
+  const outputBlocks = snapshot.edges.flatMap((edge) => {
+    if (edge.kind !== 'execution_output' || edge.sourceBlockId !== operation.blockId) return [];
+    const output = snapshot.blocks.find((block) => block.blockId === edge.targetBlockId);
+    return output ? [output] : [];
+  }).sort((left, right) => left.position.x - right.position.x || left.position.y - right.position.y);
+  const firstOutput = outputBlocks[0];
+  if (firstOutput) {
+    return {
+      x: firstOutput.position.x - 56,
+      y: firstOutput.position.y + firstOutput.size.height / 2 - 18,
+    };
+  }
+  return {
+    x: operation.position.x + operation.size.width - 36,
+    y: operation.position.y + operation.size.height / 2 - 18,
+  };
+}
+
 function annotationMarkCount(manifest: unknown): number | undefined {
   if (!manifest || typeof manifest !== 'object' || !('marks' in manifest)) return undefined;
   const marks = manifest.marks;
@@ -279,12 +336,25 @@ function annotationMarkCount(manifest: unknown): number | undefined {
 
 export function createFlowEdges(
   snapshot: BoardSnapshot,
-  options: { collapsedGroupIds?: string[]; selectedBlockIds?: string[] } = {},
+  options: {
+    collapsedGroupIds?: string[];
+    projectionMode?: CanvasProjectionMode;
+    selectedBlockIds?: string[];
+  } = {},
 ): RetakeEdge[] {
   const selectedBlockIds = new Set(groupSelectionScopeBlockIds(snapshot, options.selectedBlockIds ?? []));
   const collapsedGroupIds = new Set(options.collapsedGroupIds ?? []);
+  const creativeProjection = creativeProjectionFor(
+    snapshot,
+    options.projectionMode ?? 'creative',
+    options.selectedBlockIds ?? [],
+  );
   const projectedEdges = new Map<string, RetakeEdge>();
   for (const edge of snapshot.edges) {
+    if (
+      creativeProjection.hiddenBlockIds.has(edge.sourceBlockId)
+      || creativeProjection.hiddenBlockIds.has(edge.targetBlockId)
+    ) continue;
     const source = visibleEdgeEndpoint(snapshot, edge.sourceBlockId, collapsedGroupIds);
     const target = visibleEdgeEndpoint(snapshot, edge.targetBlockId, collapsedGroupIds);
     if (source === target) continue;
@@ -331,6 +401,75 @@ export function createFlowEdges(
     });
   }
   return [...projectedEdges.values()];
+}
+
+function creativeProjectionFor(
+  snapshot: BoardSnapshot,
+  projectionMode: CanvasProjectionMode,
+  selectedBlockIds: readonly string[],
+): {
+  compactOperationIds: Set<string>;
+  hiddenBlockIds: Set<string>;
+} {
+  if (projectionMode !== 'creative') {
+    return {
+      compactOperationIds: new Set(),
+      hiddenBlockIds: new Set(),
+    };
+  }
+  const selected = new Set(selectedBlockIds);
+  const selectedPromptTargetOperationIds = new Set(
+    snapshot.edges.flatMap((edge) => {
+      if (
+        edge.kind !== 'execution_input'
+        || !selected.has(edge.sourceBlockId)
+      ) return [];
+      const sourceBlock = snapshot.blocks.find((block) => block.blockId === edge.sourceBlockId);
+      return sourceBlock?.type === 'text' ? [edge.targetBlockId] : [];
+    }),
+  );
+  const compactOperationIds = new Set<string>();
+  for (const block of snapshot.blocks) {
+    if (
+      block.type !== 'operation'
+      || selected.has(block.blockId)
+      || selectedPromptTargetOperationIds.has(block.blockId)
+    ) continue;
+    const execution = latestStartedExecutionForOperation(snapshot, block.blockId);
+    if (block.data.status !== 'succeeded' && execution?.status !== 'succeeded') continue;
+    const workflowStepRuntime = workflowStepRuntimeForOperation(snapshot, block.blockId);
+    if (workflowStepRuntime && workflowStepRuntime.status !== 'succeeded') continue;
+    compactOperationIds.add(block.blockId);
+  }
+  const hiddenPromptIds = new Set(
+    snapshot.blocks.flatMap((block) => {
+      if (block.type !== 'text' || selected.has(block.blockId)) return [];
+      const connectedEdges = snapshot.edges.filter(
+        (edge) => edge.sourceBlockId === block.blockId || edge.targetBlockId === block.blockId,
+      );
+      const outgoingExecutionInputs = connectedEdges.filter(
+        (edge) =>
+          edge.kind === 'execution_input'
+          && edge.sourceBlockId === block.blockId,
+      );
+      if (
+        outgoingExecutionInputs.length === 0
+        || outgoingExecutionInputs.some(
+          (edge) => !compactOperationIds.has(edge.targetBlockId),
+        )
+        || connectedEdges.some(
+          (edge) =>
+            edge.kind !== 'execution_input'
+            || edge.sourceBlockId !== block.blockId,
+        )
+      ) return [];
+      return [block.blockId];
+    }),
+  );
+  return {
+    compactOperationIds,
+    hiddenBlockIds: hiddenPromptIds,
+  };
 }
 
 function visibleEdgeEndpoint(snapshot: BoardSnapshot, blockId: string, collapsedGroupIds: Set<string>): string {

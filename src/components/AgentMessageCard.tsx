@@ -23,7 +23,8 @@ export function AgentMessageCard({
   const visibleContextRefs = message.contextRefs.filter(
     (ref) =>
       ref.kind !== 'operation_receipt'
-      && ref.kind !== 'canvas_image_selection',
+      && ref.kind !== 'canvas_image_selection'
+      && ref.kind !== 'agent_preferences',
   );
 
   useEffect(() => () => {
@@ -85,6 +86,7 @@ async function copyTextToClipboard(text: string): Promise<void> {
 
 function contextRefLabel(ref: AgentMessageContextRef): string {
   if (ref.kind === 'entrypoint') return `/${ref.entrypointId}`;
+  if (ref.kind === 'agent_preferences') return 'Preferences';
   if (ref.kind === 'agent_run') return `Run ${ref.agentRunId.slice(-8)}`;
   if (ref.kind === 'operation') return `Operation ${ref.operationBlockId.slice(-8)}`;
   if (ref.kind === 'canvas_image_selection') {

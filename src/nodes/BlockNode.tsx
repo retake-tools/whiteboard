@@ -1,5 +1,5 @@
 import { Handle, NodeResizer, Position, type NodeProps, type ResizeParams } from '@xyflow/react';
-import { ArrowRight, Check, ChevronDown, Clock, Expand, FileText, ImageIcon, Info, Layers3, LockKeyhole, Play, Plus, RefreshCw, Video } from 'lucide-react';
+import { ArrowRight, Bot, Check, ChevronDown, Clock, Expand, FileText, ImageIcon, Info, Layers3, LockKeyhole, Play, Plus, RefreshCw, Video } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { schemaForCapability } from '../core/capabilities';
 import type { SwitchableOperationMode } from '../core/imageOperations';
@@ -16,6 +16,7 @@ import { PluginBlockRendererSlot } from '../components/PluginBlockRendererHost';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { DocumentBlockBody } from './DocumentBlockBody';
 import { OperationInlineControls } from './OperationInlineControls';
+import { useImagePreviewDoubleTap } from './useImagePreviewDoubleTap';
 import { VideoBlockBody } from './VideoBlockBody';
 
 const iconByType = {
@@ -87,6 +88,30 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
     );
   }
 
+  if (blockType === 'operation' && data.operationCompact) {
+    const resultCount = typeof data.operationCompactResultCount === 'number'
+      ? data.operationCompactResultCount
+      : 0;
+    const changeLabel = data.operationQueuedConfigurationStale
+      ? t('operationStatus.executionContentUpdated')
+      : (data.operationChangeCount ?? 0) > 0
+        ? `${data.operationChangeCount} ${t('operationStatus.changes')}`
+        : undefined;
+    return (
+      <div
+        className={`operation-compact-node${changeLabel ? ' has-change' : ''}`}
+        aria-label={`${title} · ${t('status.succeeded')} · ${resultCount} ${t('group.items')}${changeLabel ? ` · ${changeLabel}` : ''}`}
+        title={`${title} · ${resultCount} ${t('group.items')}${changeLabel ? ` · ${changeLabel}` : ''}`}
+      >
+        <Handle type="target" position={Position.Left} />
+        <span className="operation-compact-status">
+          {changeLabel ? <Clock size={14} /> : <Check size={14} />}
+        </span>
+        <Handle type="source" position={Position.Right} />
+      </div>
+    );
+  }
+
   return (
     <div
       className={[
@@ -137,6 +162,22 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
       >
         <Icon size={16} />
         <span>{title}</span>
+        {blockType === 'image'
+          && typeof data.assetId === 'string'
+          && hasExecutionDetails(data as BlockData) ? (
+            <TooltipIconButton
+              className="block-heading-agent-button nodrag nopan"
+              disabled={data.groupContentLocked === true}
+              label={t('block.image.useInAgent')}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                dispatchUseImageInAgent(id);
+              }}
+            >
+              <Bot size={14} />
+            </TooltipIconButton>
+          ) : null}
         {blockType === 'operation'
           && !isLocalCanvasOperation
           && !isStoryboardSheetOperation
@@ -201,6 +242,20 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
             <span>{t('workflowContinuation.open')}</span>
             <ArrowRight size={13} />
           </button>
+        ) : null}
+        {blockType === 'operation' && !isLocalCanvasOperation && !isPluginOwnedOperation ? (
+          <TooltipIconButton
+            className="block-heading-agent-button nodrag nopan"
+            disabled={data.groupContentLocked === true}
+            label={t('operationToolbar.continueInAgent')}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              dispatchBindAgentOperation(id);
+            }}
+          >
+            <Bot size={14} />
+          </TooltipIconButton>
         ) : null}
       </div>
       <PluginBlockRendererSlot
@@ -478,6 +533,18 @@ function dispatchRetryImageResult(blockId: string): void {
   window.dispatchEvent(new CustomEvent('retake:retry-image-result', { detail: { blockId } }));
 }
 
+function dispatchBindAgentOperation(blockId: string): void {
+  window.dispatchEvent(new CustomEvent('retake:bind-agent-operation', {
+    detail: { blockId },
+  }));
+}
+
+function dispatchUseImageInAgent(blockId: string): void {
+  window.dispatchEvent(new CustomEvent('retake:use-image-in-agent', {
+    detail: { blockId },
+  }));
+}
+
 function BlockBody({
   blockId,
   data,
@@ -490,6 +557,11 @@ function BlockBody({
   type: BlockType;
 }): ReactElement {
   const { t } = useI18n();
+  const imagePreviewDoubleTap = useImagePreviewDoubleTap({
+    enabled: type === 'image' && hasExecutionDetails(data),
+    gestureKey: blockId,
+    onDoubleTap: () => dispatchOpenExecutionInspector(blockId),
+  });
 
   if (type === 'image') {
     const status = visibleBlockStatus(data);
@@ -560,6 +632,8 @@ function BlockBody({
     return (
       <div
         className="image-preview"
+        onClickCapture={imagePreviewDoubleTap.onClickCapture}
+        onPointerDown={imagePreviewDoubleTap.onPointerDown}
         onDoubleClick={(event) => {
           if (!hasExecutionDetails(data)) return;
           dispatchOpenExecutionInspector(blockId);

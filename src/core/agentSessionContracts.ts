@@ -40,6 +40,14 @@ export type AgentMessageRole = 'assistant' | 'system' | 'tool' | 'user';
 
 export type AgentMessageContextRef =
   | { agentRunId: string; kind: 'agent_run' }
+  | {
+      aspectRatioPreset?: string;
+      connectionId?: string;
+      kind: 'agent_preferences';
+      outputType: 'auto' | 'image' | 'video';
+      targetResolution?: string;
+      variationCount?: 1 | 2 | 3 | 4;
+    }
   | { entrypointId: string; kind: 'entrypoint' }
   | { imageBlockIds: string[]; kind: 'canvas_image_selection' }
   | { kind: 'operation'; operationBlockId: string }
@@ -64,6 +72,7 @@ export interface AgentMessageRecord {
   role: AgentMessageRole;
   runtimeTurnId?: string;
   sourceMessageId?: string;
+  suggestions?: string[];
 }
 
 export type AgentRuntimeBindingStatus = 'active' | 'failed' | 'stale';
@@ -310,19 +319,36 @@ export interface ChangeDecisionRecord {
 
 export type AgentRunControlAction = 'cancel' | 'pause' | 'resume';
 
-export type AgentRuntimeTurnDecision =
+export type AgentImageInputRole =
+  | 'source'
+  | 'character_reference'
+  | 'style_reference'
+  | 'composition_reference'
+  | 'pose_reference'
+  | 'object_reference'
+  | 'environment_reference'
+  | 'general_reference';
+
+export interface AgentImageInputBinding {
+  bindingSource: 'message_attachment' | 'message_mention' | 'message_selection' | 'session_working_output';
+  blockId: string;
+  inputRole: AgentImageInputRole;
+}
+
+export type AgentRuntimeTurnDecision = (
   | { kind: 'reply'; message: string }
   | {
-      capabilityId: 'image.image_to_image' | 'image.text_to_image';
+      capabilityId: string;
       generationParams: {
         aspectRatioPreset?: string;
         targetResolution?: string;
         variationCount?: number;
       };
       kind: 'operation_create_execute';
+      imageInputs?: AgentImageInputBinding[];
       message: string;
       operationPrompt: string;
-      sourceBinding?: 'message_selection' | 'session_working_output';
+      sourceBinding?: 'message_attachment' | 'message_mention' | 'message_selection' | 'session_working_output';
       sourceImageBlockId?: string;
     }
   | {
@@ -352,9 +378,11 @@ export type AgentRuntimeTurnDecision =
       message: string;
       summary: string;
       workflowEntryPointId: string;
-    };
+    }
+) & { suggestions?: string[] };
 
 export interface AgentRuntimeTurnContext {
+  agentPreferences?: Extract<AgentMessageContextRef, { kind: 'agent_preferences' }>;
   agentRun?: {
     agentRunId: string;
     agentPreset?: {
@@ -377,6 +405,8 @@ export interface AgentRuntimeTurnContext {
   }>;
   boardReadModel: AgentBoardReadModelV1;
   boardId: string;
+  attachedImageBlockIds: string[];
+  mentionedImageBlockIds: string[];
   entrypointId?: string;
   explicitOperationBlockIds: string[];
   history: Array<{ content: string; role: AgentMessageRole }>;

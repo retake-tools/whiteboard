@@ -11,9 +11,19 @@ import { ProjectBoardDialog } from './components/ProjectBoardDialog';
 import { getProjectBoardDialogView } from './components/projectBoardDialogView';
 import { TopBar } from './components/TopBar';
 import { TextBlockEditorDialog } from './components/TextBlockEditorDialog';
-import { UnifiedComposerProvider } from './components/UnifiedComposerProvider';
+import {
+  UnifiedComposerProvider,
+  type UnifiedComposerVideoDraftInput,
+} from './components/UnifiedComposerProvider';
 import { WorkflowContinuationDialog } from './components/WorkflowContinuationDialog';
 import { getAssetPreviewUrl } from './core/assetStore';
+import {
+  createBlockRecord,
+  touchBoard,
+  videoProfileForConnector,
+} from './core/blockFactory';
+import { createId, nowIso } from './core/id';
+import { executionConnection } from './core/executionProviderPreferences';
 import { blockLockedByGroup, groupMediaItems } from './core/grouping';
 import { loadUiPreferences } from './core/uiPreferences';
 import { setBoardBackground } from './core/boardBackground';
@@ -42,6 +52,7 @@ import { useWorkflowRuntimeController } from './app/useWorkflowRuntimeController
 import { usePackageEntryPointController } from './app/usePackageEntryPointController';
 import { useAgentRuntimeController } from './app/useAgentRuntimeController';
 import { useAgentWorkspaceController } from './app/useAgentWorkspaceController';
+import { useAgentAttachmentController } from './app/useAgentAttachmentController';
 import { useArtifactLibraryController } from './app/useArtifactLibraryController';
 import { useDomainVideoLaunchReviewController } from './app/useDomainVideoLaunchReviewController';
 import { WhiteboardCanvas } from './app/WhiteboardCanvas';
@@ -533,6 +544,12 @@ function ReadyApp({
     t,
     updateSnapshot,
   });
+  const agentAttachmentController = useAgentAttachmentController({
+    centeredBlockPosition,
+    persistSnapshot,
+    snapshotRef,
+    updateSnapshot,
+  });
   const groupController = useGroupController({
     canvasAreaRef,
     collapsedGroupIdsRef,
@@ -558,6 +575,14 @@ function ReadyApp({
     isMiniMapVisible,
     onBindAgentOperation: (operationBlockId) => {
       agentWorkspaceController.bindWorkingOperation(operationBlockId);
+      setInspectorBlockId(undefined);
+      setIsHistoryOpen(false);
+      setIsArtifactLibraryOpen(false);
+      setIsAgentWorkspaceOpen(true);
+    },
+    onUseImageInAgent: (imageBlockId) => {
+      agentWorkspaceController.ensureDefaultSession();
+      setSelectedBlock(snapshotRef.current, imageBlockId);
       setInspectorBlockId(undefined);
       setIsHistoryOpen(false);
       setIsArtifactLibraryOpen(false);
@@ -617,6 +642,57 @@ function ReadyApp({
     }
   }, [inspectorBlockId, isHistoryOpen]);
 
+  function createVideoComposerDraft(input: UnifiedComposerVideoDraftInput): void {
+    let createdBlockId = '';
+    const next = updateSnapshot((current) => {
+      const block = createBlockRecord(current, 'video');
+      const connection = executionConnection(
+        input.connectionId,
+        current.project.projectId,
+      );
+      createdBlockId = block.blockId;
+      block.position = centeredBlockPosition(block.size);
+      block.data = {
+        title: t('block.video.title'),
+        executionDraft: {
+          schemaVersion: 1,
+          capabilityId: 'video.generate',
+          connectionId: input.connectionId,
+          executionProfileId: videoProfileForConnector(connection?.connectorId),
+          prompt: input.instruction,
+          parameters: {
+            aspectRatio: input.aspectRatio,
+            durationSeconds: input.durationSeconds,
+            outputCount: input.outputCount,
+            qualityTier: 'preview',
+          },
+        },
+      };
+      block.updatedAt = nowIso();
+      current.blocks.push(block);
+      for (const reference of input.references) {
+        if (reference.kind !== 'block') continue;
+        const source = current.blocks.find(
+          (candidate) =>
+            candidate.blockId === reference.blockId
+            && candidate.type === 'image',
+        );
+        if (!source) continue;
+        current.edges.push({
+          edgeId: createId('edge'),
+          kind: 'execution_input',
+          sourceBlockId: source.blockId,
+          targetBlockId: block.blockId,
+        });
+      }
+      return touchBoard(current);
+    }, { history: true, persist: true, syncFlow: true });
+    if (createdBlockId) {
+      setSelectedBlock(next, createdBlockId);
+      focusWorkflowBlocks([createdBlockId]);
+    }
+  }
+
   const selectedImageUrl =
     selectedBlock?.type === 'image' ? getAssetPreviewUrl(snapshot.assets, selectedBlock.data.assetId) : undefined;
   const selectedImageAsset =
@@ -645,7 +721,7 @@ function ReadyApp({
     ? getProjectBoardDialogView(projectBoardDialog, t)
     : undefined;
   const appShell = (
-    <main className="app-shell">
+    <main className={`app-shell${isAgentWorkspaceOpen ? ' has-agent-workspace' : ''}`}>
       <input
         ref={directImageImportInputRef}
         className="hidden-file-input"
@@ -777,10 +853,12 @@ function ReadyApp({
         agentDisabled={agentWorkspaceController.isSending}
         composerVisible={!isAgentWorkspaceOpen}
         onAddBlock={addBlock}
+        onAttachFiles={agentAttachmentController.attachFiles}
         onCreateImageDraft={(input) => createTextToImageDraftOperation({
           ...input,
           reuseSelectedImageSlot: true,
         })}
+        onCreateVideoDraft={createVideoComposerDraft}
         onCreateImageToImage={createImageToImageDraftFromMenu}
         onCreateTextToImage={() => createTextToImageDraftOperation()}
         onInvokeEntryPoint={packageEntryPointController.invokeEntryPoint}
@@ -865,6 +943,7 @@ function ReadyApp({
           sessions={agentWorkspaceController.sessions}
           snapshot={snapshot}
           onArchiveSession={agentWorkspaceController.archiveSession}
+          onAttachFiles={agentAttachmentController.attachFiles}
           onCancelAgentRun={agentRuntimeController.cancelAgentRun}
           onClose={closeAgentWorkspace}
           onCreateSession={() => agentWorkspaceController.newSession()}

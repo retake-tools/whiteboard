@@ -49,6 +49,8 @@ import {
   resizeEmptyOperationOutputSlot,
 } from './appHelpers';
 import { executeExistingStoryboardSheetOperation } from '../core/storyboardSheetOperations';
+import { projectAgentCallableCapability } from '../core/agentCallableCapabilities';
+import { tryCapabilityDefinitionFor } from '../core/capabilityRegistry';
 import {
   normalizeStoryboardSheetGenerationParameters,
   storyboardSheetCapabilityId,
@@ -490,11 +492,22 @@ export function useImageOperationController(options: ImageOperationControllerOpt
           ? currentOperationBlock.data.connectionId
           : 'codex-managed';
         const connection = executionConnection(selectedConnectionId, current.project.projectId);
-        const currentCapabilityId = currentOperationBlock.data.capabilityId === storyboardSheetCapabilityId
+        const storedCapabilityId = typeof currentOperationBlock.data.capabilityId === 'string'
+          ? currentOperationBlock.data.capabilityId
+          : undefined;
+        const storedCapability = storedCapabilityId
+          ? tryCapabilityDefinitionFor(storedCapabilityId)
+          : undefined;
+        const agentSourceCapabilityId = storedCapabilityId
+          && storedCapability
+          && projectAgentCallableCapability(storedCapability)?.authoringKind === 'source_image_edit'
+          ? storedCapabilityId
+          : undefined;
+        const currentCapabilityId = storedCapabilityId === storyboardSheetCapabilityId
           ? storyboardSheetCapabilityId
-          : currentOperationBlock.data.capabilityId === 'image.annotation_edit'
+          : storedCapabilityId === 'image.annotation_edit'
             ? 'image.annotation_edit'
-            : capabilityIdForOperationMode(input.operation);
+            : agentSourceCapabilityId ?? capabilityIdForOperationMode(input.operation);
         if (
           !connection ||
           connection.status !== 'ready' ||
@@ -524,6 +537,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
               connection,
             })
           : executeExistingImageOperationBlock(current, {
+              capabilityId: currentCapabilityId,
               operationBlockId: input.block.blockId,
               operation: input.operation,
               instruction: '',

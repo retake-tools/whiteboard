@@ -19,6 +19,7 @@ import { SkillQuickInputComposer } from './SkillQuickInputComposer';
 import type {
   UnifiedComposerAgentInput,
   UnifiedComposerImageDraftInput,
+  UnifiedComposerVideoDraftInput,
 } from './UnifiedComposerProvider';
 import { TooltipIconButton } from './Tooltip';
 
@@ -30,9 +31,11 @@ interface FloatingToolbarProps {
   activeTool: CanvasTool;
   agentDisabled?: boolean;
   composerVisible?: boolean;
+  onAttachFiles?: Parameters<typeof SkillQuickInputComposer>[0]['onAttachFiles'];
   onAddBlock: (type: Extract<BlockType, 'group' | 'image' | 'operation' | 'text' | 'video'>) => void;
   onCreateImageToImage: () => void;
   onCreateImageDraft: (input: UnifiedComposerImageDraftInput) => void;
+  onCreateVideoDraft?: (input: UnifiedComposerVideoDraftInput) => void;
   onCreateTextToImage: () => void;
   onInvokeEntryPoint: (invocation: PackageComposerInvocation) => void;
   onSubmitAgentMessage: (input: UnifiedComposerAgentInput) => void;
@@ -44,9 +47,11 @@ export function FloatingToolbar({
   activeTool,
   agentDisabled,
   composerVisible = true,
+  onAttachFiles,
   onAddBlock,
   onCreateImageToImage,
   onCreateImageDraft,
+  onCreateVideoDraft,
   onCreateTextToImage,
   onInvokeEntryPoint,
   onSubmitAgentMessage,
@@ -60,8 +65,10 @@ export function FloatingToolbar({
       {skillDockVisible && composerVisible ? (
         <SkillQuickInputComposer
           agentDisabled={agentDisabled}
+          onAttachFiles={onAttachFiles}
           snapshot={snapshot}
           onCreateImageDraft={onCreateImageDraft}
+          onCreateVideoDraft={onCreateVideoDraft}
           onInvokeEntryPoint={onInvokeEntryPoint}
           onSubmitAgentMessage={onSubmitAgentMessage}
         />
@@ -72,34 +79,34 @@ export function FloatingToolbar({
         label={t('toolbar.selectTool')}
         onClick={() => onSetActiveTool('select')}
       >
-        <MousePointer2 size={18} />
+        <MousePointer2 size={16} strokeWidth={1.75} />
       </ToolButton>
       <ToolButton
         isPressed={activeTool === 'pan'}
         label={t('toolbar.panTool')}
         onClick={() => onSetActiveTool('pan')}
       >
-        <Hand size={18} />
+        <Hand size={16} strokeWidth={1.75} />
       </ToolButton>
       <div className="toolbar-divider" />
-      <ToolbarMenu icon={<Shapes size={18} />} label={t('toolbar.basicElements')}>
-        <MenuItem icon={<FileText size={15} />} label={t('toolbar.addText')} onClick={() => onAddBlock('text')} />
-        <MenuItem icon={<ImageIcon size={15} />} label={t('toolbar.addImage')} onClick={() => onAddBlock('image')} />
-        <MenuItem icon={<Video size={15} />} label={t('toolbar.addVideo')} onClick={() => onAddBlock('video')} />
-        <MenuItem icon={<Play size={15} />} label={t('toolbar.addOperation')} onClick={() => onAddBlock('operation')} />
+      <ToolbarMenu icon={<Shapes size={16} strokeWidth={1.75} />} label={t('toolbar.basicElements')}>
+        <MenuItem icon={<FileText size={14} strokeWidth={1.75} />} label={t('toolbar.addText')} onClick={() => onAddBlock('text')} />
+        <MenuItem icon={<ImageIcon size={14} strokeWidth={1.75} />} label={t('toolbar.addImage')} onClick={() => onAddBlock('image')} />
+        <MenuItem icon={<Video size={14} strokeWidth={1.75} />} label={t('toolbar.addVideo')} onClick={() => onAddBlock('video')} />
+        <MenuItem icon={<Play size={14} strokeWidth={1.75} />} label={t('toolbar.addOperation')} onClick={() => onAddBlock('operation')} />
       </ToolbarMenu>
-      <ToolbarMenu icon={<Sparkles size={18} />} label={t('toolbar.generation')}>
-        <MenuItem icon={<Sparkles size={15} />} label={t('toolbar.textToImage')} onClick={onCreateTextToImage} />
-        <MenuItem icon={<ImageIcon size={15} />} label={t('toolbar.imageToImage')} onClick={onCreateImageToImage} />
-        <MenuItem disabled icon={<ImageIcon size={15} />} label={t('toolbar.multiImageToImage')} />
-        <MenuItem disabled icon={<Sparkles size={15} />} label={t('toolbar.styleTransfer')} />
-        <MenuItem icon={<FileText size={15} />} label={t('toolbar.textToVideo')} onClick={() => onAddBlock('video')} />
-        <MenuItem icon={<ImageIcon size={15} />} label={t('toolbar.imageToVideo')} onClick={() => onAddBlock('video')} />
-        <MenuItem icon={<Clapperboard size={15} />} label={t('toolbar.firstLastFrameVideo')} onClick={() => onAddBlock('video')} />
+      <ToolbarMenu icon={<Sparkles size={16} strokeWidth={1.75} />} label={t('toolbar.generation')}>
+        <MenuItem icon={<Sparkles size={14} strokeWidth={1.75} />} label={t('toolbar.textToImage')} onClick={onCreateTextToImage} />
+        <MenuItem icon={<ImageIcon size={14} strokeWidth={1.75} />} label={t('toolbar.imageToImage')} onClick={onCreateImageToImage} />
+        <MenuItem disabled icon={<ImageIcon size={14} strokeWidth={1.75} />} label={t('toolbar.multiImageToImage')} />
+        <MenuItem disabled icon={<Sparkles size={14} strokeWidth={1.75} />} label={t('toolbar.styleTransfer')} />
+        <MenuItem icon={<FileText size={14} strokeWidth={1.75} />} label={t('toolbar.textToVideo')} onClick={() => onAddBlock('video')} />
+        <MenuItem icon={<ImageIcon size={14} strokeWidth={1.75} />} label={t('toolbar.imageToVideo')} onClick={() => onAddBlock('video')} />
+        <MenuItem icon={<Clapperboard size={14} strokeWidth={1.75} />} label={t('toolbar.firstLastFrameVideo')} onClick={() => onAddBlock('video')} />
       </ToolbarMenu>
       <div className="toolbar-divider" />
       <ToolButton isPressed={activeTool === 'group'} label={t('toolbar.addGroup')} onClick={() => onAddBlock('group')}>
-        <Layers3 size={18} />
+        <Layers3 size={16} strokeWidth={1.75} />
       </ToolButton>
       </nav>
     </>

@@ -17,15 +17,19 @@ const [composerSource, controlsSource, providerSource] = await Promise.all([
   readFile(new URL('../src/components/UnifiedComposerProvider.tsx', import.meta.url), 'utf8'),
 ]);
 
-assert.match(composerSource, /<option value="image">/);
+assert.match(composerSource, /listAvailableComposerModes/);
 assert.doesNotMatch(composerSource, /<option value="image" disabled>/);
 assert.match(composerSource, /listImageComposerReferenceOptions/);
 assert.match(composerSource, /onCreateImageDraft/);
 assert.match(composerSource, /resetImageSubmission/);
 assert.match(controlsSource, /image\.text_to_image/);
 assert.match(controlsSource, /currentExecutionProviderSettings/);
+assert.match(controlsSource, /resolveAgentExecutionConnection/);
+assert.match(controlsSource, /initialConnectionId: 'codex-app-server'/);
 assert.match(controlsSource, /imageComposerAspectRatios/);
 assert.match(controlsSource, /imageComposerResolutions/);
+assert.match(controlsSource, /image-composer-popover is-parameters/);
+assert.doesNotMatch(controlsSource, /<select/);
 assert.match(providerSource, /composerMode/);
 assert.match(providerSource, /imageReferenceRoles/);
 

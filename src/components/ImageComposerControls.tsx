@@ -1,7 +1,15 @@
-import { useEffect, useMemo, useSyncExternalStore, type ReactElement } from 'react';
+import { Check, ChevronDown, SlidersHorizontal, Sparkles } from 'lucide-react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactElement,
+} from 'react';
 import {
   currentExecutionProviderSettings,
-  resolveExecutionConnectionPreference,
+  resolveAgentExecutionConnection,
   subscribeExecutionProviderSettings,
 } from '../core/executionProviderPreferences';
 import {
@@ -12,11 +20,16 @@ import {
   type ImageComposerResolution,
 } from '../core/imageComposer';
 import type { ExecutionConnectionSummary } from '../core/executionProviders';
+import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
 import { useUnifiedComposerDraft } from './UnifiedComposerProvider';
 
 export function ImageComposerControls({ projectId }: { projectId: string }): ReactElement {
   const { t } = useI18n();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const connectionButtonRef = useRef<HTMLButtonElement>(null);
+  const parametersButtonRef = useRef<HTMLButtonElement>(null);
+  const [openPopover, setOpenPopover] = useState<'connection' | 'parameters'>();
   const {
     imageConnectionId,
     imageGenerationParams,
@@ -32,31 +45,38 @@ export function ImageComposerControls({ projectId }: { projectId: string }): Rea
     () => (settings?.connections ?? []).filter(isReadyImageConnection),
     [settings],
   );
-  const preferredConnectionId = useMemo(() => resolveExecutionConnectionPreference({
+  const preferredConnection = useMemo(() => resolveAgentExecutionConnection({
     capabilityId: 'image.text_to_image',
-    initialConnectionId: 'codex-managed',
+    initialConnectionId: 'codex-app-server',
     projectId,
     settings,
-    useCase: 'image',
-  }).connectionId, [projectId, settings]);
-  const selectedConnectionId = imageConnectionId
-    ?? preferredConnectionId
+  }), [projectId, settings]);
+  const requestedConnection = settings?.connections.find(
+    (connection) => connection.connectionId === imageConnectionId,
+  );
+  const selectedConnectionId = requestedConnection && isReadyImageConnection(requestedConnection)
+    ? requestedConnection.connectionId
+    : preferredConnection?.connectionId
     ?? readyConnections[0]?.connectionId
     ?? '';
   const selectedConnection = settings?.connections.find(
     (connection) => connection.connectionId === selectedConnectionId,
   );
-  const connections = useMemo(() => {
-    if (
-      !selectedConnection
-      || readyConnections.some((connection) => connection.connectionId === selectedConnection.connectionId)
-    ) return readyConnections;
-    return [selectedConnection, ...readyConnections];
-  }, [readyConnections, selectedConnection]);
 
   useEffect(() => {
-    if (!imageConnectionId && selectedConnectionId) setImageConnectionId(selectedConnectionId);
+    if (selectedConnectionId && imageConnectionId !== selectedConnectionId) {
+      setImageConnectionId(selectedConnectionId);
+    }
   }, [imageConnectionId, selectedConnectionId, setImageConnectionId]);
+
+  useDismissiblePopover({
+    active: Boolean(openPopover),
+    focusOnEscapeRef: openPopover === 'connection'
+      ? connectionButtonRef
+      : parametersButtonRef,
+    onDismiss: () => setOpenPopover(undefined),
+    rootRef,
+  });
 
   function updateGenerationParam(
     patch: Partial<{
@@ -72,63 +92,139 @@ export function ImageComposerControls({ projectId }: { projectId: string }): Rea
   }
 
   return (
-    <div className="image-composer-controls" aria-label={t('skillComposer.imageParameters')}>
-      <label className="image-composer-connection">
-        <span>{t('skillComposer.connection')}</span>
-        <select
-          aria-label={t('skillComposer.connection')}
-          disabled={connections.length === 0}
-          value={selectedConnectionId}
-          onChange={(event) => setImageConnectionId(event.target.value)}
-        >
-          {connections.length === 0 ? (
-            <option value="">{t('skillComposer.noImageConnections')}</option>
-          ) : connections.map((connection) => (
-            <option
-              key={connection.connectionId}
-              disabled={!isReadyImageConnection(connection)}
-              value={connection.connectionId}
-            >
-              {connectionLabel(connection, isReadyImageConnection(connection))}
-            </option>
+    <div
+      ref={rootRef}
+      className="image-composer-controls"
+      aria-label={t('skillComposer.imageParameters')}
+    >
+      <div className="image-composer-control-wrap">
+        <button
+          ref={connectionButtonRef}
+          type="button"
+          className="image-composer-control"
+          aria-expanded={openPopover === 'connection'}
+          disabled={readyConnections.length === 0}
+          onClick={() => setOpenPopover((current) => (
+            current === 'connection' ? undefined : 'connection'
           ))}
-        </select>
-      </label>
-      <label>
-        <span>{t('skillComposer.aspectRatio')}</span>
-        <select
-          aria-label={t('skillComposer.aspectRatio')}
-          value={imageGenerationParams.aspectRatioPreset ?? '9:16'}
-          onChange={(event) => updateGenerationParam({
-            aspectRatioPreset: event.target.value as ImageComposerAspectRatio,
-          })}
         >
-          {imageComposerAspectRatios.map((value) => <option key={value} value={value}>{value}</option>)}
-        </select>
-      </label>
-      <label>
-        <span>{t('skillComposer.resolution')}</span>
-        <select
-          aria-label={t('skillComposer.resolution')}
-          value={imageGenerationParams.targetResolution ?? '2K'}
-          onChange={(event) => updateGenerationParam({
-            targetResolution: event.target.value as ImageComposerResolution,
-          })}
+          <Sparkles size={13} strokeWidth={1.75} />
+          <span>{selectedConnection
+            ? connectionLabel(selectedConnection, true)
+            : t('skillComposer.noImageConnections')}</span>
+          <ChevronDown size={12} strokeWidth={1.75} />
+        </button>
+        {openPopover === 'connection' ? (
+          <div
+            className="image-composer-popover is-connection"
+            role="dialog"
+            aria-label={t('skillComposer.connection')}
+          >
+            {readyConnections.map((connection) => (
+              <button
+                type="button"
+                className={connection.connectionId === selectedConnectionId
+                  ? 'is-selected'
+                  : undefined}
+                aria-pressed={connection.connectionId === selectedConnectionId}
+                key={connection.connectionId}
+                onClick={() => {
+                  setImageConnectionId(connection.connectionId);
+                  setOpenPopover(undefined);
+                }}
+            >
+                <span>{connectionLabel(connection, true)}</span>
+                {connection.connectionId === selectedConnectionId
+                  ? <Check size={13} />
+                  : null}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <div className="image-composer-control-wrap">
+        <button
+          ref={parametersButtonRef}
+          type="button"
+          className="image-composer-control is-parameters"
+          aria-expanded={openPopover === 'parameters'}
+          onClick={() => setOpenPopover((current) => (
+            current === 'parameters' ? undefined : 'parameters'
+          ))}
         >
-          {imageComposerResolutions.map((value) => <option key={value} value={value}>{value}</option>)}
-        </select>
-      </label>
-      <label>
-        <span>{t('skillComposer.imageCount')}</span>
-        <select
-          aria-label={t('skillComposer.imageCount')}
-          value={imageGenerationParams.variationCount ?? 1}
-          onChange={(event) => updateGenerationParam({ variationCount: Number(event.target.value) })}
-        >
-          {[1, 2, 3, 4].map((value) => <option key={value} value={value}>{value}</option>)}
-        </select>
-      </label>
+          <SlidersHorizontal size={13} strokeWidth={1.75} />
+          <span>
+            {imageGenerationParams.aspectRatioPreset ?? '9:16'}
+            {' · '}{imageGenerationParams.targetResolution ?? '2K'}
+            {' · '}{imageGenerationParams.variationCount ?? 1}x
+          </span>
+          <ChevronDown size={12} strokeWidth={1.75} />
+        </button>
+        {openPopover === 'parameters' ? (
+          <div
+            className="image-composer-popover is-parameters"
+            role="dialog"
+            aria-label={t('skillComposer.imageParameters')}
+          >
+            <ParameterOptions
+              label={t('skillComposer.aspectRatio')}
+              options={imageComposerAspectRatios}
+              selected={imageGenerationParams.aspectRatioPreset ?? '9:16'}
+              onSelect={(value) => updateGenerationParam({
+                aspectRatioPreset: value as ImageComposerAspectRatio,
+              })}
+            />
+            <ParameterOptions
+              label={t('skillComposer.resolution')}
+              options={imageComposerResolutions}
+              selected={imageGenerationParams.targetResolution ?? '2K'}
+              onSelect={(value) => updateGenerationParam({
+                targetResolution: value as ImageComposerResolution,
+              })}
+            />
+            <ParameterOptions
+              label={t('skillComposer.imageCount')}
+              options={['1x', '2x', '3x', '4x']}
+              selected={`${imageGenerationParams.variationCount ?? 1}x`}
+              onSelect={(value) => updateGenerationParam({
+                variationCount: Number(value.slice(0, -1)),
+              })}
+            />
+          </div>
+        ) : null}
+      </div>
     </div>
+  );
+}
+
+function ParameterOptions({
+  label,
+  onSelect,
+  options,
+  selected,
+}: {
+  label: string;
+  onSelect: (value: string) => void;
+  options: readonly string[];
+  selected: string;
+}): ReactElement {
+  return (
+    <section className="image-composer-parameter-group">
+      <strong>{label}</strong>
+      <div>
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            className={option === selected ? 'is-selected' : undefined}
+            aria-pressed={option === selected}
+            onClick={() => onSelect(option)}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 

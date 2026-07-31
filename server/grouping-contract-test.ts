@@ -22,6 +22,7 @@ assert.match(canvasSource, /if \(!nodeDragActiveRef\.current\) setNodes\(createF
 const canvasViewSource = await readFile('src/app/WhiteboardCanvas.tsx', 'utf8');
 const canvasCss = await readFile('src/styles/canvas.css', 'utf8');
 const blockNodeSource = await readFile('src/nodes/BlockNode.tsx', 'utf8');
+const imagePreviewDoubleTapSource = await readFile('src/nodes/useImagePreviewDoubleTap.ts', 'utf8');
 const blockNodeCss = await readFile('src/nodes/block-node.css', 'utf8');
 assert.match(canvasViewSource, /zoomOnDoubleClick=\{false\}/);
 assert.match(canvasSource, /function selectConnectedWorkflow[\s\S]*?window\.requestAnimationFrame/);
@@ -29,6 +30,13 @@ assert.match(
   canvasSource,
   /const onNodeClick[\s\S]*?event\.detail > 1[\s\S]*?scheduleTerminalImageStatusDismiss/,
 );
+assert.match(
+  blockNodeSource,
+  /useImagePreviewDoubleTap\(\{[\s\S]*?gestureKey: blockId[\s\S]*?dispatchOpenExecutionInspector\(blockId\)[\s\S]*?className="image-preview"[\s\S]*?onClickCapture=\{imagePreviewDoubleTap\.onClickCapture\}[\s\S]*?onPointerDown=\{imagePreviewDoubleTap\.onPointerDown\}/,
+);
+assert.match(imagePreviewDoubleTapSource, /window\.addEventListener\('pointerup', handlePointerUp, true\)/);
+assert.match(imagePreviewDoubleTapSource, /window\.addEventListener\('pointermove', handlePointerMove, true\)/);
+assert.match(imagePreviewDoubleTapSource, /completedTapsByGestureKey[\s\S]*?onClickCapture/);
 assert.match(
   canvasSource,
   /const onNodeDoubleClick[\s\S]*?cancelTerminalImageStatusDismiss\(\)/,

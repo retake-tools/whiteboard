@@ -180,6 +180,9 @@ export function applyAgentRuntimeTurn(
     role: 'assistant',
     runtimeTurnId: input.runtimeTurnId,
     sourceMessageId: source.agentMessageId,
+    ...(input.decision.suggestions?.length
+      ? { suggestions: [...input.decision.suggestions] }
+      : {}),
   };
   snapshot.agentMessages ??= [];
   snapshot.agentMessages.push(assistantMessage);
@@ -281,7 +284,25 @@ export function agentRuntimeTurnContext(
     throw new Error('Agent runtime context source message is invalid.');
   }
   const entrypoint = message.contextRefs.find((ref) => ref.kind === 'entrypoint');
+  const agentPreferences = message.contextRefs.find((ref) => ref.kind === 'agent_preferences');
   const mentions = message.contextRefs.filter((ref) => ref.kind === 'block' || ref.kind === 'asset');
+  const attachedImageBlockIds = mentions.flatMap((mention) => {
+    if (mention.kind !== 'block' || mention.slotId !== 'agent_attachment') return [];
+    const block = snapshot.blocks.find(
+      (candidate) => candidate.blockId === mention.blockId && candidate.type === 'image',
+    );
+    return block && typeof block.data.assetId === 'string' ? [block.blockId] : [];
+  });
+  const mentionedImageBlockIds = mentions.flatMap((mention) => {
+    if (
+      mention.kind !== 'block'
+      || mention.slotId === 'agent_attachment'
+    ) return [];
+    const block = snapshot.blocks.find(
+      (candidate) => candidate.blockId === mention.blockId && candidate.type === 'image',
+    );
+    return block && typeof block.data.assetId === 'string' ? [block.blockId] : [];
+  });
   const inlineValues = message.contextRefs.filter((ref) => ref.kind === 'inline');
   const parameters = message.contextRefs.find((ref) => ref.kind === 'parameters');
   const explicitOperationBlockIds = message.contextRefs.flatMap((ref) =>
@@ -294,6 +315,9 @@ export function agentRuntimeTurnContext(
     ? agentSessionWorkingOutputImageBlockIds(snapshot, workingOperation.operationBlockId)
     : [];
   return {
+    ...(agentPreferences?.kind === 'agent_preferences'
+      ? { agentPreferences: structuredClone(agentPreferences) }
+      : {}),
     ...(run ? {
       agentRun: {
         agentRunId: run.agentRunId,
@@ -334,6 +358,7 @@ export function agentRuntimeTurnContext(
         ...workingOutputImageBlockIds,
       ],
     }),
+    attachedImageBlockIds,
     boardId: snapshot.board.boardId,
     ...(entrypoint?.kind === 'entrypoint' ? { entrypointId: entrypoint.entrypointId } : {}),
     explicitOperationBlockIds,
@@ -345,6 +370,7 @@ export function agentRuntimeTurnContext(
       ? listGoalPlanWorkflowOptions()
       : [],
     mentions,
+    mentionedImageBlockIds,
     inlineValues,
     parameters: parameters?.kind === 'parameters' ? structuredClone(parameters.value) : {},
     projectId: snapshot.project.projectId,
@@ -528,7 +554,9 @@ function assertContextRefs(
   const mentionRefs = refs.filter((ref) => ref.kind === 'block' || ref.kind === 'asset');
   const inlineRefs = refs.filter((ref) => ref.kind === 'inline');
   const parameterRefs = refs.filter((ref) => ref.kind === 'parameters');
+  const preferenceRefs = refs.filter((ref) => ref.kind === 'agent_preferences');
   if (parameterRefs.length > 1) throw new Error('Agent message has multiple parameter refs.');
+  if (preferenceRefs.length > 1) throw new Error('Agent message has multiple Agent preference refs.');
   if ((inlineRefs.length > 0 || parameterRefs.length > 0) && !entrypointId) {
     throw new Error('Agent message typed inline inputs require one EntryPoint context.');
   }
@@ -539,7 +567,14 @@ function assertContextRefs(
     ? new Set(listPackageComposerInlineInputOptions(entrypointId).map((option) => option.slotId))
     : new Set<string>();
   for (const ref of refs) {
-    if (ref.kind === 'agent_run') {
+    if (ref.kind === 'agent_preferences') {
+      if (
+        !['auto', 'image', 'video'].includes(ref.outputType)
+        || (ref.variationCount !== undefined && ![1, 2, 3, 4].includes(ref.variationCount))
+      ) {
+        throw new Error('Agent message preferences are invalid.');
+      }
+    } else if (ref.kind === 'agent_run') {
       if (session.activeAgentRunId !== ref.agentRunId) throw new Error('Agent message Agent Run ref is outside Session scope.');
       requireScopedAgentRun(snapshot, ref.agentRunId);
     } else if (ref.kind === 'operation') {
@@ -568,14 +603,22 @@ function assertContextRefs(
     } else if (ref.kind === 'block') {
       const block = snapshot.blocks.find((candidate) => candidate.blockId === ref.blockId);
       if (!block || block.boardId !== session.boardId) throw new Error('Agent message Block ref is outside Session scope.');
-      if (entrypointId && !compatibleMentionIds.has(packageComposerMentionId(ref))) {
+      if (
+        entrypointId
+        && ref.slotId !== 'agent_attachment'
+        && !compatibleMentionIds.has(packageComposerMentionId(ref))
+      ) {
         throw new Error('Agent message Block ref is incompatible with the typed EntryPoint.');
       }
     } else if (ref.kind === 'asset') {
       if (!snapshot.assets.some((asset) => asset.assetId === ref.assetId && asset.projectId === session.projectId)) {
         throw new Error('Agent message Asset ref is outside Session Project scope.');
       }
-      if (entrypointId && !compatibleMentionIds.has(packageComposerMentionId(ref))) {
+      if (
+        entrypointId
+        && ref.slotId !== 'agent_attachment'
+        && !compatibleMentionIds.has(packageComposerMentionId(ref))
+      ) {
         throw new Error('Agent message Asset ref is incompatible with the typed EntryPoint.');
       }
     } else if (ref.kind === 'inline') {

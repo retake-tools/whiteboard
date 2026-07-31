@@ -312,7 +312,7 @@ const videoResultMarkup = renderToStaticMarkup(
   </I18nProvider>,
 );
 assert.match(videoResultMarkup, /Mock video result/);
-assert.match(videoResultMarkup, /Show execution details/);
+assert.match(videoResultMarkup, /View details/);
 
 const queuedOperationMarkup = renderToStaticMarkup(
   <I18nProvider>

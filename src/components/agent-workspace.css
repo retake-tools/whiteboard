@@ -1,13 +1,13 @@
 .agent-workspace {
   position: fixed;
-  top: 64px;
+  top: 14px;
   right: 14px;
-  bottom: 18px;
+  bottom: 14px;
   z-index: 12;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   width: min(410px, calc(100vw - 28px));
   min-height: 0;
-  grid-template-rows: auto auto minmax(0, 1fr);
   overflow: hidden;
   border: 1px solid var(--retake-border);
   border-radius: 12px;
@@ -130,10 +130,24 @@
 .agent-workspace-context-bar span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agent-workspace-context-bar .is-attention { margin-left: auto; color: var(--retake-warning); }
 
-.agent-workspace-body { min-height: 0; overflow: hidden; }
+.agent-workspace-body { min-height: 0; flex: 1; overflow: hidden; }
 .agent-workspace-chat { display: grid; height: 100%; min-height: 0; grid-template-rows: minmax(0, 1fr) auto auto; }
 .agent-workspace-messages { display: flex; min-height: 0; flex-direction: column; gap: 10px; padding: 14px; overflow-y: auto; }
 .agent-workspace-timeline-item { display: grid; gap: 8px; }
+.agent-workspace-suggestions { display: flex; max-width: 92%; flex-wrap: wrap; gap: 5px; }
+.agent-workspace-suggestions button {
+  padding: 5px 8px;
+  border: 1px solid var(--retake-border);
+  border-radius: 999px;
+  background: var(--retake-surface);
+  color: var(--retake-text-muted);
+  font-size: 10px;
+  cursor: pointer;
+}
+.agent-workspace-suggestions button:hover {
+  border-color: var(--retake-accent-border);
+  color: var(--retake-accent-strong);
+}
 .agent-workspace-message { position: relative; align-self: flex-start; max-width: 88%; padding: 9px 36px 9px 10px; border-radius: 9px; background: var(--retake-surface-subtle); }
 .agent-workspace-message.is-user { align-self: flex-end; justify-self: end; background: var(--retake-accent-soft); }
 .agent-workspace-message-copy {
@@ -171,6 +185,22 @@
 .agent-workspace-welcome svg { color: var(--retake-accent-strong); }
 .agent-workspace-welcome strong { color: var(--retake-text); font-size: 14px; }
 .agent-workspace-welcome p { max-width: 270px; margin: 0; color: var(--retake-text-muted); font-size: 11px; line-height: 1.5; }
+.agent-workspace-quick-starts { display: grid; width: min(290px, 100%); gap: 6px; margin-top: 8px; }
+.agent-workspace-quick-starts button {
+  padding: 8px 10px;
+  border: 1px solid var(--retake-border);
+  border-radius: 8px;
+  background: var(--retake-surface);
+  color: var(--retake-text-secondary);
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+.agent-workspace-quick-starts button:hover {
+  border-color: var(--retake-accent-border);
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
+}
 
 @media (hover: none) {
   .agent-workspace-message-copy {
@@ -284,5 +314,5 @@
 .agent-workspace-launch-review > button:disabled { opacity: .5; cursor: default; }
 
 @media (max-width: 640px) {
-  .agent-workspace { top: 58px; right: 8px; bottom: 10px; width: calc(100vw - 16px); }
+  .agent-workspace { top: 8px; right: 8px; bottom: 8px; width: calc(100vw - 16px); }
 }

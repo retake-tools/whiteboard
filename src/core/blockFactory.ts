@@ -113,7 +113,7 @@ function dataForType(type: BlockType, projectId: string): BlockRecord['data'] {
   };
 }
 
-function videoProfileForConnector(connectorId: string | undefined): string {
+export function videoProfileForConnector(connectorId: string | undefined): string {
   if (connectorId === 'dreamina') return 'video-dreamina-cli';
   if (connectorId === 'byteplus-modelark') return 'video-seedance-modelark';
   return 'video-mock';

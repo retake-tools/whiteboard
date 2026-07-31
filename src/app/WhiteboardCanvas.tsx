@@ -437,7 +437,12 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
         ) : null}
         {showGrid ? <Background /> : null}
         {isMiniMapVisible ? <CanvasMiniMap onSelectBlock={canvas.selectBlock} /> : null}
-        <CanvasViewportControls isMiniMapVisible={isMiniMapVisible} onToggleMiniMap={() => setMiniMapVisible((current) => !current)} />
+        <CanvasViewportControls
+          isMiniMapVisible={isMiniMapVisible}
+          projectionMode={canvas.projectionMode}
+          onChangeProjectionMode={canvas.changeProjectionMode}
+          onToggleMiniMap={() => setMiniMapVisible((current) => !current)}
+        />
         </ReactFlow>
       </PluginBlockRendererProvider>
       {canvas.activeCanvasTool === 'group' ? (

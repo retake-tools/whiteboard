@@ -5,11 +5,13 @@ import type { UnifiedComposerAgentInput } from './UnifiedComposerProvider';
 
 export function AgentWorkspaceComposer({
   disabled,
+  onAttachFiles,
   onRequestCanvasMode,
   onSubmit,
   snapshot,
 }: {
   disabled?: boolean;
+  onAttachFiles?: Parameters<typeof SkillQuickInputComposer>[0]['onAttachFiles'];
   onRequestCanvasMode: () => void;
   onSubmit: (input: UnifiedComposerAgentInput) => void;
   snapshot: BoardSnapshot;
@@ -19,6 +21,7 @@ export function AgentWorkspaceComposer({
       agentDisabled={disabled}
       autoFocus
       mode="agent"
+      onAttachFiles={onAttachFiles}
       onRequestCanvasMode={onRequestCanvasMode}
       onSubmitAgentMessage={onSubmit}
       showRecommendations={false}

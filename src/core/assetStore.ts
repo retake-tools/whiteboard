@@ -73,6 +73,21 @@ export async function createImageAssetFromDataUrl(input: {
   height?: number;
   sourceExecutionId?: string;
 }): Promise<AssetRecord> {
+  const asset = await createAssetFromDataUrl(input);
+  if (asset.kind !== 'image') {
+    throw new Error('Expected the imported Asset to be an image.');
+  }
+  return asset;
+}
+
+export async function createAssetFromDataUrl(input: {
+  projectId: string;
+  dataUrl: string;
+  fileName?: string;
+  width?: number;
+  height?: number;
+  sourceExecutionId?: string;
+}): Promise<AssetRecord> {
   try {
     const response = await fetch('/api/local/assets/data-url', {
       method: 'POST',
@@ -87,15 +102,16 @@ export async function createImageAssetFromDataUrl(input: {
     // Browser-only fallback for static preview builds.
   }
 
-  const mimeType = imageMimeTypeFromDataUrl(input.dataUrl);
-  const extension = imageExtensionForMime(mimeType);
+  const mimeType = mimeTypeFromDataUrl(input.dataUrl);
+  const kind = assetKindForMime(mimeType);
+  const extension = extensionForMime(mimeType);
   return {
     assetId: createId('asset'),
     projectId: input.projectId,
-    kind: 'image',
+    kind,
     mimeType,
     storageProvider: 'local_mock',
-    storageKey: `local-mock://image-result/${nowIso()}${extension}`,
+    storageKey: `local-mock://asset/${nowIso()}${extension}`,
     previewUrl: input.dataUrl,
     width: input.width,
     height: input.height,
@@ -105,18 +121,34 @@ export async function createImageAssetFromDataUrl(input: {
 }
 
 export function imageMimeTypeFromDataUrl(dataUrl: string): string {
-  const match = /^data:([^;,]+)[;,]/.exec(dataUrl);
-  const mimeType = match?.[1]?.toLowerCase();
+  const mimeType = mimeTypeFromDataUrl(dataUrl);
   if (!mimeType?.startsWith('image/')) {
     throw new Error('Expected an image data URL.');
   }
   return mimeType;
 }
 
-function imageExtensionForMime(mimeType: string): string {
+function mimeTypeFromDataUrl(dataUrl: string): string {
+  const match = /^data:([^;,]+)[;,]/.exec(dataUrl);
+  return match?.[1]?.toLowerCase() || 'application/octet-stream';
+}
+
+function assetKindForMime(mimeType: string): AssetRecord['kind'] {
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  if (mimeType === 'text/plain' || mimeType === 'text/markdown') return 'document';
+  return 'other';
+}
+
+function extensionForMime(mimeType: string): string {
   if (mimeType === 'image/jpeg') return '.jpg';
   if (mimeType === 'image/webp') return '.webp';
   if (mimeType === 'image/svg+xml') return '.svg';
+  if (mimeType === 'video/mp4') return '.mp4';
+  if (mimeType === 'text/markdown') return '.md';
+  if (mimeType === 'text/plain') return '.txt';
+  if (!mimeType.startsWith('image/')) return '.bin';
   return '.png';
 }
 

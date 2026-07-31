@@ -48,8 +48,8 @@ assert.match(
 );
 assert.match(
   canvasSource,
-  /useEffect\(\(\) => \{\s*restoreBoardViewport\(snapshotRef\.current\);\s*\}, \[\]\)/,
-  'the canvas must restore the first authoritative board after the ready-only canvas mounts',
+  /useEffect\(\(\) => \{\s*restoreBoardViewport\(snapshotRef\.current\);\s*return cancelTerminalImageStatusDismiss;\s*\}, \[\]\)/,
+  'the canvas must restore the first authoritative board after mount and clean up terminal-status timers on unmount',
 );
 
 console.log({

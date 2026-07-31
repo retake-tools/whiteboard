@@ -42,6 +42,7 @@ import {
   imageOperationDefaultPrompt,
   imageOperationTitle,
 } from '../core/imageOperationText';
+import { capabilityDefinitionFor } from '../core/capabilityRegistry';
 import { reconcileWorkflowArtifactGates } from '../core/workflowArtifactGateClient';
 import { resolvedWorkflowUiDefinitionFor } from '../core/workflowRegistry';
 import type { useI18n } from '../i18n';
@@ -330,6 +331,13 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
   }
 
   async function submitMessage(input: {
+    agentPreferences: {
+      aspectRatioPreset?: string;
+      connectionId?: string;
+      outputType: 'auto' | 'image' | 'video';
+      targetResolution?: string;
+      variationCount?: 1 | 2 | 3 | 4;
+    };
     content: string;
     entrypointId?: string;
     inlineValues: Extract<AgentMessageContextRef, { kind: 'inline' }>[];
@@ -345,6 +353,10 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     let operationExecution: AgentOperationExecutionRequest | undefined;
     try {
       const contextRefs: AgentMessageContextRef[] = [
+        {
+          kind: 'agent_preferences',
+          ...structuredClone(input.agentPreferences),
+        },
         ...(input.entrypointId ? [{ kind: 'entrypoint' as const, entrypointId: input.entrypointId }] : []),
         ...canvasImageSelectionRefs(snapshotRef.current, selectedBlockIdsRef.current),
         ...input.inlineValues,
@@ -396,12 +408,22 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
             connectionIdForCapability: (capabilityId, applicationSnapshot) =>
               resolveAgentExecutionConnection({
                 capabilityId,
+                explicitConnectionId: input.agentPreferences.connectionId,
                 initialConnectionId: 'codex-app-server',
                 projectId: applicationSnapshot.project.projectId,
               })?.connectionId,
             operationTitle: imageOperationTitle('generate_image', t),
             imageToImageOperationTitle: imageOperationTitle('quick_edit', t),
             imageToImagePromptPlaceholder: imageOperationDefaultPrompt('quick_edit', t),
+            operationTitleForCapability: (capabilityId) => {
+              if (capabilityId === 'image.text_to_image') {
+                return imageOperationTitle('generate_image', t);
+              }
+              if (capabilityId === 'image.image_to_image') {
+                return imageOperationTitle('quick_edit', t);
+              }
+              return capabilityDefinitionFor(capabilityId).displayName;
+            },
             promptPlaceholder: imageOperationDefaultPrompt('generate_image', t),
             promptTitle: t('operationToolbar.prompt'),
           });

@@ -26,6 +26,11 @@ import {
 } from '../core/boardViewStateStore';
 import { createFlowEdges, createFlowNodes } from '../core/flowProjection';
 import {
+  loadCanvasProjectionMode,
+  saveCanvasProjectionMode,
+  type CanvasProjectionMode,
+} from '../core/canvasProjectionViewState';
+import {
   blockLockedByGroup,
   findGroupDropTarget,
   groupAncestorIds,
@@ -114,14 +119,24 @@ export function useCanvasController(options: CanvasControllerOptions) {
   const dropTargetGroupIdRef = useRef<string | undefined>(undefined);
   const dropDetachGroupIdRef = useRef<string | undefined>(undefined);
   const nodeDragActiveRef = useRef(false);
+  const projectionModeRef = useRef<CanvasProjectionMode>(
+    loadCanvasProjectionMode(snapshot.project.projectId, snapshot.board.boardId),
+  );
   const actionPortsRef = useRef<{ deleteBlockIds: (blockIds: string[]) => void }>({ deleteBlockIds: () => undefined });
-  const [nodes, setNodes] = useState<RetakeNode[]>(() => createFlowNodes(snapshot));
-  const [edges, setEdges] = useState<RetakeEdge[]>(() => createFlowEdges(snapshot));
+  const [nodes, setNodes] = useState<RetakeNode[]>(() => createFlowNodes(snapshot, {
+    projectionMode: projectionModeRef.current,
+  }));
+  const [edges, setEdges] = useState<RetakeEdge[]>(() => createFlowEdges(snapshot, {
+    projectionMode: projectionModeRef.current,
+  }));
   const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
   const [collapsedGroupIds, setCollapsedGroupIds] = useState<string[]>(collapsedGroupIdsRef.current);
   const [activeCanvasTool, setActiveCanvasTool] = useState<CanvasTool>('pan');
   const [, setDropTargetGroupId] = useState<string | undefined>(undefined);
   const [canvasZoom, setCanvasZoom] = useState(() => currentViewportRef.current.zoom);
+  const [projectionMode, setProjectionMode] = useState<CanvasProjectionMode>(
+    projectionModeRef.current,
+  );
 
   function connectActions(actions: { deleteBlockIds: (blockIds: string[]) => void }): void {
     actionPortsRef.current = actions;
@@ -134,16 +149,27 @@ export function useCanvasController(options: CanvasControllerOptions) {
       dropTargetGroupId: dropTargetGroupIdRef.current,
       selectedBlockIds: blockIds,
       selectedOperationBlockId: selectedOperationBlockIdFor(nextSnapshot, blockIds),
+      projectionMode: projectionModeRef.current,
       textBlockDrafts: textBlockDraftsRef.current,
     }).map((node) => ({ ...node, selected: blockIds.includes(node.id) }));
   }
 
   function createFlowEdgesForSelection(nextSnapshot: BoardSnapshot, blockIds = selectedBlockIdsRef.current): RetakeEdge[] {
-    return createFlowEdges(nextSnapshot, { collapsedGroupIds: collapsedGroupIdsRef.current, selectedBlockIds: blockIds });
+    return createFlowEdges(nextSnapshot, {
+      collapsedGroupIds: collapsedGroupIdsRef.current,
+      projectionMode: projectionModeRef.current,
+      selectedBlockIds: blockIds,
+    });
   }
 
   connectSessionPorts({
     onBoardLoaded: (loadedSnapshot) => {
+      const loadedProjectionMode = loadCanvasProjectionMode(
+        loadedSnapshot.project.projectId,
+        loadedSnapshot.board.boardId,
+      );
+      projectionModeRef.current = loadedProjectionMode;
+      setProjectionMode(loadedProjectionMode);
       cancelTerminalImageStatusDismiss();
       flushScheduledViewportPersist();
       nodeDragActiveRef.current = false;
@@ -182,6 +208,12 @@ export function useCanvasController(options: CanvasControllerOptions) {
   }, []);
 
   useEffect(() => {
+    const nextProjectionMode = loadCanvasProjectionMode(
+      snapshot.project.projectId,
+      snapshot.board.boardId,
+    );
+    projectionModeRef.current = nextProjectionMode;
+    setProjectionMode(nextProjectionMode);
     const nextCollapsedGroupIds = loadCollapsedGroupIds(snapshot.project.projectId, snapshot.board.boardId)
       .filter((groupId) => snapshot.blocks.some((block) => block.blockId === groupId && block.type === 'group'));
     collapsedGroupIdsRef.current = nextCollapsedGroupIds;
@@ -478,14 +510,19 @@ export function useCanvasController(options: CanvasControllerOptions) {
   }
 
   function locateBlock(blockId: string): void {
-    const node = reactFlowRef.current?.getNode(blockId);
-    if (!node) return;
+    if (!snapshotRef.current.blocks.some((block) => block.blockId === blockId)) return;
     selectBlock(blockId);
-    const width = node.measured?.width ?? node.width ?? 280;
-    const height = node.measured?.height ?? node.height ?? 180;
-    void reactFlowRef.current?.setCenter(node.position.x + width / 2, node.position.y + height / 2, {
-      zoom: Math.max(currentViewportRef.current.zoom, 0.85),
-      duration: 260,
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const node = reactFlowRef.current?.getNode(blockId);
+        if (!node) return;
+        const width = node.measured?.width ?? node.width ?? 280;
+        const height = node.measured?.height ?? node.height ?? 180;
+        void reactFlowRef.current?.setCenter(node.position.x + width / 2, node.position.y + height / 2, {
+          zoom: Math.max(currentViewportRef.current.zoom, 0.85),
+          duration: 260,
+        });
+      });
     });
   }
 
@@ -551,6 +588,21 @@ export function useCanvasController(options: CanvasControllerOptions) {
         void reactFlow.fitBounds(bounds, { duration: 260, padding: 0.2 });
       });
     });
+  }
+
+  function changeProjectionMode(next: CanvasProjectionMode): void {
+    if (projectionModeRef.current === next) return;
+    projectionModeRef.current = next;
+    setProjectionMode(next);
+    saveCanvasProjectionMode(
+      snapshotRef.current.project.projectId,
+      snapshotRef.current.board.boardId,
+      next,
+    );
+    const retainedSelection = selectedBlockIdsRef.current.filter((blockId) => (
+      snapshotRef.current.blocks.find((block) => block.blockId === blockId)?.type !== 'operation'
+    ));
+    setSelectedBlocks(snapshotRef.current, retainedSelection);
   }
 
   function restoreViewport(viewport: Viewport): void {
@@ -719,6 +771,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
     onNodesChange,
     onSelectionChange,
     persistViewport,
+    projectionMode,
     reactFlowRef,
     scheduleViewportPersist,
     selectedBlockIds,
@@ -732,6 +785,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
     setSelectedBlock,
     setSelectedBlockIds,
     setSelectedBlocks,
+    changeProjectionMode,
   };
 }
 

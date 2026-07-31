@@ -1,17 +1,22 @@
-import { LocateFixed, Map, Minus, Plus } from 'lucide-react';
+import { GalleryHorizontalEnd, LocateFixed, Map, Minus, Network, Plus } from 'lucide-react';
 import { useOnViewportChange, useReactFlow } from '@xyflow/react';
 import { useState, type ReactElement } from 'react';
 import { useI18n } from '../i18n';
 import type { RetakeEdge, RetakeNode } from '../core/types';
+import type { CanvasProjectionMode } from '../core/canvasProjectionViewState';
 import { TooltipIconButton } from './Tooltip';
 
 interface CanvasViewportControlsProps {
   isMiniMapVisible: boolean;
+  projectionMode: CanvasProjectionMode;
+  onChangeProjectionMode: (mode: CanvasProjectionMode) => void;
   onToggleMiniMap: () => void;
 }
 
 export function CanvasViewportControls({
   isMiniMapVisible,
+  projectionMode,
+  onChangeProjectionMode,
   onToggleMiniMap,
 }: CanvasViewportControlsProps): ReactElement {
   const { t } = useI18n();
@@ -46,6 +51,16 @@ export function CanvasViewportControls({
           onClick={onToggleMiniMap}
         >
           <Map size={16} />
+        </TooltipIconButton>
+        <TooltipIconButton
+          label={projectionMode === 'creative'
+            ? t('toolbar.compactViewToggle')
+            : t('toolbar.flowViewToggle')}
+          onClick={() => onChangeProjectionMode(projectionMode === 'creative' ? 'flow' : 'creative')}
+        >
+          {projectionMode === 'creative'
+            ? <GalleryHorizontalEnd size={16} />
+            : <Network size={16} />}
         </TooltipIconButton>
       </div>
     </div>

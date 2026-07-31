@@ -17,6 +17,7 @@ export type TranslationKey =
   | 'block.document.title'
   | 'block.image.body'
   | 'block.image.title'
+  | 'block.image.useInAgent'
   | 'block.operation.body'
   | 'block.operation.executorCodexMcp'
   | 'block.operation.kind'
@@ -433,9 +434,15 @@ export type TranslationKey =
   | 'skillComposer.planWithAgent'
   | 'skillComposer.clearEntryPoint'
   | 'skillComposer.addMention'
+  | 'skillComposer.addAttachment'
+  | 'skillComposer.attachmentFailed'
+  | 'skillComposer.auto'
+  | 'skillComposer.autoPreferences'
+  | 'skillComposer.outputType'
   | 'skillComposer.selectedMentions'
   | 'skillComposer.removeMention'
   | 'skillComposer.mentionLibrary'
+  | 'skillComposer.multiImageReferenceHint'
   | 'skillComposer.searchMentions'
   | 'skillComposer.blockMention'
   | 'skillComposer.assetMention'
@@ -772,6 +779,10 @@ export type TranslationKey =
   | 'agentWorkspace.workflowDraftEffect'
   | 'agentWorkspace.you'
   | 'agentWorkspace.chatEmptyTitle'
+  | 'agentWorkspace.quickStartEdit'
+  | 'agentWorkspace.quickStartPlan'
+  | 'agentWorkspace.quickStartPoster'
+  | 'agentWorkspace.suggestions'
   | 'operationInputQuickAdd.add'
   | 'operationInputQuickAdd.addImage'
   | 'operationInputQuickAdd.addText'
@@ -1087,6 +1098,8 @@ export type TranslationKey =
   | 'toolbar.deleteSelection'
   | 'toolbar.duplicateSelection'
   | 'toolbar.fitView'
+  | 'toolbar.compactViewToggle'
+  | 'toolbar.flowViewToggle'
   | 'toolbar.firstLastFrameVideo'
   | 'toolbar.generation'
   | 'toolbar.hideMiniMap'
@@ -1130,6 +1143,7 @@ const translations: Record<Locale, Translations> = {
     'block.document.title': 'Markdown document',
     'block.image.body': 'Import or generate an asset to attach assetId.',
     'block.image.title': 'Image block',
+    'block.image.useInAgent': 'Use this image in Agent',
     'block.operation.body': 'Choose capability, inputs, and execution adapter.',
     'block.operation.executorCodexMcp': 'Codex MCP',
     'block.operation.kind': 'Operation',
@@ -1453,7 +1467,7 @@ const translations: Record<Locale, Translations> = {
     'inspector.inputAssets': 'Input assets',
     'inspector.nextPreview': 'Next image',
     'inspector.none': 'None',
-    'inspector.openDetails': 'Show execution details',
+    'inspector.openDetails': 'View details',
     'inspector.pendingConfiguration': 'Pending configuration',
     'inspector.outputAssets': 'Output assets',
     'inspector.previousPreview': 'Previous image',
@@ -1536,7 +1550,7 @@ const translations: Record<Locale, Translations> = {
     'skillDock.workflowBadge': 'Workflow',
     'skillDock.workflowCategory': 'Workflows',
     'skillComposer.title': 'Skill quick input',
-    'skillComposer.chooseEntryPoint': '/ Choose',
+    'skillComposer.chooseEntryPoint': '/ Skill',
     'skillComposer.slashPlaceholder': 'Type / to choose a skill or workflow...',
     'skillComposer.goalPlaceholder': 'Describe what you want to create, or use @ to reference Board context...',
     'skillComposer.inputPlaceholder': 'Describe the input, or type @ to reference a block or asset...',
@@ -1546,9 +1560,15 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.planWithAgent': 'Plan with Agent',
     'skillComposer.clearEntryPoint': 'Clear selected skill or workflow',
     'skillComposer.addMention': 'Reference block or asset',
+    'skillComposer.addAttachment': 'Add attachment',
+    'skillComposer.attachmentFailed': 'The attachment could not be imported.',
+    'skillComposer.auto': 'Auto',
+    'skillComposer.autoPreferences': 'Auto',
+    'skillComposer.outputType': 'Output type',
     'skillComposer.selectedMentions': 'Referenced inputs',
     'skillComposer.removeMention': 'Remove reference',
     'skillComposer.mentionLibrary': 'Compatible blocks and assets',
+    'skillComposer.multiImageReferenceHint': 'Use as a composition, background, style, or other reference',
     'skillComposer.searchMentions': 'Search compatible blocks and assets',
     'skillComposer.blockMention': 'Block',
     'skillComposer.assetMention': 'Asset',
@@ -1885,6 +1905,10 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.workflowDraftEffect': 'Create a Workflow Group and its locked Step Projection.',
     'agentWorkspace.you': 'You',
     'agentWorkspace.chatEmptyTitle': 'What would you like to create?',
+    'agentWorkspace.quickStartEdit': 'Edit the selected image while preserving its composition',
+    'agentWorkspace.quickStartPlan': 'Plan a visual workflow for this Board',
+    'agentWorkspace.quickStartPoster': 'Create a polished product poster',
+    'agentWorkspace.suggestions': 'Suggested next steps',
     'operationInputQuickAdd.add': 'Add',
     'operationInputQuickAdd.addImage': 'Add image input',
     'operationInputQuickAdd.addText': 'Add text input',
@@ -2200,6 +2224,8 @@ const translations: Record<Locale, Translations> = {
     'toolbar.deleteSelection': 'Delete selected blocks',
     'toolbar.duplicateSelection': 'Duplicate selected blocks',
     'toolbar.fitView': 'Fit view',
+    'toolbar.compactViewToggle': 'Compact view · Switch to flow view',
+    'toolbar.flowViewToggle': 'Flow view · Switch to compact view',
     'toolbar.firstLastFrameVideo': 'First/last frame video',
     'toolbar.generation': 'Generate',
     'toolbar.hideMiniMap': 'Hide minimap',
@@ -2238,6 +2264,7 @@ const translations: Record<Locale, Translations> = {
     'block.document.title': 'Markdown 文档',
     'block.image.body': '导入或生成素材后会绑定 assetId。',
     'block.image.title': '图片块',
+    'block.image.useInAgent': '在 Agent 中使用此图片',
     'block.operation.body': '选择能力、输入和执行适配器。',
     'block.operation.executorCodexMcp': 'Codex MCP',
     'block.operation.kind': '操作',
@@ -2561,7 +2588,7 @@ const translations: Record<Locale, Translations> = {
     'inspector.inputAssets': '输入素材',
     'inspector.nextPreview': '切换图片',
     'inspector.none': '无',
-    'inspector.openDetails': '查看执行记录',
+    'inspector.openDetails': '查看详情',
     'inspector.pendingConfiguration': '待执行配置',
     'inspector.outputAssets': '输出素材',
     'inspector.previousPreview': '上一张图片',
@@ -2644,7 +2671,7 @@ const translations: Record<Locale, Translations> = {
     'skillDock.workflowBadge': 'Workflow',
     'skillDock.workflowCategory': 'Workflow',
     'skillComposer.title': 'Skill 快速输入',
-    'skillComposer.chooseEntryPoint': '/ 选择',
+    'skillComposer.chooseEntryPoint': '/ Skill',
     'skillComposer.slashPlaceholder': '输入 / 选择 Skill 或 Workflow...',
     'skillComposer.goalPlaceholder': '描述你想创作的内容，或用 @ 引用画板素材...',
     'skillComposer.inputPlaceholder': '描述输入，或输入 @ 引用 Block / Asset...',
@@ -2654,9 +2681,15 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.planWithAgent': '交给 Agent 规划',
     'skillComposer.clearEntryPoint': '清除已选 Skill 或 Workflow',
     'skillComposer.addMention': '引用 Block 或 Asset',
+    'skillComposer.addAttachment': '添加附件',
+    'skillComposer.attachmentFailed': '附件导入失败。',
+    'skillComposer.auto': '自动',
+    'skillComposer.autoPreferences': '自动偏好',
+    'skillComposer.outputType': '输出类型',
     'skillComposer.selectedMentions': '已引用输入',
     'skillComposer.removeMention': '移除引用',
     'skillComposer.mentionLibrary': '兼容的 Block 与 Asset',
+    'skillComposer.multiImageReferenceHint': '可作为构图、背景、风格或其他参考',
     'skillComposer.searchMentions': '搜索兼容的 Block 与 Asset',
     'skillComposer.blockMention': 'Block',
     'skillComposer.assetMention': 'Asset',
@@ -2993,6 +3026,10 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.workflowDraftEffect': '创建 Workflow Group 与锁定版本的 Step Projection。',
     'agentWorkspace.you': '你',
     'agentWorkspace.chatEmptyTitle': '这次想创作什么？',
+    'agentWorkspace.quickStartEdit': '修改选中的图片，并保持原有构图',
+    'agentWorkspace.quickStartPlan': '为当前画板规划一套视觉工作流',
+    'agentWorkspace.quickStartPoster': '创作一张精致的产品海报',
+    'agentWorkspace.suggestions': '后续建议',
     'operationInputQuickAdd.add': '添加',
     'operationInputQuickAdd.addImage': '添加图片输入',
     'operationInputQuickAdd.addText': '添加文本输入',
@@ -3308,6 +3345,8 @@ const translations: Record<Locale, Translations> = {
     'toolbar.deleteSelection': '删除选中块',
     'toolbar.duplicateSelection': '复制选中块',
     'toolbar.fitView': '适应画布',
+    'toolbar.compactViewToggle': '简洁视图 · 切换到流程视图',
+    'toolbar.flowViewToggle': '流程视图 · 切换到简洁视图',
     'toolbar.firstLastFrameVideo': '首尾帧生视频',
     'toolbar.generation': '生成',
     'toolbar.hideMiniMap': '隐藏小地图',

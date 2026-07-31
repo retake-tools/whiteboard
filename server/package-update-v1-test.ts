@@ -68,11 +68,6 @@ try {
         packageId: 'design.retake.image-studio',
         status: 'available',
       },
-      {
-        candidate: '0.1.2',
-        packageId: 'design.retake.video-studio',
-        status: 'current',
-      },
     ],
   );
   const pinnedSource = path.join(temporaryRoot, 'pinned-image-studio');

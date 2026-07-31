@@ -85,6 +85,7 @@ interface ImageCodexOperationInput {
 }
 
 interface ExistingOperationBlockInput {
+  capabilityId?: string;
   connection?: ExecutionConnectionSummary;
   generationParams?: ImageGenerationParams;
   instruction: string;
@@ -101,6 +102,7 @@ export interface ImageCodexOperationResult {
 }
 
 interface DraftImageToImageOperationInput {
+  capabilityId?: string;
   generationParams?: ImageGenerationParams;
   operation: Exclude<ImageCodexOperation, 'annotation_edit' | 'generate_image'>;
   sourceBlockId: string;
@@ -540,7 +542,7 @@ export function createDraftImageToImageOperation(
       adapter: 'mcp_agent',
       agentHost: 'codex',
       triggerMode: 'manual_agent_session',
-      capabilityId: capabilityForOperation(input.operation),
+      capabilityId: input.capabilityId ?? capabilityForOperation(input.operation),
       operationMode: 'image_to_image',
       operationVariant: input.operation,
       workflowLayout: 'branch_lanes',
@@ -881,7 +883,7 @@ export function executeExistingImageOperationBlock(
   const codexOperation: ImageCodexOperation = isAnnotationRepeat
     ? 'annotation_edit'
     : imageOperationForSwitchableMode(input.operation);
-  const capabilityId = capabilityForOperation(codexOperation);
+  const capabilityId = input.capabilityId ?? capabilityForOperation(codexOperation);
   const annotationManifest = isAnnotationRepeat && isAnnotationManifest(operationBlock.data.annotationManifest)
     ? structuredClone(operationBlock.data.annotationManifest)
     : undefined;
@@ -913,7 +915,11 @@ export function executeExistingImageOperationBlock(
 
   const executionId = createId('exec');
   const createdAt = nowIso();
-  const title = titleForOperation(codexOperation);
+  const title = input.capabilityId
+    ? (typeof operationBlock.data.title === 'string'
+        ? operationBlock.data.title
+        : titleForOperation(codexOperation))
+    : titleForOperation(codexOperation);
   const instruction = isAnnotationRepeat
     ? (typeof operationBlock.data.annotationText === 'string' ? operationBlock.data.annotationText.trim() : '')
     : promptText ?? '';
@@ -948,7 +954,9 @@ export function executeExistingImageOperationBlock(
     triggerMode: directApi ? 'server_worker' : codexAppServer ? 'agent_bridge' : 'manual_agent_session',
     capabilityId,
     operationMode: operationModeForImageOperation(codexOperation),
-    operationVariant: undefined,
+    operationVariant: input.capabilityId && input.capabilityId !== 'image.image_to_image'
+      ? operationBlock.data.operationVariant
+      : undefined,
     sourceBlockId: sourceBlock?.blockId,
     sourceAssetId: sourceBlock?.data.assetId,
     promptSourceBlockId: isAnnotationRepeat ? undefined : textBlock?.blockId,

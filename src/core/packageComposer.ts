@@ -243,6 +243,29 @@ export function listGoalComposerMentionOptions(
   return [...optionsById.values()];
 }
 
+export function listAgentComposerMentionOptions(
+  snapshot: BoardSnapshot,
+): PackageComposerMentionOption[] {
+  const imageReferences = snapshot.blocks.flatMap((block): PackageComposerMentionOption[] => {
+    if (block.type !== 'image' || typeof block.data.assetId !== 'string') return [];
+    const asset = snapshot.assets.find((candidate) => candidate.assetId === block.data.assetId);
+    if (!asset || asset.projectId !== snapshot.project.projectId || asset.kind !== 'image') return [];
+    return [{
+      kind: 'block',
+      blockId: block.blockId,
+      slotId: 'agent_reference',
+      mentionId: `block:${block.blockId}:agent_reference`,
+      label: stringValue(block.data.title) ?? `Image ${block.blockId.slice(-6)}`,
+      description: 'Agent image reference',
+      dataType: 'image',
+      slotCardinality: 'many',
+    }];
+  });
+  const nonImageGoalOptions = listGoalComposerMentionOptions(snapshot)
+    .filter((option) => option.dataType !== 'image');
+  return [...imageReferences, ...nonImageGoalOptions];
+}
+
 export function packageComposerMentionId(mention: PackageComposerMention): string {
   return mention.kind === 'block'
     ? `block:${mention.blockId}:${mention.slotId}`

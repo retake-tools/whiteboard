@@ -368,6 +368,8 @@ export interface BlockData {
   operationInputRolePending?: boolean;
   operationInputTargetCapabilityId?: string;
   operationCanRun?: boolean;
+  operationCompact?: boolean;
+  operationCompactResultCount?: number;
   operationChangeCount?: number;
   operationChangeKinds?: ExecutionConfigurationChangeKind[];
   operationQueuedConfigurationStale?: boolean;

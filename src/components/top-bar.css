@@ -8,7 +8,7 @@
   justify-content: flex-start;
   width: auto;
   max-width: calc(100vw - 86px);
-  min-height: 46px;
+  min-height: 44px;
   padding: 6px;
   gap: 10px;
   border: 1px solid #d8dee8;
@@ -24,16 +24,22 @@
   right: 14px;
   z-index: 11;
   display: inline-grid;
-  width: 46px;
-  height: 46px;
+  width: 36px;
+  height: 36px;
   place-items: center;
   border: 1px solid #d8dee8;
-  border-radius: 10px;
+  border-radius: 9px;
   background: rgb(255 255 255 / 94%);
   box-shadow: 0 10px 26px rgb(16 24 40 / 12%);
   color: #344054;
   cursor: pointer;
   backdrop-filter: blur(12px);
+}
+
+.agent-workspace-trigger svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.75;
 }
 
 .agent-workspace-trigger:hover,
@@ -51,13 +57,16 @@
   box-shadow: 0 8px 22px rgb(30 64 175 / 14%);
   display: flex;
   justify-content: center;
-  min-height: 36px;
-  padding: 6px 14px;
+  min-height: 32px;
+  padding: 4px 10px;
   position: absolute;
   left: 50%;
   top: 72px;
   transform: translateX(-50%);
   z-index: 18;
+  color: #344054;
+  font-size: 12px;
+  line-height: 1.2;
 }
 
 .package-update-banner > span,
@@ -68,7 +77,7 @@
 }
 
 .package-update-banner > div {
-  margin-left: 14px;
+  margin-left: 10px;
 }
 
 .package-update-banner button {
@@ -78,7 +87,10 @@
   color: #fff;
   cursor: pointer;
   font: inherit;
-  padding: 5px 10px;
+  min-height: 26px;
+  padding: 0 9px;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .package-update-banner .package-update-banner-dismiss {
@@ -87,7 +99,9 @@
   color: #475569;
   display: inline-flex;
   justify-content: center;
-  padding: 5px;
+  width: 26px;
+  min-height: 26px;
+  padding: 0;
 }
 
 .top-bar-left,
@@ -104,7 +118,7 @@
   align-items: center;
   min-width: 238px;
   max-width: none;
-  height: 34px;
+  height: 32px;
   padding: 0 8px 0 10px;
   gap: 7px;
   border-radius: 8px;
@@ -151,7 +165,7 @@
   background: rgb(29 78 216 / 12%);
   color: #1d4ed8;
   font-size: 11px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .top-bar-title-icon {
