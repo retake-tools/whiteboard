@@ -2,6 +2,7 @@ import {
   addEdge,
   applyEdgeChanges,
   applyNodeChanges,
+  getViewportForBounds,
   type Connection,
   type EdgeChange,
   type NodeChange,
@@ -59,6 +60,10 @@ import {
   sameBlockSelection,
   selectedOperationBlockIdFor,
 } from './appHelpers';
+import {
+  imageComposerWorkflowGeometry,
+  type ImageComposerWorkflowLayoutInput,
+} from './imageComposerWorkflowLayout';
 import type { BoardSessionPorts } from './useBoardSession';
 import type {
   PluginContributionRegistryV1,
@@ -557,6 +562,46 @@ export function useCanvasController(options: CanvasControllerOptions) {
     moveBlockGroupToNearestFreeArea(current, blocks, center);
   }
 
+  function layoutImageComposerWorkflow(
+    current: BoardSnapshot,
+    input: ImageComposerWorkflowLayoutInput,
+  ): void {
+    const operationBlock = current.blocks.find(
+      (block) => block.blockId === input.operationBlockId,
+    );
+    const textBlock = current.blocks.find(
+      (block) => block.blockId === input.textBlockId,
+    );
+    if (!operationBlock || !textBlock) return;
+    const outputSlotBlock = input.outputSlotBlockId
+      ? current.blocks.find((block) => block.blockId === input.outputSlotBlockId)
+      : undefined;
+    const referenceBlocks = input.referenceBlockIds
+      .map((blockId) => current.blocks.find((block) => block.blockId === blockId))
+      .filter((block): block is BlockRecord => Boolean(
+        block?.data.composerSourceAssetId,
+      ));
+    const center = viewportCenter();
+    const geometry = imageComposerWorkflowGeometry({
+      center,
+      operationBlock,
+      outputSlotBlock,
+      referenceBlocks,
+      textBlock,
+    });
+    const positionedBlocks = geometry.blockIds
+      .map((blockId) => current.blocks.find((block) => block.blockId === blockId))
+      .filter((block): block is BlockRecord => Boolean(block));
+    const updatedAt = nowIso();
+    for (const block of positionedBlocks) {
+      const position = geometry.positions[block.blockId];
+      if (!position) continue;
+      block.position = position;
+      block.updatedAt = updatedAt;
+    }
+    moveBlockGroupToNearestFreeArea(current, positionedBlocks, center);
+  }
+
   function centerBlockGroup(current: BoardSnapshot, blockIds: string[]): void {
     const blocks = blockIds.map((blockId) => current.blocks.find((block) => block.blockId === blockId)).filter((block): block is BlockRecord => Boolean(block));
     if (blocks.length === 0) return;
@@ -575,7 +620,10 @@ export function useCanvasController(options: CanvasControllerOptions) {
     moveBlockGroupToNearestFreeArea(current, blocks, center);
   }
 
-  function focusWorkflowBlocks(blockIds: string[]): void {
+  function focusWorkflowBlocks(
+    blockIds: string[],
+    options: { maxZoom?: number } = {},
+  ): void {
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
         const reactFlow = reactFlowRef.current;
@@ -585,7 +633,23 @@ export function useCanvasController(options: CanvasControllerOptions) {
           .filter((node): node is RetakeNode => Boolean(node));
         if (nodes.length === 0) return;
         const bounds = reactFlow.getNodesBounds(nodes);
-        void reactFlow.fitBounds(bounds, { duration: 260, padding: 0.2 });
+        if (options.maxZoom !== undefined) {
+          const canvasBounds = canvasAreaRef.current?.getBoundingClientRect();
+          const viewport = getViewportForBounds(
+            bounds,
+            canvasBounds?.width ?? window.innerWidth,
+            canvasBounds?.height ?? window.innerHeight,
+            minBoardZoom,
+            Math.min(options.maxZoom, maxBoardZoom),
+            0.2,
+          );
+          void reactFlow.setViewport(viewport, { duration: 260 });
+          return;
+        }
+        void reactFlow.fitBounds(bounds, {
+          duration: 260,
+          padding: 0.2,
+        });
       });
     });
   }
@@ -751,6 +815,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
     centerBlockGroup,
     centeredBlockPosition,
     centerWorkflowBlocks,
+    layoutImageComposerWorkflow,
     focusWorkflowBlocks,
     collapsedGroupIds,
     collapsedGroupIdsRef,

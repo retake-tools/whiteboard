@@ -49,7 +49,10 @@ import {
   operationModeFromBlock,
   resizeEmptyOperationOutputSlot,
 } from './appHelpers';
-import { imageComposerWorkflowLayoutBlockIds } from './imageComposerWorkflowLayout';
+import {
+  imageComposerWorkflowLayoutBlockIds,
+  type ImageComposerWorkflowLayoutInput,
+} from './imageComposerWorkflowLayout';
 import { executeExistingStoryboardSheetOperation } from '../core/storyboardSheetOperations';
 import { projectAgentCallableCapability } from '../core/agentCallableCapabilities';
 import { tryCapabilityDefinitionFor } from '../core/capabilityRegistry';
@@ -61,7 +64,11 @@ import {
 interface ImageOperationControllerOptions {
   centeredBlockPosition: (size: { width: number; height: number }) => { x: number; y: number };
   centerWorkflowBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
-  focusWorkflowBlocks: (blockIds: string[]) => void;
+  focusWorkflowBlocks: (blockIds: string[], options?: { maxZoom?: number }) => void;
+  layoutImageComposerWorkflow: (
+    snapshot: BoardSnapshot,
+    input: ImageComposerWorkflowLayoutInput,
+  ) => void;
   persistSnapshot: (snapshot: BoardSnapshot, options?: { requireLocalApi?: boolean }) => Promise<void>;
   selectedBlock?: BlockRecord;
   setSelectedBlock: (snapshot: BoardSnapshot, blockId: string) => void;
@@ -79,6 +86,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     centeredBlockPosition,
     centerWorkflowBlocks,
     focusWorkflowBlocks,
+    layoutImageComposerWorkflow,
     persistSnapshot,
     selectedBlock,
     setSelectedBlock,
@@ -419,7 +427,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     references?: ImageComposerReference[];
     reuseSelectedImageSlot?: boolean;
     slotBlock?: BlockRecord;
-  } = {}, draftOptions: { persist?: boolean } = {}): BlockRecord | undefined {
+  } = {}, draftOptions: { persist?: boolean; reveal?: boolean } = {}): BlockRecord | undefined {
     let selectedWorkflowIds: string[] = [];
     let createdOperationBlockId: string | undefined;
     const nextSnapshot = updateSnapshot((current) => {
@@ -468,18 +476,19 @@ export function useImageOperationController(options: ImageOperationControllerOpt
           });
       result.operationBlock.data.connectionId = connectionId;
       createdOperationBlockId = result.operationBlock.blockId;
-      selectedWorkflowIds = imageComposerWorkflowLayoutBlockIds({
+      const layoutInput = {
         operationBlockId: result.operationBlock.blockId,
         outputSlotBlockId: selectedSlot?.blockId,
         referenceBlockIds: result.referenceBlockIds,
         textBlockId: result.textBlock.blockId,
-      });
-      if (!selectedSlot) centerWorkflowBlocks(current, selectedWorkflowIds);
+      };
+      selectedWorkflowIds = imageComposerWorkflowLayoutBlockIds(layoutInput);
+      if (!selectedSlot) layoutImageComposerWorkflow(current, layoutInput);
       return current;
     }, { persist: draftOptions.persist ?? true, history: true });
     if (selectedWorkflowIds.length > 0) {
       setSelectedBlocks(nextSnapshot, selectedWorkflowIds);
-      focusWorkflowBlocks(selectedWorkflowIds);
+      if (draftOptions.reveal ?? true) focusWorkflowBlocks(selectedWorkflowIds);
     }
     return createdOperationBlockId
       ? nextSnapshot.blocks.find((block) => block.blockId === createdOperationBlockId)
@@ -496,7 +505,10 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     reuseSelectedImageSlot?: boolean;
     slotBlock?: BlockRecord;
   }): void {
-    const operationBlock = createTextToImageDraftOperation(input, { persist: false });
+    const operationBlock = createTextToImageDraftOperation(input, {
+      persist: false,
+      reveal: false,
+    });
     if (!operationBlock) return;
     void startExistingOperationBlock({
       block: operationBlock,
@@ -589,6 +601,14 @@ export function useImageOperationController(options: ImageOperationControllerOpt
       await persistSnapshot(nextSnapshot, { requireLocalApi: true });
       setSelectedBlock(nextSnapshot, input.block.blockId);
       const blockIds = [...inputBlockIds, input.block.blockId, ...resultBlockIds].filter(Boolean);
+      const revealBlockIds = blockIds.filter((blockId) => {
+        const block = nextSnapshot.blocks.find((candidate) => candidate.blockId === blockId);
+        return (
+          block?.type !== 'image'
+          || resultBlockIds.includes(blockId)
+          || typeof block.data.composerSourceAssetId === 'string'
+        );
+      });
       if (usesVolcengineArk) {
         const started = await startVolcengineArkImage({
           projectId: nextSnapshot.project.projectId,
@@ -599,7 +619,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         const runningSnapshot = updateSnapshot(() => started.snapshot, { persist: false, history: true });
         setSelectedBlocks(runningSnapshot, started.execution.outputBlockIds);
         if (input.revealOnStart) {
-          focusWorkflowBlocks([input.block.blockId, ...started.execution.outputBlockIds]);
+          focusWorkflowBlocks(revealBlockIds, { maxZoom: 1 });
         }
         setOperationToast({
           id: executionId,
@@ -620,7 +640,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         const runningSnapshot = updateSnapshot(() => started.snapshot, { persist: false, history: true });
         setSelectedBlocks(runningSnapshot, started.execution.outputBlockIds);
         if (input.revealOnStart) {
-          focusWorkflowBlocks([input.block.blockId, ...started.execution.outputBlockIds]);
+          focusWorkflowBlocks(revealBlockIds, { maxZoom: 1 });
         }
         setOperationToast({
           id: executionId,

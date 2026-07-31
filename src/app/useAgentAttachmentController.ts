@@ -93,6 +93,7 @@ function attachmentBlock(
     block.data = {
       title: fileName,
       assetId: asset.assetId,
+      composerSourceAssetId: asset.assetId,
       previewUrl: asset.previewUrl,
     };
     return block;

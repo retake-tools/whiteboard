@@ -9,7 +9,10 @@ import {
   type ImageComposerReferenceRole,
 } from '../src/core/imageComposer';
 import { imageComposerReferencePresentation } from '../src/components/ImageComposerReferenceTray';
-import { imageComposerWorkflowLayoutBlockIds } from '../src/app/imageComposerWorkflowLayout';
+import {
+  imageComposerWorkflowGeometry,
+  imageComposerWorkflowLayoutBlockIds,
+} from '../src/app/imageComposerWorkflowLayout';
 import { executeExistingImageOperationBlock } from '../src/core/imageOperations';
 import type { ExecutionConnectionSummary } from '../src/core/executionProviders';
 import type { AssetRecord, BoardSnapshot } from '../src/core/types';
@@ -17,6 +20,8 @@ import { resetWorkspace } from './local-store/snapshot-store';
 
 const [
   appSource,
+  attachmentControllerSource,
+  canvasControllerSource,
   composerSource,
   controllerSource,
   controlsSource,
@@ -25,6 +30,8 @@ const [
   toolbarStyles,
 ] = await Promise.all([
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/app/useAgentAttachmentController.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/app/useCanvasController.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/SkillQuickInputComposer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/useImageOperationController.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/ImageComposerControls.tsx', import.meta.url), 'utf8'),
@@ -40,9 +47,13 @@ assert.match(composerSource, /onCreateImage/);
 assert.match(composerSource, /ImageComposerReferenceTray/);
 assert.match(composerSource, /resetImageSubmission/);
 assert.match(appSource, /onCreateImage=\{\(input\) => createAndStartImageComposerOperation/);
-assert.match(controllerSource, /createTextToImageDraftOperation\(input, \{ persist: false \}\)/);
+assert.match(controllerSource, /persist: false,\s*reveal: false,/);
 assert.match(controllerSource, /void startExistingOperationBlock\(\{/);
 assert.match(controllerSource, /imageComposerWorkflowLayoutBlockIds/);
+assert.match(controllerSource, /focusWorkflowBlocks\(revealBlockIds, \{ maxZoom: 1 \}\)/);
+assert.match(attachmentControllerSource, /composerSourceAssetId: asset\.assetId/);
+assert.match(canvasControllerSource, /block\?\.data\.composerSourceAssetId/);
+assert.match(canvasControllerSource, /getViewportForBounds/);
 assert.match(controlsSource, /image\.text_to_image/);
 assert.match(controlsSource, /connection\.connectorId !== 'codex-managed'/);
 assert.match(controlsSource, /currentExecutionProviderSettings/);
@@ -159,6 +170,55 @@ assert.deepEqual(imageComposerWorkflowLayoutBlockIds({
   result.operationBlock.blockId,
   outputSlot.blockId,
 ]);
+
+const portraitReference = { blockId: 'portrait_reference', size: { width: 160, height: 380 } };
+const secondPortraitReference = { blockId: 'portrait_reference_2', size: { width: 160, height: 380 } };
+const landscapeReference = { blockId: 'landscape_reference', size: { width: 380, height: 200 } };
+const promptBlock = { blockId: 'prompt', size: { width: 260, height: 170 } };
+const operationBlock = { blockId: 'operation', size: { width: 320, height: 190 } };
+const resultBlock = { blockId: 'result', size: { width: 300, height: 230 } };
+const mixedReferenceGeometry = imageComposerWorkflowGeometry({
+  center: { x: 0, y: 0 },
+  operationBlock,
+  outputSlotBlock: resultBlock,
+  referenceBlocks: [portraitReference, secondPortraitReference, landscapeReference],
+  textBlock: promptBlock,
+});
+assert.ok(
+  mixedReferenceGeometry.positions.prompt.y
+  < mixedReferenceGeometry.positions.portrait_reference.y,
+  'Prompt stays above the reference shelf.',
+);
+assert.equal(
+  mixedReferenceGeometry.positions.portrait_reference.y,
+  mixedReferenceGeometry.positions.portrait_reference_2.y,
+  'Portrait references share a row when their widths fit.',
+);
+assert.ok(
+  mixedReferenceGeometry.positions.operation.x
+  > mixedReferenceGeometry.positions.landscape_reference.x + landscapeReference.size.width,
+  'Operation stays to the right of the complete input stage.',
+);
+assert.ok(
+  mixedReferenceGeometry.positions.result.x
+  > mixedReferenceGeometry.positions.operation.x + operationBlock.size.width,
+  'Result stays to the right of the Operation.',
+);
+
+const landscapeRowsGeometry = imageComposerWorkflowGeometry({
+  center: { x: 0, y: 0 },
+  operationBlock,
+  referenceBlocks: [
+    landscapeReference,
+    { blockId: 'landscape_reference_2', size: { width: 380, height: 200 } },
+  ],
+  textBlock: promptBlock,
+});
+assert.ok(
+  landscapeRowsGeometry.positions.landscape_reference_2.y
+  > landscapeRowsGeometry.positions.landscape_reference.y,
+  'Wide references wrap vertically instead of stretching the input stage.',
+);
 assert.ok(snapshot.edges.some((edge) =>
   edge.sourceBlockId === referenceBlock.blockId
   && edge.targetBlockId === result.operationBlock.blockId

@@ -297,6 +297,7 @@ function ReadyApp({
     centeredBlockPosition,
     centerBlockGroup,
     centerWorkflowBlocks,
+    layoutImageComposerWorkflow,
     focusWorkflowBlocks,
     collapsedGroupIdsRef,
     connectActions: connectCanvasActions,
@@ -382,6 +383,7 @@ function ReadyApp({
   const imageOperationController = useImageOperationController({
     centeredBlockPosition,
     centerWorkflowBlocks,
+    layoutImageComposerWorkflow,
     focusWorkflowBlocks,
     persistSnapshot,
     selectedBlock,
