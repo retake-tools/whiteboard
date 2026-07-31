@@ -20,7 +20,6 @@ interface CompletedTap {
 
 const completedTapsByGestureKey = new Map<string, CompletedTap>();
 const pointerCompletionsByGestureKey = new Map<string, CompletedTap>();
-const suppressedClicksUntilByGestureKey = new Map<string, number>();
 
 interface UseImagePreviewDoubleTapOptions {
   enabled: boolean;
@@ -37,6 +36,7 @@ export function useImagePreviewDoubleTap({
   onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
 } {
   const activeGestureCleanupRef = useRef<(() => void) | undefined>(undefined);
+  const pendingDoubleTapTimerRef = useRef<number | undefined>(undefined);
   const onDoubleTapRef = useRef(onDoubleTap);
   onDoubleTapRef.current = onDoubleTap;
 
@@ -45,20 +45,6 @@ export function useImagePreviewDoubleTap({
 
     activeGestureCleanupRef.current?.();
     activeGestureCleanupRef.current = undefined;
-
-    const previousTap = completedTapsByGestureKey.get(gestureKey);
-    if (matchesPreviousTap(previousTap, event)) {
-      completedTapsByGestureKey.delete(gestureKey);
-      pointerCompletionsByGestureKey.delete(gestureKey);
-      suppressedClicksUntilByGestureKey.set(
-        gestureKey,
-        event.timeStamp + mirroredClickDelayMs,
-      );
-      onDoubleTapRef.current();
-      event.preventDefault();
-      event.stopPropagation();
-      return;
-    }
 
     const pointerId = event.pointerId;
     const startedAt = event.timeStamp;
@@ -96,6 +82,21 @@ export function useImagePreviewDoubleTap({
         x: pointerEvent.clientX,
         y: pointerEvent.clientY,
       };
+      const previousTap = completedTapsByGestureKey.get(gestureKey);
+      if (matchesPreviousTap(previousTap, {
+        clientX: completedTap.x,
+        clientY: completedTap.y,
+        timeStamp: completedTap.completedAt,
+      })) {
+        completedTapsByGestureKey.delete(gestureKey);
+        pointerCompletionsByGestureKey.set(gestureKey, completedTap);
+        pendingDoubleTapTimerRef.current = window.setTimeout(() => {
+          pendingDoubleTapTimerRef.current = undefined;
+          pointerCompletionsByGestureKey.delete(gestureKey);
+          onDoubleTapRef.current();
+        }, 0);
+        return;
+      }
       completedTapsByGestureKey.set(gestureKey, completedTap);
       pointerCompletionsByGestureKey.set(gestureKey, completedTap);
     }
@@ -115,9 +116,15 @@ export function useImagePreviewDoubleTap({
 
   const onClickCapture = useCallback((event: ReactMouseEvent<HTMLElement>) => {
     if (!enabled || event.button !== 0) return;
-    const suppressedUntil = suppressedClicksUntilByGestureKey.get(gestureKey);
-    if (suppressedUntil !== undefined && event.timeStamp <= suppressedUntil) return;
-    suppressedClicksUntilByGestureKey.delete(gestureKey);
+    if (pendingDoubleTapTimerRef.current !== undefined) {
+      window.clearTimeout(pendingDoubleTapTimerRef.current);
+      pendingDoubleTapTimerRef.current = undefined;
+      pointerCompletionsByGestureKey.delete(gestureKey);
+      onDoubleTapRef.current();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
 
     const pointerCompletion = pointerCompletionsByGestureKey.get(gestureKey);
     if (
@@ -133,10 +140,6 @@ export function useImagePreviewDoubleTap({
     const previousTap = completedTapsByGestureKey.get(gestureKey);
     if (matchesPreviousTap(previousTap, event)) {
       completedTapsByGestureKey.delete(gestureKey);
-      suppressedClicksUntilByGestureKey.set(
-        gestureKey,
-        event.timeStamp + mirroredClickDelayMs,
-      );
       onDoubleTapRef.current();
       event.preventDefault();
       event.stopPropagation();

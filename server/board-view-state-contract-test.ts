@@ -108,6 +108,16 @@ assert.equal(safeViewportForBounds({
 const canvasSource = await readFile('src/app/useCanvasController.ts', 'utf8');
 assert.match(canvasSource, /saveBoardViewState\(/, 'canvas viewport changes must use BoardViewStateStore');
 assert.match(canvasSource, /scheduleViewportPersist/, 'in-progress pan and zoom gestures must schedule durable view-state writes');
+assert.match(
+  canvasSource,
+  /pendingViewportPersistRef = useRef<Viewport \| undefined>/,
+  'high-frequency move events must defer BoardViewState construction until persistence flushes',
+);
+assert.match(
+  canvasSource,
+  /Math\.abs\(canvasZoomRef\.current - viewport\.zoom\) < 0\.0005/,
+  'pure canvas panning must not publish redundant React zoom state',
+);
 assert.match(canvasSource, /pagehide/, 'navigation must flush the final in-progress viewport before the page unloads');
 assert.doesNotMatch(canvasSource, /viewportShowsAnyBlock/, 'a saved empty-space view must remain authoritative until the user chooses fitView');
 assert.doesNotMatch(canvasSource, /updateSnapshot\(\(next\) => \(\{ \.\.\.next, viewport \}\)/, 'viewport must not re-enter snapshot autosave');

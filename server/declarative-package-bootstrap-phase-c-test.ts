@@ -80,7 +80,7 @@ try {
   );
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.version),
-    ['0.10.7'],
+    ['0.10.8'],
   );
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.updateSource),

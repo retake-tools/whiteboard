@@ -114,8 +114,13 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
     t,
     workflowRuntime,
   } = props;
-  const pointerIdleTimerRef = useRef<number | undefined>(undefined);
+  const pointerIdleFrameRef = useRef<number | undefined>(undefined);
+  const pointerLastMovedAtRef = useRef(0);
   const imageToolbarDismissTimerRef = useRef<number | undefined>(undefined);
+  const finePointerRef = useRef(
+    typeof window !== 'undefined'
+      && window.matchMedia('(hover: hover) and (pointer: fine)').matches,
+  );
   const [hoveredImageBlockId, setHoveredImageBlockId] = useState<string>();
   const selectedImageActionBlocks = canvas.selectedBlockIds.flatMap(
     (blockId) => {
@@ -210,7 +215,9 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
   });
 
   useEffect(() => () => {
-    if (pointerIdleTimerRef.current !== undefined) window.clearTimeout(pointerIdleTimerRef.current);
+    if (pointerIdleFrameRef.current !== undefined) {
+      window.cancelAnimationFrame(pointerIdleFrameRef.current);
+    }
     if (imageToolbarDismissTimerRef.current !== undefined) {
       window.clearTimeout(imageToolbarDismissTimerRef.current);
     }
@@ -262,7 +269,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
   }
 
   function scheduleImageToolbarDismiss(blockId: string): void {
-    cancelImageToolbarDismiss();
+    if (imageToolbarDismissTimerRef.current !== undefined) return;
     imageToolbarDismissTimerRef.current = window.setTimeout(() => {
       setHoveredImageBlockId((current) => (
         current === blockId ? undefined : current
@@ -304,27 +311,40 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
       const blockId = blockIdFromNodeTarget(event.target);
       if (
         blockId
-        && window.matchMedia(
-          '(hover: hover) and (pointer: fine)',
-        ).matches
+        && finePointerRef.current
       ) {
-        showImageToolbarPreview(blockId);
+        if (blockId === hoveredImageBlockId) cancelImageToolbarDismiss();
+        else showImageToolbarPreview(blockId);
       } else if (hoveredImageBlockId) {
         scheduleImageToolbarDismiss(hoveredImageBlockId);
       }
     }
     const canvasElement = event.currentTarget;
     if (canvasElement.dataset.pointerMoving !== 'true') canvasElement.dataset.pointerMoving = 'true';
-    if (pointerIdleTimerRef.current !== undefined) window.clearTimeout(pointerIdleTimerRef.current);
-    pointerIdleTimerRef.current = window.setTimeout(() => {
-      canvasElement.dataset.pointerMoving = 'false';
-      pointerIdleTimerRef.current = undefined;
-    }, 90);
+    pointerLastMovedAtRef.current = window.performance.now();
+    if (pointerIdleFrameRef.current === undefined) {
+      pointerIdleFrameRef.current = window.requestAnimationFrame(
+        () => settleCanvasPointer(canvasElement),
+      );
+    }
+  }
+
+  function settleCanvasPointer(canvasElement: HTMLElement): void {
+    if (window.performance.now() - pointerLastMovedAtRef.current < 90) {
+      pointerIdleFrameRef.current = window.requestAnimationFrame(
+        () => settleCanvasPointer(canvasElement),
+      );
+      return;
+    }
+    canvasElement.dataset.pointerMoving = 'false';
+    pointerIdleFrameRef.current = undefined;
   }
 
   function handleCanvasPointerLeave(event: ReactPointerEvent<HTMLElement>): void {
-    if (pointerIdleTimerRef.current !== undefined) window.clearTimeout(pointerIdleTimerRef.current);
-    pointerIdleTimerRef.current = undefined;
+    if (pointerIdleFrameRef.current !== undefined) {
+      window.cancelAnimationFrame(pointerIdleFrameRef.current);
+    }
+    pointerIdleFrameRef.current = undefined;
     event.currentTarget.dataset.pointerMoving = 'false';
     if (hoveredImageBlockId) {
       scheduleImageToolbarDismiss(hoveredImageBlockId);
