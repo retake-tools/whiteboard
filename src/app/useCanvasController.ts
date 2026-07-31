@@ -74,6 +74,8 @@ import type {
 } from '../core/pluginContributionRegistry';
 
 const terminalImageStatusDismissDelayMs = 500;
+const imageNodeDoubleClickDelayMs = 1_000;
+const imageNodeDoubleClickPositionTolerancePx = 32;
 
 interface CanvasControllerOptions {
   connectSessionPorts: (ports: BoardSessionPorts) => void;
@@ -122,6 +124,12 @@ export function useCanvasController(options: CanvasControllerOptions) {
   const terminalImageStatusDismissTimerRef = useRef<number | undefined>(
     undefined,
   );
+  const lastImageNodeClickRef = useRef<{
+    blockId: string;
+    clickedAt: number;
+    x: number;
+    y: number;
+  } | undefined>(undefined);
   const collapsedGroupIdsRef = useRef<string[]>(
     loadCollapsedGroupIds(snapshot.project.projectId, snapshot.board.boardId),
   );
@@ -187,6 +195,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
       setNodes(createFlowNodesForSelection(loadedSnapshot, []));
       setEdges(createFlowEdgesForSelection(loadedSnapshot, []));
       setSelectedBlockIds([]);
+      lastImageNodeClickRef.current = undefined;
       setInspectorBlockId(undefined);
       setHistoryOpen(false);
       restoreBoardViewport(loadedSnapshot);
@@ -494,14 +503,37 @@ export function useCanvasController(options: CanvasControllerOptions) {
 
   const onNodeClick: NodeMouseHandler<RetakeNode> = (event, node) => {
     cancelTerminalImageStatusDismiss();
+    if (node.type === 'image' && isImageDetailNodeEventTarget(event.target)) {
+      const previousClick = lastImageNodeClickRef.current;
+      const isRepeatedImageClick = previousClick?.blockId === node.id
+        && event.timeStamp - previousClick.clickedAt <= imageNodeDoubleClickDelayMs
+        && Math.hypot(event.clientX - previousClick.x, event.clientY - previousClick.y)
+          <= imageNodeDoubleClickPositionTolerancePx;
+      if (event.detail > 1 || isRepeatedImageClick) {
+        lastImageNodeClickRef.current = undefined;
+        window.dispatchEvent(new CustomEvent('retake:open-execution-inspector', {
+          detail: { blockId: node.id },
+        }));
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      lastImageNodeClickRef.current = {
+        blockId: node.id,
+        clickedAt: event.timeStamp,
+        x: event.clientX,
+        y: event.clientY,
+      };
+    } else {
+      lastImageNodeClickRef.current = undefined;
+    }
     if (event.detail > 1) return;
     scheduleTerminalImageStatusDismiss(node.id);
   };
   const onNodeDoubleClick: NodeMouseHandler<RetakeNode> = (event, node) => {
     cancelTerminalImageStatusDismiss();
     if (node.type === 'image') {
-      const target = event.target instanceof Element ? event.target : undefined;
-      if (!target?.closest('.block-heading, .react-flow__handle, .react-flow__resize-control, button, input, select, textarea')) {
+      if (isImageDetailNodeEventTarget(event.target)) {
         window.dispatchEvent(new CustomEvent('retake:open-execution-inspector', {
           detail: { blockId: node.id },
         }));
@@ -948,6 +980,19 @@ export function useCanvasController(options: CanvasControllerOptions) {
     setSelectedBlocks,
     changeProjectionMode,
   };
+}
+
+function isImageDetailNodeEventTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return true;
+  return !target.closest([
+    '.block-heading',
+    '.react-flow__handle',
+    '.react-flow__resize-control',
+    'button',
+    'input',
+    'select',
+    'textarea',
+  ].join(','));
 }
 
 export function commandShortcutFromKeyboardEvent(

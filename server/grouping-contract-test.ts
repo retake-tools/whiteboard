@@ -34,6 +34,10 @@ assert.match(
   /const onNodeClick[\s\S]*?event\.detail > 1[\s\S]*?scheduleTerminalImageStatusDismiss/,
 );
 assert.match(
+  canvasSource,
+  /lastImageNodeClickRef[\s\S]*?const onNodeClick[\s\S]*?previousClick\?\.blockId === node\.id[\s\S]*?event\.timeStamp - previousClick\.clickedAt <= imageNodeDoubleClickDelayMs[\s\S]*?imageNodeDoubleClickPositionTolerancePx[\s\S]*?retake:open-execution-inspector/,
+);
+assert.match(
   blockNodeSource,
   /useImagePreviewDoubleTap\(\{[\s\S]*?gestureKey: id[\s\S]*?dispatchOpenExecutionInspector\(id\)[\s\S]*?onClickCapture=\{blockType === 'image' \? \(event\)[\s\S]*?imagePreviewDoubleTap\.onClickCapture\(event\)[\s\S]*?onDoubleClickCapture=\{blockType === 'image' \? \(event\)[\s\S]*?imagePreviewDoubleTap\.onDoubleClickCapture\(event\)[\s\S]*?onPointerDownCapture=\{blockType === 'image' \? \(event\)[\s\S]*?imagePreviewDoubleTap\.onPointerDown\(event\)/,
 );
