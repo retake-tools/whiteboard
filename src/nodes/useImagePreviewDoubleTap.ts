@@ -11,7 +11,6 @@ const tapMaxDurationMs = 600;
 const tapMoveTolerancePx = 10;
 const doubleTapPositionTolerancePx = 32;
 const mirroredClickDelayMs = 250;
-const doubleTapOpenDelayMs = 40;
 
 interface CompletedTap {
   completedAt: number;
@@ -21,6 +20,7 @@ interface CompletedTap {
 
 const completedTapsByGestureKey = new Map<string, CompletedTap>();
 const pointerCompletionsByGestureKey = new Map<string, CompletedTap>();
+const suppressedClicksUntilByGestureKey = new Map<string, number>();
 
 interface UseImagePreviewDoubleTapOptions {
   enabled: boolean;
@@ -38,18 +38,17 @@ export function useImagePreviewDoubleTap({
   onPointerDown: (event: ReactPointerEvent<HTMLElement>) => void;
 } {
   const activeGestureCleanupRef = useRef<(() => void) | undefined>(undefined);
-  const pendingDoubleTapTimerRef = useRef<number | undefined>(undefined);
   const onDoubleTapRef = useRef(onDoubleTap);
   onDoubleTapRef.current = onDoubleTap;
 
-  const scheduleDoubleTap = useCallback(() => {
+  const openDoubleTap = useCallback((timeStamp: number) => {
     completedTapsByGestureKey.delete(gestureKey);
     pointerCompletionsByGestureKey.delete(gestureKey);
-    if (pendingDoubleTapTimerRef.current !== undefined) return;
-    pendingDoubleTapTimerRef.current = window.setTimeout(() => {
-      pendingDoubleTapTimerRef.current = undefined;
-      onDoubleTapRef.current();
-    }, doubleTapOpenDelayMs);
+    suppressedClicksUntilByGestureKey.set(
+      gestureKey,
+      timeStamp + mirroredClickDelayMs,
+    );
+    onDoubleTapRef.current();
   }, [gestureKey]);
 
   const onPointerDown = useCallback((event: ReactPointerEvent<HTMLElement>) => {
@@ -57,6 +56,14 @@ export function useImagePreviewDoubleTap({
 
     activeGestureCleanupRef.current?.();
     activeGestureCleanupRef.current = undefined;
+
+    const previousTap = completedTapsByGestureKey.get(gestureKey);
+    if (matchesPreviousTap(previousTap, event)) {
+      openDoubleTap(event.timeStamp);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
 
     const pointerId = event.pointerId;
     const startedAt = event.timeStamp;
@@ -94,15 +101,6 @@ export function useImagePreviewDoubleTap({
         x: pointerEvent.clientX,
         y: pointerEvent.clientY,
       };
-      const previousTap = completedTapsByGestureKey.get(gestureKey);
-      if (matchesPreviousTap(previousTap, {
-        clientX: completedTap.x,
-        clientY: completedTap.y,
-        timeStamp: completedTap.completedAt,
-      })) {
-        scheduleDoubleTap();
-        return;
-      }
       completedTapsByGestureKey.set(gestureKey, completedTap);
       pointerCompletionsByGestureKey.set(gestureKey, completedTap);
     }
@@ -118,15 +116,17 @@ export function useImagePreviewDoubleTap({
     window.addEventListener('pointerup', handlePointerUp, true);
     window.addEventListener('pointercancel', handlePointerCancel, true);
     activeGestureCleanupRef.current = cleanup;
-  }, [enabled, gestureKey, scheduleDoubleTap]);
+  }, [enabled, gestureKey, openDoubleTap]);
 
   const onClickCapture = useCallback((event: ReactMouseEvent<HTMLElement>) => {
     if (!enabled || event.button !== 0) return;
-    if (pendingDoubleTapTimerRef.current !== undefined) {
+    const suppressedUntil = suppressedClicksUntilByGestureKey.get(gestureKey);
+    if (suppressedUntil !== undefined && event.timeStamp <= suppressedUntil) {
       event.preventDefault();
       event.stopPropagation();
       return;
     }
+    suppressedClicksUntilByGestureKey.delete(gestureKey);
 
     const pointerCompletion = pointerCompletionsByGestureKey.get(gestureKey);
     if (
@@ -141,7 +141,7 @@ export function useImagePreviewDoubleTap({
 
     const previousTap = completedTapsByGestureKey.get(gestureKey);
     if (matchesPreviousTap(previousTap, event)) {
-      scheduleDoubleTap();
+      openDoubleTap(event.timeStamp);
       event.preventDefault();
       event.stopPropagation();
       return;
@@ -151,20 +151,20 @@ export function useImagePreviewDoubleTap({
       x: event.clientX,
       y: event.clientY,
     });
-  }, [enabled, gestureKey, scheduleDoubleTap]);
+  }, [enabled, gestureKey, openDoubleTap]);
 
   const onDoubleClickCapture = useCallback((event: ReactMouseEvent<HTMLElement>) => {
     if (!enabled || event.button !== 0) return;
-    scheduleDoubleTap();
+    const suppressedUntil = suppressedClicksUntilByGestureKey.get(gestureKey);
+    if (suppressedUntil === undefined || event.timeStamp > suppressedUntil) {
+      openDoubleTap(event.timeStamp);
+    }
     event.preventDefault();
     event.stopPropagation();
-  }, [enabled, scheduleDoubleTap]);
+  }, [enabled, gestureKey, openDoubleTap]);
 
   useEffect(() => () => {
     activeGestureCleanupRef.current?.();
-    if (pendingDoubleTapTimerRef.current !== undefined) {
-      window.clearTimeout(pendingDoubleTapTimerRef.current);
-    }
   }, []);
 
   return { onClickCapture, onDoubleClickCapture, onPointerDown };

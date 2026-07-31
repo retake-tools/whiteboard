@@ -34,21 +34,17 @@ assert.match(
   /const onNodeClick[\s\S]*?event\.detail > 1[\s\S]*?scheduleTerminalImageStatusDismiss/,
 );
 assert.match(
-  canvasSource,
-  /lastImageNodeClickRef[\s\S]*?const onNodeClick[\s\S]*?previousClick\?\.blockId === node\.id[\s\S]*?event\.timeStamp - previousClick\.clickedAt <= imageNodeDoubleClickDelayMs[\s\S]*?imageNodeDoubleClickPositionTolerancePx[\s\S]*?retake:open-execution-inspector/,
-);
-assert.match(
   blockNodeSource,
   /useImagePreviewDoubleTap\(\{[\s\S]*?gestureKey: id[\s\S]*?dispatchOpenExecutionInspector\(id\)[\s\S]*?onClickCapture=\{blockType === 'image' \? \(event\)[\s\S]*?imagePreviewDoubleTap\.onClickCapture\(event\)[\s\S]*?onDoubleClickCapture=\{blockType === 'image' \? \(event\)[\s\S]*?imagePreviewDoubleTap\.onDoubleClickCapture\(event\)[\s\S]*?onPointerDownCapture=\{blockType === 'image' \? \(event\)[\s\S]*?imagePreviewDoubleTap\.onPointerDown\(event\)/,
 );
 assert.match(imagePreviewDoubleTapSource, /window\.addEventListener\('pointerup', handlePointerUp, true\)/);
 assert.match(imagePreviewDoubleTapSource, /window\.addEventListener\('pointermove', handlePointerMove, true\)/);
 assert.match(imagePreviewDoubleTapSource, /completedTapsByGestureKey[\s\S]*?onClickCapture/);
-assert.match(imagePreviewDoubleTapSource, /doubleTapOpenDelayMs = 40/);
 assert.match(
   imagePreviewDoubleTapSource,
-  /const scheduleDoubleTap[\s\S]*?window\.setTimeout[\s\S]*?onDoubleTapRef\.current\(\)/,
+  /const previousTap = completedTapsByGestureKey\.get\(gestureKey\)[\s\S]*?matchesPreviousTap\(previousTap, event\)[\s\S]*?openDoubleTap\(event\.timeStamp\)[\s\S]*?event\.preventDefault\(\)/,
 );
+assert.match(imagePreviewDoubleTapSource, /suppressedClicksUntilByGestureKey/);
 assert.match(
   executionInspectorSource,
   /className=\{`execution-inspector-backdrop[\s\S]*?onPointerDown=\{\(event\) => \{\s*if \(event\.target === event\.currentTarget\) onClose\(\);/,
