@@ -85,6 +85,11 @@ import {
   subscribeExecutionProviderSettings,
 } from '../core/executionProviderPreferences';
 import { listAvailableComposerModes } from '../core/composerContributions';
+import { withReferenceSlot } from '../core/creativeRequestCompiler';
+import {
+  compileImageComposerSubmission,
+  compileVideoComposerSubmission,
+} from './creativeComposerSubmission';
 
 interface SkillQuickInputComposerProps {
   agentDisabled?: boolean;
@@ -128,6 +133,7 @@ export function SkillQuickInputComposer({
     generationParameters,
     imageConnectionId,
     imageGenerationParams,
+    imageGenerationParamsTouched,
     imageReferenceRoles,
     inlineValuesBySlot,
     instruction,
@@ -152,6 +158,7 @@ export function SkillQuickInputComposer({
   } = useUnifiedComposerDraft();
   const [picker, setPicker] = useState<PickerState>();
   const [isImportingAttachments, setIsImportingAttachments] = useState(false);
+  const [isCompilingRequest, setIsCompilingRequest] = useState(false);
   const [submitError, setSubmitError] = useState<string>();
   const registryRevision = useSyncExternalStore(
     subscribeInstalledRuntimeRegistry,
@@ -340,10 +347,19 @@ export function SkillQuickInputComposer({
 
   async function importAttachments(files: File[]): Promise<void> {
     if (!onAttachFiles || files.length === 0 || isImportingAttachments) return;
+    if (
+      composerMode !== 'agent'
+      && files.some((file) => !file.type.startsWith('image/'))
+    ) {
+      setSubmitError(t('skillComposer.imageAttachmentOnly'));
+      return;
+    }
     setIsImportingAttachments(true);
     setSubmitError(undefined);
     try {
-      const importedMentions = await onAttachFiles(files);
+      const importedMentions = (await onAttachFiles(files)).map((mention) => (
+        composerMode === 'agent' ? mention : withReferenceSlot(mention)
+      ));
       setMentions((current) => mergeMentions(current, importedMentions));
       inputRef.current?.focus();
     } catch (error) {
@@ -394,42 +410,64 @@ export function SkillQuickInputComposer({
     if (picker) setPicker(undefined);
   }
 
-  function submit(event: FormEvent): void {
+  async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
     if (composerMode === 'image') {
-      if (!canSubmit || !imageConnectionId || !onCreateImageDraft) return;
+      if (
+        !canSubmit
+        || isCompilingRequest
+        || !imageConnectionId
+        || !onCreateImageDraft
+      ) return;
+      setIsCompilingRequest(true);
       try {
-        onCreateImageDraft({
+        onCreateImageDraft(await compileImageComposerSubmission({
           connectionId: imageConnectionId,
+          explicitRoles: imageReferenceRoles,
           generationParams: imageGenerationParams,
+          generationParamsTouched: imageGenerationParamsTouched,
           instruction: instruction.trim(),
-          references: mentions.map((mention) => {
-            const mentionId = packageComposerMentionId(mention);
-            return {
-              mention,
-              role: imageReferenceRoles[mentionId] ?? 'general_reference',
-            };
-          }),
-        });
+          mentions,
+          snapshot,
+        }));
         resetImageSubmission();
         setPicker(undefined);
         setSubmitError(undefined);
-      } catch {
-        setSubmitError(t('skillComposer.invalidInput'));
+      } catch (error) {
+        setSubmitError(
+          error instanceof Error ? error.message : t('skillComposer.invalidInput'),
+        );
+      } finally {
+        setIsCompilingRequest(false);
       }
       return;
     }
     if (composerMode === 'video') {
-      if (!canSubmit || !videoConnectionId || !onCreateVideoDraft) return;
-      onCreateVideoDraft({
-        ...videoParameters,
-        connectionId: videoConnectionId,
-        instruction: instruction.trim(),
-        references: mentions,
-      });
-      resetImageSubmission();
-      setPicker(undefined);
-      setSubmitError(undefined);
+      if (
+        !canSubmit
+        || isCompilingRequest
+        || !videoConnectionId
+        || !onCreateVideoDraft
+      ) return;
+      setIsCompilingRequest(true);
+      try {
+        onCreateVideoDraft(await compileVideoComposerSubmission({
+          ...videoParameters,
+          connectionId: videoConnectionId,
+          instruction: instruction.trim(),
+          mentions,
+          snapshot,
+        }));
+        resetImageSubmission();
+        setPicker(undefined);
+        setSubmitError(undefined);
+      } catch (error) {
+        setSubmitError(
+          error instanceof Error ? error.message : t('skillComposer.invalidInput'),
+        );
+      } finally {
+        setIsCompilingRequest(false);
+      }
       return;
     }
     if (mode === 'agent') {
@@ -514,7 +552,9 @@ export function SkillQuickInputComposer({
           className="hidden-file-input"
           type="file"
           multiple
-          accept="image/*,video/*,audio/*,.txt,.md,.markdown,.pdf,.doc,.docx"
+          accept={composerMode === 'agent'
+            ? 'image/*,video/*,audio/*,.txt,.md,.markdown,.pdf,.doc,.docx'
+            : 'image/*'}
           onChange={(event) => {
             const files = [...(event.currentTarget.files ?? [])];
             event.currentTarget.value = '';
@@ -798,7 +838,7 @@ export function SkillQuickInputComposer({
               ) : null}
             </button>
           ) : null}
-          {composerMode === 'agent' && onAttachFiles ? (
+          {onAttachFiles ? (
             <button
               type="button"
               className="skill-composer-attachment-trigger"
@@ -822,7 +862,7 @@ export function SkillQuickInputComposer({
           <button
             type="submit"
             className="skill-composer-submit"
-            disabled={!canSubmit}
+            disabled={!canSubmit || isCompilingRequest}
             aria-label={t(mode === 'agent'
               && composerMode === 'agent'
               ? 'agentWorkspace.send'
@@ -832,7 +872,9 @@ export function SkillQuickInputComposer({
                   ? 'skillComposer.create'
                   : 'skillComposer.planWithAgent')}
           >
-            <ArrowUp size={15} strokeWidth={1.75} />
+            {isCompilingRequest
+              ? <LoaderCircle className="is-spinning" size={15} strokeWidth={1.75} />
+              : <ArrowUp size={15} strokeWidth={1.75} />}
           </button>
         </div>
       </form>
@@ -1096,6 +1138,7 @@ function imageReferenceRoleLabel(
     general_reference: 'skillComposer.referenceRoleGeneral',
     object_reference: 'skillComposer.referenceRoleObject',
     pose_reference: 'skillComposer.referenceRolePose',
+    source: 'skillComposer.referenceRoleSource',
     style_reference: 'skillComposer.referenceRoleStyle',
   };
   return t(keys[role]);

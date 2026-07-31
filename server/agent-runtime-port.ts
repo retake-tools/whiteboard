@@ -79,7 +79,7 @@ export function agentRuntimeDecisionSchemaFor(
           blockId: { type: 'string' },
           inputRole: {
             type: 'string',
-            enum: ['source', ...imageComposerReferenceRoles],
+            enum: imageComposerReferenceRoles,
           },
         },
       },

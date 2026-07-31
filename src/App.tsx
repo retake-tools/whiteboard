@@ -23,6 +23,7 @@ import {
   videoProfileForConnector,
 } from './core/blockFactory';
 import { createId, nowIso } from './core/id';
+import type { BlockRecord, BoardSnapshot } from './core/types';
 import { executionConnection } from './core/executionProviderPreferences';
 import { blockLockedByGroup, groupMediaItems } from './core/grouping';
 import { loadUiPreferences } from './core/uiPreferences';
@@ -654,6 +655,7 @@ function ReadyApp({
       block.position = centeredBlockPosition(block.size);
       block.data = {
         title: t('block.video.title'),
+        creativeRequest: structuredClone(input.creativeRequest),
         executionDraft: {
           schemaVersion: 1,
           capabilityId: 'video.generate',
@@ -670,16 +672,24 @@ function ReadyApp({
       };
       block.updatedAt = nowIso();
       current.blocks.push(block);
-      for (const reference of input.references) {
-        if (reference.kind !== 'block') continue;
-        const source = current.blocks.find(
-          (candidate) =>
-            candidate.blockId === reference.blockId
-            && candidate.type === 'image',
-        );
+      for (const [index, reference] of input.references.entries()) {
+        const mention = reference.mention;
+        const source = mention.kind === 'block'
+          ? current.blocks.find(
+              (candidate) =>
+                candidate.blockId === mention.blockId
+                && candidate.type === 'image',
+            )
+          : materializeVideoReferenceAsset(
+              current,
+              mention.assetId,
+              block,
+              index,
+            );
         if (!source) continue;
         current.edges.push({
           edgeId: createId('edge'),
+          inputRole: reference.role,
           kind: 'execution_input',
           sourceBlockId: source.blockId,
           targetBlockId: block.blockId,
@@ -1029,6 +1039,35 @@ function nextAnimationFrame(): Promise<void> {
   return new Promise((resolve) => {
     window.requestAnimationFrame(() => resolve());
   });
+}
+
+function materializeVideoReferenceAsset(
+  snapshot: BoardSnapshot,
+  assetId: string,
+  targetBlock: BlockRecord,
+  index: number,
+): BlockRecord | undefined {
+  const asset = snapshot.assets.find(
+    (candidate) =>
+      candidate.assetId === assetId
+      && candidate.projectId === snapshot.project.projectId
+      && candidate.kind === 'image',
+  );
+  if (!asset) return undefined;
+  const block = createBlockRecord(snapshot, 'image');
+  block.position = {
+    x: targetBlock.position.x - block.size.width - 80,
+    y: targetBlock.position.y + index * (block.size.height + 28),
+  };
+  block.data = {
+    ...block.data,
+    assetId: asset.assetId,
+    composerSourceAssetId: asset.assetId,
+    previewUrl: asset.previewUrl,
+    title: `Video reference ${index + 1}`,
+  };
+  snapshot.blocks.push(block);
+  return block;
 }
 
 function WorkspaceLoadState({

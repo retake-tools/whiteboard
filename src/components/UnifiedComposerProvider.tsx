@@ -26,6 +26,10 @@ import {
   type ImageComposerReferenceRole,
 } from '../core/imageComposer';
 import type { ImageGenerationParams } from '../core/imageOperations';
+import type {
+  CompiledCreativeRequest,
+  CreativeRequestReferenceRole,
+} from '../core/creativeRequestCompiler';
 
 export interface ComposerReferenceSetting {
   purpose: string;
@@ -51,10 +55,25 @@ export interface AgentComposerPreferences {
 }
 
 export interface UnifiedComposerImageDraftInput {
+  capabilityId: 'image.image_to_image' | 'image.text_to_image';
   connectionId: string;
+  creativeRequest: CompiledCreativeRequest;
   generationParams: ImageGenerationParams;
   instruction: string;
   references: ImageComposerReference[];
+}
+
+export interface UnifiedComposerVideoReference {
+  mention: PackageComposerMention;
+  purpose?: string;
+  role: Extract<
+    CreativeRequestReferenceRole,
+    | 'character_reference'
+    | 'environment_reference'
+    | 'first_frame'
+    | 'general_reference'
+    | 'last_frame'
+  >;
 }
 
 export interface UnifiedComposerVideoDraftInput {
@@ -63,7 +82,8 @@ export interface UnifiedComposerVideoDraftInput {
   durationSeconds: number;
   instruction: string;
   outputCount: number;
-  references: PackageComposerMention[];
+  creativeRequest: CompiledCreativeRequest;
+  references: UnifiedComposerVideoReference[];
 }
 
 export interface WorkflowContinuationComposerHandoff {
@@ -80,6 +100,7 @@ export interface UnifiedComposerDraftController {
   generationParameters: GenerationPreparationParameters;
   imageConnectionId?: string;
   imageGenerationParams: ImageGenerationParams;
+  imageGenerationParamsTouched: boolean;
   imageReferenceRoles: Record<string, ImageComposerReferenceRole>;
   inlineValuesBySlot: Record<string, string>;
   instruction: string;
@@ -94,6 +115,7 @@ export interface UnifiedComposerDraftController {
   setGenerationParameters: Dispatch<SetStateAction<GenerationPreparationParameters>>;
   setImageConnectionId: Dispatch<SetStateAction<string | undefined>>;
   setImageGenerationParams: Dispatch<SetStateAction<ImageGenerationParams>>;
+  setImageGenerationParamsTouched: Dispatch<SetStateAction<boolean>>;
   setImageReferenceRoles: Dispatch<SetStateAction<Record<string, ImageComposerReferenceRole>>>;
   setInlineValuesBySlot: Dispatch<SetStateAction<Record<string, string>>>;
   setInstruction: Dispatch<SetStateAction<string>>;
@@ -139,6 +161,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
   const [imageGenerationParams, setImageGenerationParams] = useState<ImageGenerationParams>(
     defaultImageComposerGenerationParams,
   );
+  const [imageGenerationParamsTouched, setImageGenerationParamsTouched] = useState(false);
   const [imageReferenceRoles, setImageReferenceRoles] = useState<Record<string, ImageComposerReferenceRole>>({});
   const [videoConnectionId, setVideoConnectionId] = useState<string>();
   const [videoParameters, setVideoParameters] = useState({
@@ -157,6 +180,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     setReferenceSettings({});
     setMentions([]);
     setImageReferenceRoles({});
+    setImageGenerationParamsTouched(false);
   }, []);
 
   const resetImageSubmission = useCallback((): void => {
@@ -195,6 +219,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     setReferenceSettings({});
     setMentions([]);
     setImageReferenceRoles({});
+    setImageGenerationParamsTouched(false);
   }, []);
 
   const startWorkflowContinuation = useCallback((
@@ -210,6 +235,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     setReferenceSettings({});
     setMentions(structuredClone(handoff.mentions));
     setImageReferenceRoles({});
+    setImageGenerationParamsTouched(false);
   }, []);
 
   const isDirty = Boolean(
@@ -228,6 +254,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     generationParameters,
     imageConnectionId,
     imageGenerationParams,
+    imageGenerationParamsTouched,
     imageReferenceRoles,
     inlineValuesBySlot,
     instruction,
@@ -242,6 +269,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     setGenerationParameters,
     setImageConnectionId,
     setImageGenerationParams,
+    setImageGenerationParamsTouched,
     setImageReferenceRoles,
     setInlineValuesBySlot,
     setInstruction,
@@ -264,6 +292,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     generationParameters,
     imageConnectionId,
     imageGenerationParams,
+    imageGenerationParamsTouched,
     imageReferenceRoles,
     inlineValuesBySlot,
     instruction,

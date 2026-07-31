@@ -436,6 +436,7 @@ export type TranslationKey =
   | 'skillComposer.addMention'
   | 'skillComposer.addAttachment'
   | 'skillComposer.attachmentFailed'
+  | 'skillComposer.imageAttachmentOnly'
   | 'skillComposer.auto'
   | 'skillComposer.autoPreferences'
   | 'skillComposer.outputType'
@@ -464,6 +465,7 @@ export type TranslationKey =
   | 'skillComposer.imageCount'
   | 'skillComposer.imageReference'
   | 'skillComposer.referenceRoleGeneral'
+  | 'skillComposer.referenceRoleSource'
   | 'skillComposer.referenceRoleCharacter'
   | 'skillComposer.referenceRoleStyle'
   | 'skillComposer.referenceRoleComposition'
@@ -1562,6 +1564,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.addMention': 'Reference block or asset',
     'skillComposer.addAttachment': 'Add attachment',
     'skillComposer.attachmentFailed': 'The attachment could not be imported.',
+    'skillComposer.imageAttachmentOnly': 'Direct image and video creation only accepts image attachments.',
     'skillComposer.auto': 'Auto',
     'skillComposer.autoPreferences': 'Auto',
     'skillComposer.outputType': 'Output type',
@@ -1590,6 +1593,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.imageCount': 'Count',
     'skillComposer.imageReference': 'Image reference',
     'skillComposer.referenceRoleGeneral': 'General',
+    'skillComposer.referenceRoleSource': 'Source',
     'skillComposer.referenceRoleCharacter': 'Character',
     'skillComposer.referenceRoleStyle': 'Style',
     'skillComposer.referenceRoleComposition': 'Composition',
@@ -2683,6 +2687,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.addMention': '引用 Block 或 Asset',
     'skillComposer.addAttachment': '添加附件',
     'skillComposer.attachmentFailed': '附件导入失败。',
+    'skillComposer.imageAttachmentOnly': '图片和视频直接创作目前只接受图片附件。',
     'skillComposer.auto': '自动',
     'skillComposer.autoPreferences': '自动偏好',
     'skillComposer.outputType': '输出类型',
@@ -2711,6 +2716,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.imageCount': '数量',
     'skillComposer.imageReference': '图片参考',
     'skillComposer.referenceRoleGeneral': '通用',
+    'skillComposer.referenceRoleSource': '原图',
     'skillComposer.referenceRoleCharacter': '角色',
     'skillComposer.referenceRoleStyle': '风格',
     'skillComposer.referenceRoleComposition': '构图',

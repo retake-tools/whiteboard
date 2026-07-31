@@ -35,6 +35,7 @@ export function ImageComposerControls({ projectId }: { projectId: string }): Rea
     imageGenerationParams,
     setImageConnectionId,
     setImageGenerationParams,
+    setImageGenerationParamsTouched,
   } = useUnifiedComposerDraft();
   const settings = useSyncExternalStore(
     subscribeExecutionProviderSettings,
@@ -85,6 +86,7 @@ export function ImageComposerControls({ projectId }: { projectId: string }): Rea
       variationCount: number;
     }>,
   ): void {
+    setImageGenerationParamsTouched(true);
     setImageGenerationParams((current) => imageComposerGenerationParams({
       ...current,
       ...patch,

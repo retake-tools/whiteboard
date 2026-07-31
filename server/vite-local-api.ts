@@ -58,6 +58,7 @@ import { installExecutionEventStream } from './execution-events';
 import { startCodexAppServerImageGeneration } from './codex-app-server-image-service';
 import { listCodexAppServerModels } from './codex-app-server-client';
 import { runAgentRuntimeTurn } from './agent-runtime-port';
+import { compileCreativeRequest } from './creative-request-compiler-service';
 import { materializeWorkflowOutputArtifacts } from './workflow-output-artifact-service';
 import { reconcileAgentArtifactTargets } from './agent-artifact-target-service';
 import { reconcileWorkflowArtifactGates } from './workflow-gate-artifact-service';
@@ -478,6 +479,29 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               });
             }
             res.end();
+            return;
+          }
+
+          if (method === 'POST' && url.pathname === '/creative-request/compile') {
+            const body = (await readJson(req)) as Parameters<typeof compileCreativeRequest>[0];
+            if (
+              !body.boardId
+              || !body.projectId
+              || !body.instruction
+              || (body.mediaKind !== 'image' && body.mediaKind !== 'video')
+              || !Array.isArray(body.references)
+            ) {
+              sendJson(
+                res,
+                { error: 'projectId, boardId, mediaKind, instruction, and references are required' },
+                400,
+              );
+              return;
+            }
+            sendJson(res, await compileCreativeRequest({
+              ...body,
+              explicitParameters: body.explicitParameters ?? {},
+            }));
             return;
           }
 

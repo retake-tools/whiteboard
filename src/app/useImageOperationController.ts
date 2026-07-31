@@ -38,6 +38,7 @@ import {
 } from '../core/executionProviderPreferences';
 import type { ExecutionConnectionSummary, ExecutionProviderSettingsSnapshot } from '../core/executionProviders';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
+import type { CompiledCreativeRequest } from '../core/creativeRequestCompiler';
 import { startVolcengineArkImage } from '../core/volcengineArkImageClient';
 import { startCodexAppServerImage } from '../core/codexAppServerImageClient';
 import type { OperationToast, PromptPreview } from '../components/OperationFeedback';
@@ -409,7 +410,9 @@ export function useImageOperationController(options: ImageOperationControllerOpt
   }
 
   function createTextToImageDraftOperation(input: {
+    capabilityId?: 'image.image_to_image' | 'image.text_to_image';
     connectionId?: string;
+    creativeRequest?: CompiledCreativeRequest;
     generationParams?: ImageGenerationParams;
     instruction?: string;
     references?: ImageComposerReference[];
@@ -418,17 +421,25 @@ export function useImageOperationController(options: ImageOperationControllerOpt
   } = {}): void {
     let selectedWorkflowIds: string[] = [];
     const nextSnapshot = updateSnapshot((current) => {
-      const selectedSlot = input.slotBlock ?? (
-        input.reuseSelectedImageSlot
-        && selectedBlock?.type === 'image'
-        && !selectedBlock.data.assetId
-        && !selectedBlock.data.operationBlockId
-        && !selectedBlock.data.sourceExecutionId
-          ? selectedBlock
-          : undefined
-      );
+      const selectedSlot = input.capabilityId !== 'image.image_to_image'
+        ? input.slotBlock ?? (
+            input.reuseSelectedImageSlot
+            && selectedBlock?.type === 'image'
+            && !selectedBlock.data.assetId
+            && !selectedBlock.data.operationBlockId
+            && !selectedBlock.data.sourceExecutionId
+              ? selectedBlock
+              : undefined
+          )
+        : undefined;
       const connectionId = input.connectionId
-        ?? preferredImageConnection(current, 'image.text_to_image');
+        ?? preferredImageConnection(
+          current,
+          input.capabilityId ?? 'image.text_to_image',
+        );
+      const composerOperation = input.capabilityId === 'image.image_to_image'
+        ? 'quick_edit'
+        : 'generate_image';
       const result = input.instruction === undefined
         ? {
             ...createDraftTextToImageOperation(current, {
@@ -442,14 +453,16 @@ export function useImageOperationController(options: ImageOperationControllerOpt
             referenceBlockIds: [],
           }
         : createImageComposerDraft(current, {
+            capabilityId: input.capabilityId,
             connectionId,
+            creativeRequest: input.creativeRequest,
             generationParams: input.generationParams,
             instruction: input.instruction,
-            operationTitle: imageOperationTitle('generate_image', t),
+            operationTitle: imageOperationTitle(composerOperation, t),
             references: input.references ?? [],
             slotBlockId: selectedSlot?.blockId,
             textBlockTitle: t('operationToolbar.prompt'),
-            textBlockPlaceholder: imageOperationDefaultPrompt('generate_image', t),
+            textBlockPlaceholder: imageOperationDefaultPrompt(composerOperation, t),
           });
       result.operationBlock.data.connectionId = connectionId;
       selectedWorkflowIds = selectedSlot

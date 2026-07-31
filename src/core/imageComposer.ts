@@ -2,6 +2,7 @@ import { createBlockRecord, touchBoard } from './blockFactory';
 import { expandGroupToContents } from './grouping';
 import { createId } from './id';
 import {
+  createDraftImageToImageOperation,
   createDraftTextToImageOperation,
   type ImageGenerationParams,
 } from './imageOperations';
@@ -15,6 +16,7 @@ import type {
   BoardSnapshot,
   ExecutionInputRole,
 } from './types';
+import { imageCreativeRequestRoles } from './creativeRequestCompiler';
 
 export type ComposerMode = 'agent' | 'image' | 'video';
 
@@ -26,6 +28,7 @@ export type ImageComposerReferenceRole = Extract<
   | 'general_reference'
   | 'object_reference'
   | 'pose_reference'
+  | 'source'
   | 'style_reference'
 >;
 
@@ -35,7 +38,9 @@ export interface ImageComposerReference {
 }
 
 export interface ImageComposerDraftInput {
+  capabilityId?: 'image.image_to_image' | 'image.text_to_image';
   connectionId: string;
+  creativeRequest?: unknown;
   generationParams?: ImageGenerationParams;
   instruction: string;
   operationTitle: string;
@@ -52,13 +57,11 @@ export interface ImageComposerDraftResult {
 }
 
 export const imageComposerReferenceRoles: ImageComposerReferenceRole[] = [
-  'general_reference',
-  'character_reference',
-  'style_reference',
-  'composition_reference',
-  'pose_reference',
-  'object_reference',
-  'environment_reference',
+  ...imageCreativeRequestRoles.filter(
+    (role): role is ImageComposerReferenceRole => (
+      role !== 'first_frame' && role !== 'last_frame'
+    ),
+  ),
 ];
 
 export const imageComposerAspectRatios = [
@@ -177,6 +180,14 @@ export function createImageComposerDraft(
       throw new Error('Image Composer reference role is invalid.');
     }
   }
+  const capabilityId = input.capabilityId ?? 'image.text_to_image';
+  const sourceReferences = input.references.filter(({ role }) => role === 'source');
+  if (
+    (capabilityId === 'image.image_to_image' && sourceReferences.length !== 1)
+    || (capabilityId === 'image.text_to_image' && sourceReferences.length !== 0)
+  ) {
+    throw new Error('Image Composer source role does not match the Capability.');
+  }
   const outputSlot = input.slotBlockId
     ? snapshot.blocks.find((block) => block.blockId === input.slotBlockId)
     : undefined;
@@ -186,19 +197,45 @@ export function createImageComposerDraft(
   ) {
     throw new Error('Image Composer output slot is invalid.');
   }
+  if (capabilityId === 'image.image_to_image' && outputSlot) {
+    throw new Error('Image-to-image Composer cannot reuse an empty output slot.');
+  }
 
-  const result = createDraftTextToImageOperation(snapshot, {
-    generationParams: imageComposerGenerationParams(input.generationParams),
-    operationTitle: input.operationTitle,
-    slotBlockId: input.slotBlockId,
-    textBlockTitle: input.textBlockTitle,
-    textBlockBody: instruction,
-    textBlockPlaceholder: input.textBlockPlaceholder,
-  });
+  const sourceBlock = sourceReferences[0]
+    ? resolveSourceReferenceBlock(snapshot, sourceReferences[0].mention)
+    : undefined;
+  const generationParams = imageComposerDraftGenerationParams(
+    input.generationParams,
+    capabilityId,
+  );
+  const result = capabilityId === 'image.image_to_image' && sourceBlock
+    ? createDraftImageToImageOperation(snapshot, {
+        capabilityId,
+        generationParams,
+        operation: 'quick_edit',
+        operationTitle: input.operationTitle,
+        sourceBlockId: sourceBlock.blockId,
+        textBlockTitle: input.textBlockTitle,
+        textBlockBody: instruction,
+        textBlockPlaceholder: input.textBlockPlaceholder,
+      })
+    : createDraftTextToImageOperation(snapshot, {
+        generationParams,
+        operationTitle: input.operationTitle,
+        slotBlockId: input.slotBlockId,
+        textBlockTitle: input.textBlockTitle,
+        textBlockBody: instruction,
+        textBlockPlaceholder: input.textBlockPlaceholder,
+      });
   result.operationBlock.data.connectionId = input.connectionId;
+  if (input.creativeRequest) {
+    result.operationBlock.data.creativeRequest = structuredClone(input.creativeRequest);
+  }
 
   const referenceBlockIds = input.references.map((reference, index) => {
-    const block = resolveReferenceBlock(snapshot, result.operationBlock, reference.mention, index);
+    const block = reference.role === 'source' && sourceBlock
+      ? sourceBlock
+      : resolveReferenceBlock(snapshot, result.operationBlock, reference.mention, index);
     ensureImageComposerEdge(snapshot, block.blockId, result.operationBlock.blockId, 'execution_input', reference.role);
     return block.blockId;
   });
@@ -213,6 +250,59 @@ export function createImageComposerDraft(
     ...result,
     referenceBlockIds,
   };
+}
+
+function imageComposerDraftGenerationParams(
+  input: ImageGenerationParams | undefined,
+  capabilityId: 'image.image_to_image' | 'image.text_to_image',
+): ImageGenerationParams {
+  if (
+    capabilityId === 'image.image_to_image'
+    && input?.aspectRatioPreset === 'source'
+  ) {
+    const normalized = imageComposerGenerationParams({
+      targetResolution: input.targetResolution,
+      variationCount: input.variationCount,
+    });
+    return {
+      aspectRatioPreset: 'source',
+      targetResolution: normalized.targetResolution,
+      variationCount: normalized.variationCount,
+    };
+  }
+  return imageComposerGenerationParams(input);
+}
+
+function resolveSourceReferenceBlock(
+  snapshot: BoardSnapshot,
+  mention: PackageComposerMention,
+): BlockRecord {
+  if (mention.kind === 'block') {
+    const block = snapshot.blocks.find((candidate) => candidate.blockId === mention.blockId);
+    if (block?.type !== 'image' || typeof block.data.assetId !== 'string') {
+      throw new Error(`Image Composer source Block is invalid: ${mention.blockId}`);
+    }
+    return block;
+  }
+  const asset = snapshot.assets.find((candidate) => candidate.assetId === mention.assetId);
+  if (!asset || asset.projectId !== snapshot.project.projectId || asset.kind !== 'image') {
+    throw new Error(`Image Composer source Asset is invalid: ${mention.assetId}`);
+  }
+  const block = createBlockRecord(snapshot, 'image');
+  const right = snapshot.blocks.reduce(
+    (value, candidate) => Math.max(value, candidate.position.x + candidate.size.width),
+    0,
+  );
+  block.position = { x: right + 160, y: 220 };
+  block.data = {
+    ...block.data,
+    title: 'Source image',
+    assetId: asset.assetId,
+    composerSourceAssetId: asset.assetId,
+    previewUrl: asset.previewUrl,
+  };
+  snapshot.blocks.push(block);
+  return block;
 }
 
 function validateReferenceMention(

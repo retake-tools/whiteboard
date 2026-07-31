@@ -29,9 +29,11 @@ assert.match(controlsSource, /initialConnectionId: 'codex-app-server'/);
 assert.match(controlsSource, /imageComposerAspectRatios/);
 assert.match(controlsSource, /imageComposerResolutions/);
 assert.match(controlsSource, /image-composer-popover is-parameters/);
+assert.match(controlsSource, /setImageGenerationParamsTouched\(true\)/);
 assert.doesNotMatch(controlsSource, /<select/);
 assert.match(providerSource, /composerMode/);
 assert.match(providerSource, /imageReferenceRoles/);
+assert.match(providerSource, /imageGenerationParamsTouched/);
 
 const snapshot = await emptySnapshot();
 const firstAsset = imageAsset(snapshot, 'asset_image_composer_block');
@@ -135,7 +137,7 @@ assert.throws(() => createImageComposerDraft(invalidSnapshot, {
 }), /reference is invalid/);
 assert.equal(invalidSnapshot.blocks.length, initialBlockCount);
 
-const invalidRole = 'source' as ImageComposerReferenceRole;
+const invalidRole = 'first_frame' as ImageComposerReferenceRole;
 const roleSnapshot = await emptySnapshot();
 const roleAsset = imageAsset(roleSnapshot, 'asset_invalid_role');
 roleSnapshot.assets.push(roleAsset);
@@ -152,9 +154,64 @@ assert.throws(() => createImageComposerDraft(roleSnapshot, {
 }), /role is invalid/);
 assert.equal(roleSnapshot.blocks.length, 0);
 
+const imageToImageSnapshot = await emptySnapshot();
+const sourceAsset = imageAsset(imageToImageSnapshot, 'asset_image_composer_source');
+const styleAsset = imageAsset(imageToImageSnapshot, 'asset_image_composer_style');
+imageToImageSnapshot.assets.push(sourceAsset, styleAsset);
+const sourceBlock = createBlockRecord(imageToImageSnapshot, 'image');
+sourceBlock.blockId = 'block_image_composer_source';
+sourceBlock.data = {
+  ...sourceBlock.data,
+  assetId: sourceAsset.assetId,
+  previewUrl: sourceAsset.previewUrl,
+  title: '原图',
+};
+imageToImageSnapshot.blocks.push(sourceBlock);
+const imageToImageResult = createImageComposerDraft(imageToImageSnapshot, {
+  capabilityId: 'image.image_to_image',
+  connectionId: 'codex-app-server',
+  generationParams: {
+    aspectRatioPreset: 'source',
+    targetResolution: '2K',
+    variationCount: 1,
+  },
+  instruction: '保持构图，把窗外改成月色。',
+  operationTitle: '编辑图片',
+  references: [
+    {
+      mention: { kind: 'block', blockId: sourceBlock.blockId, slotId: 'references' },
+      role: 'source',
+    },
+    {
+      mention: { kind: 'asset', assetId: styleAsset.assetId, slotId: 'references' },
+      role: 'style_reference',
+    },
+  ],
+  textBlockTitle: '修改要求',
+});
+assert.equal(imageToImageResult.operationBlock.data.capabilityId, 'image.image_to_image');
+assert.equal(imageToImageResult.operationBlock.data.operationMode, 'image_to_image');
+assert.equal(imageToImageResult.operationBlock.data.connectionId, 'codex-app-server');
+assert.deepEqual(imageToImageResult.operationBlock.data.generationParams, {
+  aspectRatioPreset: 'source',
+  targetAspectRatio: 1,
+  targetResolution: '2K',
+  variationCount: 1,
+});
+assert.ok(imageToImageSnapshot.edges.some((edge) => (
+  edge.sourceBlockId === sourceBlock.blockId
+  && edge.targetBlockId === imageToImageResult.operationBlock.blockId
+  && edge.inputRole === 'source'
+)));
+assert.ok(imageToImageSnapshot.edges.some((edge) => (
+  edge.targetBlockId === imageToImageResult.operationBlock.blockId
+  && edge.inputRole === 'style_reference'
+)));
+
 console.log(JSON.stringify({
   ok: true,
   imageModeEnabled: true,
+  imageToImageCompilation: true,
   typedImageReferences: true,
   explicitConnection: true,
   normalizedGenerationParameters: true,
