@@ -76,10 +76,21 @@ export function ExecutionInspector({
       : [],
     [selectedBlock?.blockId, selectedBlock?.type, snapshot],
   );
-  const activeImageBlock = chainImages.find((image) => image.block.blockId === activeImageBlockId)?.block;
+  const activeImageBlock = snapshot.blocks.find(
+    (block) => block.type === 'image' && block.blockId === activeImageBlockId,
+  );
   const detailBlock = activeImageBlock ?? selectedBlock;
   const context = detailBlock ? getExecutionDetailContextForBlock(snapshot, detailBlock) : undefined;
-  const isOpen = Boolean(detailBlock && context);
+  const detailAssetId =
+    detailBlock?.type === 'image' && typeof detailBlock.data.assetId === 'string'
+      ? detailBlock.data.assetId
+      : undefined;
+  const detailImageAsset = detailAssetId
+    ? snapshot.assets.find(
+        (asset) => asset.kind === 'image' && asset.assetId === detailAssetId,
+      )
+    : undefined;
+  const isOpen = Boolean(detailBlock && (context || detailImageAsset));
   const outputImages = context ? executionOutputImages(snapshot, context.execution.outputBlockIds) : [];
   const outputDocuments = context ? executionOutputDocuments(snapshot, context.execution.outputBlockIds) : [];
   const selectedDocument = detailBlock?.type === 'document'
@@ -89,15 +100,35 @@ export function ExecutionInspector({
     asset: inputImage.asset,
     title: inputImage.inputRole ? t(inputRoleDefinition(inputImage.inputRole).titleKey) : t('inspector.inputAssets'),
   })) ?? [];
-  const viewerImages: ViewerImage[] = chainImages.length
-    ? chainImages.map((image) => ({
-        asset: image.asset,
-        blockId: image.block.blockId,
-        title: image.block.data.title,
-      }))
+  const connectedImages: ViewerImage[] = chainImages.map((image) => ({
+    asset: image.asset,
+    blockId: image.block.blockId,
+    title: image.block.data.title,
+  }));
+  if (
+    detailBlock?.type === 'image'
+    && detailImageAsset
+    && !connectedImages.some((image) => image.blockId === detailBlock.blockId)
+  ) {
+    connectedImages.unshift({
+      asset: detailImageAsset,
+      blockId: detailBlock.blockId,
+      title: detailBlock.data.title,
+    });
+  }
+  const viewerImages: ViewerImage[] = connectedImages.length
+    ? connectedImages
     : outputImages.length
       ? outputImages
-      : fallbackImages;
+      : fallbackImages.length
+        ? fallbackImages
+        : detailBlock?.type === 'image' && detailImageAsset
+          ? [{
+              asset: detailImageAsset,
+              blockId: detailBlock.blockId,
+              title: detailBlock.data.title,
+            }]
+          : [];
   const selectedViewerImage = viewerImages.find((image) => image.asset.assetId === selectedAssetId);
   const selectedSourceImage = fallbackImages.find((image) => image.asset.assetId === selectedAssetId);
   const selectedImage =
@@ -157,7 +188,7 @@ export function ExecutionInspector({
     return () => window.removeEventListener('keydown', onViewerKeyDown, { capture: true });
   }, [isOpen, onClose, selectedViewerIndex, viewerImages]);
 
-  if (!detailBlock || !context) return null;
+  if (!detailBlock || (!context && !detailImageAsset)) return null;
 
   return (
     <div
@@ -169,12 +200,20 @@ export function ExecutionInspector({
         className="execution-inspector"
         role="dialog"
         aria-modal={!reserveAgentWorkspace}
-        aria-label={t(selectedDocument ? 'document.reviewWorkspace' : 'inspector.title')}
+        aria-label={t(selectedDocument
+          ? 'document.reviewWorkspace'
+          : context
+            ? 'inspector.title'
+            : 'inspector.imageDetails')}
         onClick={(event) => event.stopPropagation()}
       >
         <header>
           <div>
-            <span>{selectedDocument ? t('document.reviewWorkspace') : t('inspector.title')}</span>
+            <span>{selectedDocument
+              ? t('document.reviewWorkspace')
+              : context
+                ? t('inspector.title')
+                : t('inspector.imageDetails')}</span>
             <strong>{detailBlock.data.title}</strong>
           </div>
           <div className="execution-inspector-header-actions">
@@ -220,30 +259,80 @@ export function ExecutionInspector({
           </section>
 
           <aside className="execution-inspector-details">
-            <ExecutionDetailContent
-              context={context}
-              copiedPromptKey={copiedPromptKey}
-              copyKey={`inspector:${context.execution.executionId}`}
-              copySource="execution_inspector"
-              onCopyPrompt={onCopyPrompt}
-              onBeforePluginOperationAction={onBeforePluginOperationAction}
-              onPluginFatalFailure={onPluginFatalFailure}
-              onRestoreConfiguration={
-                typeof context.executionVersion === 'number'
-                  ? () => onRestoreConfiguration(context.execution.executionId)
-                  : undefined
-              }
-              onSelectAsset={(asset) => {
-                const image = viewerImages.find((candidate) => candidate.asset.assetId === asset.assetId);
-                if (image) selectViewerImage(image);
-                else setSelectedAssetId(asset.assetId);
-              }}
-              pluginContributionRegistry={pluginContributionRegistry}
-            />
+            {context ? (
+              <ExecutionDetailContent
+                context={context}
+                copiedPromptKey={copiedPromptKey}
+                copyKey={`inspector:${context.execution.executionId}`}
+                copySource="execution_inspector"
+                onCopyPrompt={onCopyPrompt}
+                onBeforePluginOperationAction={onBeforePluginOperationAction}
+                onPluginFatalFailure={onPluginFatalFailure}
+                onRestoreConfiguration={
+                  typeof context.executionVersion === 'number'
+                    ? () => onRestoreConfiguration(context.execution.executionId)
+                    : undefined
+                }
+                onSelectAsset={(asset) => {
+                  const image = viewerImages.find((candidate) => candidate.asset.assetId === asset.assetId);
+                  if (image) selectViewerImage(image);
+                  else setSelectedAssetId(asset.assetId);
+                }}
+                pluginContributionRegistry={pluginContributionRegistry}
+              />
+            ) : (
+              <ImageAssetDetails
+                asset={detailImageAsset}
+                block={detailBlock}
+              />
+            )}
           </aside>
         </div>
       </section>
     </div>
+  );
+}
+
+function ImageAssetDetails({
+  asset,
+  block,
+}: {
+  asset?: AssetRecord;
+  block: BlockRecord;
+}): ReactElement | null {
+  const { t } = useI18n();
+  if (!asset) return null;
+  const dimensions = asset.width && asset.height
+    ? `${asset.width} x ${asset.height}`
+    : undefined;
+  return (
+    <div className="execution-detail-content">
+      <dl className="execution-inspector-meta">
+        <InspectorMeta label={t('group.media')} value={block.data.title} />
+        <InspectorMeta label={t('group.dimensions')} value={dimensions} />
+        <InspectorMeta label={t('group.mimeType')} value={asset.mimeType} />
+        <InspectorMeta label={t('group.assetId')} value={asset.assetId} mono />
+        <InspectorMeta label={t('group.blockId')} value={block.blockId} mono />
+      </dl>
+    </div>
+  );
+}
+
+function InspectorMeta({
+  label,
+  mono,
+  value,
+}: {
+  label: string;
+  mono?: boolean;
+  value?: string;
+}): ReactElement | null {
+  if (!value) return null;
+  return (
+    <>
+      <dt>{label}</dt>
+      <dd className={mono ? 'is-mono' : undefined} title={value}>{value}</dd>
+    </>
   );
 }
 

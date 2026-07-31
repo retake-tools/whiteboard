@@ -76,6 +76,9 @@ assert.match(referenceTraySource, /function dismissFloatingContent\(\): void/);
 assert.match(referenceTraySource, /onKeyDownCapture=\{dismissOnEscape\}/);
 assert.match(referenceTraySource, /referenceModeSource/);
 assert.match(referenceTraySource, /referenceIntentPlaceholder/);
+assert.match(referenceTraySource, /dispatchOpenImageDetails/);
+assert.match(referenceTraySource, /referenceIntentSuggestions/);
+assert.match(referenceTraySource, /referenceSettingBadgeLabel/);
 assert.match(toolbarStyles, /\.image-composer-reference-thumbnail/);
 assert.match(toolbarStyles, /\.image-composer-reference-preview/);
 
@@ -101,6 +104,7 @@ const referencePresentation = imageComposerReferencePresentation(
   { kind: 'block', blockId: referenceBlock.blockId, slotId: 'references' },
 );
 assert.deepEqual(referencePresentation, {
+  blockId: referenceBlock.blockId,
   mentionId: `block:${referenceBlock.blockId}:references`,
   previewUrl: firstAsset.previewUrl,
   title: '角色参考',

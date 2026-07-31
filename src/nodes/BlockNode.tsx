@@ -132,7 +132,6 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
         if (
           blockType === 'image'
           && target?.closest('.image-preview')
-          && hasExecutionDetails(data as BlockData)
         ) {
           dispatchOpenExecutionInspector(id);
           event.preventDefault();
@@ -558,7 +557,7 @@ function BlockBody({
 }): ReactElement {
   const { t } = useI18n();
   const imagePreviewDoubleTap = useImagePreviewDoubleTap({
-    enabled: type === 'image' && hasExecutionDetails(data),
+    enabled: type === 'image' && Boolean(data.previewUrl),
     gestureKey: blockId,
     onDoubleTap: () => dispatchOpenExecutionInspector(blockId),
   });
@@ -635,7 +634,6 @@ function BlockBody({
         onClickCapture={imagePreviewDoubleTap.onClickCapture}
         onPointerDown={imagePreviewDoubleTap.onPointerDown}
         onDoubleClick={(event) => {
-          if (!hasExecutionDetails(data)) return;
           dispatchOpenExecutionInspector(blockId);
           event.preventDefault();
           event.stopPropagation();
@@ -643,13 +641,11 @@ function BlockBody({
       >
         <img src={data.previewUrl} alt={title} />
         <ResultBatchBadge data={data} />
-        {hasExecutionDetails(data) ? (
-          <ExecutionInfoButton
-            blockId={blockId}
-            className="image-info-button nodrag nopan"
-            label={t('inspector.openDetails')}
-          />
-        ) : null}
+        <ExecutionInfoButton
+          blockId={blockId}
+          className="image-info-button nodrag nopan"
+          label={t('inspector.openDetails')}
+        />
         {status ? (
           <div className={`status-pill image-status-pill status-${status}`}>
             <Clock size={14} />

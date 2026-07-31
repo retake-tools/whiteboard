@@ -338,6 +338,7 @@ export type TranslationKey =
   | 'inspector.activity.succeeded'
   | 'inspector.generator'
   | 'inspector.imageComparison'
+  | 'inspector.imageDetails'
   | 'inspector.inputAssets'
   | 'inspector.nextPreview'
   | 'inspector.none'
@@ -489,6 +490,22 @@ export type TranslationKey =
   | 'skillComposer.referenceModeAuto'
   | 'skillComposer.referenceModeReference'
   | 'skillComposer.referenceModeSource'
+  | 'skillComposer.referenceBadgeAuto'
+  | 'skillComposer.referenceBadgeReference'
+  | 'skillComposer.referenceBadgeSource'
+  | 'skillComposer.referenceSuggestionComposition'
+  | 'skillComposer.referenceSuggestionCompositionInstruction'
+  | 'skillComposer.referenceSuggestionDetail'
+  | 'skillComposer.referenceSuggestionDetailInstruction'
+  | 'skillComposer.referenceSuggestionLight'
+  | 'skillComposer.referenceSuggestionLightInstruction'
+  | 'skillComposer.referenceSuggestionScene'
+  | 'skillComposer.referenceSuggestionSceneInstruction'
+  | 'skillComposer.referenceSuggestions'
+  | 'skillComposer.referenceSuggestionStyle'
+  | 'skillComposer.referenceSuggestionStyleInstruction'
+  | 'skillComposer.referenceSuggestionSubject'
+  | 'skillComposer.referenceSuggestionSubjectInstruction'
   | 'skillComposer.referenceSourceHint'
   | 'skillComposer.referenceRequired'
   | 'skillComposer.referencePurpose'
@@ -1463,7 +1480,7 @@ const translations: Record<Locale, Translations> = {
     'inspector.annotationSourceMissing': 'The original source image block is no longer available.',
     'inspector.annotationText': 'Annotation notes',
     'inspector.capability': 'Capability',
-    'inspector.close': 'Close inspector',
+    'inspector.close': 'Close details',
     'inspector.closePreview': 'Close preview',
     'inspector.currentDraftChanges': 'Current draft changes',
     'inspector.executionId': 'Execution ID',
@@ -1475,6 +1492,7 @@ const translations: Record<Locale, Translations> = {
     'inspector.activity.succeeded': 'Execution completed',
     'inspector.generator': 'Generator',
     'inspector.imageComparison': 'Image brief',
+    'inspector.imageDetails': 'Image details',
     'inspector.inputAssets': 'Input assets',
     'inspector.nextPreview': 'Next image',
     'inspector.none': 'None',
@@ -1626,6 +1644,22 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.referenceModeAuto': 'Auto',
     'skillComposer.referenceModeReference': 'Reference',
     'skillComposer.referenceModeSource': 'Source image',
+    'skillComposer.referenceBadgeAuto': 'Auto',
+    'skillComposer.referenceBadgeReference': 'Ref',
+    'skillComposer.referenceBadgeSource': 'Source',
+    'skillComposer.referenceSuggestionComposition': 'Composition',
+    'skillComposer.referenceSuggestionCompositionInstruction': 'Use the composition, camera angle, and element layout as reference',
+    'skillComposer.referenceSuggestionDetail': 'Details',
+    'skillComposer.referenceSuggestionDetailInstruction': 'Use the local details and finish as reference',
+    'skillComposer.referenceSuggestionLight': 'Color & light',
+    'skillComposer.referenceSuggestionLightInstruction': 'Use the color, lighting, and atmosphere as reference',
+    'skillComposer.referenceSuggestionScene': 'Scene',
+    'skillComposer.referenceSuggestionSceneInstruction': 'Use the scene and spatial environment as reference',
+    'skillComposer.referenceSuggestions': 'Quick reference dimensions',
+    'skillComposer.referenceSuggestionStyle': 'Style',
+    'skillComposer.referenceSuggestionStyleInstruction': 'Use the visual style and material treatment as reference',
+    'skillComposer.referenceSuggestionSubject': 'Subject',
+    'skillComposer.referenceSuggestionSubjectInstruction': 'Use the subject features and pose as reference',
     'skillComposer.referenceSourceHint': 'The source is the single image being edited and does not need reference content.',
     'skillComposer.referenceRequired': 'Required',
     'skillComposer.referencePurpose': 'Purpose',
@@ -2595,7 +2629,7 @@ const translations: Record<Locale, Translations> = {
     'inspector.annotationSourceMissing': '原始源图片块已经不存在。',
     'inspector.annotationText': '标注文字',
     'inspector.capability': '能力',
-    'inspector.close': '关闭执行记录',
+    'inspector.close': '关闭详情',
     'inspector.closePreview': '关闭大图',
     'inspector.currentDraftChanges': '当前草稿变更',
     'inspector.executionId': '执行 ID',
@@ -2607,6 +2641,7 @@ const translations: Record<Locale, Translations> = {
     'inspector.activity.succeeded': '执行已完成',
     'inspector.generator': '生成方式',
     'inspector.imageComparison': '图片对比',
+    'inspector.imageDetails': '图片详情',
     'inspector.inputAssets': '输入素材',
     'inspector.nextPreview': '切换图片',
     'inspector.none': '无',
@@ -2758,6 +2793,22 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.referenceModeAuto': '自动判断',
     'skillComposer.referenceModeReference': '参考图',
     'skillComposer.referenceModeSource': '原图',
+    'skillComposer.referenceBadgeAuto': '自动',
+    'skillComposer.referenceBadgeReference': '参考',
+    'skillComposer.referenceBadgeSource': '原图',
+    'skillComposer.referenceSuggestionComposition': '构图',
+    'skillComposer.referenceSuggestionCompositionInstruction': '参考构图、机位与元素布局',
+    'skillComposer.referenceSuggestionDetail': '细节',
+    'skillComposer.referenceSuggestionDetailInstruction': '参考局部细节与完成质感',
+    'skillComposer.referenceSuggestionLight': '色彩光影',
+    'skillComposer.referenceSuggestionLightInstruction': '参考色彩、光线与氛围',
+    'skillComposer.referenceSuggestionScene': '场景',
+    'skillComposer.referenceSuggestionSceneInstruction': '参考场景与空间环境',
+    'skillComposer.referenceSuggestions': '快速选择参考维度',
+    'skillComposer.referenceSuggestionStyle': '风格',
+    'skillComposer.referenceSuggestionStyleInstruction': '参考视觉风格与材质表现',
+    'skillComposer.referenceSuggestionSubject': '主体',
+    'skillComposer.referenceSuggestionSubjectInstruction': '参考主体特征与姿态',
     'skillComposer.referenceSourceHint': '原图是唯一被修改的底图，不需要再填写参考内容。',
     'skillComposer.referenceRequired': '必需',
     'skillComposer.referencePurpose': '用途',

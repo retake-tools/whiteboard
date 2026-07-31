@@ -46,6 +46,11 @@ assert.match(
   blockNodeSource,
   /className="image-preview"[\s\S]*?onDoubleClick=\{\(event\) => \{[\s\S]*?dispatchOpenExecutionInspector\(blockId\)/,
 );
+assert.match(blockNodeSource, /enabled: type === 'image' && Boolean\(data\.previewUrl\)/);
+assert.doesNotMatch(
+  blockNodeSource,
+  /onDoubleClick=\{\(event\) => \{\s*if \(!hasExecutionDetails\(data\)\) return;/,
+);
 assert.match(blockNodeSource, /if \(!isPending && role === 'source'\) return null;/);
 assert.match(canvasCss, /\[data-pointer-moving='true'\] \.react-flow__node:not\(\.dragging\)[\s\S]*?cursor: default !important;/);
 assert.match(blockNodeCss, /\.image-preview img \{[\s\S]*?pointer-events: none;[\s\S]*?-webkit-user-drag: none;/);

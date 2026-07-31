@@ -551,6 +551,33 @@
   color: var(--retake-accent);
 }
 
+.image-composer-reference-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.image-composer-reference-suggestions button {
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid var(--retake-border);
+  border-radius: 999px;
+  background: var(--retake-surface);
+  color: var(--retake-text-secondary);
+  font: inherit;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.image-composer-reference-suggestions button:hover,
+.image-composer-reference-suggestions button:focus-visible,
+.image-composer-reference-suggestions button.is-selected {
+  border-color: var(--retake-accent-border);
+  outline: 0;
+  background: color-mix(in srgb, var(--retake-accent) 7%, var(--retake-surface));
+  color: var(--retake-accent);
+}
+
 .image-composer-reference-editor label {
   display: grid;
   gap: 4px;

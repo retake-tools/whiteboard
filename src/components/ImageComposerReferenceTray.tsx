@@ -35,10 +35,38 @@ interface ImageComposerReferenceTrayProps {
 }
 
 export interface ImageComposerReferencePresentation {
+  blockId?: string;
   mentionId: string;
   previewUrl?: string;
   title: string;
 }
+
+const referenceIntentSuggestions = [
+  {
+    instructionKey: 'skillComposer.referenceSuggestionSceneInstruction',
+    labelKey: 'skillComposer.referenceSuggestionScene',
+  },
+  {
+    instructionKey: 'skillComposer.referenceSuggestionSubjectInstruction',
+    labelKey: 'skillComposer.referenceSuggestionSubject',
+  },
+  {
+    instructionKey: 'skillComposer.referenceSuggestionStyleInstruction',
+    labelKey: 'skillComposer.referenceSuggestionStyle',
+  },
+  {
+    instructionKey: 'skillComposer.referenceSuggestionCompositionInstruction',
+    labelKey: 'skillComposer.referenceSuggestionComposition',
+  },
+  {
+    instructionKey: 'skillComposer.referenceSuggestionLightInstruction',
+    labelKey: 'skillComposer.referenceSuggestionLight',
+  },
+  {
+    instructionKey: 'skillComposer.referenceSuggestionDetailInstruction',
+    labelKey: 'skillComposer.referenceSuggestionDetail',
+  },
+] as const;
 
 const automaticReferenceSetting: ComposerImageReferenceSetting = {
   instruction: '',
@@ -137,6 +165,13 @@ export function ImageComposerReferenceTray({
                     current === presentation.mentionId ? undefined : presentation.mentionId
                   ));
                 }}
+                onDoubleClick={(event) => {
+                  if (!presentation.blockId) return;
+                  dismissFloatingContent();
+                  dispatchOpenImageDetails(presentation.blockId);
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
               >
                 {presentation.previewUrl
                   ? <img alt="" src={presentation.previewUrl} />
@@ -147,6 +182,7 @@ export function ImageComposerReferenceTray({
                 className="image-composer-reference-intent"
                 aria-expanded={isEditing}
                 aria-label={`${t('skillComposer.referenceIntent')}: ${presentation.title}`}
+                title={referenceSettingLabel(setting, t)}
                 onClick={() => {
                   setPinnedMentionId(undefined);
                   setEditingMentionId((current) => (
@@ -155,7 +191,7 @@ export function ImageComposerReferenceTray({
                 }}
               >
                 <SlidersHorizontal aria-hidden="true" size={11} strokeWidth={1.8} />
-                <span>{referenceSettingLabel(setting, t)}</span>
+                <span>{referenceSettingBadgeLabel(setting, t)}</span>
               </button>
               <button
                 type="button"
@@ -247,6 +283,29 @@ function ReferenceIntentEditor({
           </button>
         ))}
       </div>
+      {setting.mode === 'reference' ? (
+        <div
+          className="image-composer-reference-suggestions"
+          aria-label={t('skillComposer.referenceSuggestions')}
+        >
+          {referenceIntentSuggestions.map((suggestion) => {
+            const instruction = t(suggestion.instructionKey);
+            return (
+              <button
+                key={suggestion.labelKey}
+                type="button"
+                className={setting.instruction.includes(instruction) ? 'is-selected' : ''}
+                onClick={() => onChange({
+                  instruction: appendReferenceSuggestion(setting.instruction, instruction),
+                  mode: 'reference',
+                })}
+              >
+                {t(suggestion.labelKey)}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
       <label>
         <span>{t('skillComposer.referenceIntent')}</span>
         <textarea
@@ -279,6 +338,7 @@ export function imageComposerReferencePresentation(
       ? snapshot.assets.find((candidate) => candidate.assetId === block.data.assetId)
       : undefined;
     return {
+      blockId: block?.type === 'image' ? block.blockId : undefined,
       mentionId,
       previewUrl: typeof block?.data.previewUrl === 'string'
         ? block.data.previewUrl
@@ -287,11 +347,24 @@ export function imageComposerReferencePresentation(
     };
   }
   const asset = snapshot.assets.find((candidate) => candidate.assetId === mention.assetId);
+  const block = snapshot.blocks.find(
+    (candidate) => candidate.type === 'image' && candidate.data.assetId === mention.assetId,
+  );
   return {
+    blockId: block?.blockId,
     mentionId,
     previewUrl: asset?.previewUrl,
     title: option?.label ?? asset?.storageKey.split('/').at(-1) ?? mention.assetId,
   };
+}
+
+export function referenceSettingBadgeLabel(
+  setting: ComposerImageReferenceSetting,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  if (setting.mode === 'source') return t('skillComposer.referenceBadgeSource');
+  if (setting.mode === 'reference') return t('skillComposer.referenceBadgeReference');
+  return t('skillComposer.referenceBadgeAuto');
 }
 
 function referenceSettingLabel(
@@ -305,4 +378,17 @@ function referenceSettingLabel(
   return setting.mode === 'reference'
     ? t('skillComposer.referenceModeReference')
     : t('skillComposer.referenceModeAuto');
+}
+
+function appendReferenceSuggestion(current: string, suggestion: string): string {
+  const normalized = current.trim();
+  if (!normalized) return suggestion;
+  if (normalized.includes(suggestion)) return current;
+  return `${normalized}；${suggestion}`;
+}
+
+function dispatchOpenImageDetails(blockId: string): void {
+  window.dispatchEvent(new CustomEvent('retake:open-execution-inspector', {
+    detail: { blockId },
+  }));
 }
