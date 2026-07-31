@@ -2,12 +2,12 @@ import {
   addEdge,
   applyEdgeChanges,
   applyNodeChanges,
-  getViewportForBounds,
   type Connection,
   type EdgeChange,
   type NodeChange,
   type NodeMouseHandler,
   type OnNodeDrag,
+  type OnConnectEnd,
   type OnSelectionChangeParams,
   type ReactFlowInstance,
   type Viewport,
@@ -38,7 +38,10 @@ import {
 } from '../core/grouping';
 import { loadCollapsedGroupIds } from '../core/groupViewState';
 import { connectedWorkflowBlockIds } from '../core/workflowSelection';
-import { executionInputRoleOptionsFor } from '../core/capabilities';
+import {
+  compatibleInputSlotIdsFor,
+  suggestedInputSlotId,
+} from '../core/capabilities';
 import { createId, nowIso } from '../core/id';
 import { suggestedTextInputSlotId } from '../core/textOperations';
 import { moveBlockGroupToNearestFreeArea } from '../core/workflowPlacement';
@@ -53,13 +56,13 @@ import type { CanvasTool } from '../components/FloatingToolbar';
 import type { useI18n } from '../i18n';
 import {
   absoluteFlowNodePositions,
-  applyOperationInputRoleBadges,
   flowNodeSize,
   isEditableNodeTarget,
   isInteractiveNodeTarget,
   sameBlockSelection,
   selectedOperationBlockIdFor,
 } from './appHelpers';
+import { safeViewportForBounds } from './canvasFocus';
 import {
   imageComposerWorkflowGeometry,
   type ImageComposerWorkflowLayoutInput,
@@ -108,6 +111,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
   const canvasAreaRef = useRef<HTMLElement | null>(null);
   const currentViewportRef = useRef<Viewport>(defaultBoardViewport);
   const boardViewportRestoreTokenRef = useRef(0);
+  const focusRequestTokenRef = useRef(0);
   const pendingViewportPersistRef = useRef<BoardViewState | undefined>(undefined);
   const viewportPersistTimerRef = useRef<number | undefined>(undefined);
   const reactFlowRef = useRef<ReactFlowInstance<RetakeNode, RetakeEdge> | null>(null);
@@ -169,6 +173,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
 
   connectSessionPorts({
     onBoardLoaded: (loadedSnapshot) => {
+      focusRequestTokenRef.current += 1;
       const loadedProjectionMode = loadCanvasProjectionMode(
         loadedSnapshot.project.projectId,
         loadedSnapshot.board.boardId,
@@ -232,7 +237,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
   }, [selectedBlockIds]);
 
   useEffect(() => {
-    setNodes((currentNodes) => applyOperationInputRoleBadges(currentNodes, snapshotRef.current, selectedBlockIds));
+    setNodes(createFlowNodesForSelection(snapshotRef.current, selectedBlockIds));
     setEdges(createFlowEdgesForSelection(snapshotRef.current, selectedBlockIds));
   }, [selectedBlockIds, snapshot]);
 
@@ -404,10 +409,14 @@ export function useCanvasController(options: CanvasControllerOptions) {
     const targetBlock = snapshotRef.current.blocks.find((block) => block.blockId === connection.target);
     if (blockLockedByGroup(snapshotRef.current, connection.source) || blockLockedByGroup(snapshotRef.current, connection.target)) return;
     const kind = connectionKindForBlocks(sourceBlock, targetBlock);
-    const requiresInputRole = kind === 'execution_input' && sourceBlock && targetBlock && executionInputRoleOptionsFor(sourceBlock, targetBlock).length > 0;
     const edgeId = createId('edge');
-    const inputSlotId = kind === 'execution_input' && sourceBlock && targetBlock?.type === 'operation'
-      ? suggestedTextInputSlotId(snapshotRef.current, targetBlock, sourceBlock)
+    const compatibleInputSlotIds = kind === 'execution_input' && sourceBlock && targetBlock
+      ? compatibleInputSlotIdsFor(sourceBlock, targetBlock)
+      : [];
+    const inputSlotId = kind === 'execution_input' && sourceBlock && targetBlock
+      ? sourceBlock.type === 'text' && targetBlock.type === 'operation'
+        ? suggestedTextInputSlotId(snapshotRef.current, targetBlock, sourceBlock)
+        : suggestedInputSlotId(snapshotRef.current, sourceBlock, targetBlock)
       : undefined;
     const nextEdges = addEdge({ ...connection, id: edgeId, source: connection.source, target: connection.target, type: 'default', label: kind, data: { kind, inputSlotId } } satisfies RetakeEdge, edges);
     setEdges(nextEdges);
@@ -417,7 +426,6 @@ export function useCanvasController(options: CanvasControllerOptions) {
         sourceBlockId: edge.source,
         targetBlockId: edge.target,
         kind: edge.data?.kind ?? 'visual_note',
-        inputRole: edge.data?.inputRole,
         inputSlotId: edge.data?.inputSlotId,
         ...(edge.data?.referenceIntent
           ? { referenceIntent: structuredClone(edge.data.referenceIntent) }
@@ -425,8 +433,46 @@ export function useCanvasController(options: CanvasControllerOptions) {
       }));
       return touchBoard(current);
     }, { persist: true, history: true });
-    if (requiresInputRole && targetBlock) setSelectedBlock(nextSnapshot, targetBlock.blockId);
+    if (
+      kind === 'execution_input'
+      && sourceBlock?.type === 'image'
+      && targetBlock?.type === 'operation'
+      && compatibleInputSlotIds.length > 0
+    ) {
+      const targetElement = document.querySelector<HTMLElement>(
+        `.react-flow__node[data-id="${CSS.escape(targetBlock.blockId)}"]`,
+      );
+      const rect = targetElement?.getBoundingClientRect();
+      window.dispatchEvent(new CustomEvent('retake:configure-operation-reference', {
+        detail: {
+          edgeId,
+          anchor: {
+            x: rect ? rect.left + Math.min(rect.width, 180) : window.innerWidth / 2,
+            y: rect ? rect.bottom + 8 : window.innerHeight / 2,
+          },
+        },
+      }));
+      setSelectedBlock(nextSnapshot, targetBlock.blockId);
+    }
   }
+
+  const onConnectEnd: OnConnectEnd = (event, connectionState) => {
+    if (connectionState.isValid || !connectionState.fromNode) return;
+    const sourceBlock = snapshotRef.current.blocks.find(
+      (block) => block.blockId === connectionState.fromNode?.id,
+    );
+    if (sourceBlock?.type !== 'image') return;
+    const point = 'changedTouches' in event
+      ? event.changedTouches[0]
+      : event;
+    if (!point) return;
+    window.dispatchEvent(new CustomEvent('retake:create-operation-from-image', {
+      detail: {
+        anchor: { x: point.clientX, y: point.clientY },
+        sourceBlockId: sourceBlock.blockId,
+      },
+    }));
+  };
 
   function connectionKindForBlocks(sourceBlock?: BlockRecord, targetBlock?: BlockRecord): BoardEdgeRecord['kind'] {
     if (targetBlock?.type === 'operation' && sourceBlock?.type !== 'operation') return 'execution_input';
@@ -588,9 +634,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
       : undefined;
     const referenceBlocks = input.referenceBlockIds
       .map((blockId) => current.blocks.find((block) => block.blockId === blockId))
-      .filter((block): block is BlockRecord => Boolean(
-        block?.data.composerSourceAssetId,
-      ));
+      .filter((block): block is BlockRecord => block?.type === 'image');
     const center = viewportCenter();
     const geometry = imageComposerWorkflowGeometry({
       center,
@@ -634,33 +678,42 @@ export function useCanvasController(options: CanvasControllerOptions) {
     blockIds: string[],
     options: { maxZoom?: number } = {},
   ): void {
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        const reactFlow = reactFlowRef.current;
-        if (!reactFlow) return;
-        const nodes = blockIds
-          .map((blockId) => reactFlow.getNode(blockId))
-          .filter((node): node is RetakeNode => Boolean(node));
-        if (nodes.length === 0) return;
-        const bounds = reactFlow.getNodesBounds(nodes);
-        if (options.maxZoom !== undefined) {
-          const canvasBounds = canvasAreaRef.current?.getBoundingClientRect();
-          const viewport = getViewportForBounds(
-            bounds,
-            canvasBounds?.width ?? window.innerWidth,
-            canvasBounds?.height ?? window.innerHeight,
-            minBoardZoom,
-            Math.min(options.maxZoom, maxBoardZoom),
-            0.2,
-          );
-          void reactFlow.setViewport(viewport, { duration: 260 });
-          return;
+    const uniqueBlockIds = [...new Set(blockIds)];
+    if (uniqueBlockIds.length === 0) return;
+    const boardId = snapshotRef.current.board.boardId;
+    const restoreToken = boardViewportRestoreTokenRef.current;
+    const focusToken = ++focusRequestTokenRef.current;
+    const attemptFocus = (attemptsRemaining: number): void => {
+      if (
+        focusToken !== focusRequestTokenRef.current
+        || boardId !== snapshotRef.current.board.boardId
+        || restoreToken !== boardViewportRestoreTokenRef.current
+      ) return;
+      const reactFlow = reactFlowRef.current;
+      const canvasBounds = canvasAreaRef.current?.getBoundingClientRect();
+      const nodes = reactFlow
+        ? uniqueBlockIds
+            .map((blockId) => reactFlow.getNode(blockId))
+            .filter((node): node is RetakeNode => Boolean(node))
+        : [];
+      const viewport = reactFlow && nodes.length === uniqueBlockIds.length && canvasBounds
+        ? safeViewportForBounds({
+            bounds: reactFlow.getNodesBounds(nodes),
+            canvas: { height: canvasBounds.height, width: canvasBounds.width },
+            maxZoom: Math.min(options.maxZoom ?? 1, maxBoardZoom),
+            minZoom: minBoardZoom,
+          })
+        : undefined;
+      if (!reactFlow || !viewport) {
+        if (attemptsRemaining > 0) {
+          window.requestAnimationFrame(() => attemptFocus(attemptsRemaining - 1));
         }
-        void reactFlow.fitBounds(bounds, {
-          duration: 260,
-          padding: 0.2,
-        });
-      });
+        return;
+      }
+      void reactFlow.setViewport(viewport, { duration: 260 });
+    };
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => attemptFocus(4));
     });
   }
 
@@ -679,10 +732,25 @@ export function useCanvasController(options: CanvasControllerOptions) {
     setSelectedBlocks(snapshotRef.current, retainedSelection);
   }
 
-  function restoreViewport(viewport: Viewport): void {
+  function restoreViewport(
+    viewport: Viewport,
+    restoreToken = boardViewportRestoreTokenRef.current,
+    onApplied?: (viewport: Viewport) => void,
+  ): void {
     currentViewportRef.current = viewport;
     setCanvasZoom(viewport.zoom);
-    window.requestAnimationFrame(() => { void reactFlowRef.current?.setViewport(viewport, { duration: 0 }); });
+    window.requestAnimationFrame(() => {
+      if (restoreToken !== boardViewportRestoreTokenRef.current) return;
+      const reactFlow = reactFlowRef.current;
+      if (!reactFlow) return;
+      void reactFlow.setViewport(viewport, { duration: 0 }).then(() => {
+        if (restoreToken !== boardViewportRestoreTokenRef.current) return;
+        const appliedViewport = reactFlow.getViewport();
+        currentViewportRef.current = appliedViewport;
+        setCanvasZoom(appliedViewport.zoom);
+        onApplied?.(appliedViewport);
+      });
+    });
   }
 
   function persistViewport(viewport: Viewport): void {
@@ -745,7 +813,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
     const saved = loadBoardViewState(loadedSnapshot.project.projectId, loadedSnapshot.board.boardId);
     if (saved) {
       const adapted = adaptViewportToBasis(saved.viewport, saved.viewportBasis, basis, minBoardZoom, maxBoardZoom);
-      restoreViewport(adapted);
+      restoreViewport(adapted, restoreToken);
       return;
     }
 
@@ -756,8 +824,8 @@ export function useCanvasController(options: CanvasControllerOptions) {
       const nextBasis = viewportBasisFromElement(canvasAreaRef.current);
       if (loadedSnapshot.blocks.length === 0) {
         const emptyViewport = { x: nextBasis.canvasWidth / 2, y: nextBasis.canvasHeight / 2, zoom: 1 };
-        void reactFlow.setViewport(emptyViewport, { duration: 0 }).then(() => {
-          if (restoreToken === boardViewportRestoreTokenRef.current) saveViewportForBoard(loadedSnapshot, emptyViewport, nextBasis);
+        restoreViewport(emptyViewport, restoreToken, (appliedViewport) => {
+          saveViewportForBoard(loadedSnapshot, appliedViewport, nextBasis);
         });
         return;
       }
@@ -837,6 +905,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
     locateBlock,
     nodes,
     onConnect,
+    onConnectEnd,
     onEdgesChange,
     onNodeClick,
     onNodeDoubleClick,

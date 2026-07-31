@@ -8,10 +8,9 @@ import { pluginCapabilityDefinitionFor } from '../core/pluginCapabilityDefinitio
 import { managedResultStatusMessageKey } from '../core/resultStatus';
 import { storyboardSheetCapabilityId } from '../core/storyboardSheetContracts';
 import { generationPreparationCapabilityId } from '../core/generationPreparationContracts';
-import type { BlockData, BlockType, ExecutionConfigurationChangeKind, ExecutionInputRole, RetakeNode } from '../core/types';
+import type { BlockData, BlockType, ExecutionConfigurationChangeKind, RetakeNode } from '../core/types';
 import { useI18n } from '../i18n';
 import { TooltipIconButton } from '../components/Tooltip';
-import { InputRoleOptionList, inputRoleTitle } from '../components/InputRoleOptionList';
 import { PluginBlockRendererSlot } from '../components/PluginBlockRendererHost';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { DocumentBlockBody } from './DocumentBlockBody';
@@ -151,9 +150,6 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
         && !isPluginOwnedOperation
         ? <OperationInputQuickAdd data={data as BlockData} operationBlockId={id} />
         : null}
-      {data.operationInputEdgeId ? (
-        <OperationInputRoleBadge data={data as BlockData} />
-      ) : null}
       <div
         className="block-heading"
         onPointerEnter={() => setIsHeadingHovered(true)}
@@ -295,106 +291,10 @@ function isInteractiveDoubleClickTarget(target: HTMLElement): boolean {
         '[role="menu"]',
         '.operation-side-popover',
         '.operation-input-quick-add',
-        '.operation-input-role-control',
+        '.operation-reference-inputs',
         '.block-heading-info-button',
       ].join(','),
     ),
-  );
-}
-
-function OperationInputRoleBadge({ data }: { data: BlockData }): ReactElement | null {
-  const { t } = useI18n();
-  const [isOpen, setIsOpen] = useState(false);
-  const [menuPlacement, setMenuPlacement] = useState<'above' | 'below'>('below');
-  const [menuMaxHeight, setMenuMaxHeight] = useState(420);
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const controlRef = useRef<HTMLDivElement | null>(null);
-  const role = data.operationInputRole;
-  const edgeId = data.operationInputEdgeId;
-  const options = data.operationInputRoleOptions ?? [];
-  const disabledOptions = data.operationInputRoleDisabledOptions ?? [];
-  const isPending = data.operationInputRolePending === true;
-  const isLocked = data.groupContentLocked === true || data.operationInputRoleLocked === true;
-
-  function updateMenuPlacement(): void {
-    const rect = buttonRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const availableAbove = Math.max(180, rect.top - 12);
-    const availableBelow = Math.max(180, window.innerHeight - rect.bottom - 12);
-    const placement = availableBelow < 420 && availableAbove > availableBelow ? 'above' : 'below';
-    setMenuPlacement(placement);
-    setMenuMaxHeight(Math.min(420, placement === 'above' ? availableAbove : availableBelow));
-  }
-
-  useEffect(() => {
-    if (isPending) updateMenuPlacement();
-  }, [isPending]);
-
-  useEffect(() => {
-    if (isLocked) setIsOpen(false);
-  }, [isLocked]);
-
-  useDismissiblePopover({
-    active: isOpen && !isPending,
-    onDismiss: () => setIsOpen(false),
-    rootRef: controlRef,
-  });
-
-  if (!edgeId) return null;
-  if (!isPending && role === 'source') return null;
-
-  return (
-    <div ref={controlRef} className="operation-input-role-control nodrag nopan">
-      <button
-        ref={buttonRef}
-        type="button"
-        className={`operation-input-role-badge ${role ? `is-${role}` : 'is-pending'}`}
-        aria-expanded={isOpen}
-        aria-label={role ? inputRoleTitle(role, t) : t('operationInputRole.choose')}
-        disabled={isLocked}
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.stopPropagation();
-          updateMenuPlacement();
-          setIsOpen((current) => !current);
-        }}
-      >
-        {role ? inputRoleTitle(role, t) : t('operationInputRole.choose')}
-      </button>
-      {!isLocked && (isOpen || isPending) && options.length > 0 ? (
-        <div
-          className={`operation-input-role-menu is-${menuPlacement}`}
-          role="menu"
-          aria-label={t('operationInputRole.change')}
-          style={{ maxHeight: menuMaxHeight }}
-        >
-          <strong className="operation-input-role-menu-title">{t('operationInputRole.pickerTitle')}</strong>
-          <p>{t('operationInputRole.pickerDescription')}</p>
-          <InputRoleOptionList
-            currentRole={role}
-            disabledRoles={disabledOptions}
-            roles={options}
-            onSelect={(option) => {
-              setIsOpen(false);
-              dispatchUpdateOperationInputRole(edgeId, option);
-            }}
-            onRemove={role ? () => dispatchRemoveOperationInput(edgeId) : undefined}
-          />
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function dispatchRemoveOperationInput(edgeId: string): void {
-  window.dispatchEvent(new CustomEvent('retake:remove-operation-input', { detail: { edgeId } }));
-}
-
-function dispatchUpdateOperationInputRole(edgeId: string, inputRole: ExecutionInputRole): void {
-  window.dispatchEvent(
-    new CustomEvent('retake:update-operation-input-role', {
-      detail: { edgeId, inputRole },
-    }),
   );
 }
 

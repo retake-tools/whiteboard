@@ -8,7 +8,7 @@ export function sourceImageBlockForOperation(
     (edge) =>
       edge.targetBlockId === operationBlockId &&
       edge.kind === 'execution_input' &&
-      edge.inputRole === 'source',
+      edge.inputSlotId === 'source_image',
   );
   return snapshot.blocks.find(
     (block) => block.blockId === sourceEdge?.sourceBlockId && block.type === 'image',

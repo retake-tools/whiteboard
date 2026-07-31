@@ -24,6 +24,7 @@ const [
   toolbarStylesSource,
   agentPreferencesSource,
   i18nSource,
+  referenceEditorSource,
   referenceTraySource,
 ] = await Promise.all([
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
@@ -35,6 +36,7 @@ const [
   readFile(new URL('../src/styles/toolbars.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentComposerPreferencesControls.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/i18n.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/ReferenceIntentEditor.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/ImageComposerReferenceTray.tsx', import.meta.url), 'utf8'),
 ]);
 
@@ -65,13 +67,14 @@ assert.match(canvasComposerSource, /skill-composer-attachment-trigger/);
 assert.match(canvasComposerSource, /composerMode === 'image' \|\| composerMode === 'agent'/);
 assert.match(canvasComposerSource, /imageReferenceSettings/);
 assert.match(referenceTraySource, /ReferenceIntentEditor/);
-assert.match(referenceTraySource, /skillComposer\.referenceModeSource/);
-assert.match(referenceTraySource, /skillComposer\.referenceModeReference/);
-assert.match(referenceTraySource, /skillComposer\.referenceIntentPlaceholder/);
+assert.match(referenceEditorSource, /skillComposer\.referenceModeSource/);
+assert.match(referenceEditorSource, /skillComposer\.referenceModeReference/);
+assert.match(referenceEditorSource, /skillComposer\.referenceIntentPlaceholder/);
 assert.match(referenceTraySource, /onDoubleClick=\{\(event\) => \{/);
 assert.match(referenceTraySource, /dispatchOpenImageDetails\(presentation\.blockId\)/);
-assert.match(referenceTraySource, /referenceIntentSuggestions/);
-assert.match(referenceTraySource, /appendReferenceSuggestion/);
+assert.match(referenceEditorSource, /referenceIntentSuggestions/);
+assert.match(referenceEditorSource, /toggleReferenceSuggestion/);
+assert.match(referenceEditorSource, /aria-pressed=\{referenceSuggestionSelected/);
 assert.match(referenceTraySource, /referenceSettingBadgeLabel/);
 assert.doesNotMatch(referenceTraySource, /<select/);
 assert.match(i18nSource, /'skillComposer\.referenceBadgeAuto': '自动'/);

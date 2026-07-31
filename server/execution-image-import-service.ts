@@ -61,7 +61,7 @@ function outpaintSourceAssetId(value: unknown): string | undefined {
     if (!binding || typeof binding !== 'object') continue;
     const record = binding as Record<string, unknown>;
     if (
-      record.inputRole === 'source'
+      record.inputSlotId === 'source_image'
       && typeof record.assetId === 'string'
     ) {
       return record.assetId;

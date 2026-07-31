@@ -72,13 +72,15 @@ function historicalSourceAssetId(
     const sourceBinding = execution.params.inputBindings.find((binding) => {
       if (!binding || typeof binding !== 'object') return false;
       const candidate = binding as Record<string, unknown>;
-      return candidate.blockId === sourceBlockId && candidate.inputRole === 'source';
+      return candidate.blockId === sourceBlockId
+        && candidate.inputSlotId === 'source_image';
     }) as Record<string, unknown> | undefined;
     if (typeof sourceBinding?.assetId === 'string') return sourceBinding.assetId;
   }
 
   const configurationInput = execution.configuration?.imageInputs.find(
-    (input) => input.blockId === sourceBlockId && (input.inputRole === 'source' || !input.inputRole),
+    (input) => input.blockId === sourceBlockId
+      && (input.inputSlotId === 'source_image' || !input.inputSlotId),
   );
   if (configurationInput?.assetId) return configurationInput.assetId;
 

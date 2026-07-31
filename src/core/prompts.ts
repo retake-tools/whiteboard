@@ -1,6 +1,6 @@
-import { inputRoleDefinition, isExecutionInputRole } from './inputRoles';
+import { normalizeReferenceIntent, type ReferenceIntentV1 } from './referenceIntent';
 import { readOutpaintParameters } from './outpaintContracts';
-import type { BlockRecord, BoardSnapshot, ExecutionInputRole, ExecutionRecord } from './types';
+import type { BlockRecord, BoardSnapshot, ExecutionRecord } from './types';
 import type { ImageGenerationParams } from './imageOperations';
 
 export function createBindingPrompt(snapshot: BoardSnapshot): string {
@@ -39,7 +39,9 @@ export function createImageOperationPrompt(
     ? readOutpaintParameters(execution.params?.pluginParameters)
     : undefined;
   const inputBindings = readInputBindings(execution.params?.inputBindings);
-  const hasSourceInput = inputBindings.some((binding) => binding.inputRole === 'source');
+  const hasSourceInput = inputBindings.some(
+    (binding) => binding.inputSlotId === 'source_image',
+  );
   const isPromptGeneration = execution.capabilityId === 'image.text_to_image' && !hasSourceInput;
   const targetWidth = Math.round(sourceBlock.size.width);
   const targetHeight = Math.round(sourceBlock.size.height);
@@ -74,7 +76,7 @@ export function createImageOperationPrompt(
     const bindingPath = localAssetPath(snapshot, bindingAsset);
     const title = block?.data.title?.trim() || binding.assetId || binding.blockId || 'image input';
     return [
-      `- ${title}: role=${binding.inputRole}${binding.blockId ? `, blockId=${binding.blockId}` : ''}${binding.assetId ? `, assetId=${binding.assetId}` : ''}`,
+      `- ${title}: slot=${binding.inputSlotId}${binding.blockId ? `, blockId=${binding.blockId}` : ''}${binding.assetId ? `, assetId=${binding.assetId}` : ''}`,
       bindingAsset?.storageKey ? `  storageKey: ${bindingAsset.storageKey}` : undefined,
       bindingPath ? `  local path: ${bindingPath}` : undefined,
     ].filter((line): line is string => Boolean(line));
@@ -84,7 +86,10 @@ export function createImageOperationPrompt(
       ? snapshot.blocks.find((candidate) => candidate.blockId === binding.blockId)
       : undefined;
     const title = block?.data.title?.trim() || binding.assetId || binding.blockId || 'image input';
-    return `- ${title} [${binding.inputRole}]: ${inputRoleDefinition(binding.inputRole).promptDirective}`;
+    const directive = binding.referenceIntent
+      ? `${binding.referenceIntent.label}: ${binding.referenceIntent.instruction}`
+      : inputSlotPromptDirective(binding.inputSlotId);
+    return `- ${title} [${binding.inputSlotId}]: ${directive}`;
   });
 
   return [
@@ -149,7 +154,7 @@ export function createImageOperationPrompt(
     inputContractLines.length ? '' : undefined,
     inputContractLines.length ? 'Authoritative image input contract:' : undefined,
     inputContractLines.length
-      ? '- These role assignments define how each image is exposed to the execution adapter. The user instruction may refine usage within a role but must not reassign roles.'
+      ? '- These input slots define how each image is exposed to the execution adapter. The user instruction may refine a declared reference intent but must not move images between slots.'
       : undefined,
     ...inputContractLines,
     '',
@@ -284,7 +289,7 @@ export function createImageResultRetryPrompt(snapshot: BoardSnapshot, resultBloc
   if (!operationBlock) throw new Error('Operation Block for failed result retry was not found.');
 
   const sourceBinding = readInputBindings(execution.params?.inputBindings)
-    .find((binding) => binding.inputRole === 'source');
+    .find((binding) => binding.inputSlotId === 'source_image');
   const sourceBlock = snapshot.blocks.find((block) => block.blockId === sourceBinding?.blockId) ?? resultBlock;
   const generation = execution.params?.generation as ImageGenerationParams | undefined;
   const retryExecution: ExecutionRecord = {
@@ -316,22 +321,47 @@ export function createImageResultRetryPrompt(snapshot: BoardSnapshot, resultBloc
 
 function readInputBindings(
   value: unknown,
-): Array<{ assetId?: string; blockId?: string; inputRole: ExecutionInputRole }> {
+): Array<{
+  assetId?: string;
+  blockId?: string;
+  inputSlotId: string;
+  referenceIntent?: ReferenceIntentV1;
+}> {
   if (!Array.isArray(value)) return [];
   return value.flatMap((binding) => {
     if (!binding || typeof binding !== 'object') return [];
     const record = binding as Record<string, unknown>;
     const blockId = typeof record.blockId === 'string' ? record.blockId : undefined;
     const assetId = typeof record.assetId === 'string' ? record.assetId : undefined;
-    if ((!blockId && !assetId) || !isExecutionInputRole(record.inputRole)) return [];
+    if (
+      (!blockId && !assetId)
+      || typeof record.inputSlotId !== 'string'
+      || !record.inputSlotId.trim()
+    ) return [];
+    const referenceIntent = normalizeReferenceIntent(record.referenceIntent);
     return [
       {
         blockId,
-        inputRole: record.inputRole,
+        inputSlotId: record.inputSlotId,
         assetId,
+        ...(referenceIntent ? { referenceIntent } : {}),
       },
     ];
   });
+}
+
+function inputSlotPromptDirective(inputSlotId: string): string {
+  if (inputSlotId === 'source_image') {
+    return 'Use as the editable base image and preserve unmentioned content.';
+  }
+  if (inputSlotId === 'annotated_composite') {
+    return 'Use as the authoritative annotation layer and do not retain its overlays.';
+  }
+  if (inputSlotId === 'control_image') return 'Use as the structural control guide.';
+  if (inputSlotId === 'inpaint_mask') return 'Use as the exact editable-region mask.';
+  if (inputSlotId === 'first_frame') return 'Use as the exact first frame.';
+  if (inputSlotId === 'last_frame') return 'Use as the exact last frame.';
+  return 'Use as a visual reference according to the prompt.';
 }
 
 function localAssetPath(snapshot: BoardSnapshot, asset?: { storageProvider: string; storageKey: string }): string | undefined {

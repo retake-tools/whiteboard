@@ -10,7 +10,6 @@ import {
   resolveExecutionConnectionPreference,
 } from '../core/executionProviderPreferences';
 import { addImageCodexOperation } from '../core/imageOperations';
-import { isExecutionInputRole } from '../core/inputRoles';
 import { startCodexAppServerImage } from '../core/codexAppServerImageClient';
 import {
   annotationManifestFromUnknown,
@@ -23,7 +22,6 @@ import {
 import type {
   BlockRecord,
   BoardSnapshot,
-  ExecutionInputRole,
 } from '../core/types';
 
 interface ConnectedPluginExecutionOptions {
@@ -107,7 +105,7 @@ export async function runConnectedPluginExecution(
     return {
       asset,
       block,
-      inputRole: inputRoleForSlot(slot.slotId, slot.semanticRole),
+      semanticRole: slot.semanticRole,
       slotId: slot.slotId,
     };
   });
@@ -124,7 +122,7 @@ export async function runConnectedPluginExecution(
   }
 
   const source = bindings.find(
-    (binding) => binding.inputRole === 'source',
+    (binding) => binding.semanticRole === 'source',
   );
   if (!source?.block) {
     throw new Error(
@@ -134,7 +132,7 @@ export async function runConnectedPluginExecution(
   const sourceBlock = source.block;
   const isAnnotationEdit = input.capabilityId === 'image.annotation_edit';
   const annotatedComposite = bindings.find(
-    (binding) => binding.inputRole === 'annotated_composite',
+    (binding) => binding.semanticRole === 'annotated_composite',
   );
   const annotationManifest = isAnnotationEdit
     ? annotationManifestFromUnknown(input.parameters.manifest)
@@ -153,7 +151,7 @@ export async function runConnectedPluginExecution(
       && binding !== annotatedComposite
     ),
   );
-  if (additionalInputs.some((binding) => binding.inputRole === 'source')) {
+  if (additionalInputs.some((binding) => binding.semanticRole === 'source')) {
     throw new Error(
       'Connected Plugin image execution accepts only one source image.',
     );
@@ -196,20 +194,17 @@ export async function runConnectedPluginExecution(
   const queued = options.updateSnapshot((current) => {
     const result = addImageCodexOperation(current, {
       additionalInputBlocks: additionalInputs.map(
-        ({ block, inputRole }) => block ? ({
+        ({ block, slotId }) => block ? ({
           blockId: block.blockId,
-          inputRole: inputRole as Exclude<
-            ExecutionInputRole,
-            'source'
-          >,
+          inputSlotId: slotId,
         }) : undefined,
       ).filter((binding): binding is NonNullable<typeof binding> => (
         binding !== undefined
       )),
       additionalInputAssets: additionalInputs.map(
-        ({ asset, block, inputRole }) => !block ? ({
+        ({ asset, block, slotId }) => !block ? ({
           asset,
-          inputRole: inputRole as Exclude<ExecutionInputRole, 'source'>,
+          inputSlotId: slotId,
         }) : undefined,
       ).filter((binding): binding is NonNullable<typeof binding> => (
         binding !== undefined
@@ -313,34 +308,21 @@ export function listConnectedPluginExecutionConnections(input: {
     }));
 }
 
-function inputRoleForSlot(
-  slotId: string,
-  semanticRole: string,
-): ExecutionInputRole {
-  if (slotId === 'source_image' || semanticRole === 'source') {
-    return 'source';
-  }
-  if (isExecutionInputRole(slotId)) return slotId;
-  if (isExecutionInputRole(semanticRole)) return semanticRole;
-  throw new Error(
-    `Connected image input slot has no supported role: ${slotId}`,
-  );
-}
-
 function assertConnectedImageGeometry(
   sourceAsset: import('../core/types').AssetRecord,
   additionalInputs: Array<{
     asset: import('../core/types').AssetRecord;
-    inputRole: ExecutionInputRole;
+    semanticRole: string;
+    slotId: string;
   }>,
   outpaintParameters: OutpaintParameters | undefined,
 ): void {
   if (outpaintParameters) {
     const guide = additionalInputs.find(
-      (binding) => binding.inputRole === 'control_image',
+      (binding) => binding.semanticRole === 'control_image',
     )?.asset;
     const mask = additionalInputs.find(
-      (binding) => binding.inputRole === 'inpaint_mask',
+      (binding) => binding.semanticRole === 'inpaint_mask',
     )?.asset;
     if (!guide || !mask || guide.mimeType !== 'image/png' || mask.mimeType !== 'image/png') {
       throw new Error(
@@ -368,7 +350,7 @@ function assertConnectedImageGeometry(
     return;
   }
   const mask = additionalInputs.find(
-    (binding) => binding.inputRole === 'inpaint_mask',
+    (binding) => binding.semanticRole === 'inpaint_mask',
   )?.asset;
   if (!mask) return;
   if (mask.mimeType !== 'image/png') {

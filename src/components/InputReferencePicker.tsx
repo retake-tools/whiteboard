@@ -1,8 +1,11 @@
 import { ImageIcon, X } from 'lucide-react';
 import { useEffect, useRef, type ReactElement } from 'react';
-import type { ExecutionInputRole } from '../core/types';
+import type {
+  ComposerImageReferenceMode,
+  ComposerImageReferenceSetting,
+} from '../core/referenceIntent';
 import { useI18n } from '../i18n';
-import { InputRoleOptionList } from './InputRoleOptionList';
+import { ReferenceIntentEditor } from './ReferenceIntentEditor';
 
 export interface ReferenceImageOption {
   blockId: string;
@@ -10,24 +13,38 @@ export interface ReferenceImageOption {
   title: string;
 }
 
+export interface ReferenceInputSlotOption {
+  label: string;
+  mode: Extract<ComposerImageReferenceMode, 'reference' | 'source'>;
+  slotId: string;
+}
+
 export function InputReferencePicker({
   anchor,
-  disabledRoles,
+  allowedModes,
   images,
   onCancel,
+  onChangeSetting,
+  onConfirm,
   onSelectImage,
-  onSelectRole,
-  roles,
+  onSelectSlot,
   selectedImage,
+  selectedSlotId,
+  setting,
+  slotOptions,
 }: {
   anchor: { x: number; y: number };
-  disabledRoles: ExecutionInputRole[];
+  allowedModes: readonly ComposerImageReferenceMode[];
   images: ReferenceImageOption[];
   onCancel: () => void;
+  onChangeSetting: (setting: ComposerImageReferenceSetting) => void;
+  onConfirm: () => void;
   onSelectImage: (blockId: string) => void;
-  onSelectRole: (role: ExecutionInputRole) => void;
-  roles: ExecutionInputRole[];
+  onSelectSlot: (slotId: string) => void;
   selectedImage?: ReferenceImageOption;
+  selectedSlotId?: string;
+  setting: ComposerImageReferenceSetting;
+  slotOptions: readonly ReferenceInputSlotOption[];
 }): ReactElement {
   const { t } = useI18n();
   const pickerRef = useRef<HTMLDivElement | null>(null);
@@ -57,19 +74,19 @@ export function InputReferencePicker({
       ref={pickerRef}
       className="input-reference-picker"
       role="dialog"
-      aria-label={selectedImage ? t('operationInputRole.pickerTitle') : t('operationInputRole.imagePickerTitle')}
+      aria-label={selectedImage ? t('operationReference.pickerTitle') : t('operationReference.imagePickerTitle')}
       style={{ left, top }}
       onPointerDown={(event) => event.stopPropagation()}
     >
       <header>
         <span>
           <strong>
-            {selectedImage ? t('operationInputRole.pickerTitle') : t('operationInputRole.imagePickerTitle')}
+            {selectedImage ? t('operationReference.pickerTitle') : t('operationReference.imagePickerTitle')}
           </strong>
           <small>
             {selectedImage
-              ? t('operationInputRole.pickerDescription')
-              : t('operationInputRole.imagePickerDescription')}
+              ? t('operationReference.pickerDescription')
+              : t('operationReference.imagePickerDescription')}
           </small>
         </span>
         <button type="button" aria-label={t('context.close')} onClick={onCancel}>
@@ -82,11 +99,42 @@ export function InputReferencePicker({
             <img src={selectedImage.previewUrl} alt="" />
             <strong>{selectedImage.title}</strong>
           </div>
-          <InputRoleOptionList
-            disabledRoles={disabledRoles}
-            roles={roles}
-            onSelect={onSelectRole}
+          {slotOptions.length > 1 ? (
+            <section
+              className="input-reference-slot-options"
+              aria-label={t('operationReference.bindingTitle')}
+            >
+              {slotOptions.map((option) => (
+                <button
+                  key={option.slotId}
+                  type="button"
+                  className={selectedSlotId === option.slotId ? 'is-selected' : ''}
+                  aria-pressed={selectedSlotId === option.slotId}
+                  onClick={() => onSelectSlot(option.slotId)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </section>
+          ) : null}
+          <ReferenceIntentEditor
+            allowedModes={allowedModes}
+            setting={setting}
+            showModeOptions={slotOptions.length <= 1}
+            title={t('operationReference.bindingTitle')}
+            onChange={onChangeSetting}
           />
+          <button
+            type="button"
+            className="input-reference-confirm"
+            disabled={
+              (slotOptions.length > 1 && !selectedSlotId)
+              || (setting.mode === 'reference' && !setting.instruction.trim())
+            }
+            onClick={onConfirm}
+          >
+            {t('operationReference.confirm')}
+          </button>
         </>
       ) : images.length ? (
         <div className="input-reference-image-list">
@@ -100,7 +148,7 @@ export function InputReferencePicker({
       ) : (
         <div className="input-reference-empty">
           <ImageIcon size={20} />
-          <span>{t('operationInputRole.noImages')}</span>
+          <span>{t('operationReference.noImages')}</span>
         </div>
       )}
     </div>

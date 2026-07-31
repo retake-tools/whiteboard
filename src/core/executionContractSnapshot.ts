@@ -5,10 +5,9 @@ import type {
 } from './capabilityContracts';
 import { capabilityBindingValueForBlock } from './artifactLibrary';
 import { capabilityDefinitionFor } from './capabilityRegistry';
-import { isExecutionInputRole } from './inputRoles';
-import type { BlockRecord, BoardSnapshot, ExecutionInputRole, ExecutionRecord } from './types';
+import type { BlockRecord, BoardSnapshot, ExecutionRecord } from './types';
 
-export function recordLegacyExecutionContractSnapshot(
+export function recordExecutionContractSnapshot(
   snapshot: BoardSnapshot,
   execution: ExecutionRecord,
   operationBlock: BlockRecord,
@@ -19,8 +18,8 @@ export function recordLegacyExecutionContractSnapshot(
     version: definition.version,
     definitionHash: definition.definitionHash,
   };
-  execution.inputBindingsSnapshot = legacyInputBindings(snapshot, execution, operationBlock, definition);
-  execution.adapterSnapshot = legacyAdapterSnapshot(execution, definition);
+  execution.inputBindingsSnapshot = executionInputBindings(snapshot, execution, operationBlock, definition);
+  execution.adapterSnapshot = executionAdapterSnapshot(execution, definition);
   execution.skillSnapshot = execution.skillSnapshot ?? (execution.skillId
     ? {
         skillId: execution.skillId,
@@ -46,7 +45,7 @@ export function syncExecutionOutputContractSnapshot(execution: ExecutionRecord):
   execution.resultSummary = executionResultSummary(execution);
 }
 
-function legacyInputBindings(
+function executionInputBindings(
   snapshot: BoardSnapshot,
   execution: ExecutionRecord,
   operationBlock: BlockRecord,
@@ -55,10 +54,10 @@ function legacyInputBindings(
   const inputBlocks = execution.inputBlockIds
     .map((blockId) => snapshot.blocks.find((block) => block.blockId === blockId))
     .filter((block): block is BlockRecord => Boolean(block));
-  const roleByBlockId = new Map(
+  const slotByBlockId = new Map(
     snapshot.edges
       .filter((edge) => edge.targetBlockId === operationBlock.blockId && edge.kind === 'execution_input')
-      .map((edge) => [edge.sourceBlockId, edge.inputRole]),
+      .map((edge) => [edge.sourceBlockId, edge.inputSlotId]),
   );
   const parameterBindings = executionParameterImageBindings(execution);
 
@@ -67,7 +66,7 @@ function legacyInputBindings(
       slot.slotId,
       slot.semanticRole,
       inputBlocks,
-      roleByBlockId,
+      slotByBlockId,
       operationBlock,
       parameterBindings,
     );
@@ -79,9 +78,9 @@ function valuesForSlot(
   slotId: string,
   semanticRole: string,
   inputBlocks: BlockRecord[],
-  roleByBlockId: Map<string, ExecutionInputRole | undefined>,
+  slotByBlockId: Map<string, string | undefined>,
   operationBlock: BlockRecord,
-  parameterBindings: Array<{ assetId: string; blockId?: string; inputRole: ExecutionInputRole }>,
+  parameterBindings: Array<{ assetId: string; blockId?: string; inputSlotId: string }>,
 ): CapabilityBindingValue[] {
   if (semanticRole === 'prompt') {
     const promptBlock = inputBlocks.find((block) => block.type === 'text');
@@ -100,10 +99,7 @@ function valuesForSlot(
   const matchingBlocks = inputBlocks.filter((block) => {
     if (block.type !== 'image' && block.type !== 'video') return false;
     if (typeof block.data.assetId !== 'string') return false;
-    const role = roleByBlockId.get(block.blockId);
-    if (slotId === 'references' || semanticRole === 'reference') return role !== 'source';
-    if (slotId === 'source_image' || semanticRole === 'source') return role === 'source';
-    return role === semanticRole;
+    return slotByBlockId.get(block.blockId) === slotId;
   });
   const blockValues = matchingBlocks.map(bindingValueForBlock);
   const blockAssetIds = new Set(
@@ -114,11 +110,7 @@ function valuesForSlot(
   const parameterValues = parameterBindings
     .filter((binding) => {
       if (blockAssetIds.has(binding.assetId)) return false;
-      if (slotId === 'references' || semanticRole === 'reference') {
-        return binding.inputRole !== 'source' && binding.inputRole !== 'annotated_composite';
-      }
-      if (slotId === 'source_image' || semanticRole === 'source') return binding.inputRole === 'source';
-      return binding.inputRole === semanticRole;
+      return binding.inputSlotId === slotId;
     })
     .map((binding): CapabilityBindingValue => ({
       kind: 'asset',
@@ -130,16 +122,20 @@ function valuesForSlot(
 
 function executionParameterImageBindings(
   execution: ExecutionRecord,
-): Array<{ assetId: string; blockId?: string; inputRole: ExecutionInputRole }> {
+): Array<{ assetId: string; blockId?: string; inputSlotId: string }> {
   const bindings = Array.isArray(execution.params?.inputBindings) ? execution.params.inputBindings : [];
   return bindings.flatMap((binding) => {
     if (!binding || typeof binding !== 'object') return [];
     const record = binding as Record<string, unknown>;
-    if (typeof record.assetId !== 'string' || !isExecutionInputRole(record.inputRole)) return [];
+    if (
+      typeof record.assetId !== 'string'
+      || typeof record.inputSlotId !== 'string'
+      || !record.inputSlotId.trim()
+    ) return [];
     return [{
       assetId: record.assetId,
       blockId: typeof record.blockId === 'string' ? record.blockId : undefined,
-      inputRole: record.inputRole,
+      inputSlotId: record.inputSlotId,
     }];
   });
 }
@@ -166,7 +162,7 @@ function executionResultSummary(execution: ExecutionRecord): ExecutionRecord['re
   };
 }
 
-function legacyAdapterSnapshot(
+function executionAdapterSnapshot(
   execution: ExecutionRecord,
   definition: CapabilityDefinition,
 ): NonNullable<ExecutionRecord['adapterSnapshot']> {

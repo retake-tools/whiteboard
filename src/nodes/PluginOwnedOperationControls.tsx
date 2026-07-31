@@ -1,10 +1,14 @@
 import type { ReactElement } from 'react';
+import type { BlockData } from '../core/types';
 import { useI18n } from '../i18n';
+import { OperationReferenceInputs } from './OperationReferenceInputs';
 
 export function PluginOwnedOperationControls({
   capabilityName,
+  data,
 }: {
   capabilityName: string;
+  data: BlockData;
 }): ReactElement {
   const { t } = useI18n();
   return (
@@ -20,6 +24,7 @@ export function PluginOwnedOperationControls({
         <span>{t('operationToolbar.executor')}</span>
         <strong>{t('operationToolbar.pluginOwned')}</strong>
       </div>
+      <OperationReferenceInputs data={data} />
     </div>
   );
 }

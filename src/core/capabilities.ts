@@ -1,5 +1,4 @@
-import type { AdapterKind, BlockRecord, BoardSnapshot, ExecutionInputRole, OperationReadinessIssue } from './types';
-import { inputRoleDefinition } from './inputRoles';
+import type { AdapterKind, BlockRecord, BoardSnapshot, OperationReadinessIssue } from './types';
 import {
   normalizeStoryboardUnitId,
   storyboardSheetCapabilityId,
@@ -19,7 +18,22 @@ import type {
   CapabilityDefinition,
 } from './capabilityContracts';
 
-export type CapabilityInputRole = ExecutionInputRole;
+export type CapabilityInputRole =
+  | 'annotated_composite'
+  | 'character_reference'
+  | 'composition_reference'
+  | 'control_image'
+  | 'depth_map'
+  | 'edge_map'
+  | 'environment_reference'
+  | 'first_frame'
+  | 'general_reference'
+  | 'inpaint_mask'
+  | 'last_frame'
+  | 'object_reference'
+  | 'pose_reference'
+  | 'source'
+  | 'style_reference';
 export type CapabilityInputSource = 'block' | 'generated_asset' | 'inline';
 export type CapabilityInputType = 'image' | 'text' | 'video';
 export type CapabilityOutputType = 'document' | 'image' | 'text' | 'video';
@@ -418,24 +432,23 @@ export function operationReadinessFor(
     if (contract.type === 'image') {
       const assetBackedBlocks = matchingBlocks.filter((block) => typeof block.data.assetId === 'string');
       if (assetBackedBlocks.length < min) issues.add('image_asset_missing');
-      const requiredRoles = [contract.role, ...(contract.requiredRoles ?? [])].filter(
-        (role): role is ExecutionInputRole => Boolean(role),
-      );
-      for (const requiredRole of requiredRoles) {
-        const hasRole = inputEdges.some((edge) => {
+      if (
+        contract.requiredRoles?.includes('source')
+        && !inputEdges.some((edge) => {
           const block = blockById.get(edge.sourceBlockId);
-          return edge.inputRole === requiredRole && block?.type === 'image' && typeof block.data.assetId === 'string';
-        });
-        if (!hasRole) issues.add(requiredRole === 'source' ? 'source_image_missing' : 'image_role_missing');
-      }
+          return edge.inputSlotId === 'source_image'
+            && block?.type === 'image'
+            && typeof block.data.assetId === 'string';
+        })
+      ) issues.add('source_image_missing');
     }
   }
 
   for (const edge of inputEdges) {
     const block = blockById.get(edge.sourceBlockId);
     if (block?.type !== 'image' || typeof block.data.assetId !== 'string') continue;
-    if (executionInputRoleOptionsFor(block, operationBlock).length > 0 && !edge.inputRole) {
-      issues.add('image_role_missing');
+    if (compatibleInputSlotIdsFor(block, operationBlock).length > 0 && !edge.inputSlotId) {
+      issues.add('image_binding_missing');
     }
   }
 
@@ -536,7 +549,7 @@ export function operationReadinessMessageKey(issue: OperationReadinessIssue) {
   if (issue === 'workflow_step_not_ready') return 'workflowRuntime.stepNotReady' as const;
   if (issue === 'image_input_missing') return 'operationToolbar.imageInputMissing' as const;
   if (issue === 'image_asset_missing') return 'operationToolbar.imageAssetMissing' as const;
-  if (issue === 'image_role_missing') return 'operationInputRole.required' as const;
+  if (issue === 'image_binding_missing') return 'operationReference.bindingRequired' as const;
   return 'operationToolbar.sourceImageMissing' as const;
 }
 
@@ -619,18 +632,16 @@ export function firstTextInputBlock(inputBlocks: BlockRecord[]): BlockRecord | u
   return inputBlocks.find((block) => block.type === 'text');
 }
 
-export function executionInputRoleOptionsFor(
+export function compatibleInputSlotIdsFor(
   sourceBlock: BlockRecord,
   operationBlock: BlockRecord,
-): ExecutionInputRole[] {
+): string[] {
   if (operationBlock.type === 'video') {
     if (sourceBlock.type !== 'image') return [];
     return [
       'first_frame',
       'last_frame',
-      'character_reference',
-      'environment_reference',
-      'general_reference',
+      'references',
     ];
   }
   if (operationBlock.type !== 'operation') return [];
@@ -638,33 +649,83 @@ export function executionInputRoleOptionsFor(
   const capabilityId =
     typeof operationBlock.data.capabilityId === 'string' ? operationBlock.data.capabilityId : 'image.text_to_image';
   if (capabilityId === storyboardSheetCapabilityId) return [];
+  const pluginDefinition = pluginCapabilityDefinitionFor(capabilityId);
+  if (pluginDefinition) {
+    return pluginDefinition.inputSlots
+      .filter((slot) => slot.dataTypes.some(
+        (dataType) => dataType === sourceBlock.type,
+      ))
+      .map((slot) => slot.slotId);
+  }
   const schema = schemaForCapability(capabilityId);
-  const roles = schema.inputContracts
+  const slotIds = schema.inputContracts
     .filter((contract) => contract.source === 'block' && contract.type === sourceBlock.type)
     .flatMap((contract) => {
+      if (contract.type === 'text') return ['prompt'];
+      if (contract.type === 'video') return [contract.role ?? 'source_video'];
+      if (contract.requiredRoles?.includes('source')) return ['source_image', 'references'];
       if (contract.role) return [contract.role];
-      return contract.roles ?? [];
+      if (contract.roles?.length) return ['references'];
+      return ['images'];
     });
 
-  return Array.from(new Set(roles));
+  return Array.from(new Set(slotIds));
 }
 
-export function disabledExecutionInputRolesFor(
+export function disabledInputSlotIdsFor(
   snapshot: BoardSnapshot,
   sourceBlock: BlockRecord,
   operationBlock: BlockRecord,
   currentEdgeId?: string,
-): ExecutionInputRole[] {
-  return executionInputRoleOptionsFor(sourceBlock, operationBlock).filter((role) => {
-    const maxCount = inputRoleDefinition(role).maxCount;
-    if (maxCount === 'many') return false;
+): string[] {
+  return compatibleInputSlotIdsFor(sourceBlock, operationBlock).filter((slotId) => {
+    const cardinality = inputSlotCardinality(operationBlock, slotId);
+    if (cardinality === 'many') return false;
     const assignedCount = snapshot.edges.filter(
       (edge) =>
         edge.edgeId !== currentEdgeId &&
         edge.kind === 'execution_input' &&
         edge.targetBlockId === operationBlock.blockId &&
-        edge.inputRole === role,
+        edge.inputSlotId === slotId,
     ).length;
-    return assignedCount >= maxCount;
+    return assignedCount >= 1;
   });
+}
+
+export function suggestedInputSlotId(
+  snapshot: BoardSnapshot,
+  sourceBlock: BlockRecord,
+  operationBlock: BlockRecord,
+  currentEdgeId?: string,
+): string | undefined {
+  const compatible = compatibleInputSlotIdsFor(sourceBlock, operationBlock);
+  const disabled = new Set(disabledInputSlotIdsFor(
+    snapshot,
+    sourceBlock,
+    operationBlock,
+    currentEdgeId,
+  ));
+  const available = compatible.filter((slotId) => !disabled.has(slotId));
+  if (available.length === 1) return available[0];
+  if (sourceBlock.type === 'image' && available.includes('references')) {
+    return available.includes('source_image') ? undefined : 'references';
+  }
+  return available[0];
+}
+
+function inputSlotCardinality(
+  operationBlock: BlockRecord,
+  slotId: string,
+): CapabilityDefinition['inputSlots'][number]['cardinality'] {
+  if (operationBlock.type === 'video') {
+    return slotId === 'references' ? 'many' : 'one';
+  }
+  const capabilityId = typeof operationBlock.data.capabilityId === 'string'
+    ? operationBlock.data.capabilityId
+    : 'image.text_to_image';
+  const pluginDefinition = pluginCapabilityDefinitionFor(capabilityId);
+  const pluginSlot = pluginDefinition?.inputSlots.find((slot) => slot.slotId === slotId);
+  if (pluginSlot) return pluginSlot.cardinality;
+  if (slotId === 'references') return 'many';
+  return 'one';
 }

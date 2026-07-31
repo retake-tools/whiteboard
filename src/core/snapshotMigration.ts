@@ -4,11 +4,9 @@ import type {
   BoardSnapshot,
   BlockType,
   ConnectionKind,
-  ExecutionInputRole,
 } from './types';
 import { defaultGenerationProfileId } from './generationProfiles';
 import { displaySlotSizeForGenerationParams, type ImageGenerationParams } from './imageOperations';
-import { isExecutionInputRole } from './inputRoles';
 import { fitImageBlockSize, imageResultColumnGap } from './blockSizing';
 import { ensureExecutionResultGroups, repairGroupRelationships } from './grouping';
 import type { ChangeProposalCommand } from './agentSessionContracts';
@@ -17,7 +15,9 @@ import { normalizeBoardBackground } from './boardBackground';
 type LegacyBlockType = BlockType | 'task' | 'frame';
 type LegacyConnectionKind = ConnectionKind | 'reference' | 'derived_from';
 type LegacyBlockRecord = Omit<BlockRecord, 'type'> & { type: LegacyBlockType };
-type LegacyEdgeRecord = Omit<BoardEdgeRecord, 'kind'> & { kind: LegacyConnectionKind };
+type LegacyEdgeRecord = Omit<BoardEdgeRecord, 'kind'> & {
+  kind: LegacyConnectionKind;
+};
 type LegacyBoardSnapshot = Omit<BoardSnapshot, 'blocks' | 'edges'> & {
   blocks: LegacyBlockRecord[];
   edges: LegacyEdgeRecord[];
@@ -52,8 +52,12 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
     if (edge.kind === 'visual_note' || edge.kind === 'execution_input' || edge.kind === 'execution_output') {
       return [
         {
-          ...(edge as BoardEdgeRecord),
-          inputRole: isExecutionInputRole(edge.inputRole) ? edge.inputRole : undefined,
+          edgeId: edge.edgeId,
+          inputSlotId: edge.inputSlotId,
+          kind: edge.kind,
+          referenceIntent: edge.referenceIntent,
+          sourceBlockId: edge.sourceBlockId,
+          targetBlockId: edge.targetBlockId,
         },
       ];
     }

@@ -1,6 +1,6 @@
 import { connectedInputBlocks, promptTextFromInputs } from './capabilities';
 import { sourceImageAspectRatio } from './operationAspectRatio';
-import { recordLegacyExecutionContractSnapshot } from './executionContractSnapshot';
+import { recordExecutionContractSnapshot } from './executionContractSnapshot';
 import { normalizeReferenceIntent } from './referenceIntent';
 import type {
   BlockRecord,
@@ -26,7 +26,6 @@ export function currentOperationConfiguration(
       return [{
         assetId: typeof block.data.assetId === 'string' ? block.data.assetId : undefined,
         blockId: block.blockId,
-        inputRole: edge.inputRole,
         inputSlotId: edge.inputSlotId,
         ...(edge.referenceIntent
           ? { referenceIntent: structuredClone(edge.referenceIntent) }
@@ -136,7 +135,6 @@ export function recordExecutionConfiguration(
         binding?.assetId ??
         (typeof block.data.assetId === 'string' ? block.data.assetId : undefined),
       blockId: block.blockId,
-      inputRole: binding?.inputRole ?? edge?.inputRole,
       inputSlotId: binding?.inputSlotId ?? edge?.inputSlotId,
       ...(referenceIntent
         ? { referenceIntent: structuredClone(referenceIntent) }
@@ -166,7 +164,7 @@ export function recordExecutionConfiguration(
 
   execution.configuration = configuration;
   execution.configurationFingerprint = configurationFingerprint(configuration);
-  recordLegacyExecutionContractSnapshot(snapshot, execution, operationBlock);
+  recordExecutionContractSnapshot(snapshot, execution, operationBlock);
 }
 
 export function assignExecutionVersion(snapshot: BoardSnapshot, execution: ExecutionRecord): void {
@@ -199,7 +197,6 @@ export function executionConfiguration(execution: ExecutionRecord): ExecutionCon
     imageInputs: inputBindings.map((binding) => ({
       assetId: binding.assetId,
       blockId: binding.blockId,
-      inputRole: binding.inputRole,
       inputSlotId: binding.inputSlotId,
       ...(binding.referenceIntent
         ? { referenceIntent: structuredClone(binding.referenceIntent) }
@@ -219,13 +216,11 @@ export function configurationFingerprint(configuration: ExecutionConfigurationSn
     imageInputs: normalized.imageInputs.map(({
       assetId,
       blockId,
-      inputRole,
       inputSlotId,
       referenceIntent,
     }) => ({
       assetId,
       blockId,
-      inputRole,
       inputSlotId,
       referenceIntent,
     })),
@@ -299,15 +294,6 @@ export function configurationChanges(
         !== stableStringify(currentInput.referenceIntent)
     ) {
       changes.push({ kind: 'input', key: blockId, blockId, previous: previousInput, current: currentInput });
-    }
-    if (previousInput && currentInput && previousInput.inputRole !== currentInput.inputRole) {
-      changes.push({
-        kind: 'role',
-        key: blockId,
-        blockId,
-        previous: previousInput.inputRole,
-        current: currentInput.inputRole,
-      });
     }
   }
   return changes;
@@ -485,7 +471,6 @@ function readInputBindings(value: unknown): ExecutionConfigurationInputSnapshot[
     return [{
       assetId: typeof binding.assetId === 'string' ? binding.assetId : undefined,
       blockId: binding.blockId,
-      inputRole: typeof binding.inputRole === 'string' ? binding.inputRole as ExecutionConfigurationInputSnapshot['inputRole'] : undefined,
       inputSlotId: typeof binding.inputSlotId === 'string' ? binding.inputSlotId : undefined,
       referenceIntent: normalizeReferenceIntent(binding.referenceIntent),
       title: binding.blockId,

@@ -17,7 +17,6 @@ import type {
   BlockRecord,
   BlockType,
   BoardSnapshot,
-  ExecutionInputRole,
 } from './types';
 
 export interface ArtifactPromotionOption {
@@ -91,13 +90,7 @@ export function compatibleArtifactInputSlots(
       .filter(
         (edge) => edge.kind === 'execution_input' && edge.targetBlockId === operation.blockId,
       )
-      .flatMap((edge) => {
-        if (edge.inputSlotId) return [edge.inputSlotId];
-        const matchingSlot = definition.inputSlots.find(
-          (slot) => inputRoleMatchesSemanticRole(edge.inputRole, slot.semanticRole),
-        );
-        return matchingSlot ? [matchingSlot.slotId] : [];
-      }),
+      .flatMap((edge) => edge.inputSlotId ? [edge.inputSlotId] : []),
   );
   return definition.inputSlots.filter((slot) => {
     if (!slot.bindingKinds.includes('artifact_revision')) return false;
@@ -150,7 +143,6 @@ export function insertArtifactReference(
   if (targetOperation && targetSlot) {
     snapshot.edges.push({
       edgeId: createId('edge'),
-      inputRole: inputRoleForSlot(targetSlot.semanticRole),
       inputSlotId: targetSlot.slotId,
       kind: 'execution_input',
       sourceBlockId: block.blockId,
@@ -199,27 +191,4 @@ function dataTypesForAssetKind(kind: AssetKind): CapabilityDataType[] {
 function blockTypeForAssetKind(kind: AssetKind): BlockType | undefined {
   if (kind === 'image' || kind === 'video' || kind === 'document') return kind;
   return undefined;
-}
-
-function inputRoleForSlot(semanticRole: string): ExecutionInputRole | undefined {
-  if (semanticRole === 'source') return 'source';
-  if (semanticRole === 'first_frame') return 'first_frame';
-  if (semanticRole === 'last_frame') return 'last_frame';
-  if (semanticRole === 'character_reference') return 'character_reference';
-  if (semanticRole === 'scene_reference') return 'environment_reference';
-  if (semanticRole === 'style_reference') return 'style_reference';
-  if (semanticRole === 'reference') return 'general_reference';
-  return undefined;
-}
-
-function inputRoleMatchesSemanticRole(
-  inputRole: ExecutionInputRole | undefined,
-  semanticRole: string,
-): boolean {
-  if (!inputRole) return false;
-  if (inputRole === 'environment_reference') return semanticRole === 'scene_reference';
-  if (inputRole === 'general_reference') {
-    return semanticRole === 'reference' || semanticRole === 'general_reference';
-  }
-  return inputRole === semanticRole;
 }

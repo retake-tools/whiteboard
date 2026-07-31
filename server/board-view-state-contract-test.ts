@@ -10,6 +10,7 @@ import {
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import { migrateBoardSnapshot } from '../src/core/snapshotMigration';
 import type { BoardSnapshot } from '../src/core/types';
+import { safeViewportForBounds } from '../src/app/canvasFocus';
 import { createBlankSnapshot } from './local-store/snapshot-store';
 
 class MemoryStorage {
@@ -83,6 +84,27 @@ assert.equal('viewport' in createBlankSnapshot({
   now: savedAt,
 }), false, 'new and duplicated board snapshots must not own view state');
 
+const focusedViewport = safeViewportForBounds({
+  bounds: { x: 100, y: 200, width: 900, height: 500 },
+  canvas: { width: 1200, height: 800 },
+  maxZoom: 1,
+  minZoom: 0.1,
+});
+assert.ok(focusedViewport, 'stable canvas bounds must produce a focus viewport');
+assert.ok(focusedViewport.zoom <= 1, 'automatic workflow focus must not exceed its zoom cap');
+assert.equal(safeViewportForBounds({
+  bounds: { x: 100, y: 200, width: 900, height: 500 },
+  canvas: { width: 0, height: 800 },
+  maxZoom: 1,
+  minZoom: 0.1,
+}), undefined, 'a transient zero-width canvas must not overwrite the current viewport');
+assert.equal(safeViewportForBounds({
+  bounds: { x: Number.NaN, y: 200, width: 900, height: 500 },
+  canvas: { width: 1200, height: 800 },
+  maxZoom: 1,
+  minZoom: 0.1,
+}), undefined, 'invalid node bounds must not overwrite the current viewport');
+
 const canvasSource = await readFile('src/app/useCanvasController.ts', 'utf8');
 assert.match(canvasSource, /saveBoardViewState\(/, 'canvas viewport changes must use BoardViewStateStore');
 assert.match(canvasSource, /scheduleViewportPersist/, 'in-progress pan and zoom gestures must schedule durable view-state writes');
@@ -96,4 +118,5 @@ console.log({
   inProgressGestureFlushed: true,
   legacyViewportRemoved: true,
   responsiveCenterRestore: true,
+  transientFocusGuarded: true,
 });

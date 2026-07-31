@@ -98,7 +98,7 @@ try {
     inputBindings: [{
       assetId: sourceAsset.assetId,
       blockId: sourceBlock.blockId,
-      inputRole: 'source',
+      inputSlotId: 'source_image',
     }],
     operationBlockId: operationBlock.blockId,
     pluginParameters: parameters,

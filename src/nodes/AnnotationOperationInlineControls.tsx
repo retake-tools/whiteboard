@@ -23,6 +23,7 @@ import { operationDisplayState } from '../core/operationDisplay';
 import type { BlockData } from '../core/types';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
+import { OperationReferenceInputs } from './OperationReferenceInputs';
 
 export function AnnotationOperationInlineControls({
   blockId,
@@ -202,6 +203,7 @@ export function AnnotationOperationInlineControls({
           </div>
         ) : null}
       </div>
+      <OperationReferenceInputs data={data} />
       <button
         type="button"
         className={`operation-run-button ${

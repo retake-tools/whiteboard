@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { defaultBlockSize, fitImageBlockSize, fitMediaBlockSize } from '../src/core/blockSizing';
 import { managedResultStatusMessageKey } from '../src/core/resultStatus';
 import { createBlockRecord } from '../src/core/blockFactory';
+import { layoutAttachmentBlocks } from '../src/core/attachmentPlacement';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import { blockGroupBounds, moveBlockGroupToNearestFreeArea } from '../src/core/workflowPlacement';
 
@@ -56,6 +57,36 @@ assert.equal(
   'workflow bounds must move as one unit away from occupied blocks',
 );
 
+const attachmentBlocks = [
+  createBlockRecord(placementSnapshot, 'image'),
+  createBlockRecord(placementSnapshot, 'image'),
+  createBlockRecord(placementSnapshot, 'image'),
+];
+attachmentBlocks[0].size = { width: 180, height: 360 };
+attachmentBlocks[1].size = { width: 360, height: 180 };
+attachmentBlocks[2].size = { width: 360, height: 180 };
+layoutAttachmentBlocks(attachmentBlocks, { x: 100, y: 200 });
+const attachmentBounds = blockGroupBounds(attachmentBlocks);
+assert.equal(
+  Math.round(attachmentBounds.x + attachmentBounds.width / 2),
+  100,
+  'uploaded attachment rows must stay centered on the requested insertion area',
+);
+assert.equal(
+  Math.round(attachmentBounds.y + attachmentBounds.height / 2),
+  200,
+  'uploaded attachment rows must stay vertically centered on the requested insertion area',
+);
+assert.equal(
+  attachmentBlocks[0].position.y + attachmentBlocks[0].size.height / 2,
+  attachmentBlocks[1].position.y + attachmentBlocks[1].size.height / 2,
+  'mixed portrait and landscape attachments share a row while their widths fit',
+);
+assert.ok(
+  attachmentBlocks[2].position.y > attachmentBlocks[1].position.y,
+  'wide attachments wrap to a new row instead of overlapping',
+);
+
 console.log({
   defaults: {
     document: defaultBlockSize('document'),
@@ -66,5 +97,6 @@ console.log({
   },
   importedPortrait: fitImageBlockSize(1086, 1448),
   generatedPortrait: fitMediaBlockSize(9 / 16),
+  uploadedAttachmentShelf: true,
   workflowGroupAvoidedCollision: true,
 });

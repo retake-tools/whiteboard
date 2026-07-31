@@ -106,21 +106,31 @@ async function executeCodexImageRun(
   resultBlockIds: string[],
 ): Promise<void> {
   const initial = await loadSnapshot(execution.projectId, execution.boardId);
-  const inputAssignments = imageExecutionInputAssignments(execution);
+  const declaredInputAssignments = imageExecutionInputAssignments(execution);
+  for (const { assetId } of declaredInputAssignments) {
+    if (!initial.assets.some((asset) => asset.assetId === assetId)) {
+      throw new Error(`Codex image input is missing from the board snapshot: ${assetId}`);
+    }
+  }
+  const inputAssignments = declaredInputAssignments.filter(
+    ({ assetId }) => initial.assets.some(
+      (asset) => asset.assetId === assetId && asset.kind === 'image',
+    ),
+  );
   const localImagePaths = await executionInputImagePaths(initial, inputAssignments);
-  const localImagePathByRole = new Map(
+  const localImagePathBySlot = new Map(
     inputAssignments.map((assignment, index) => [
-      assignment.inputRole,
+      assignment.inputSlotId,
       localImagePaths[index],
     ]),
   );
   if (execution.capabilityId === outpaintCapabilityId) {
-    const sourcePath = localImagePathByRole.get('source');
-    const guidePath = localImagePathByRole.get('control_image');
-    const maskPath = localImagePathByRole.get('inpaint_mask');
+    const sourcePath = localImagePathBySlot.get('source_image');
+    const guidePath = localImagePathBySlot.get('outpaint_guide');
+    const maskPath = localImagePathBySlot.get('inpaint_mask');
     if (!sourcePath || !guidePath || !maskPath) {
       throw new Error(
-        'Outpaint execution requires source, control_image, and inpaint_mask image inputs.',
+        'Outpaint execution requires source_image, outpaint_guide, and inpaint_mask image inputs.',
       );
     }
     await validateOutpaintImageInputs({
@@ -171,14 +181,14 @@ async function executeCodexImageRun(
         ? await importMaskedCodexImage(
           execution,
           image,
-          localImagePathByRole,
+          localImagePathBySlot,
           index,
         )
         : execution.capabilityId === outpaintCapabilityId
           ? await importOutpaintCodexImage(
             execution,
             image,
-            localImagePathByRole,
+            localImagePathBySlot,
             index,
           )
         : image.savedPath
@@ -224,11 +234,11 @@ async function executeCodexImageRun(
 async function importMaskedCodexImage(
   execution: ExecutionRecord,
   image: { dataUrl?: string; savedPath?: string },
-  localImagePathByRole: ReadonlyMap<string, string | undefined>,
+  localImagePathBySlot: ReadonlyMap<string, string | undefined>,
   index: number,
 ) {
-  const sourcePath = localImagePathByRole.get('source');
-  const maskPath = localImagePathByRole.get('inpaint_mask');
+  const sourcePath = localImagePathBySlot.get('source_image');
+  const maskPath = localImagePathBySlot.get('inpaint_mask');
   if (!sourcePath || !maskPath) {
     throw new Error(
       'Masked image execution requires source and inpaint_mask image inputs.',
@@ -264,10 +274,10 @@ async function importMaskedCodexImage(
 async function importOutpaintCodexImage(
   execution: ExecutionRecord,
   image: { dataUrl?: string; savedPath?: string },
-  localImagePathByRole: ReadonlyMap<string, string | undefined>,
+  localImagePathBySlot: ReadonlyMap<string, string | undefined>,
   index: number,
 ) {
-  const sourcePath = localImagePathByRole.get('source');
+  const sourcePath = localImagePathBySlot.get('source_image');
   if (!sourcePath) {
     throw new Error(
       'Outpaint execution requires a source image input.',

@@ -2,10 +2,10 @@ import { Braces, Eye, FileText, Loader2, PanelLeftClose, PanelLeftOpen, X } from
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { useDocumentStream } from '../core/documentStreamStore';
 import { executionImageBrowserItems } from '../core/executionImageBrowser';
-import { inputRoleDefinition } from '../core/inputRoles';
 import { markdownHeadingAnchorId, markdownHeadings } from '../core/markdownDocument';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
 import { useI18n } from '../i18n';
+import { referenceInputSlotLabel } from './referenceInputLabels';
 import {
   ExecutionDetailContent,
   getExecutionDetailContextForBlock,
@@ -98,7 +98,8 @@ export function ExecutionInspector({
     : outputDocuments[0];
   const fallbackImages = context?.inputImages.map((inputImage) => ({
     asset: inputImage.asset,
-    title: inputImage.inputRole ? t(inputRoleDefinition(inputImage.inputRole).titleKey) : t('inspector.inputAssets'),
+    title: inputImage.referenceIntent?.label
+      ?? referenceInputSlotLabel({ inputSlotId: inputImage.inputSlotId }, t),
   })) ?? [];
   const connectedImages: ViewerImage[] = chainImages.map((image) => ({
     asset: image.asset,

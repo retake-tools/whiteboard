@@ -6,7 +6,6 @@ import type {
   ImageReferenceBindingKind,
   ReferenceIntentV1,
 } from './referenceIntent';
-import type { ExecutionInputRole } from './types';
 
 export type CreativeRequestMediaKind = 'image' | 'video';
 
@@ -185,19 +184,4 @@ export function imageInputSlots(
   definition: CapabilityDefinition,
 ) {
   return definition.inputSlots.filter((slot) => slot.dataTypes.includes('image'));
-}
-
-export function legacyInputRoleForSlot(
-  definition: CapabilityDefinition,
-  inputSlotId: string,
-): ExecutionInputRole {
-  const semanticRole = imageInputSlots(definition).find(
-    (slot) => slot.slotId === inputSlotId,
-  )?.semanticRole;
-  if (semanticRole === 'source') return 'source';
-  if (semanticRole === 'first_frame') return 'first_frame';
-  if (semanticRole === 'last_frame') return 'last_frame';
-  if (semanticRole === 'character_reference') return 'character_reference';
-  if (semanticRole === 'scene_reference') return 'environment_reference';
-  return 'general_reference';
 }

@@ -28,7 +28,7 @@ import {
 import { createId, nowIso } from './id';
 import { MockVideoAdapter } from './mockVideoAdapter';
 import { skillDefinitionFor } from './skillRegistry';
-import type { AssetRecord, BlockRecord, BoardHistoryEvent, BoardSnapshot, ExecutionInputRole, ExecutionRecord } from './types';
+import type { AssetRecord, BlockRecord, BoardHistoryEvent, BoardSnapshot, ExecutionRecord } from './types';
 import { attachWorkflowExecution, reconcileWorkflowRuntime } from './workflowRuntime';
 
 export interface DomainVideoExecutionContext {
@@ -455,20 +455,12 @@ function videoInputBindings(
       || (block.type !== 'image' && block.type !== 'video')
       || typeof block.data.assetId !== 'string'
     ) continue;
-    const slotId = videoSlotForRole(edge.inputRole);
+    const slotId = edge.inputSlotId ?? 'general_references';
     const values = slotValues.get(slotId) ?? [];
     values.push(capabilityBindingValueForBlock(block));
     slotValues.set(slotId, values);
   }
   return [...slotValues].map(([slotId, values]) => ({ slotId, values }));
-}
-
-function videoSlotForRole(role: ExecutionInputRole | undefined): string {
-  if (role === 'first_frame') return 'first_frame';
-  if (role === 'last_frame') return 'last_frame';
-  if (role === 'character_reference') return 'character_references';
-  if (role === 'environment_reference') return 'scene_references';
-  return 'general_references';
 }
 
 function prepareVideoResultBlocks(

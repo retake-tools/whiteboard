@@ -1,9 +1,11 @@
 import type { RefObject } from 'react';
 import { createAssetFromDataUrl } from '../core/assetStore';
+import { layoutAttachmentBlocks } from '../core/attachmentPlacement';
 import { createBlockRecord, touchBoard } from '../core/blockFactory';
 import { fitImageBlockSize, readFileAsDataUrl, readImageDimensions } from '../core/imageFile';
 import type { PackageComposerMention } from '../core/packageComposer';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
+import { moveBlockGroupToNearestFreeArea } from '../core/workflowPlacement';
 
 const maxAttachmentBytes = 30 * 1024 * 1024;
 
@@ -59,17 +61,18 @@ export function useAgentAttachmentController(
 
     const next = options.updateSnapshot((current) => {
       const origin = options.centeredBlockPosition({ height: 180, width: 240 });
-      imported.forEach((item, index) => {
+      const center = { x: origin.x + 120, y: origin.y + 90 };
+      const attachmentBlocks: BlockRecord[] = [];
+      imported.forEach((item) => {
         if (!current.assets.some((candidate) => candidate.assetId === item.asset.assetId)) {
           current.assets.unshift(item.asset);
         }
         if (!item.block) return;
-        item.block.position = {
-          x: origin.x + index * 28,
-          y: origin.y + index * 28,
-        };
+        attachmentBlocks.push(item.block);
         current.blocks.push(item.block);
       });
+      layoutAttachmentBlocks(attachmentBlocks, center);
+      moveBlockGroupToNearestFreeArea(current, attachmentBlocks, center);
       return touchBoard(current);
     }, { history: true, persist: false, syncFlow: true });
     await options.persistSnapshot(next, { requireLocalApi: true });

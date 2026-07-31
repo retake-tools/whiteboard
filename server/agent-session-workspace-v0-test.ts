@@ -105,6 +105,9 @@ assert.match(sharedComposerSource, /listPackageComposerMentionOptions/);
 assert.match(controllerSource, /persistSnapshot\(withUserMessage, \{ requireLocalApi: true \}\)/);
 assert.match(controllerSource, /applyAgentRuntimeTurn/);
 assert.match(controllerSource, /stageAgentOperationExecution/);
+assert.match(controllerSource, /layoutImageComposerWorkflow\(staged\.stagedSnapshot/);
+assert.match(controllerSource, /bindingSource === 'message_attachment'/);
+assert.doesNotMatch(controllerSource, /focusWorkflowBlocks\(operationScopeIds\)/);
 assert.match(controllerSource, /retake:run-operation/);
 assert.match(controllerSource, /revealOnStart: true/);
 assert.match(
@@ -471,7 +474,7 @@ assert.ok(
   selectedImageApplication.stagedSnapshot.edges.some(
     (edge) =>
       edge.kind === 'execution_input'
-      && edge.inputRole === 'source'
+      && edge.inputSlotId === 'source_image'
       && edge.sourceBlockId === selectedSourceImage.blockId
       && edge.targetBlockId === selectedEditOperation?.blockId,
   ),
@@ -566,7 +569,7 @@ assert.ok(
   workingImageApplication.stagedSnapshot.edges.some(
     (edge) =>
       edge.kind === 'execution_input'
-      && edge.inputRole === 'source'
+      && edge.inputSlotId === 'source_image'
       && edge.sourceBlockId === workingOutputImage.blockId
       && edge.targetBlockId === workingImageApplication.receipt.operationBlockId,
   ),
@@ -1084,14 +1087,12 @@ const multiReferenceInputEdges = multiReferenceApplication.stagedSnapshot.edges
       ].includes(edge.sourceBlockId),
   )
   .map((edge) => ({
-    inputRole: edge.inputRole,
     inputSlotId: edge.inputSlotId,
     referenceIntent: edge.referenceIntent,
     sourceBlockId: edge.sourceBlockId,
   }));
 assert.deepEqual(multiReferenceInputEdges, [
   {
-    inputRole: 'general_reference',
     inputSlotId: 'references',
     referenceIntent: {
       instruction: '参考主体位于画面左侧的空间安排。',
@@ -1102,7 +1103,6 @@ assert.deepEqual(multiReferenceInputEdges, [
     sourceBlockId: compositionReference.blockId,
   },
   {
-    inputRole: 'general_reference',
     inputSlotId: 'references',
     referenceIntent: {
       instruction: '参考背景环境，不复制主体。',
@@ -1113,7 +1113,6 @@ assert.deepEqual(multiReferenceInputEdges, [
     sourceBlockId: environmentReference.blockId,
   },
   {
-    inputRole: 'general_reference',
     inputSlotId: 'references',
     referenceIntent: {
       instruction: '参考整体视觉质感，不复制构图。',

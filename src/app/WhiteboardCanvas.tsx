@@ -300,6 +300,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
         onNodeClick={canvas.onNodeClick}
         onNodeDoubleClick={canvas.onNodeDoubleClick}
         onConnect={canvas.onConnect}
+        onConnectEnd={canvas.onConnectEnd}
         onInit={(instance) => {
           canvas.reactFlowRef.current = instance;
           void instance.setViewport(canvas.currentViewportRef.current, { duration: 0 });

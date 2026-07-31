@@ -495,10 +495,16 @@ export type TranslationKey =
   | 'skillComposer.referenceBadgeSource'
   | 'skillComposer.referenceSuggestionComposition'
   | 'skillComposer.referenceSuggestionCompositionInstruction'
+  | 'skillComposer.referenceSuggestionCharacter'
+  | 'skillComposer.referenceSuggestionCharacterInstruction'
   | 'skillComposer.referenceSuggestionDetail'
   | 'skillComposer.referenceSuggestionDetailInstruction'
   | 'skillComposer.referenceSuggestionLight'
   | 'skillComposer.referenceSuggestionLightInstruction'
+  | 'skillComposer.referenceSuggestionMaterial'
+  | 'skillComposer.referenceSuggestionMaterialInstruction'
+  | 'skillComposer.referenceSuggestionPose'
+  | 'skillComposer.referenceSuggestionPoseInstruction'
   | 'skillComposer.referenceSuggestionScene'
   | 'skillComposer.referenceSuggestionSceneInstruction'
   | 'skillComposer.referenceSuggestions'
@@ -506,6 +512,8 @@ export type TranslationKey =
   | 'skillComposer.referenceSuggestionStyleInstruction'
   | 'skillComposer.referenceSuggestionSubject'
   | 'skillComposer.referenceSuggestionSubjectInstruction'
+  | 'skillComposer.referenceSuggestionTypography'
+  | 'skillComposer.referenceSuggestionTypographyInstruction'
   | 'skillComposer.referenceSourceHint'
   | 'skillComposer.referenceRequired'
   | 'skillComposer.referencePurpose'
@@ -818,18 +826,11 @@ export type TranslationKey =
   | 'operationInputQuickAdd.image'
   | 'operationInputQuickAdd.text'
   | 'operationInputQuickAdd.title'
-  | 'operationInputRole.annotated_composite'
-  | 'operationInputRole.change'
-  | 'operationInputRole.character_reference'
-  | 'operationInputRole.choose'
-  | 'operationInputRole.imagePickerDescription'
-  | 'operationInputRole.imagePickerTitle'
-  | 'operationInputRole.noImages'
-  | 'operationInputRole.pickerDescription'
-  | 'operationInputRole.pickerTitle'
-  | 'operationInputRole.remove'
-  | 'operationInputRole.required'
-  | 'operationInputRole.roleLimitReached'
+  | 'operationReference.imagePickerDescription'
+  | 'operationReference.imagePickerTitle'
+  | 'operationReference.noImages'
+  | 'operationReference.pickerDescription'
+  | 'operationReference.pickerTitle'
   | 'operationStatus.canceled'
   | 'operationStatus.failed'
   | 'operationStatus.succeeded'
@@ -837,40 +838,29 @@ export type TranslationKey =
   | 'operationStatus.changes'
   | 'operationStatus.executionContentUpdated'
   | 'operationToolbar.updatePrompt'
-  | 'operationInputRole.first_frame'
-  | 'operationInputRole.last_frame'
-  | 'operationInputRole.source'
-  | 'operationInputRole.style_reference'
-  | 'operationInputRole.annotated_composite.title'
-  | 'operationInputRole.annotated_composite.description'
-  | 'operationInputRole.character_reference.title'
-  | 'operationInputRole.character_reference.description'
-  | 'operationInputRole.composition_reference.title'
-  | 'operationInputRole.composition_reference.description'
-  | 'operationInputRole.control_image.title'
-  | 'operationInputRole.control_image.description'
-  | 'operationInputRole.depth_map.title'
-  | 'operationInputRole.depth_map.description'
-  | 'operationInputRole.edge_map.title'
-  | 'operationInputRole.edge_map.description'
-  | 'operationInputRole.environment_reference.title'
-  | 'operationInputRole.environment_reference.description'
-  | 'operationInputRole.first_frame.title'
-  | 'operationInputRole.first_frame.description'
-  | 'operationInputRole.general_reference.title'
-  | 'operationInputRole.general_reference.description'
-  | 'operationInputRole.inpaint_mask.title'
-  | 'operationInputRole.inpaint_mask.description'
-  | 'operationInputRole.last_frame.title'
-  | 'operationInputRole.last_frame.description'
-  | 'operationInputRole.object_reference.title'
-  | 'operationInputRole.object_reference.description'
-  | 'operationInputRole.pose_reference.title'
-  | 'operationInputRole.pose_reference.description'
-  | 'operationInputRole.source.title'
-  | 'operationInputRole.source.description'
-  | 'operationInputRole.style_reference.title'
-  | 'operationInputRole.style_reference.description'
+  | 'operationReference.bindingRequired'
+  | 'operationReference.bindingPending'
+  | 'operationReference.bindingTitle'
+  | 'operationReference.confirm'
+  | 'operationReference.createEdit'
+  | 'operationReference.createEditDescription'
+  | 'operationReference.createOperation'
+  | 'operationReference.createOperationDescription'
+  | 'operationReference.createReference'
+  | 'operationReference.createReferenceDescription'
+  | 'operationReference.createSimilar'
+  | 'operationReference.createSimilarDescription'
+  | 'operationReference.inputs'
+  | 'operationReference.slotCharacter'
+  | 'operationReference.slotComposition'
+  | 'operationReference.slotControl'
+  | 'operationReference.slotFirstFrame'
+  | 'operationReference.slotLastFrame'
+  | 'operationReference.slotMask'
+  | 'operationReference.slotReference'
+  | 'operationReference.slotScene'
+  | 'operationReference.slotSource'
+  | 'operationReference.slotStyle'
   | 'operation.waitingBody'
   | 'projectBoard.addBoard'
   | 'projectBoard.addProject'
@@ -1649,10 +1639,16 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.referenceBadgeSource': 'Source',
     'skillComposer.referenceSuggestionComposition': 'Composition',
     'skillComposer.referenceSuggestionCompositionInstruction': 'Use the composition, camera angle, and element layout as reference',
+    'skillComposer.referenceSuggestionCharacter': 'Character',
+    'skillComposer.referenceSuggestionCharacterInstruction': 'Use the character identity, facial features, and wardrobe as reference',
     'skillComposer.referenceSuggestionDetail': 'Details',
     'skillComposer.referenceSuggestionDetailInstruction': 'Use the local details and finish as reference',
     'skillComposer.referenceSuggestionLight': 'Color & light',
     'skillComposer.referenceSuggestionLightInstruction': 'Use the color, lighting, and atmosphere as reference',
+    'skillComposer.referenceSuggestionMaterial': 'Material',
+    'skillComposer.referenceSuggestionMaterialInstruction': 'Use the material, texture, and surface finish as reference',
+    'skillComposer.referenceSuggestionPose': 'Pose & action',
+    'skillComposer.referenceSuggestionPoseInstruction': 'Use the pose, gesture, and movement as reference',
     'skillComposer.referenceSuggestionScene': 'Scene',
     'skillComposer.referenceSuggestionSceneInstruction': 'Use the scene and spatial environment as reference',
     'skillComposer.referenceSuggestions': 'Quick reference dimensions',
@@ -1660,6 +1656,8 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.referenceSuggestionStyleInstruction': 'Use the visual style and material treatment as reference',
     'skillComposer.referenceSuggestionSubject': 'Subject',
     'skillComposer.referenceSuggestionSubjectInstruction': 'Use the subject features and pose as reference',
+    'skillComposer.referenceSuggestionTypography': 'Typography',
+    'skillComposer.referenceSuggestionTypographyInstruction': 'Use the typography, text hierarchy, and graphic layout as reference',
     'skillComposer.referenceSourceHint': 'The source is the single image being edited and does not need reference content.',
     'skillComposer.referenceRequired': 'Required',
     'skillComposer.referencePurpose': 'Purpose',
@@ -1972,18 +1970,11 @@ const translations: Record<Locale, Translations> = {
     'operationInputQuickAdd.image': 'Image',
     'operationInputQuickAdd.text': 'Text',
     'operationInputQuickAdd.title': 'Add operation input',
-    'operationInputRole.annotated_composite': 'Annotated',
-    'operationInputRole.change': 'Change input role',
-    'operationInputRole.character_reference': 'Character',
-    'operationInputRole.choose': 'Choose role',
-    'operationInputRole.imagePickerDescription': 'Select an image from this board to use as an operation input.',
-    'operationInputRole.imagePickerTitle': 'Mention an image',
-    'operationInputRole.noImages': 'No image assets are available on this board.',
-    'operationInputRole.pickerDescription': 'Choose how this image should be used by the operation.',
-    'operationInputRole.pickerTitle': 'Image input role',
-    'operationInputRole.remove': 'Remove reference',
-    'operationInputRole.required': 'Choose a role for every connected image before running this operation.',
-    'operationInputRole.roleLimitReached': 'This role has already reached its input limit.',
+    'operationReference.imagePickerDescription': 'Select an image from this board to use as an operation input.',
+    'operationReference.imagePickerTitle': 'Mention an image',
+    'operationReference.noImages': 'No image assets are available on this board.',
+    'operationReference.pickerDescription': 'Choose how this image should be used by the operation.',
+    'operationReference.pickerTitle': 'Image input use',
     'operationStatus.canceled': 'Canceled',
     'operationStatus.failed': 'Failed',
     'operationStatus.succeeded': 'Completed',
@@ -1991,40 +1982,29 @@ const translations: Record<Locale, Translations> = {
     'operationStatus.changes': 'changes',
     'operationStatus.executionContentUpdated': 'Execution content updated',
     'operationToolbar.updatePrompt': 'Update prompt',
-    'operationInputRole.first_frame': 'First frame',
-    'operationInputRole.last_frame': 'Last frame',
-    'operationInputRole.source': 'Source',
-    'operationInputRole.style_reference': 'Reference',
-    'operationInputRole.annotated_composite.title': 'Annotated composite',
-    'operationInputRole.annotated_composite.description': 'System-generated image containing the visible edit annotations.',
-    'operationInputRole.character_reference.title': 'Character reference',
-    'operationInputRole.character_reference.description': 'Preserve character identity, facial features, proportions, and costume design.',
-    'operationInputRole.composition_reference.title': 'Composition reference',
-    'operationInputRole.composition_reference.description': 'Reference camera angle, framing, spatial layout, and subject placement.',
-    'operationInputRole.control_image.title': 'Control image',
-    'operationInputRole.control_image.description': 'System control input for provider-specific structural guidance.',
-    'operationInputRole.depth_map.title': 'Depth map',
-    'operationInputRole.depth_map.description': 'Preserve scene depth and spatial structure.',
-    'operationInputRole.edge_map.title': 'Edge map',
-    'operationInputRole.edge_map.description': 'Preserve contours and structural boundaries.',
-    'operationInputRole.environment_reference.title': 'Environment reference',
-    'operationInputRole.environment_reference.description': 'Reference background, architecture, spatial relationships, and atmosphere.',
-    'operationInputRole.first_frame.title': 'First frame',
-    'operationInputRole.first_frame.description': 'Use this image as the exact first-frame visual state.',
-    'operationInputRole.general_reference.title': 'General reference',
-    'operationInputRole.general_reference.description': 'Use as a general visual reference; specify the desired aspects in the prompt.',
-    'operationInputRole.inpaint_mask.title': 'Inpaint mask',
-    'operationInputRole.inpaint_mask.description': 'System mask identifying the editable image region.',
-    'operationInputRole.last_frame.title': 'Last frame',
-    'operationInputRole.last_frame.description': 'Use this image as the exact last-frame visual state.',
-    'operationInputRole.object_reference.title': 'Object reference',
-    'operationInputRole.object_reference.description': 'Preserve the appearance and design of a product, prop, building, or object.',
-    'operationInputRole.pose_reference.title': 'Pose reference',
-    'operationInputRole.pose_reference.description': 'Reference pose, action, gesture, and body relationships.',
-    'operationInputRole.source.title': 'Source image',
-    'operationInputRole.source.description': 'Use as the editable base and preserve its primary subject, composition, and content.',
-    'operationInputRole.style_reference.title': 'Style reference',
-    'operationInputRole.style_reference.description': 'Reference visual style, palette, lighting, texture, and material treatment.',
+    'operationReference.bindingRequired': 'Choose how every connected image is used before running this operation.',
+    'operationReference.bindingPending': 'Choose input use',
+    'operationReference.bindingTitle': 'Reference use',
+    'operationReference.confirm': 'Confirm reference',
+    'operationReference.createEdit': 'Edit this image',
+    'operationReference.createEditDescription': 'Create an image-edit operation with this image as the source.',
+    'operationReference.createOperation': 'Create operation',
+    'operationReference.createOperationDescription': 'Choose how the dragged image starts the new operation.',
+    'operationReference.createReference': 'Generate with reference',
+    'operationReference.createReferenceDescription': 'Create an image-generation operation using this image as a reference.',
+    'operationReference.createSimilar': 'Generate similar image',
+    'operationReference.createSimilarDescription': 'Create a variation operation that preserves the source image structure.',
+    'operationReference.inputs': 'Image inputs',
+    'operationReference.slotCharacter': 'Character reference',
+    'operationReference.slotComposition': 'Composition reference',
+    'operationReference.slotControl': 'Control image',
+    'operationReference.slotFirstFrame': 'First frame',
+    'operationReference.slotLastFrame': 'Last frame',
+    'operationReference.slotMask': 'Edit mask',
+    'operationReference.slotReference': 'Visual reference',
+    'operationReference.slotScene': 'Scene reference',
+    'operationReference.slotSource': 'Source image',
+    'operationReference.slotStyle': 'Style reference',
     'operation.waitingBody': 'Waiting for Codex to generate an image result.',
     'projectBoard.addBoard': 'New board',
     'projectBoard.addProject': 'New project',
@@ -2798,10 +2778,16 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.referenceBadgeSource': '原图',
     'skillComposer.referenceSuggestionComposition': '构图',
     'skillComposer.referenceSuggestionCompositionInstruction': '参考构图、机位与元素布局',
+    'skillComposer.referenceSuggestionCharacter': '人物',
+    'skillComposer.referenceSuggestionCharacterInstruction': '参考人物身份、面部特征与服装',
     'skillComposer.referenceSuggestionDetail': '细节',
     'skillComposer.referenceSuggestionDetailInstruction': '参考局部细节与完成质感',
     'skillComposer.referenceSuggestionLight': '色彩光影',
     'skillComposer.referenceSuggestionLightInstruction': '参考色彩、光线与氛围',
+    'skillComposer.referenceSuggestionMaterial': '材质',
+    'skillComposer.referenceSuggestionMaterialInstruction': '参考材质、纹理与表面质感',
+    'skillComposer.referenceSuggestionPose': '姿态动作',
+    'skillComposer.referenceSuggestionPoseInstruction': '参考姿态、动作与肢体关系',
     'skillComposer.referenceSuggestionScene': '场景',
     'skillComposer.referenceSuggestionSceneInstruction': '参考场景与空间环境',
     'skillComposer.referenceSuggestions': '快速选择参考维度',
@@ -2809,6 +2795,8 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.referenceSuggestionStyleInstruction': '参考视觉风格与材质表现',
     'skillComposer.referenceSuggestionSubject': '主体',
     'skillComposer.referenceSuggestionSubjectInstruction': '参考主体特征与姿态',
+    'skillComposer.referenceSuggestionTypography': '文字排版',
+    'skillComposer.referenceSuggestionTypographyInstruction': '参考文字排版、信息层级与平面布局',
     'skillComposer.referenceSourceHint': '原图是唯一被修改的底图，不需要再填写参考内容。',
     'skillComposer.referenceRequired': '必需',
     'skillComposer.referencePurpose': '用途',
@@ -3121,18 +3109,11 @@ const translations: Record<Locale, Translations> = {
     'operationInputQuickAdd.image': '图片',
     'operationInputQuickAdd.text': '文本',
     'operationInputQuickAdd.title': '添加操作输入',
-    'operationInputRole.annotated_composite': '标注图',
-    'operationInputRole.change': '修改输入角色',
-    'operationInputRole.character_reference': '角色参考',
-    'operationInputRole.choose': '选择用途',
-    'operationInputRole.imagePickerDescription': '从当前画板选择一张图片，作为这个操作的输入。',
-    'operationInputRole.imagePickerTitle': '引用图片',
-    'operationInputRole.noImages': '当前画板中没有可用的图片资源。',
-    'operationInputRole.pickerDescription': '选择这张图片在当前操作中的具体用途。',
-    'operationInputRole.pickerTitle': '图片输入用途',
-    'operationInputRole.remove': '移除引用',
-    'operationInputRole.required': '执行前请为每张已连接的图片选择用途。',
-    'operationInputRole.roleLimitReached': '该用途已经达到允许的输入数量。',
+    'operationReference.imagePickerDescription': '从当前画板选择一张图片，作为这个操作的输入。',
+    'operationReference.imagePickerTitle': '引用图片',
+    'operationReference.noImages': '当前画板中没有可用的图片资源。',
+    'operationReference.pickerDescription': '选择这张图片在当前操作中的具体用途。',
+    'operationReference.pickerTitle': '图片输入用途',
     'operationStatus.canceled': '已取消',
     'operationStatus.failed': '失败',
     'operationStatus.succeeded': '已完成',
@@ -3140,40 +3121,29 @@ const translations: Record<Locale, Translations> = {
     'operationStatus.changes': '项变更',
     'operationStatus.executionContentUpdated': '执行内容已更新',
     'operationToolbar.updatePrompt': '更新 Prompt',
-    'operationInputRole.first_frame': '首帧',
-    'operationInputRole.last_frame': '尾帧',
-    'operationInputRole.source': '原图',
-    'operationInputRole.style_reference': '参考图',
-    'operationInputRole.annotated_composite.title': '标注合成图',
-    'operationInputRole.annotated_composite.description': '系统生成并包含可见编辑标注的图片。',
-    'operationInputRole.character_reference.title': '角色参考',
-    'operationInputRole.character_reference.description': '保持角色身份、面部特征、体型和服装设计。',
-    'operationInputRole.composition_reference.title': '构图参考',
-    'operationInputRole.composition_reference.description': '参考镜头角度、画面裁切、空间布局和主体位置。',
-    'operationInputRole.control_image.title': '控制图',
-    'operationInputRole.control_image.description': '用于供应商特定结构控制的系统输入。',
-    'operationInputRole.depth_map.title': '深度图',
-    'operationInputRole.depth_map.description': '保持场景深度和空间结构。',
-    'operationInputRole.edge_map.title': '边缘图',
-    'operationInputRole.edge_map.description': '保持轮廓和结构边界。',
-    'operationInputRole.environment_reference.title': '场景参考',
-    'operationInputRole.environment_reference.description': '参考背景、建筑、空间关系和环境氛围。',
-    'operationInputRole.first_frame.title': '首帧',
-    'operationInputRole.first_frame.description': '作为视频开始时的精确视觉状态。',
-    'operationInputRole.general_reference.title': '综合参考',
-    'operationInputRole.general_reference.description': '作为综合视觉参考，具体参考内容由提示词进一步说明。',
-    'operationInputRole.inpaint_mask.title': '局部重绘遮罩',
-    'operationInputRole.inpaint_mask.description': '系统生成并用于标识可编辑区域的遮罩。',
-    'operationInputRole.last_frame.title': '尾帧',
-    'operationInputRole.last_frame.description': '作为视频结束时的精确视觉状态。',
-    'operationInputRole.object_reference.title': '物体参考',
-    'operationInputRole.object_reference.description': '保持产品、道具、建筑或特定物体的外观设计。',
-    'operationInputRole.pose_reference.title': '姿态参考',
-    'operationInputRole.pose_reference.description': '参考姿势、动作、手势和肢体关系。',
-    'operationInputRole.source.title': '原图',
-    'operationInputRole.source.description': '作为编辑基础，保持主要主体、构图和内容。',
-    'operationInputRole.style_reference.title': '风格参考',
-    'operationInputRole.style_reference.description': '参考画风、色彩、光影、纹理和材质表现。',
+    'operationReference.bindingRequired': '执行前请确认每张已连接图片的用途。',
+    'operationReference.bindingPending': '待确认用途',
+    'operationReference.bindingTitle': '参考用途',
+    'operationReference.confirm': '确认参考',
+    'operationReference.createEdit': '编辑这张图',
+    'operationReference.createEditDescription': '以这张图作为原图，建立图片编辑操作。',
+    'operationReference.createOperation': '建立操作',
+    'operationReference.createOperationDescription': '选择拖出的图片要如何开始新的操作。',
+    'operationReference.createReference': '参考生成',
+    'operationReference.createReferenceDescription': '以这张图作为参考，建立图片生成操作。',
+    'operationReference.createSimilar': '生成相似图',
+    'operationReference.createSimilarDescription': '保留原图结构，建立相似变体操作。',
+    'operationReference.inputs': '图片输入',
+    'operationReference.slotCharacter': '角色参考',
+    'operationReference.slotComposition': '构图参考',
+    'operationReference.slotControl': '控制图',
+    'operationReference.slotFirstFrame': '首帧',
+    'operationReference.slotLastFrame': '尾帧',
+    'operationReference.slotMask': '编辑蒙版',
+    'operationReference.slotReference': '综合参考',
+    'operationReference.slotScene': '场景参考',
+    'operationReference.slotSource': '原图',
+    'operationReference.slotStyle': '风格参考',
     'operation.waitingBody': '等待 Codex 生成图片结果。',
     'projectBoard.addBoard': '新增画板',
     'projectBoard.addProject': '新增项目',

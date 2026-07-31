@@ -25,14 +25,14 @@ snapshot.edges.push(
     sourceBlockId: firstFrame.blockId,
     targetBlockId: target.blockId,
     kind: 'execution_input',
-    inputRole: 'first_frame',
+    inputSlotId: 'first_frame',
   },
   {
     edgeId: 'edge_video_character',
     sourceBlockId: character.blockId,
     targetBlockId: target.blockId,
     kind: 'execution_input',
-    inputRole: 'character_reference',
+    inputSlotId: 'character_references',
   },
 );
 

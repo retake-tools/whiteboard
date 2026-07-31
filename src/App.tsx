@@ -7,6 +7,7 @@ import { FloatingToolbar } from './components/FloatingToolbar';
 import { GroupInspector } from './components/GroupInspector';
 import { InputReferencePicker } from './components/InputReferencePicker';
 import { OperationFeedback } from './components/OperationFeedback';
+import { OperationFromImagePicker } from './components/OperationFromImagePicker';
 import { ProjectBoardDialog } from './components/ProjectBoardDialog';
 import { getProjectBoardDialogView } from './components/projectBoardDialogView';
 import { TopBar } from './components/TopBar';
@@ -24,8 +25,6 @@ import {
 } from './core/blockFactory';
 import { createId, nowIso } from './core/id';
 import type { BlockRecord, BoardSnapshot } from './core/types';
-import { capabilityDefinitionFor } from './core/capabilityRegistry';
-import { legacyInputRoleForSlot } from './core/creativeRequestCompiler';
 import { executionConnection } from './core/executionProviderPreferences';
 import { blockLockedByGroup, groupMediaItems } from './core/grouping';
 import { loadUiPreferences } from './core/uiPreferences';
@@ -224,6 +223,10 @@ function ReadyApp({
   const [isAgentWorkspaceOpen, setIsAgentWorkspaceOpen] = useState(false);
   const [isArtifactLibraryOpen, setIsArtifactLibraryOpen] = useState(false);
   const [reviewDocumentBlockId, setReviewDocumentBlockId] = useState<string | undefined>();
+  const [operationFromImagePicker, setOperationFromImagePicker] = useState<{
+    anchor: { x: number; y: number };
+    sourceBlockId: string;
+  }>();
   const [pluginReducedMotion, setPluginReducedMotion] = useState(false);
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -401,6 +404,7 @@ function ReadyApp({
     copyPromptWithHistory,
     copyQueuedOperationPrompt,
     createAndStartImageComposerOperation,
+    createImageToImageDraftOperation,
     createImageToImageDraftFromMenu,
     createTextToImageDraftOperation,
     importImageIntoBlock,
@@ -417,6 +421,91 @@ function ReadyApp({
     updateOperationGenerationParams,
     updateOperationGenerationProfile,
   } = imageOperationController;
+
+  useEffect(() => {
+    function onCreateOperationFromImage(event: Event): void {
+      const detail = (event as CustomEvent<{
+        anchor?: { x: number; y: number };
+        sourceBlockId?: string;
+      }>).detail;
+      if (!detail?.anchor || !detail.sourceBlockId) return;
+      setOperationFromImagePicker({
+        anchor: detail.anchor,
+        sourceBlockId: detail.sourceBlockId,
+      });
+    }
+    window.addEventListener(
+      'retake:create-operation-from-image',
+      onCreateOperationFromImage,
+    );
+    return () => window.removeEventListener(
+      'retake:create-operation-from-image',
+      onCreateOperationFromImage,
+    );
+  }, []);
+
+  function createOperationFromImage(mode: 'edit' | 'similar' | 'reference'): void {
+    const request = operationFromImagePicker;
+    setOperationFromImagePicker(undefined);
+    if (!request) return;
+    const sourceBlock = snapshotRef.current.blocks.find(
+      (block) => block.blockId === request.sourceBlockId && block.type === 'image',
+    );
+    if (!sourceBlock) return;
+    if (mode === 'edit' || mode === 'similar') {
+      createImageToImageDraftOperation(
+        sourceBlock,
+        mode === 'similar' ? 'create_similar' : 'quick_edit',
+        undefined,
+        { centerWorkflow: true },
+      );
+      return;
+    }
+    const operation = createTextToImageDraftOperation(
+      undefined,
+      { reveal: false },
+    );
+    if (!operation) return;
+    const edgeId = createId('edge');
+    let promptBlockId: string | undefined;
+    updateSnapshot((current) => {
+      if (
+        !current.blocks.some((block) => block.blockId === sourceBlock.blockId)
+        || !current.blocks.some((block) => block.blockId === operation.blockId)
+      ) return current;
+      current.edges.push({
+        edgeId,
+        inputSlotId: 'references',
+        kind: 'execution_input',
+        sourceBlockId: sourceBlock.blockId,
+        targetBlockId: operation.blockId,
+      });
+      const promptBlock = current.edges
+        .filter((edge) => (
+          edge.kind === 'execution_input'
+          && edge.targetBlockId === operation.blockId
+        ))
+        .map((edge) => current.blocks.find((block) => block.blockId === edge.sourceBlockId))
+        .find((block) => block?.type === 'text');
+      if (promptBlock) {
+        promptBlockId = promptBlock.blockId;
+        layoutImageComposerWorkflow(current, {
+          operationBlockId: operation.blockId,
+          referenceBlockIds: [sourceBlock.blockId],
+          textBlockId: promptBlock.blockId,
+        });
+      }
+      return touchBoard(current);
+    }, { history: true, persist: true, syncFlow: true });
+    focusWorkflowBlocks(
+      [sourceBlock.blockId, promptBlockId, operation.blockId]
+        .filter((blockId): blockId is string => Boolean(blockId)),
+      { maxZoom: 0.95 },
+    );
+    window.dispatchEvent(new CustomEvent('retake:configure-operation-reference', {
+      detail: { anchor: request.anchor, edgeId },
+    }));
+  }
   const artifactLibraryController = useArtifactLibraryController({
     centeredBlockPosition,
     isOpen: isArtifactLibraryOpen,
@@ -507,8 +596,8 @@ function ReadyApp({
     addOperationInputBlock,
     completeInputReferenceMention,
     inputReferencePicker,
-    mentionDisabledRoles,
-    mentionRoleOptions,
+    mentionAllowedModes,
+    mentionSlotOptions,
     referenceImageOptions,
     selectedReferenceImage,
     setInputReferencePicker,
@@ -541,6 +630,7 @@ function ReadyApp({
   });
   const agentWorkspaceController = useAgentWorkspaceController({
     focusWorkflowBlocks,
+    layoutImageComposerWorkflow,
     locale,
     persistSnapshot,
     selectedBlockIdsRef,
@@ -694,10 +784,6 @@ function ReadyApp({
         if (!source) continue;
         current.edges.push({
           edgeId: createId('edge'),
-          inputRole: legacyInputRoleForSlot(
-            capabilityDefinitionFor('video.generate'),
-            reference.inputSlotId,
-          ),
           inputSlotId: reference.inputSlotId,
           kind: 'execution_input',
           ...(reference.referenceIntent
@@ -835,15 +921,43 @@ function ReadyApp({
       {inputReferencePicker ? (
         <InputReferencePicker
           anchor={inputReferencePicker.anchor}
-          disabledRoles={mentionDisabledRoles}
+          allowedModes={mentionAllowedModes}
           images={referenceImageOptions}
-          roles={mentionRoleOptions}
+          setting={inputReferencePicker.setting}
           selectedImage={selectedReferenceImage}
+          selectedSlotId={inputReferencePicker.inputSlotId}
+          slotOptions={mentionSlotOptions}
           onCancel={() => setInputReferencePicker(undefined)}
+          onChangeSetting={(setting) => {
+            setInputReferencePicker((current) => (
+              current ? { ...current, setting } : current
+            ));
+          }}
+          onConfirm={completeInputReferenceMention}
+          onSelectSlot={(inputSlotId) => {
+            const option = mentionSlotOptions.find(
+              (candidate) => candidate.slotId === inputSlotId,
+            );
+            setInputReferencePicker((current) => {
+              if (!current || !option) return current;
+              const nextSetting = option.mode === 'source'
+                ? { instruction: '', mode: 'source' as const }
+                : current.setting.mode === 'source'
+                  ? { instruction: '', mode: 'auto' as const }
+                  : current.setting;
+              return { ...current, inputSlotId, setting: nextSetting };
+            });
+          }}
           onSelectImage={(sourceBlockId) =>
             setInputReferencePicker((current) => (current ? { ...current, sourceBlockId } : current))
           }
-          onSelectRole={completeInputReferenceMention}
+        />
+      ) : null}
+      {operationFromImagePicker ? (
+        <OperationFromImagePicker
+          anchor={operationFromImagePicker.anchor}
+          onCancel={() => setOperationFromImagePicker(undefined)}
+          onSelect={createOperationFromImage}
         />
       ) : null}
       <WorkflowContinuationDialog

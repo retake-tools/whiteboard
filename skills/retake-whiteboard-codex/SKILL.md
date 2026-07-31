@@ -33,7 +33,7 @@ When the prompt contains an existing `executionId`:
    - target display width and height
    - suggested output file path
    - user instruction
-   - image input assignments, including each image's `blockId`, `assetId`, local path, and explicit `inputRole`
+   - image input assignments, including each image's `blockId`, `assetId`, local path, declared `inputSlotId`, and optional `referenceIntent`
 2. Call `retake_validate_project_binding` with `projectId`, `boardId`, and the current workspace path if available.
 3. If validation is missing or stale, call `retake_set_project_binding` for the current workspace path.
 4. Call `retake_get_execution` with the existing `executionId`.

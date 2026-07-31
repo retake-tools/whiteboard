@@ -48,9 +48,14 @@ import { reconcileWorkflowArtifactGates } from '../core/workflowArtifactGateClie
 import { resolvedWorkflowUiDefinitionFor } from '../core/workflowRegistry';
 import type { useI18n } from '../i18n';
 import { textGenerationLabelsForSkill } from './skillTextLabels';
+import type { ImageComposerWorkflowLayoutInput } from './imageComposerWorkflowLayout';
 
 interface AgentWorkspaceControllerOptions {
   focusWorkflowBlocks: (blockIds: string[]) => void;
+  layoutImageComposerWorkflow: (
+    snapshot: BoardSnapshot,
+    input: ImageComposerWorkflowLayoutInput,
+  ) => void;
   locale: string;
   persistSnapshot: (
     snapshot: BoardSnapshot,
@@ -70,6 +75,7 @@ interface AgentWorkspaceControllerOptions {
 export function useAgentWorkspaceController(options: AgentWorkspaceControllerOptions) {
   const {
     focusWorkflowBlocks,
+    layoutImageComposerWorkflow,
     locale,
     persistSnapshot,
     selectedBlockIdsRef,
@@ -438,15 +444,29 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
             promptTitle: t('operationToolbar.prompt'),
           });
           operationBlockId = staged.receipt.operationBlockId;
-          operationScopeIds = staged.receipt.createdBlockIds.length > 0
-            ? staged.receipt.createdBlockIds
-            : [staged.receipt.operationBlockId];
+          const attachmentBlockIds = agentMessageAttachmentBlockIds(executionRequest);
+          if (
+            staged.receipt.action === 'created'
+            && staged.receipt.promptBlockId
+            && attachmentBlockIds.length > 0
+          ) {
+            layoutImageComposerWorkflow(staged.stagedSnapshot, {
+              operationBlockId: staged.receipt.operationBlockId,
+              referenceBlockIds: attachmentBlockIds,
+              textBlockId: staged.receipt.promptBlockId,
+            });
+          }
+          operationScopeIds = [
+            ...attachmentBlockIds,
+            ...(staged.receipt.createdBlockIds.length > 0
+              ? staged.receipt.createdBlockIds
+              : [staged.receipt.operationBlockId]),
+          ];
           return staged.stagedSnapshot;
         }, { history: true, syncFlow: true });
         await persistSnapshot(executionSnapshot, { requireLocalApi: true });
         if (operationScopeIds.length > 0) {
           setSelectedBlocks(executionSnapshot, operationScopeIds);
-          focusWorkflowBlocks(operationScopeIds);
         }
         window.dispatchEvent(new CustomEvent('retake:run-operation', {
           detail: {
@@ -505,6 +525,23 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
       (candidate) => candidate.connectionId === 'codex-app-server',
     );
   }
+}
+
+function agentMessageAttachmentBlockIds(
+  request: AgentOperationExecutionRequest,
+): string[] {
+  if (request.kind !== 'create_execute') return [];
+  const imageInputs = request.decision.imageInputs?.length
+    ? request.decision.imageInputs
+    : request.decision.sourceImageBlockId && request.decision.sourceBinding
+      ? [{
+          bindingSource: request.decision.sourceBinding,
+          blockId: request.decision.sourceImageBlockId,
+        }]
+      : [];
+  return imageInputs
+    .filter((input) => input.bindingSource === 'message_attachment')
+    .map((input) => input.blockId);
 }
 
 function canvasImageSelectionRefs(
