@@ -199,6 +199,9 @@ export function createImageOperationPrompt(
       ? '- Do not crop, scale, rotate, redraw, or reposition the source rectangle. Generate only the surrounding expansion area.'
       : undefined,
     isOutpaint
+      ? '- Continue perspective, scale, lighting, texture, and spatial relationships naturally. Do not copy, mirror, tile, repeat, or reintroduce the source subject or any existing element in the expansion area.'
+      : undefined,
+    isOutpaint
       ? '- Treat control_image as the target composition guide and inpaint_mask as black protected source / white expansion area.'
       : undefined,
     isOutpaint

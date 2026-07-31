@@ -15,7 +15,10 @@ import { fitMediaBlockSize, imageResultColumnGap } from './blockSizing';
 import { createExecutionResultGroup, expandGroupToContents } from './grouping';
 import { syncExecutionOutputContractSnapshot } from './executionContractSnapshot';
 import { createImageOperationPrompt } from './prompts';
-import { recordExecutionConfiguration } from './executionConfiguration';
+import {
+  latestStartedExecutionForOperation,
+  recordExecutionConfiguration,
+} from './executionConfiguration';
 import {
   codexAppServerImageAdapterDefinition,
   volcengineArkSeedreamImageAdapterDefinition,
@@ -891,10 +894,24 @@ export function executeExistingImageOperationBlock(
   const inputBlocks = connectedInputBlocks(snapshot, operationBlock.blockId);
   const isAnnotationRepeat = operationBlock.data.capabilityId === 'image.annotation_edit';
   const textBlock = firstTextInputBlock(inputBlocks);
-  if (!isAnnotationRepeat && !textBlock) {
-    throw new Error('Connect a Text Block to this Operation before running.');
+  const connectedPromptText = promptTextFromInputs(inputBlocks);
+  const previousExecution = latestStartedExecutionForOperation(
+    snapshot,
+    operationBlock.blockId,
+  );
+  const frozenPromptText = typeof previousExecution?.prompt === 'string'
+    && previousExecution.prompt.trim()
+    ? previousExecution.prompt.trim()
+    : typeof operationBlock.data.body === 'string'
+      && operationBlock.data.body.trim()
+      ? operationBlock.data.body.trim()
+      : undefined;
+  const promptText = connectedPromptText ?? frozenPromptText;
+  if (!isAnnotationRepeat && !textBlock && !promptText) {
+    throw new Error(
+      'Connect a Text Block or keep a previous execution prompt before running.',
+    );
   }
-  const promptText = promptTextFromInputs(inputBlocks);
   if (!isAnnotationRepeat && !promptText) {
     throw new Error('Enter a prompt before running this operation.');
   }

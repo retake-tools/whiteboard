@@ -1,5 +1,25 @@
-import { Background, NodeToolbar, Position, ReactFlow, type EdgeTypes, type NodeTypes } from '@xyflow/react';
-import { useEffect, useRef, useState, type Dispatch, type FocusEvent as ReactFocusEvent, type PointerEvent as ReactPointerEvent, type ReactElement, type RefObject, type SetStateAction } from 'react';
+import {
+  Background,
+  NodeToolbar,
+  Position,
+  ReactFlow,
+  type EdgeTypes,
+  type NodeTypes,
+  type ReactFlowInstance,
+  type Viewport,
+} from '@xyflow/react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type FocusEvent as ReactFocusEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactElement,
+  type RefObject,
+  type SetStateAction,
+} from 'react';
 import { CanvasMiniMap } from '../components/CanvasMiniMap';
 import { CanvasViewportControls } from '../components/CanvasViewportControls';
 import { BoardBackgroundLayer } from '../components/BoardBackgroundLayer';
@@ -21,7 +41,13 @@ import type {
   PluginContributionRegistryV1,
 } from '../core/pluginContributionRegistry';
 import { blockLockedByGroup } from '../core/grouping';
-import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
+import type {
+  AssetRecord,
+  BlockRecord,
+  BoardSnapshot,
+  RetakeEdge,
+  RetakeNode,
+} from '../core/types';
 import type { useI18n } from '../i18n';
 import { BlockNode } from '../nodes/BlockNode';
 import { downloadAsset, operationModeFromBlock } from './appHelpers';
@@ -152,6 +178,36 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
     snapshot,
     imageToolbarContext?.block,
   );
+  const onNodesChange = useStableCallback(canvas.onNodesChange);
+  const onEdgesChange = useStableCallback(canvas.onEdgesChange);
+  const onNodeDragStart = useStableCallback(canvas.onNodeDragStart);
+  const onNodeDrag = useStableCallback(canvas.onNodeDrag);
+  const onNodeDragStop = useStableCallback(canvas.onNodeDragStop);
+  const onNodeClick = useStableCallback(canvas.onNodeClick);
+  const onNodeDoubleClick = useStableCallback(canvas.onNodeDoubleClick);
+  const onConnect = useStableCallback(canvas.onConnect);
+  const onConnectEnd = useStableCallback(canvas.onConnectEnd);
+  const onSelectionChange = useStableCallback(canvas.onSelectionChange);
+  const onInit = useStableCallback((
+    instance: ReactFlowInstance<RetakeNode, RetakeEdge>,
+  ) => {
+    canvas.reactFlowRef.current = instance;
+    void instance.setViewport(canvas.currentViewportRef.current, {
+      duration: 0,
+    });
+  });
+  const onMove = useStableCallback((
+    _event: MouseEvent | TouchEvent | null,
+    viewport: Viewport,
+  ) => {
+    canvas.scheduleViewportPersist(viewport);
+  });
+  const onMoveEnd = useStableCallback((
+    _event: MouseEvent | TouchEvent | null,
+    viewport: Viewport,
+  ) => {
+    canvas.persistViewport(viewport);
+  });
 
   useEffect(() => () => {
     if (pointerIdleTimerRef.current !== undefined) window.clearTimeout(pointerIdleTimerRef.current);
@@ -296,24 +352,19 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
         edges={canvas.edges}
         edgeTypes={edgeTypes}
         nodeTypes={nodeTypes}
-        onNodesChange={canvas.onNodesChange}
-        onEdgesChange={canvas.onEdgesChange}
-        onNodeDragStart={canvas.onNodeDragStart}
-        onNodeDrag={canvas.onNodeDrag}
-        onNodeDragStop={canvas.onNodeDragStop}
-        onNodeClick={canvas.onNodeClick}
-        onNodeDoubleClick={canvas.onNodeDoubleClick}
-        onConnect={canvas.onConnect}
-        onConnectEnd={canvas.onConnectEnd}
-        onInit={(instance) => {
-          canvas.reactFlowRef.current = instance;
-          void instance.setViewport(canvas.currentViewportRef.current, { duration: 0 });
-        }}
-        onMove={(_event, viewport) => {
-          canvas.scheduleViewportPersist(viewport);
-        }}
-        onMoveEnd={(_event, viewport) => canvas.persistViewport(viewport)}
-        onSelectionChange={canvas.onSelectionChange}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onNodeDragStart={onNodeDragStart}
+        onNodeDrag={onNodeDrag}
+        onNodeDragStop={onNodeDragStop}
+        onNodeClick={onNodeClick}
+        onNodeDoubleClick={onNodeDoubleClick}
+        onConnect={onConnect}
+        onConnectEnd={onConnectEnd}
+        onInit={onInit}
+        onMove={onMove}
+        onMoveEnd={onMoveEnd}
+        onSelectionChange={onSelectionChange}
         defaultViewport={canvas.currentViewportRef.current}
         minZoom={minBoardZoom}
         maxZoom={maxBoardZoom}
@@ -460,6 +511,16 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
       ) : null}
     </section>
   );
+}
+
+function useStableCallback<TArguments extends unknown[], TResult>(
+  callback: (...arguments_: TArguments) => TResult,
+): (...arguments_: TArguments) => TResult {
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+  return useCallback((...arguments_: TArguments) => (
+    callbackRef.current(...arguments_)
+  ), []);
 }
 
 function imageToolbarContextOperation(

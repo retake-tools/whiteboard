@@ -114,6 +114,7 @@ try {
     storedExecution,
   );
   assert.match(prompt, /Authoritative outpaint geometry:/);
+  assert.match(prompt, /Do not copy, mirror, tile, repeat/);
   assert.match(prompt, /exact 4 x 3 px target canvas/);
   assert.match(
     prompt,

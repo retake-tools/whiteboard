@@ -73,7 +73,7 @@ async function exportDefaultStudioArchives(): Promise<void> {
     await writeFile(
       temporaryProfilePath,
       `${JSON.stringify({
-        hostCompatibility: '>=0.1.2 <0.2.0',
+        hostCompatibility: '>=0.1.3 <0.2.0',
         packages: references,
         profileId: defaultBootstrapProfileId,
         schemaVersion: 3,
@@ -84,7 +84,7 @@ async function exportDefaultStudioArchives(): Promise<void> {
   } finally {
     await rm(temporaryProfilePath, { force: true });
   }
-  await validateBootstrapProfileArchives(profilePath, '0.1.2');
+  await validateBootstrapProfileArchives(profilePath, '0.1.3');
 }
 
 async function readManifest(

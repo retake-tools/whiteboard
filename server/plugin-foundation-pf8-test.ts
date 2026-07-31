@@ -56,7 +56,7 @@ const packageArchive = path.join(
   repositoryRoot,
   'packages',
   'bootstrap',
-  'image-studio-0.10.6.retakepkg',
+  'image-studio-0.10.7.retakepkg',
 );
 const entrypointId = 'workflow:retake.workflow.guided-image-review';
 const original = {
@@ -153,7 +153,7 @@ try {
     schemaVersion: 1,
     source: {
       archiveDigest: inspected.archiveDigest,
-      installationId: 'test-fixture-image-studio-0.10.6',
+      installationId: 'test-fixture-image-studio-0.10.7',
       kind: 'installed',
     },
     version: manifest.version,

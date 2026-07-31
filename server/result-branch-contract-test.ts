@@ -211,6 +211,39 @@ assert.equal(secondRun.resultBlocks.length, 1);
 assert.match(firstRun.execution.agentPrompt ?? '', /As soon as each variant file is ready/);
 assert.match(firstRun.execution.agentPrompt ?? '', /Partial writeback keeps the execution running/);
 
+const frozenPromptSnapshot = structuredClone(snapshot);
+frozenPromptSnapshot.blocks = frozenPromptSnapshot.blocks.filter(
+  (block) => block.blockId !== firstBranch.textBlock.blockId,
+);
+frozenPromptSnapshot.edges = frozenPromptSnapshot.edges.filter(
+  (edge) => (
+    edge.sourceBlockId !== firstBranch.textBlock.blockId
+    && edge.targetBlockId !== firstBranch.textBlock.blockId
+  ),
+);
+const frozenPromptOperation = frozenPromptSnapshot.blocks.find(
+  (block) => block.blockId === firstBranch.operationBlock.blockId,
+);
+assert.ok(frozenPromptOperation);
+frozenPromptOperation.data.body = '';
+const frozenPromptRun = executeExistingImageOperationBlock(
+  frozenPromptSnapshot,
+  {
+    generationParams:
+      frozenPromptOperation.data.generationParams as ImageGenerationParams,
+    operationBlockId: frozenPromptOperation.blockId,
+    operation: 'image_to_image',
+    instruction: '',
+  },
+);
+assert.equal(frozenPromptRun.execution.prompt, firstRun.execution.prompt);
+assert.equal(
+  frozenPromptRun.execution.inputBlockIds.includes(
+    firstBranch.textBlock.blockId,
+  ),
+  false,
+);
+
 const creativeProjectionSnapshot = structuredClone(snapshot);
 const creativeProjectionExecution = creativeProjectionSnapshot.executions.find(
   (execution) => execution.executionId === firstRun.execution.executionId,
