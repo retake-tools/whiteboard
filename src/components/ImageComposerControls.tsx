@@ -55,9 +55,12 @@ export function ImageComposerControls({ projectId }: { projectId: string }): Rea
   const requestedConnection = settings?.connections.find(
     (connection) => connection.connectionId === imageConnectionId,
   );
+  const preferredConnectionId = preferredConnection && isReadyImageConnection(preferredConnection)
+    ? preferredConnection.connectionId
+    : undefined;
   const selectedConnectionId = requestedConnection && isReadyImageConnection(requestedConnection)
     ? requestedConnection.connectionId
-    : preferredConnection?.connectionId
+    : preferredConnectionId
     ?? readyConnections[0]?.connectionId
     ?? '';
   const selectedConnection = settings?.connections.find(
@@ -231,10 +234,12 @@ function ParameterOptions({
 }
 
 function isReadyImageConnection(connection: ExecutionConnectionSummary): boolean {
-  return connection.enabled
+  return connection.connectorId !== 'codex-managed'
+    && connection.enabled
     && connection.status === 'ready'
     && connection.enabledUseCases.includes('image')
-    && connection.supportedCapabilityIds.includes('image.text_to_image');
+    && connection.supportedCapabilityIds.includes('image.text_to_image')
+    && connection.supportedCapabilityIds.includes('image.image_to_image');
 }
 
 function connectionLabel(connection: ExecutionConnectionSummary, ready: boolean): string {

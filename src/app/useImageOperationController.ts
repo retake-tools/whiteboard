@@ -418,8 +418,9 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     references?: ImageComposerReference[];
     reuseSelectedImageSlot?: boolean;
     slotBlock?: BlockRecord;
-  } = {}): void {
+  } = {}, draftOptions: { persist?: boolean } = {}): BlockRecord | undefined {
     let selectedWorkflowIds: string[] = [];
+    let createdOperationBlockId: string | undefined;
     const nextSnapshot = updateSnapshot((current) => {
       const selectedSlot = input.capabilityId !== 'image.image_to_image'
         ? input.slotBlock ?? (
@@ -465,6 +466,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
             textBlockPlaceholder: imageOperationDefaultPrompt(composerOperation, t),
           });
       result.operationBlock.data.connectionId = connectionId;
+      createdOperationBlockId = result.operationBlock.blockId;
       selectedWorkflowIds = selectedSlot
         ? [
             selectedSlot.blockId,
@@ -475,11 +477,33 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         : [result.textBlock.blockId, result.operationBlock.blockId, ...result.referenceBlockIds];
       if (!selectedSlot) centerWorkflowBlocks(current, selectedWorkflowIds);
       return current;
-    }, { persist: true, history: true });
+    }, { persist: draftOptions.persist ?? true, history: true });
     if (selectedWorkflowIds.length > 0) {
       setSelectedBlocks(nextSnapshot, selectedWorkflowIds);
       focusWorkflowBlocks(selectedWorkflowIds);
     }
+    return createdOperationBlockId
+      ? nextSnapshot.blocks.find((block) => block.blockId === createdOperationBlockId)
+      : undefined;
+  }
+
+  function createAndStartImageComposerOperation(input: {
+    capabilityId?: 'image.image_to_image' | 'image.text_to_image';
+    connectionId?: string;
+    creativeRequest?: CompiledCreativeRequest;
+    generationParams?: ImageGenerationParams;
+    instruction?: string;
+    references?: ImageComposerReference[];
+    reuseSelectedImageSlot?: boolean;
+    slotBlock?: BlockRecord;
+  }): void {
+    const operationBlock = createTextToImageDraftOperation(input, { persist: false });
+    if (!operationBlock) return;
+    void startExistingOperationBlock({
+      block: operationBlock,
+      operation: operationModeFromBlock(operationBlock),
+      revealOnStart: true,
+    });
   }
 
   async function startExistingOperationBlock(input: {
@@ -754,6 +778,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     copyQueuedOperationPrompt,
     createImageToImageDraftFromMenu,
     createImageToImageDraftOperation,
+    createAndStartImageComposerOperation,
     createTextToImageDraftOperation,
     importImageIntoBlock,
     operationToast,

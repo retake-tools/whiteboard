@@ -34,7 +34,7 @@ interface FloatingToolbarProps {
   onAttachFiles?: Parameters<typeof SkillQuickInputComposer>[0]['onAttachFiles'];
   onAddBlock: (type: Extract<BlockType, 'group' | 'image' | 'operation' | 'text' | 'video'>) => void;
   onCreateImageToImage: () => void;
-  onCreateImageDraft: (input: UnifiedComposerImageDraftInput) => void;
+  onCreateImage: (input: UnifiedComposerImageDraftInput) => void;
   onCreateVideoDraft?: (input: UnifiedComposerVideoDraftInput) => void;
   onCreateTextToImage: () => void;
   onInvokeEntryPoint: (invocation: PackageComposerInvocation) => void;
@@ -50,7 +50,7 @@ export function FloatingToolbar({
   onAttachFiles,
   onAddBlock,
   onCreateImageToImage,
-  onCreateImageDraft,
+  onCreateImage,
   onCreateVideoDraft,
   onCreateTextToImage,
   onInvokeEntryPoint,
@@ -67,7 +67,7 @@ export function FloatingToolbar({
           agentDisabled={agentDisabled}
           onAttachFiles={onAttachFiles}
           snapshot={snapshot}
-          onCreateImageDraft={onCreateImageDraft}
+          onCreateImage={onCreateImage}
           onCreateVideoDraft={onCreateVideoDraft}
           onInvokeEntryPoint={onInvokeEntryPoint}
           onSubmitAgentMessage={onSubmitAgentMessage}

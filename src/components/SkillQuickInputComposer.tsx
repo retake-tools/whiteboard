@@ -96,7 +96,7 @@ interface SkillQuickInputComposerProps {
   autoFocus?: boolean;
   mode?: 'agent' | 'canvas';
   onAttachFiles?: (files: File[]) => Promise<PackageComposerMention[]>;
-  onCreateImageDraft?: (input: UnifiedComposerImageDraftInput) => void;
+  onCreateImage?: (input: UnifiedComposerImageDraftInput) => void;
   onCreateVideoDraft?: (input: UnifiedComposerVideoDraftInput) => void;
   onInvokeEntryPoint?: (invocation: PackageComposerInvocation) => void;
   onRequestCanvasMode?: () => void;
@@ -112,7 +112,7 @@ export function SkillQuickInputComposer({
   autoFocus,
   mode = 'canvas',
   onAttachFiles,
-  onCreateImageDraft,
+  onCreateImage,
   onCreateVideoDraft,
   onInvokeEntryPoint,
   onRequestCanvasMode,
@@ -290,7 +290,7 @@ export function SkillQuickInputComposer({
       return Boolean(instruction.trim() && videoConnectionId && onCreateVideoDraft);
     }
     if (composerMode === 'image') {
-      return Boolean(instruction.trim() && imageConnectionId && onCreateImageDraft);
+      return Boolean(instruction.trim() && imageConnectionId && onCreateImage);
     }
     if (!invocation) return Boolean(instruction.trim()) && !agentDisabled;
     try {
@@ -305,7 +305,7 @@ export function SkillQuickInputComposer({
     imageConnectionId,
     instruction,
     invocation,
-    onCreateImageDraft,
+    onCreateImage,
     onCreateVideoDraft,
     snapshot,
     dependencyIssue,
@@ -417,11 +417,11 @@ export function SkillQuickInputComposer({
         !canSubmit
         || isCompilingRequest
         || !imageConnectionId
-        || !onCreateImageDraft
+        || !onCreateImage
       ) return;
       setIsCompilingRequest(true);
       try {
-        onCreateImageDraft(await compileImageComposerSubmission({
+        onCreateImage(await compileImageComposerSubmission({
           connectionId: imageConnectionId,
           explicitRoles: imageReferenceRoles,
           generationParams: imageGenerationParams,
@@ -867,7 +867,7 @@ export function SkillQuickInputComposer({
               && composerMode === 'agent'
               ? 'agentWorkspace.send'
               : composerMode === 'image'
-                ? 'skillComposer.createImageDraft'
+                ? 'skillComposer.generateImage'
                 : entrypointId
                   ? 'skillComposer.create'
                   : 'skillComposer.planWithAgent')}

@@ -457,7 +457,7 @@ export type TranslationKey =
   | 'skillComposer.modeImage'
   | 'skillComposer.modeVideo'
   | 'skillComposer.imagePlaceholder'
-  | 'skillComposer.createImageDraft'
+  | 'skillComposer.generateImage'
   | 'skillComposer.imageParameters'
   | 'skillComposer.connection'
   | 'skillComposer.noImageConnections'
@@ -1585,7 +1585,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.modeImage': 'Image',
     'skillComposer.modeVideo': 'Video',
     'skillComposer.imagePlaceholder': 'Describe the image to generate. Use @ to add image references...',
-    'skillComposer.createImageDraft': 'Create image operation draft',
+    'skillComposer.generateImage': 'Generate image',
     'skillComposer.imageParameters': 'Image generation parameters',
     'skillComposer.connection': 'Connection',
     'skillComposer.noImageConnections': 'No ready image Connection',
@@ -2708,7 +2708,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.modeImage': '图片',
     'skillComposer.modeVideo': '视频',
     'skillComposer.imagePlaceholder': '描述要生成的图片，可用 @ 添加图片参考...',
-    'skillComposer.createImageDraft': '创建图片 Operation 草稿',
+    'skillComposer.generateImage': '生成图片',
     'skillComposer.imageParameters': '图片生成参数',
     'skillComposer.connection': 'Connection',
     'skillComposer.noImageConnections': '没有可用的图片 Connection',

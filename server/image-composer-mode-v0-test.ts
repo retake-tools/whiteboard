@@ -8,11 +8,15 @@ import {
   listImageComposerReferenceOptions,
   type ImageComposerReferenceRole,
 } from '../src/core/imageComposer';
+import { executeExistingImageOperationBlock } from '../src/core/imageOperations';
+import type { ExecutionConnectionSummary } from '../src/core/executionProviders';
 import type { AssetRecord, BoardSnapshot } from '../src/core/types';
 import { resetWorkspace } from './local-store/snapshot-store';
 
-const [composerSource, controlsSource, providerSource] = await Promise.all([
+const [appSource, composerSource, controllerSource, controlsSource, providerSource] = await Promise.all([
+  readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/SkillQuickInputComposer.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/app/useImageOperationController.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/ImageComposerControls.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/UnifiedComposerProvider.tsx', import.meta.url), 'utf8'),
 ]);
@@ -20,9 +24,13 @@ const [composerSource, controlsSource, providerSource] = await Promise.all([
 assert.match(composerSource, /listAvailableComposerModes/);
 assert.doesNotMatch(composerSource, /<option value="image" disabled>/);
 assert.match(composerSource, /listImageComposerReferenceOptions/);
-assert.match(composerSource, /onCreateImageDraft/);
+assert.match(composerSource, /onCreateImage/);
 assert.match(composerSource, /resetImageSubmission/);
+assert.match(appSource, /onCreateImage=\{\(input\) => createAndStartImageComposerOperation/);
+assert.match(controllerSource, /createTextToImageDraftOperation\(input, \{ persist: false \}\)/);
+assert.match(controllerSource, /void startExistingOperationBlock\(\{/);
 assert.match(controlsSource, /image\.text_to_image/);
+assert.match(controlsSource, /connection\.connectorId !== 'codex-managed'/);
 assert.match(controlsSource, /currentExecutionProviderSettings/);
 assert.match(controlsSource, /resolveAgentExecutionConnection/);
 assert.match(controlsSource, /initialConnectionId: 'codex-app-server'/);
@@ -208,14 +216,84 @@ assert.ok(imageToImageSnapshot.edges.some((edge) => (
   && edge.inputRole === 'style_reference'
 )));
 
+const autoExecuteSnapshot = await emptySnapshot();
+const autoReferenceAsset = imageAsset(autoExecuteSnapshot, 'asset_auto_execute_reference');
+autoExecuteSnapshot.assets.push(autoReferenceAsset);
+const autoReferenceBlock = createBlockRecord(autoExecuteSnapshot, 'image');
+autoReferenceBlock.blockId = 'block_auto_execute_reference';
+autoReferenceBlock.data = {
+  ...autoReferenceBlock.data,
+  assetId: autoReferenceAsset.assetId,
+  previewUrl: autoReferenceAsset.previewUrl,
+  title: '风格参考',
+};
+autoExecuteSnapshot.blocks.push(autoReferenceBlock);
+const autoDraft = createImageComposerDraft(autoExecuteSnapshot, {
+  capabilityId: 'image.text_to_image',
+  connectionId: 'codex-app-server',
+  generationParams: defaultImageComposerGenerationParams(),
+  instruction: '生成一张白天的家具图。',
+  operationTitle: '生成图片',
+  references: [{
+    mention: { kind: 'block', blockId: autoReferenceBlock.blockId, slotId: 'references' },
+    role: 'style_reference',
+  }],
+  textBlockTitle: '提示词',
+});
+assert.equal(autoExecuteSnapshot.blocks.length, 3, 'Reference + prompt + operation exist before execution.');
+const autoConnection: ExecutionConnectionSummary = {
+  connectionId: 'codex-app-server',
+  connectorId: 'codex-app-server',
+  providerLabel: 'Codex',
+  displayName: 'Codex App Server',
+  description: 'Automated image composer contract test.',
+  connectionKind: 'agent_host',
+  implementationKind: 'agent_bridge',
+  supportedCapabilityIds: ['image.text_to_image'],
+  enabledUseCases: ['image'],
+  configurable: true,
+  deletable: false,
+  enabled: true,
+  status: 'ready',
+  hasCredential: true,
+  modelId: 'gpt-test',
+};
+const autoRun = executeExistingImageOperationBlock(autoExecuteSnapshot, {
+  capabilityId: 'image.text_to_image',
+  connection: autoConnection,
+  generationParams: autoDraft.operationBlock.data.generationParams,
+  instruction: '',
+  operation: 'text_to_image',
+  operationBlockId: autoDraft.operationBlock.blockId,
+});
+assert.equal(autoExecuteSnapshot.blocks.length, 4, 'Execution creates one independent result block.');
+assert.equal(autoRun.resultBlocks.length, 1);
+assert.notEqual(autoRun.resultBlocks[0]?.blockId, autoReferenceBlock.blockId);
+assert.ok(autoExecuteSnapshot.edges.some((edge) => (
+  edge.sourceBlockId === autoReferenceBlock.blockId
+  && edge.targetBlockId === autoDraft.operationBlock.blockId
+  && edge.kind === 'execution_input'
+  && edge.inputRole === 'style_reference'
+)));
+assert.ok(autoExecuteSnapshot.edges.some((edge) => (
+  edge.sourceBlockId === autoDraft.operationBlock.blockId
+  && edge.targetBlockId === autoRun.resultBlocks[0]?.blockId
+  && edge.kind === 'execution_output'
+)));
+assert.equal(autoRun.execution.outputBlockIds[0], autoRun.resultBlocks[0]?.blockId);
+assert.equal(autoRun.execution.inputBlockIds.includes(autoReferenceBlock.blockId), true);
+assert.equal(autoRun.execution.status, 'queued');
+
 console.log(JSON.stringify({
   ok: true,
+  autoExecutionLaunchWired: true,
   imageModeEnabled: true,
   imageToImageCompilation: true,
+  independentResultProjection: true,
   typedImageReferences: true,
   explicitConnection: true,
   normalizedGenerationParameters: true,
-  operationDraftOnly: true,
+  operationDraftOnly: false,
   reusableOutputSlot: true,
 }));
 

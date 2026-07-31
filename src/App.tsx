@@ -396,6 +396,7 @@ function ReadyApp({
     copiedPromptKey,
     copyPromptWithHistory,
     copyQueuedOperationPrompt,
+    createAndStartImageComposerOperation,
     createImageToImageDraftFromMenu,
     createTextToImageDraftOperation,
     importImageIntoBlock,
@@ -864,7 +865,7 @@ function ReadyApp({
         composerVisible={!isAgentWorkspaceOpen}
         onAddBlock={addBlock}
         onAttachFiles={agentAttachmentController.attachFiles}
-        onCreateImageDraft={(input) => createTextToImageDraftOperation({
+        onCreateImage={(input) => createAndStartImageComposerOperation({
           ...input,
           reuseSelectedImageSlot: true,
         })}
