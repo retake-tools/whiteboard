@@ -9,6 +9,7 @@ import {
   type ImageComposerReferenceRole,
 } from '../src/core/imageComposer';
 import { imageComposerReferencePresentation } from '../src/components/ImageComposerReferenceTray';
+import { imageComposerWorkflowLayoutBlockIds } from '../src/app/imageComposerWorkflowLayout';
 import { executeExistingImageOperationBlock } from '../src/core/imageOperations';
 import type { ExecutionConnectionSummary } from '../src/core/executionProviders';
 import type { AssetRecord, BoardSnapshot } from '../src/core/types';
@@ -41,6 +42,7 @@ assert.match(composerSource, /resetImageSubmission/);
 assert.match(appSource, /onCreateImage=\{\(input\) => createAndStartImageComposerOperation/);
 assert.match(controllerSource, /createTextToImageDraftOperation\(input, \{ persist: false \}\)/);
 assert.match(controllerSource, /void startExistingOperationBlock\(\{/);
+assert.match(controllerSource, /imageComposerWorkflowLayoutBlockIds/);
 assert.match(controlsSource, /image\.text_to_image/);
 assert.match(controlsSource, /connection\.connectorId !== 'codex-managed'/);
 assert.match(controlsSource, /currentExecutionProviderSettings/);
@@ -137,6 +139,26 @@ assert.deepEqual(result.operationBlock.data.generationParams, {
   variationCount: 3,
 });
 assert.equal(result.referenceBlockIds.length, 2);
+assert.deepEqual(imageComposerWorkflowLayoutBlockIds({
+  operationBlockId: result.operationBlock.blockId,
+  referenceBlockIds: result.referenceBlockIds,
+  textBlockId: result.textBlock.blockId,
+}), [
+  ...result.referenceBlockIds,
+  result.textBlock.blockId,
+  result.operationBlock.blockId,
+]);
+assert.deepEqual(imageComposerWorkflowLayoutBlockIds({
+  operationBlockId: result.operationBlock.blockId,
+  outputSlotBlockId: outputSlot.blockId,
+  referenceBlockIds: result.referenceBlockIds,
+  textBlockId: result.textBlock.blockId,
+}), [
+  ...result.referenceBlockIds,
+  result.textBlock.blockId,
+  result.operationBlock.blockId,
+  outputSlot.blockId,
+]);
 assert.ok(snapshot.edges.some((edge) =>
   edge.sourceBlockId === referenceBlock.blockId
   && edge.targetBlockId === result.operationBlock.blockId

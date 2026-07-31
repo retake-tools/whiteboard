@@ -49,6 +49,7 @@ import {
   operationModeFromBlock,
   resizeEmptyOperationOutputSlot,
 } from './appHelpers';
+import { imageComposerWorkflowLayoutBlockIds } from './imageComposerWorkflowLayout';
 import { executeExistingStoryboardSheetOperation } from '../core/storyboardSheetOperations';
 import { projectAgentCallableCapability } from '../core/agentCallableCapabilities';
 import { tryCapabilityDefinitionFor } from '../core/capabilityRegistry';
@@ -467,14 +468,12 @@ export function useImageOperationController(options: ImageOperationControllerOpt
           });
       result.operationBlock.data.connectionId = connectionId;
       createdOperationBlockId = result.operationBlock.blockId;
-      selectedWorkflowIds = selectedSlot
-        ? [
-            selectedSlot.blockId,
-            result.textBlock.blockId,
-            result.operationBlock.blockId,
-            ...result.referenceBlockIds,
-          ]
-        : [result.textBlock.blockId, result.operationBlock.blockId, ...result.referenceBlockIds];
+      selectedWorkflowIds = imageComposerWorkflowLayoutBlockIds({
+        operationBlockId: result.operationBlock.blockId,
+        outputSlotBlockId: selectedSlot?.blockId,
+        referenceBlockIds: result.referenceBlockIds,
+        textBlockId: result.textBlock.blockId,
+      });
       if (!selectedSlot) centerWorkflowBlocks(current, selectedWorkflowIds);
       return current;
     }, { persist: draftOptions.persist ?? true, history: true });
