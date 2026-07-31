@@ -388,6 +388,7 @@ export function createFlowEdges(
         inputSlotId: edge.inputSlotId,
         kind: edge.kind,
         proxyEdgeIds: isProxy ? [edge.edgeId] : undefined,
+        referenceIntent: edge.referenceIntent,
         resultCount,
         resultHeight: resultCount ? targetBlock?.size.height : undefined,
         resultIndex,

@@ -1,11 +1,20 @@
 import path from 'node:path';
 import {
-  creativeRequestRolesFor,
+  capabilitiesFor,
+  creativeRequestInputSlotsFor,
+  generalReferenceSlot,
+  imageInputSlots,
+  sourceImageSlot,
   type CompiledCreativeRequest,
+  type CompiledCreativeRequestReference,
   type CreativeRequestCapabilityId,
   type CreativeRequestCompileInput,
-  type CreativeRequestReferenceRole,
+  type CreativeRequestExplicitBinding,
 } from '../src/core/creativeRequestCompiler';
+import { capabilityDefinitionFor } from '../src/core/capabilityRegistry';
+import {
+  createReferenceIntent,
+} from '../src/core/referenceIntent';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../src/core/types';
 import { runCodexAppServerTurn } from './codex-app-server-client';
 import { resolveAssetStoragePath } from './local-store/asset-files';
@@ -15,7 +24,7 @@ import { getBoardSnapshot } from './local-store';
 interface ResolvedCreativeReference {
   asset: AssetRecord;
   block?: BlockRecord;
-  explicitRole?: CreativeRequestReferenceRole;
+  explicitBinding?: CreativeRequestExplicitBinding;
   label: string;
   localPath: string;
   mentionId: string;
@@ -29,16 +38,17 @@ interface CreativeRequestCompilerDependencies {
 }
 
 const compilerInstructions = [
-  'You compile a Retake direct creative request into typed capability inputs.',
+  'You compile a Retake direct creative request into typed Capability input slots.',
   'Return JSON matching the provided schema and do not call tools.',
   'Use semantic understanding, not keyword filtering.',
-  'Every supplied reference must appear exactly once using its exact mentionId.',
-  'Respect explicitRole whenever present.',
-  'For image requests, use source only when the user is editing or transforming that image.',
-  'Other image roles describe what visual authority the reference contributes.',
-  'For video requests, first_frame and last_frame are temporal anchors; environment_reference is scene authority.',
-  'Use general_reference when a more specific supported role is not justified.',
-  'Write a short purpose in the user language. Do not invent unsupported role identifiers.',
+  'Every supplied image must appear exactly once using its exact mentionId.',
+  'Respect every explicitBinding exactly.',
+  'For image requests, bind one image to source_image only when the user wants that image edited as the base.',
+  'A request that combines several images into a new image has no source image; bind all of them to references.',
+  'For each reference, describe the exact content to borrow in open user language. Do not force it into a fixed style, scene, composition, or character category.',
+  'A source image has no reference intent.',
+  'For video requests, first_frame and last_frame are temporal anchors; other inputs use the most suitable declared reference Slot.',
+  'Never invent a Capability ID, input Slot, Block, Asset, or mention.',
 ].join('\n');
 
 export async function compileCreativeRequest(
@@ -56,7 +66,7 @@ export async function compileCreativeRequest(
     input,
     dependencies.resolveAssetPath ?? resolveAssetStoragePath,
   );
-  if (references.length === 0 || references.every((reference) => reference.explicitRole)) {
+  if (references.length === 0 || references.every(referenceIsFullyExplicit)) {
     return deterministicRequest(input, references);
   }
 
@@ -68,26 +78,38 @@ export async function compileCreativeRequest(
     if (!connection?.modelId) {
       throw new Error('No ready Codex App Server model is configured.');
     }
-    const roles = creativeRequestRolesFor(input.mediaKind);
+    const inputSlots = creativeRequestInputSlotsFor(input.mediaKind);
     const result = await (dependencies.runTurn ?? runCodexAppServerTurn)({
       baseInstructions: compilerInstructions,
       cwd: process.cwd(),
       ephemeral: true,
       localImagePaths: references.map((reference) => reference.localPath),
       model: connection.modelId,
-      outputSchema: compilerOutputSchema(input.mediaKind, roles),
+      outputSchema: compilerOutputSchema(input.mediaKind, inputSlots.map((slot) => slot.inputSlotId)),
       prompt: JSON.stringify({
         instruction,
         mediaKind: input.mediaKind,
-        allowedCapabilities: capabilitiesFor(input.mediaKind),
-        allowedRoles: roles,
+        allowedCapabilities: capabilitiesFor(input.mediaKind).map((capabilityId) => {
+          const definition = capabilityDefinitionFor(capabilityId);
+          return {
+            capabilityId,
+            inputSlots: imageInputSlots(definition).map((slot) => ({
+              cardinality: slot.cardinality,
+              required: slot.required,
+              semanticRole: slot.semanticRole,
+              slotId: slot.slotId,
+            })),
+          };
+        }),
         references: references.map((reference, index) => ({
           attachmentIndex: index + 1,
           mentionId: reference.mentionId,
           label: reference.label,
           assetId: reference.asset.assetId,
           ...(reference.block ? { blockId: reference.block.blockId } : {}),
-          ...(reference.explicitRole ? { explicitRole: reference.explicitRole } : {}),
+          ...(reference.explicitBinding
+            ? { explicitBinding: reference.explicitBinding }
+            : {}),
         })),
       }),
       sandbox: 'read-only',
@@ -108,22 +130,36 @@ function deterministicRequest(
   input: CreativeRequestCompileInput,
   references: readonly ResolvedCreativeReference[],
 ): CompiledCreativeRequest {
-  const roles = references.map((reference) => (
-    reference.explicitRole ?? 'general_reference'
-  ));
+  const capabilityId = capabilityForDeterministicRequest(input.mediaKind, references);
+  const definition = capabilityDefinitionFor(capabilityId);
+  const fallbackSlot = generalReferenceSlot(definition)
+    ?? imageInputSlots(definition).find((slot) => !slot.required)
+    ?? imageInputSlots(definition)[0];
+  const compiledReferences = references.map((reference) => {
+    const explicit = reference.explicitBinding;
+    const inputSlotId = explicit?.inputSlotId ?? fallbackSlot?.slotId;
+    if (!inputSlotId) {
+      throw new Error(`Capability ${capabilityId} has no compatible image reference Slot.`);
+    }
+    return {
+      assetId: reference.asset.assetId,
+      ...(reference.block ? { blockId: reference.block.blockId } : {}),
+      inputSlotId,
+      mentionId: reference.mentionId,
+      ...(explicit?.referenceIntent
+        ? { referenceIntent: structuredClone(explicit.referenceIntent) }
+        : {}),
+    };
+  });
+  assertSlotCardinality(capabilityId, compiledReferences);
   return {
     schemaVersion: 1,
-    capabilityId: capabilityForDeterministicRequest(input.mediaKind, roles),
-    compiler: { kind: 'deterministic', version: '1' },
+    capabilityId,
+    compiler: { kind: 'deterministic', version: '2' },
     mediaKind: input.mediaKind,
     parameters: structuredClone(input.explicitParameters),
     prompt: input.instruction.trim(),
-    references: references.map((reference, index) => ({
-      assetId: reference.asset.assetId,
-      ...(reference.block ? { blockId: reference.block.blockId } : {}),
-      mentionId: reference.mentionId,
-      role: roles[index],
-    })),
+    references: compiledReferences,
     unresolved: [],
   };
 }
@@ -146,39 +182,57 @@ function parseCompilerResult(
   if (!capabilityId || !Array.isArray(parsed.references)) {
     throw new Error('Creative Request Compiler returned an invalid result.');
   }
-  const allowedRoles = creativeRequestRolesFor(input.mediaKind);
+  const definition = capabilityDefinitionFor(capabilityId);
+  const allowedSlotIds = new Set(imageInputSlots(definition).map((slot) => slot.slotId));
+  const sourceSlotId = sourceImageSlot(definition)?.slotId;
   const referenceById = new Map(references.map((reference) => [reference.mentionId, reference]));
   const seen = new Set<string>();
-  const compiledReferences = parsed.references.map((value) => {
+  const compiledReferences = parsed.references.map((value): CompiledCreativeRequestReference => {
     if (!isRecord(value)) throw new Error('Creative Request Compiler returned an invalid reference.');
     const mentionId = typeof value.mentionId === 'string' ? value.mentionId : '';
     const resolved = referenceById.get(mentionId);
-    const inferredRole = typeof value.role === 'string'
-      && allowedRoles.includes(value.role as CreativeRequestReferenceRole)
-      ? value.role as CreativeRequestReferenceRole
+    const inferredInputSlotId = typeof value.inputSlotId === 'string'
+      && allowedSlotIds.has(value.inputSlotId)
+      ? value.inputSlotId
       : undefined;
-    const role = resolved?.explicitRole ?? inferredRole;
-    if (!resolved || !role || seen.has(mentionId)) {
-      throw new Error('Creative Request Compiler returned an unknown or duplicate reference.');
+    const inputSlotId = resolved?.explicitBinding?.inputSlotId ?? inferredInputSlotId;
+    if (
+      !resolved
+      || !inputSlotId
+      || !allowedSlotIds.has(inputSlotId)
+      || seen.has(mentionId)
+    ) {
+      throw new Error('Creative Request Compiler returned an unknown, duplicate, or unsupported reference.');
     }
     seen.add(mentionId);
-    const purpose = typeof value.purpose === 'string' ? value.purpose.trim() : '';
+    const inferredIntent = inputSlotId === sourceSlotId
+      ? undefined
+      : createReferenceIntent(
+          typeof value.intentInstruction === 'string' ? value.intentInstruction : '',
+          'ai',
+          typeof value.intentLabel === 'string' ? value.intentLabel : undefined,
+        );
+    const referenceIntent = inputSlotId === sourceSlotId
+      ? undefined
+      : resolved.explicitBinding?.referenceIntent ?? inferredIntent;
     return {
       assetId: resolved.asset.assetId,
       ...(resolved.block ? { blockId: resolved.block.blockId } : {}),
+      inputSlotId,
       mentionId,
-      ...(purpose ? { purpose } : {}),
-      role,
+      ...(referenceIntent
+        ? { referenceIntent: structuredClone(referenceIntent) }
+        : {}),
     };
   });
   if (seen.size !== references.length) {
     throw new Error('Creative Request Compiler omitted a reference.');
   }
-  assertRoleCardinality(input.mediaKind, capabilityId, compiledReferences.map(({ role }) => role));
+  assertSlotCardinality(capabilityId, compiledReferences);
   return {
     schemaVersion: 1,
     capabilityId,
-    compiler: { kind: 'ai', model, version: '1' },
+    compiler: { kind: 'ai', model, version: '2' },
     mediaKind: input.mediaKind,
     parameters: structuredClone(input.explicitParameters),
     prompt: input.instruction.trim(),
@@ -193,6 +247,9 @@ async function resolveReferences(
   resolveAssetPath: typeof resolveAssetStoragePath,
 ): Promise<ResolvedCreativeReference[]> {
   const seen = new Set<string>();
+  const allowedSlotIds = new Set(
+    creativeRequestInputSlotsFor(input.mediaKind).map((slot) => slot.inputSlotId),
+  );
   return Promise.all(input.references.map(async (reference) => {
     if (!reference.mentionId || seen.has(reference.mentionId)) {
       throw new Error('Creative request reference is duplicated.');
@@ -218,14 +275,20 @@ async function resolveReferences(
     ) {
       throw new Error(`Creative request image reference is invalid: ${reference.mentionId}`);
     }
-    const allowedRoles = creativeRequestRolesFor(input.mediaKind);
-    if (reference.explicitRole && !allowedRoles.includes(reference.explicitRole)) {
-      throw new Error(`Creative request role is unsupported: ${reference.explicitRole}`);
+    if (
+      reference.explicitBinding
+      && !allowedSlotIds.has(reference.explicitBinding.inputSlotId)
+    ) {
+      throw new Error(
+        `Creative request input Slot is unsupported: ${reference.explicitBinding.inputSlotId}`,
+      );
     }
     return {
       asset,
       ...(block ? { block } : {}),
-      ...(reference.explicitRole ? { explicitRole: reference.explicitRole } : {}),
+      ...(reference.explicitBinding
+        ? { explicitBinding: structuredClone(reference.explicitBinding) }
+        : {}),
       label: typeof block?.data.title === 'string'
         ? block.data.title
         : path.basename(asset.storageKey),
@@ -256,7 +319,7 @@ function preferredCompilerConnection(
 
 function compilerOutputSchema(
   mediaKind: CreativeRequestCompileInput['mediaKind'],
-  roles: readonly CreativeRequestReferenceRole[],
+  inputSlotIds: readonly string[],
 ): Record<string, unknown> {
   return {
     type: 'object',
@@ -273,10 +336,11 @@ function compilerOutputSchema(
           additionalProperties: false,
           properties: {
             mentionId: { type: 'string' },
-            purpose: { type: 'string' },
-            role: { type: 'string', enum: roles },
+            inputSlotId: { type: 'string', enum: inputSlotIds },
+            intentLabel: { type: 'string' },
+            intentInstruction: { type: 'string' },
           },
-          required: ['mentionId', 'purpose', 'role'],
+          required: ['mentionId', 'inputSlotId', 'intentLabel', 'intentInstruction'],
         },
       },
     },
@@ -284,42 +348,52 @@ function compilerOutputSchema(
   };
 }
 
-function capabilitiesFor(
-  mediaKind: CreativeRequestCompileInput['mediaKind'],
-): CreativeRequestCapabilityId[] {
-  return mediaKind === 'image'
-    ? ['image.text_to_image', 'image.image_to_image']
-    : ['video.generate'];
-}
-
 function capabilityForDeterministicRequest(
   mediaKind: CreativeRequestCompileInput['mediaKind'],
-  roles: readonly CreativeRequestReferenceRole[],
+  references: readonly ResolvedCreativeReference[],
 ): CreativeRequestCapabilityId {
   if (mediaKind === 'video') return 'video.generate';
-  return roles.includes('source') ? 'image.image_to_image' : 'image.text_to_image';
+  const sourceSlotId = sourceImageSlot(
+    capabilityDefinitionFor('image.image_to_image'),
+  )?.slotId;
+  return references.some(
+    (reference) => reference.explicitBinding?.inputSlotId === sourceSlotId,
+  )
+    ? 'image.image_to_image'
+    : 'image.text_to_image';
 }
 
-function assertRoleCardinality(
-  mediaKind: CreativeRequestCompileInput['mediaKind'],
+function referenceIsFullyExplicit(reference: ResolvedCreativeReference): boolean {
+  const binding = reference.explicitBinding;
+  if (!binding) return false;
+  if (binding.inputSlotId === 'source_image') return true;
+  return Boolean(binding.referenceIntent?.instruction.trim());
+}
+
+function assertSlotCardinality(
   capabilityId: CreativeRequestCapabilityId,
-  roles: readonly CreativeRequestReferenceRole[],
+  references: readonly CompiledCreativeRequestReference[],
 ): void {
-  const sourceCount = roles.filter((role) => role === 'source').length;
-  if (
-    mediaKind === 'image'
-    && (
-      (capabilityId === 'image.image_to_image' && sourceCount !== 1)
-      || (capabilityId === 'image.text_to_image' && sourceCount !== 0)
-    )
-  ) {
-    throw new Error('Creative Request Compiler returned inconsistent image source roles.');
+  const definition = capabilityDefinitionFor(capabilityId);
+  const imageSlots = imageInputSlots(definition);
+  const counts = new Map<string, number>();
+  for (const reference of references) {
+    const slot = imageSlots.find((candidate) => candidate.slotId === reference.inputSlotId);
+    if (!slot) {
+      throw new Error(
+        `Creative Request Compiler returned unsupported input Slot ${reference.inputSlotId}.`,
+      );
+    }
+    counts.set(slot.slotId, (counts.get(slot.slotId) ?? 0) + 1);
   }
-  if (
-    roles.filter((role) => role === 'first_frame').length > 1
-    || roles.filter((role) => role === 'last_frame').length > 1
-  ) {
-    throw new Error('Creative Request Compiler returned duplicate video frame roles.');
+  for (const slot of imageSlots) {
+    const count = counts.get(slot.slotId) ?? 0;
+    if (slot.required && count === 0) {
+      throw new Error(`Creative Request Compiler omitted required input Slot ${slot.slotId}.`);
+    }
+    if (slot.cardinality !== 'many' && count > 1) {
+      throw new Error(`Creative Request Compiler exceeded input Slot ${slot.slotId}.`);
+    }
   }
 }
 

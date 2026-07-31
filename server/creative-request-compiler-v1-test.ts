@@ -78,14 +78,16 @@ const compiled = await compileCreativeRequest({
         capabilityId: 'image.text_to_image',
         references: [
           {
+            inputSlotId: 'references',
+            intentInstruction: '保持客厅空间和灯光关系',
+            intentLabel: '客厅空间与灯光',
             mentionId: 'block:block_scene:references',
-            purpose: '保持客厅空间和灯光关系',
-            role: 'environment_reference',
           },
           {
+            inputSlotId: 'references',
+            intentInstruction: '沿用水彩质感',
+            intentLabel: '水彩质感',
             mentionId: 'block:block_style:references',
-            purpose: '沿用水彩质感',
-            role: 'style_reference',
           },
         ],
       }),
@@ -98,17 +100,31 @@ assert.equal(compiled.compiler.model, 'test-model');
 assert.equal(compiled.capabilityId, 'image.text_to_image');
 assert.equal(compiled.prompt, '@客厅场景做场景参考，@水彩风格做风格参考，生成一张落地灯海报。');
 assert.deepEqual(
-  compiled.references.map(({ mentionId, role, purpose }) => ({ mentionId, role, purpose })),
+  compiled.references.map(({ mentionId, inputSlotId, referenceIntent }) => ({
+    inputSlotId,
+    mentionId,
+    referenceIntent,
+  })),
   [
     {
+      inputSlotId: 'references',
       mentionId: 'block:block_scene:references',
-      role: 'environment_reference',
-      purpose: '保持客厅空间和灯光关系',
+      referenceIntent: {
+        instruction: '保持客厅空间和灯光关系',
+        label: '客厅空间与灯光',
+        origin: 'ai',
+        schemaVersion: 1,
+      },
     },
     {
+      inputSlotId: 'references',
       mentionId: 'block:block_style:references',
-      role: 'style_reference',
-      purpose: '沿用水彩质感',
+      referenceIntent: {
+        instruction: '沿用水彩质感',
+        label: '水彩质感',
+        origin: 'ai',
+        schemaVersion: 1,
+      },
     },
   ],
 );
@@ -125,7 +141,7 @@ const explicit = await compileCreativeRequest({
   mediaKind: 'image',
   projectId: snapshot.project.projectId,
   references: [{
-    explicitRole: 'source',
+    explicitBinding: { inputSlotId: 'source_image' },
     mention: { blockId: firstBlock.blockId, kind: 'block', slotId: 'references' },
     mentionId: `block:${firstBlock.blockId}:references`,
   }],
@@ -140,7 +156,8 @@ const explicit = await compileCreativeRequest({
 assert.equal(runCalled, false);
 assert.equal(explicit.compiler.kind, 'deterministic');
 assert.equal(explicit.capabilityId, 'image.image_to_image');
-assert.equal(explicit.references[0]?.role, 'source');
+assert.equal(explicit.references[0]?.inputSlotId, 'source_image');
+assert.equal(explicit.references[0]?.referenceIntent, undefined);
 
 const fallback = await compileCreativeRequest({
   boardId: snapshot.board.boardId,
@@ -164,7 +181,7 @@ const fallback = await compileCreativeRequest({
   resolveAssetPath: async (_projectId, assetId) => `/tmp/${assetId}.png`,
 });
 assert.equal(fallback.compiler.kind, 'deterministic');
-assert.equal(fallback.references[0]?.role, 'general_reference');
+assert.equal(fallback.references[0]?.inputSlotId, 'general_references');
 assert.equal(fallback.unresolved[0]?.code, 'semantic_mapping_unavailable');
 
 console.log(JSON.stringify({

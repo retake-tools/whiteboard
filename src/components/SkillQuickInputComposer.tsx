@@ -133,7 +133,7 @@ export function SkillQuickInputComposer({
     imageConnectionId,
     imageGenerationParams,
     imageGenerationParamsTouched,
-    imageReferenceRoles,
+    imageReferenceSettings,
     inlineValuesBySlot,
     instruction,
     mentions,
@@ -145,7 +145,7 @@ export function SkillQuickInputComposer({
     setGenerationParameters,
     setInlineValuesBySlot,
     setInstruction,
-    setImageReferenceRoles,
+    setImageReferenceSettings,
     setMentions,
     setReferenceSettings,
     setStoryboardOutputCount,
@@ -219,6 +219,20 @@ export function SkillQuickInputComposer({
   const generationReferenceMentions = useMemo(() => mentions.filter(
     (mention) => mention.slotId === 'references',
   ), [mentions]);
+  const imageMentions = useMemo(
+    () => mentions.filter((mention) => composerMentionIsImage(snapshot, mention)),
+    [mentions, snapshot],
+  );
+  const nonImageMentions = useMemo(
+    () => mentions.filter((mention) => !composerMentionIsImage(snapshot, mention)),
+    [mentions, snapshot],
+  );
+  const trayImageMentions = composerMode === 'image' || composerMode === 'agent'
+    ? imageMentions
+    : [];
+  const chipMentions = composerMode === 'image' || composerMode === 'agent'
+    ? nonImageMentions
+    : mentions;
   const filteredEntryPoints = useMemo(
     () => filterEntryPoints(
       entrypoints,
@@ -422,11 +436,11 @@ export function SkillQuickInputComposer({
       try {
         onCreateImage(await compileImageComposerSubmission({
           connectionId: imageConnectionId,
-          explicitRoles: imageReferenceRoles,
           generationParams: imageGenerationParams,
           generationParamsTouched: imageGenerationParamsTouched,
           instruction: instruction.trim(),
           mentions,
+          referenceSettings: imageReferenceSettings,
           snapshot,
         }));
         resetImageSubmission();
@@ -475,6 +489,7 @@ export function SkillQuickInputComposer({
         agentPreferences,
         content: instruction.trim(),
         ...(entrypointId ? { entrypointId } : {}),
+        imageReferenceSettings,
         inlineValues: invocation?.inlineValues ?? [],
         mentions,
         parameters: invocation?.parameters ?? {},
@@ -489,6 +504,7 @@ export function SkillQuickInputComposer({
       onSubmitAgentMessage({
         agentPreferences,
         content: instruction.trim(),
+        imageReferenceSettings,
         inlineValues: [],
         mentions,
         parameters: {},
@@ -561,24 +577,39 @@ export function SkillQuickInputComposer({
           }}
         />
         <div className="skill-composer-input-shell">
-          {mentions.length > 0 && composerMode === 'image' ? (
+          {trayImageMentions.length > 0 ? (
             <ImageComposerReferenceTray
               mentionOptionsById={mentionOptionsById}
-              mentions={mentions}
-              roles={imageReferenceRoles}
+              mentions={trayImageMentions}
+              settings={imageReferenceSettings}
               snapshot={snapshot}
               onAdd={() => attachmentInputRef.current?.click()}
-              onChangeRole={(mentionId, role) => setImageReferenceRoles((current) => ({
-                ...current,
-                [mentionId]: role,
-              }))}
-              onRemove={(mentionId) => setMentions((current) => current.filter(
-                (candidate) => packageComposerMentionId(candidate) !== mentionId,
-              ))}
+              onChangeSetting={(mentionId, setting) => setImageReferenceSettings((current) => {
+                const next = { ...current, [mentionId]: setting };
+                if (setting.mode === 'source') {
+                  for (const [candidateId, candidate] of Object.entries(next)) {
+                    if (candidateId !== mentionId && candidate.mode === 'source') {
+                      next[candidateId] = { instruction: candidate.instruction, mode: 'auto' };
+                    }
+                  }
+                }
+                return next;
+              })}
+              onRemove={(mentionId) => {
+                setMentions((current) => current.filter(
+                  (candidate) => packageComposerMentionId(candidate) !== mentionId,
+                ));
+                setImageReferenceSettings((current) => {
+                  const next = { ...current };
+                  delete next[mentionId];
+                  return next;
+                });
+              }}
             />
-          ) : mentions.length > 0 ? (
+          ) : null}
+          {chipMentions.length > 0 ? (
             <div className="skill-composer-mentions" aria-label={t('skillComposer.selectedMentions')}>
-              {mentions.map((mention) => {
+              {chipMentions.map((mention) => {
                 const mentionId = packageComposerMentionId(mention);
                 const option = mentionOptionsById.get(mentionId);
                 return (
@@ -1024,6 +1055,24 @@ function attachmentMentionLabel(
   }
   const asset = snapshot.assets.find((candidate) => candidate.assetId === mention.assetId);
   return asset ? `${asset.kind} · ${asset.assetId.slice(-8)}` : mention.assetId;
+}
+
+function composerMentionIsImage(
+  snapshot: BoardSnapshot,
+  mention: PackageComposerMention,
+): boolean {
+  if (mention.kind === 'asset') {
+    return snapshot.assets.some(
+      (asset) => asset.assetId === mention.assetId && asset.kind === 'image',
+    );
+  }
+  const block = snapshot.blocks.find(
+    (candidate) => candidate.blockId === mention.blockId,
+  );
+  if (block?.type !== 'image' || typeof block.data.assetId !== 'string') return false;
+  return snapshot.assets.some(
+    (asset) => asset.assetId === block.data.assetId && asset.kind === 'image',
+  );
 }
 
 function storyboardSheetParameters(

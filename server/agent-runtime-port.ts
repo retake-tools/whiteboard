@@ -11,9 +11,9 @@ import path from 'node:path';
 import { agentRuntimeTurnContext, runtimeBindingForSession } from '../src/core/agentSession';
 import {
   imageComposerAspectRatios,
-  imageComposerReferenceRoles,
   imageComposerResolutions,
 } from '../src/core/imageComposer';
+import { createReferenceIntent } from '../src/core/referenceIntent';
 import { createId, nowIso } from '../src/core/id';
 import type { AgentCallableCapabilityV1 } from '../src/core/agentCallableCapabilities';
 import { getBoardSnapshot } from './local-store';
@@ -74,13 +74,15 @@ export function agentRuntimeDecisionSchemaFor(
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['blockId', 'inputRole'],
+        required: ['blockId', 'bindingKind', 'intentLabel', 'intentInstruction'],
         properties: {
           blockId: { type: 'string' },
-          inputRole: {
+          bindingKind: {
             type: 'string',
-            enum: imageComposerReferenceRoles,
+            enum: ['source', 'reference'],
           },
+          intentLabel: { type: 'string' },
+          intentInstruction: { type: 'string' },
         },
       },
     },
@@ -178,12 +180,16 @@ Return one JSON object matching the supplied schema.
   image-generation or image-edit task without explicitly targeting an existing Operation. Also use it when the user
   asks for a new cumulative edit that should build on a successful image output from the working Operation; continuing
   the conversation does not mean reusing that Operation's frozen source. Put every image used by the request in
-  imageInputs with its exact Block id and semantic inputRole. Available Block ids are limited to
+  imageInputs with its exact Block id and bindingKind. Available Block ids are limited to
   retakeContext.selectedImageBlockIds, attachedImageBlockIds, mentionedImageBlockIds, and
-  workingOutputImageBlockIds. For an image_generate capability, imageInputs may contain any number of reference roles
+  workingOutputImageBlockIds. For an image_generate capability, imageInputs may contain any number of references
   but must not contain source. For a source_image_edit capability, imageInputs must contain exactly one source and may
-  also contain multiple reference roles. Map user language such as left-side layout to composition_reference,
-  background to environment_reference, and style to style_reference; do not reassign roles later. Current Canvas
+  also contain multiple references. A request that combines several images into a new image has no source; mark every
+  image as reference. For every reference, write a short intentLabel and a precise intentInstruction in the user's
+  language describing exactly what to borrow and what not to copy. Do not reduce open reference intent to a fixed
+  style, scene, composition, or character category. A source has empty intent fields. Respect
+  retakeContext.imageReferenceSettings exactly when the user explicitly chose source or reference; a non-empty user
+  instruction is authoritative. Current Canvas
   selection belongs only to this message. Working outputs belong only to this AgentSession. If the intended editable
   source remains ambiguous, reply and ask the user to identify it. If the chosen capability needs another required
   guidance/mask input, reply and ask the user to use or bind the typed Plugin/Workflow interaction instead of pretending
@@ -365,6 +371,7 @@ function runtimePrompt(
       workingOutputImageBlockIds: context.workingOutputImageBlockIds,
       attachedImageBlockIds: context.attachedImageBlockIds,
       mentionedImageBlockIds: context.mentionedImageBlockIds,
+      imageReferenceSettings: context.imageReferenceSettings ?? [],
       attachments: attachmentSummaries,
     },
     recentHistory: context.history,
@@ -409,30 +416,35 @@ export function parseAgentRuntimeDecision(
     )) {
       throw new Error('Agent-created Operation does not support unbound typed inputs yet.');
     }
-    const capabilityId = typeof parsed.capabilityId === 'string'
+    const requestedCapabilityId = typeof parsed.capabilityId === 'string'
       ? parsed.capabilityId
       : undefined;
-    const callableCapability = capabilityId
-      ? capabilityCatalog.find((candidate) => candidate.capabilityId === capabilityId)
+    const requestedCapability = requestedCapabilityId
+      ? capabilityCatalog.find((candidate) => candidate.capabilityId === requestedCapabilityId)
       : undefined;
     const operationPrompt = typeof parsed.operationPrompt === 'string'
       ? parsed.operationPrompt.trim()
       : '';
     if (
-      !capabilityId || !callableCapability || !operationPrompt
+      !requestedCapabilityId || !requestedCapability || !operationPrompt
     ) {
       throw new Error('Agent Runtime returned an invalid create-and-execute Operation.');
     }
     const imageInputs = parseAgentImageInputs(parsed, context);
-    const sourceInput = imageInputs.find((input) => input.inputRole === 'source');
-    const sourceCount = imageInputs.filter((input) => input.inputRole === 'source').length;
-    if (
-      callableCapability.authoringKind === 'image_generate'
-        ? sourceCount > 0
-        : sourceCount !== 1
-    ) {
-      throw new Error('Agent Runtime returned invalid source/reference image roles for the selected Capability.');
+    const sourceInput = imageInputs.find((input) => input.bindingKind === 'source');
+    const sourceCount = imageInputs.filter((input) => input.bindingKind === 'source').length;
+    if (sourceCount > 1) {
+      throw new Error('Agent Runtime returned invalid source/reference bindings for the selected Capability.');
     }
+    const callableCapability = compatibleCoreCapabilityForBindings(
+      requestedCapability,
+      sourceCount,
+      capabilityCatalog,
+    );
+    if (!callableCapability) {
+      throw new Error('Agent Runtime returned invalid source/reference bindings for the selected Capability.');
+    }
+    const capabilityId = callableCapability.capabilityId;
     const requestedAspectRatioPreset = typeof parsed.aspectRatioPreset === 'string'
       && imageComposerAspectRatios.includes(
         parsed.aspectRatioPreset as typeof imageComposerAspectRatios[number],
@@ -605,6 +617,33 @@ export function parseAgentRuntimeDecision(
   throw new Error('Agent Runtime returned an unknown decision kind.');
 }
 
+function compatibleCoreCapabilityForBindings(
+  requestedCapability: AgentCallableCapabilityV1,
+  sourceCount: number,
+  capabilityCatalog: readonly AgentCallableCapabilityV1[],
+): AgentCallableCapabilityV1 | undefined {
+  const requiredAuthoringKind = sourceCount === 1
+    ? 'source_image_edit'
+    : 'image_generate';
+  if (requestedCapability.authoringKind === requiredAuthoringKind) {
+    return requestedCapability;
+  }
+  const coreCounterpartId = requiredAuthoringKind === 'source_image_edit'
+    ? 'image.image_to_image'
+    : 'image.text_to_image';
+  if (
+    requestedCapability.capabilityId !== 'image.text_to_image'
+    && requestedCapability.capabilityId !== 'image.image_to_image'
+  ) {
+    return undefined;
+  }
+  return capabilityCatalog.find(
+    (candidate) =>
+      candidate.capabilityId === coreCounterpartId
+      && candidate.authoringKind === requiredAuthoringKind,
+  );
+}
+
 function parseAgentImageInputs(
   parsed: Record<string, unknown>,
   context: AgentRuntimeTurnContext,
@@ -612,7 +651,12 @@ function parseAgentImageInputs(
   const rawInputs = Array.isArray(parsed.imageInputs)
     ? parsed.imageInputs
     : typeof parsed.sourceImageBlockId === 'string'
-      ? [{ blockId: parsed.sourceImageBlockId, inputRole: 'source' }]
+        ? [{
+            bindingKind: 'source',
+            blockId: parsed.sourceImageBlockId,
+            intentInstruction: '',
+            intentLabel: '',
+          }]
       : [];
   const seenBlockIds = new Set<string>();
   return rawInputs.map((rawInput) => {
@@ -620,14 +664,20 @@ function parseAgentImageInputs(
       throw new Error('Agent Runtime returned an invalid image input.');
     }
     const blockId = typeof rawInput.blockId === 'string' ? rawInput.blockId : '';
-    const inputRole = typeof rawInput.inputRole === 'string'
-      && (rawInput.inputRole === 'source'
-        || imageComposerReferenceRoles.includes(
-          rawInput.inputRole as typeof imageComposerReferenceRoles[number],
-        ))
-      ? rawInput.inputRole as AgentImageInputBinding['inputRole']
+    const inferredBindingKind = (
+      rawInput.bindingKind === 'source'
+      || rawInput.bindingKind === 'reference'
+    )
+      ? rawInput.bindingKind
       : undefined;
-    if (!blockId || !inputRole || seenBlockIds.has(blockId)) {
+    const explicitSetting = (context.imageReferenceSettings ?? []).find(
+      (setting) => setting.blockId === blockId,
+    );
+    const bindingKind = explicitSetting?.mode === 'source'
+      || explicitSetting?.mode === 'reference'
+      ? explicitSetting.mode
+      : inferredBindingKind;
+    if (!blockId || !bindingKind || seenBlockIds.has(blockId)) {
       throw new Error('Agent Runtime returned duplicate or invalid image inputs.');
     }
     const image = context.boardReadModel.blocks.find(
@@ -649,7 +699,27 @@ function parseAgentImageInputs(
       throw new Error('Agent Runtime selected an image outside the typed message or Session binding.');
     }
     seenBlockIds.add(blockId);
-    return { bindingSource, blockId, inputRole };
+    const referenceIntent = bindingKind === 'reference'
+      ? (
+          explicitSetting?.instruction.trim()
+            ? createReferenceIntent(explicitSetting.instruction, 'user')
+            : createReferenceIntent(
+                typeof rawInput.intentInstruction === 'string'
+                  ? rawInput.intentInstruction
+                  : '',
+                'ai',
+                typeof rawInput.intentLabel === 'string'
+                  ? rawInput.intentLabel
+                  : undefined,
+              )
+        )
+      : undefined;
+    return {
+      bindingKind,
+      bindingSource,
+      blockId,
+      ...(referenceIntent ? { referenceIntent } : {}),
+    };
   });
 }
 

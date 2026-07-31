@@ -24,6 +24,8 @@ import {
 } from './core/blockFactory';
 import { createId, nowIso } from './core/id';
 import type { BlockRecord, BoardSnapshot } from './core/types';
+import { capabilityDefinitionFor } from './core/capabilityRegistry';
+import { legacyInputRoleForSlot } from './core/creativeRequestCompiler';
 import { executionConnection } from './core/executionProviderPreferences';
 import { blockLockedByGroup, groupMediaItems } from './core/grouping';
 import { loadUiPreferences } from './core/uiPreferences';
@@ -692,8 +694,15 @@ function ReadyApp({
         if (!source) continue;
         current.edges.push({
           edgeId: createId('edge'),
-          inputRole: reference.role,
+          inputRole: legacyInputRoleForSlot(
+            capabilityDefinitionFor('video.generate'),
+            reference.inputSlotId,
+          ),
+          inputSlotId: reference.inputSlotId,
           kind: 'execution_input',
+          ...(reference.referenceIntent
+            ? { referenceIntent: structuredClone(reference.referenceIntent) }
+            : {}),
           sourceBlockId: source.blockId,
           targetBlockId: block.blockId,
         });

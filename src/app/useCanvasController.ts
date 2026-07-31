@@ -412,7 +412,17 @@ export function useCanvasController(options: CanvasControllerOptions) {
     const nextEdges = addEdge({ ...connection, id: edgeId, source: connection.source, target: connection.target, type: 'default', label: kind, data: { kind, inputSlotId } } satisfies RetakeEdge, edges);
     setEdges(nextEdges);
     const nextSnapshot = updateSnapshot((current) => {
-      current.edges = nextEdges.map((edge): BoardEdgeRecord => ({ edgeId: edge.id, sourceBlockId: edge.source, targetBlockId: edge.target, kind: edge.data?.kind ?? 'visual_note', inputRole: edge.data?.inputRole, inputSlotId: edge.data?.inputSlotId }));
+      current.edges = nextEdges.map((edge): BoardEdgeRecord => ({
+        edgeId: edge.id,
+        sourceBlockId: edge.source,
+        targetBlockId: edge.target,
+        kind: edge.data?.kind ?? 'visual_note',
+        inputRole: edge.data?.inputRole,
+        inputSlotId: edge.data?.inputSlotId,
+        ...(edge.data?.referenceIntent
+          ? { referenceIntent: structuredClone(edge.data.referenceIntent) }
+          : {}),
+      }));
       return touchBoard(current);
     }, { persist: true, history: true });
     if (requiresInputRole && targetBlock) setSelectedBlock(nextSnapshot, targetBlock.blockId);

@@ -483,6 +483,13 @@ export type TranslationKey =
   | 'skillComposer.maxPromptChars'
   | 'skillComposer.referenceRole'
   | 'skillComposer.referencePreview'
+  | 'skillComposer.referenceIntent'
+  | 'skillComposer.referenceIntentHint'
+  | 'skillComposer.referenceIntentPlaceholder'
+  | 'skillComposer.referenceModeAuto'
+  | 'skillComposer.referenceModeReference'
+  | 'skillComposer.referenceModeSource'
+  | 'skillComposer.referenceSourceHint'
   | 'skillComposer.referenceRequired'
   | 'skillComposer.referencePurpose'
   | 'skill.common.referencesInput'
@@ -1613,6 +1620,13 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.maxPromptChars': 'Submit-source budget',
     'skillComposer.referenceRole': 'Reference role',
     'skillComposer.referencePreview': 'Reference preview',
+    'skillComposer.referenceIntent': 'Reference content',
+    'skillComposer.referenceIntentHint': 'Describe exactly what to borrow. Retake will keep this instruction with the image.',
+    'skillComposer.referenceIntentPlaceholder': 'For example: borrow the glass material and warm light, not the layout',
+    'skillComposer.referenceModeAuto': 'Auto',
+    'skillComposer.referenceModeReference': 'Reference',
+    'skillComposer.referenceModeSource': 'Source image',
+    'skillComposer.referenceSourceHint': 'The source is the single image being edited and does not need reference content.',
     'skillComposer.referenceRequired': 'Required',
     'skillComposer.referencePurpose': 'Purpose',
     'skill.common.referencesInput': 'Additional direction / references',
@@ -2738,6 +2752,13 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.maxPromptChars': '提交源字数预算',
     'skillComposer.referenceRole': '参考角色',
     'skillComposer.referencePreview': '参考图预览',
+    'skillComposer.referenceIntent': '参考内容',
+    'skillComposer.referenceIntentHint': '说明具体参考什么；Retake 会将这条要求与图片一起保存。',
+    'skillComposer.referenceIntentPlaceholder': '例如：参考玻璃材质和暖光，不参考构图',
+    'skillComposer.referenceModeAuto': '自动判断',
+    'skillComposer.referenceModeReference': '参考图',
+    'skillComposer.referenceModeSource': '原图',
+    'skillComposer.referenceSourceHint': '原图是唯一被修改的底图，不需要再填写参考内容。',
     'skillComposer.referenceRequired': '必需',
     'skillComposer.referencePurpose': '用途',
     'skill.common.referencesInput': '补充要求 / 参考资料',

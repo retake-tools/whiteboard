@@ -1,8 +1,12 @@
+import type { CapabilityDefinition } from './capabilityContracts';
+import { capabilityDefinitionFor } from './capabilityRegistry';
 import type { ImageGenerationParams } from './imageOperations';
 import type { PackageComposerMention } from './packageComposer';
+import type {
+  ImageReferenceBindingKind,
+  ReferenceIntentV1,
+} from './referenceIntent';
 import type { ExecutionInputRole } from './types';
-import { schemaForCapability } from './capabilities';
-import { capabilityDefinitionFor } from './capabilityRegistry';
 
 export type CreativeRequestMediaKind = 'image' | 'video';
 
@@ -11,22 +15,13 @@ export type CreativeRequestCapabilityId =
   | 'image.text_to_image'
   | 'video.generate';
 
-export type CreativeRequestReferenceRole = Extract<
-  ExecutionInputRole,
-  | 'character_reference'
-  | 'composition_reference'
-  | 'environment_reference'
-  | 'first_frame'
-  | 'general_reference'
-  | 'last_frame'
-  | 'object_reference'
-  | 'pose_reference'
-  | 'source'
-  | 'style_reference'
->;
+export interface CreativeRequestExplicitBinding {
+  inputSlotId: string;
+  referenceIntent?: ReferenceIntentV1;
+}
 
 export interface CreativeRequestReferenceInput {
-  explicitRole?: CreativeRequestReferenceRole;
+  explicitBinding?: CreativeRequestExplicitBinding;
   mention: PackageComposerMention;
   mentionId: string;
 }
@@ -43,13 +38,13 @@ export interface CreativeRequestCompileInput {
 export interface CompiledCreativeRequestReference {
   assetId: string;
   blockId?: string;
+  inputSlotId: string;
   mentionId: string;
-  purpose?: string;
-  role: CreativeRequestReferenceRole;
+  referenceIntent?: ReferenceIntentV1;
 }
 
 export interface CreativeRequestUnresolvedItem {
-  code: 'semantic_mapping_unavailable' | 'unsupported_semantic_role';
+  code: 'semantic_mapping_unavailable' | 'unsupported_input_slot';
   message: string;
   mentionId?: string;
 }
@@ -60,7 +55,7 @@ export interface CompiledCreativeRequest {
   compiler: {
     kind: 'ai' | 'deterministic';
     model?: string;
-    version: '1';
+    version: '2';
   };
   mediaKind: CreativeRequestMediaKind;
   parameters: Record<string, unknown>;
@@ -77,32 +72,34 @@ export interface CompiledImageComposerInput {
   generationParams: ImageGenerationParams;
   instruction: string;
   references: Array<{
+    bindingKind: ImageReferenceBindingKind;
+    inputSlotId: string;
     mention: PackageComposerMention;
-    purpose?: string;
-    role: Extract<
-      CreativeRequestReferenceRole,
-      | 'character_reference'
-      | 'composition_reference'
-      | 'environment_reference'
-      | 'general_reference'
-      | 'object_reference'
-      | 'pose_reference'
-      | 'source'
-      | 'style_reference'
-    >;
+    referenceIntent?: ReferenceIntentV1;
   }>;
 }
 
-export const imageCreativeRequestRoles = declaredImageRoles();
+export interface CreativeRequestInputSlot {
+  cardinality: 'many' | 'one' | 'optional';
+  inputSlotId: string;
+  semanticRole: string;
+}
 
-export const videoCreativeRequestRoles = declaredVideoRoles();
-
-export function creativeRequestRolesFor(
+export function creativeRequestInputSlotsFor(
   mediaKind: CreativeRequestMediaKind,
-): CreativeRequestReferenceRole[] {
-  return mediaKind === 'image'
-    ? [...imageCreativeRequestRoles]
-    : [...videoCreativeRequestRoles];
+): CreativeRequestInputSlot[] {
+  const definitions = capabilitiesFor(mediaKind).map(capabilityDefinitionFor);
+  const unique = new Map<string, CreativeRequestInputSlot>();
+  for (const definition of definitions) {
+    for (const slot of imageInputSlots(definition)) {
+      unique.set(slot.slotId, {
+        cardinality: slot.cardinality,
+        inputSlotId: slot.slotId,
+        semanticRole: slot.semanticRole,
+      });
+    }
+  }
+  return [...unique.values()];
 }
 
 export function imageComposerInputFromCompiledRequest(
@@ -119,6 +116,9 @@ export function imageComposerInputFromCompiledRequest(
   ) {
     throw new Error('Compiled request is not an image request.');
   }
+  const definition = capabilityDefinitionFor(compiled.capabilityId);
+  const sourceSlotId = sourceImageSlot(definition)?.slotId;
+  const referenceSlotId = generalReferenceSlot(definition)?.slotId;
   const mentionsById = new Map(
     references.map((reference) => [reference.mentionId, reference.mention]),
   );
@@ -128,13 +128,21 @@ export function imageComposerInputFromCompiledRequest(
     instruction: compiled.prompt,
     references: compiled.references.map((reference) => {
       const mention = mentionsById.get(reference.mentionId);
-      if (!mention || !imageCreativeRequestRoles.includes(reference.role)) {
+      const bindingKind = reference.inputSlotId === sourceSlotId
+        ? 'source'
+        : reference.inputSlotId === referenceSlotId
+          ? 'reference'
+          : undefined;
+      if (!mention || !bindingKind) {
         throw new Error('Compiled image reference cannot be resolved.');
       }
       return {
+        bindingKind,
+        inputSlotId: reference.inputSlotId,
         mention: withReferenceSlot(mention),
-        role: reference.role as CompiledImageComposerInput['references'][number]['role'],
-        ...(reference.purpose ? { purpose: reference.purpose } : {}),
+        ...(reference.referenceIntent
+          ? { referenceIntent: structuredClone(reference.referenceIntent) }
+          : {}),
       };
     }),
   };
@@ -148,44 +156,48 @@ export function withReferenceSlot(
     : { assetId: mention.assetId, kind: 'asset', slotId: 'references' };
 }
 
-function declaredImageRoles(): CreativeRequestReferenceRole[] {
-  const declared = [
-    schemaForCapability('image.text_to_image'),
-    schemaForCapability('image.image_to_image'),
-  ].flatMap((schema) => schema.inputContracts.flatMap((contract) => [
-    ...(contract.role ? [contract.role] : []),
-    ...(contract.roles ?? []),
-  ]));
-  return uniqueCreativeRoles(declared);
+export function capabilitiesFor(
+  mediaKind: CreativeRequestMediaKind,
+): CreativeRequestCapabilityId[] {
+  return mediaKind === 'image'
+    ? ['image.text_to_image', 'image.image_to_image']
+    : ['video.generate'];
 }
 
-function declaredVideoRoles(): CreativeRequestReferenceRole[] {
-  const declared = capabilityDefinitionFor('video.generate').inputSlots
-    .filter((slot) => slot.dataTypes.includes('image'))
-    .map((slot) => (
-      slot.semanticRole === 'scene_reference'
-        ? 'environment_reference'
-        : slot.semanticRole
-    ));
-  return uniqueCreativeRoles(declared);
+export function sourceImageSlot(
+  definition: CapabilityDefinition,
+) {
+  return imageInputSlots(definition).find(
+    (slot) => slot.semanticRole === 'source',
+  );
 }
 
-function uniqueCreativeRoles(roles: readonly string[]): CreativeRequestReferenceRole[] {
-  const supported = new Set<CreativeRequestReferenceRole>([
-    'character_reference',
-    'composition_reference',
-    'environment_reference',
-    'first_frame',
-    'general_reference',
-    'last_frame',
-    'object_reference',
-    'pose_reference',
-    'source',
-    'style_reference',
-  ]);
-  return [...new Set(roles.filter(
-    (role): role is CreativeRequestReferenceRole => supported.has(
-      role as CreativeRequestReferenceRole,
-    ),
-  ))];
+export function generalReferenceSlot(
+  definition: CapabilityDefinition,
+) {
+  return imageInputSlots(definition).find(
+    (slot) => slot.semanticRole === 'reference'
+      || slot.semanticRole === 'general_reference',
+  );
+}
+
+export function imageInputSlots(
+  definition: CapabilityDefinition,
+) {
+  return definition.inputSlots.filter((slot) => slot.dataTypes.includes('image'));
+}
+
+export function legacyInputRoleForSlot(
+  definition: CapabilityDefinition,
+  inputSlotId: string,
+): ExecutionInputRole {
+  const semanticRole = imageInputSlots(definition).find(
+    (slot) => slot.slotId === inputSlotId,
+  )?.semanticRole;
+  if (semanticRole === 'source') return 'source';
+  if (semanticRole === 'first_frame') return 'first_frame';
+  if (semanticRole === 'last_frame') return 'last_frame';
+  if (semanticRole === 'character_reference') return 'character_reference';
+  if (semanticRole === 'scene_reference') return 'environment_reference';
+  return 'general_reference';
 }

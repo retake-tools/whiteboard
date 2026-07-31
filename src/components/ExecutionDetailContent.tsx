@@ -22,6 +22,10 @@ import type {
   ExecutionInputRole,
   ExecutionRecord,
 } from '../core/types';
+import {
+  normalizeReferenceIntent,
+  type ReferenceIntentV1,
+} from '../core/referenceIntent';
 import { useI18n } from '../i18n';
 import type { AnnotationManifest, AnnotationMarkKind } from '../core/imageAnnotations';
 import {
@@ -50,7 +54,11 @@ export interface ExecutionDetailContext {
   annotationManifest?: AnnotationManifest;
   annotationText?: string;
   execution: ExecutionRecord;
-  inputImages: Array<{ asset: AssetRecord; inputRole?: ExecutionInputRole }>;
+  inputImages: Array<{
+    asset: AssetRecord;
+    inputRole?: ExecutionInputRole;
+    referenceIntent?: ReferenceIntentV1;
+  }>;
   operationBlock?: BlockRecord;
   outputAssets: AssetRecord[];
   prompt?: string;
@@ -319,11 +327,17 @@ function createExecutionDetailContext(
   const sourceBlocks = snapshot.blocks.filter((block) => execution.inputBlockIds.includes(block.blockId));
   const operationBlock = findOperationBlock(snapshot, execution);
   const inputBindings = readExecutionInputBindings(execution.params?.inputBindings);
-  const inputImages: Array<{ asset: AssetRecord; inputRole?: ExecutionInputRole }> = inputBindings.flatMap((binding) => {
+  const inputImages: ExecutionDetailContext['inputImages'] = inputBindings.flatMap((binding) => {
     const block = sourceBlocks.find((candidate) => candidate.blockId === binding.blockId);
     const assetId = binding.assetId ?? (typeof block?.data.assetId === 'string' ? block.data.assetId : undefined);
     const asset = snapshot.assets.find((candidate) => candidate.assetId === assetId && candidate.kind === 'image');
-    return asset ? [{ asset, inputRole: binding.inputRole }] : [];
+    return asset ? [{
+      asset,
+      inputRole: binding.inputRole,
+      ...(binding.referenceIntent
+        ? { referenceIntent: binding.referenceIntent }
+        : {}),
+    }] : [];
   });
   for (const block of sourceBlocks) {
     const assetId = typeof block.data.assetId === 'string' ? block.data.assetId : undefined;
@@ -618,16 +632,25 @@ function parameterSchemaTransition(change: ExecutionConfigurationChange): string
 
 function readExecutionInputBindings(
   value: unknown,
-): Array<{ assetId?: string; blockId: string; inputRole: ExecutionInputRole }> {
+): Array<{
+  assetId?: string;
+  blockId: string;
+  inputRole: ExecutionInputRole;
+  referenceIntent?: ReferenceIntentV1;
+}> {
   if (!Array.isArray(value)) return [];
   return value.flatMap((binding) => {
     if (!binding || typeof binding !== 'object') return [];
     const candidate = binding as Record<string, unknown>;
     if (typeof candidate.blockId !== 'string' || !isExecutionInputRole(candidate.inputRole)) return [];
+    const referenceIntent = normalizeReferenceIntent(candidate.referenceIntent);
     return [{
       assetId: typeof candidate.assetId === 'string' ? candidate.assetId : undefined,
       blockId: candidate.blockId,
       inputRole: candidate.inputRole,
+      ...(referenceIntent
+        ? { referenceIntent }
+        : {}),
     }];
   });
 }
@@ -659,7 +682,7 @@ function ImageComparison({
   annotatedAsset?: AssetRecord;
   annotatedLabel: string;
   emptyLabel: string;
-  inputImages: Array<{ asset: AssetRecord; inputRole?: ExecutionInputRole }>;
+  inputImages: ExecutionDetailContext['inputImages'];
   onPreview: (image: PreviewImage) => void;
   sourceLabel: string;
   title: string;
@@ -668,7 +691,8 @@ function ImageComparison({
   const imageItems = [
     ...inputImages.map((inputImage) => ({
       asset: inputImage.asset,
-      title: inputImage.inputRole ? t(inputRoleDefinition(inputImage.inputRole).titleKey) : sourceLabel,
+      title: inputImage.referenceIntent?.label
+        ?? (inputImage.inputRole ? t(inputRoleDefinition(inputImage.inputRole).titleKey) : sourceLabel),
     })),
     annotatedAsset ? { asset: annotatedAsset, title: annotatedLabel } : undefined,
   ].filter((item): item is PreviewImageItem => Boolean(item));

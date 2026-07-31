@@ -61,7 +61,7 @@ export function AgentMessageCard({
       </TooltipIconButton>
       <p>{message.content}</p>
       {visibleContextRefs.length > 0 ? (
-        <small>{visibleContextRefs.map(contextRefLabel).join(' · ')}</small>
+        <small>{visibleContextRefs.map((ref) => contextRefLabel(ref, t)).join(' · ')}</small>
       ) : null}
     </article>
   );
@@ -84,8 +84,17 @@ async function copyTextToClipboard(text: string): Promise<void> {
   }
 }
 
-function contextRefLabel(ref: AgentMessageContextRef): string {
+function contextRefLabel(
+  ref: AgentMessageContextRef,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
   if (ref.kind === 'entrypoint') return `/${ref.entrypointId}`;
+  if (ref.kind === 'image_reference_setting') {
+    if (ref.mode === 'source') return t('skillComposer.referenceModeSource');
+    return ref.instruction.trim()
+      ? `${t('skillComposer.referenceIntent')} · ${ref.instruction.trim()}`
+      : t('skillComposer.referenceModeReference');
+  }
   if (ref.kind === 'agent_preferences') return 'Preferences';
   if (ref.kind === 'agent_run') return `Run ${ref.agentRunId.slice(-8)}`;
   if (ref.kind === 'operation') return `Operation ${ref.operationBlockId.slice(-8)}`;

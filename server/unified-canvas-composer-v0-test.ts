@@ -24,6 +24,7 @@ const [
   toolbarStylesSource,
   agentPreferencesSource,
   i18nSource,
+  referenceTraySource,
 ] = await Promise.all([
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/UnifiedComposerProvider.tsx', import.meta.url), 'utf8'),
@@ -34,6 +35,7 @@ const [
   readFile(new URL('../src/styles/toolbars.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentComposerPreferencesControls.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/i18n.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/ImageComposerReferenceTray.tsx', import.meta.url), 'utf8'),
 ]);
 
 assert.match(appSource, /<UnifiedComposerProvider key=/);
@@ -60,6 +62,13 @@ assert.match(toolbarStylesSource, /\.skill-composer-form \{/);
 assert.match(toolbarStylesSource, /border: 1px solid #d8dee8/);
 assert.match(canvasComposerSource, /insideSelector: '\.skill-composer-picker/);
 assert.match(canvasComposerSource, /skill-composer-attachment-trigger/);
+assert.match(canvasComposerSource, /composerMode === 'image' \|\| composerMode === 'agent'/);
+assert.match(canvasComposerSource, /imageReferenceSettings/);
+assert.match(referenceTraySource, /ReferenceIntentEditor/);
+assert.match(referenceTraySource, /skillComposer\.referenceModeSource/);
+assert.match(referenceTraySource, /skillComposer\.referenceModeReference/);
+assert.match(referenceTraySource, /skillComposer\.referenceIntentPlaceholder/);
+assert.doesNotMatch(referenceTraySource, /<select/);
 assert.match(toolbarStylesSource, /\.skill-composer-mode \{/);
 assert.match(toolbarStylesSource, /\.skill-composer-input-shell textarea \{[\s\S]*min-height: 62px/);
 assert.match(agentPreferencesSource, /PreferenceOptionGroup/);
@@ -123,6 +132,7 @@ console.log(JSON.stringify({
   controlsBelowInput: true,
   creationModeShell: true,
   agentPreferencesUseFlatOptions: true,
+  sharedImageReferenceIntentTray: true,
   escapeFocusReturn: true,
   canvasGoalSubmission: true,
   goalMentionPicker: true,

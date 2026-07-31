@@ -1019,6 +1019,10 @@ export function executeExistingImageOperationBlock(
           assetId: binding.block.data.assetId,
           blockId: binding.block.blockId,
           inputRole: binding.inputRole,
+          inputSlotId: binding.inputSlotId,
+          ...(binding.referenceIntent
+            ? { referenceIntent: structuredClone(binding.referenceIntent) }
+            : {}),
         })),
     },
     startedAt: createdAt,
@@ -1252,12 +1256,26 @@ function variantTitle(title: string, index: number, count: number): string {
 function operationImageInputBindings(
   snapshot: BoardSnapshot,
   operationBlock: BlockRecord,
-): Array<{ block: BlockRecord; inputRole?: ExecutionInputRole }> {
+): Array<{
+  block: BlockRecord;
+  inputRole?: ExecutionInputRole;
+  inputSlotId?: string;
+  referenceIntent?: BoardSnapshot['edges'][number]['referenceIntent'];
+}> {
   return snapshot.edges
     .filter((edge) => edge.targetBlockId === operationBlock.blockId && edge.kind === 'execution_input')
     .flatMap((edge) => {
       const block = snapshot.blocks.find((candidate) => candidate.blockId === edge.sourceBlockId);
-      return block?.type === 'image' ? [{ block, inputRole: edge.inputRole }] : [];
+      return block?.type === 'image'
+        ? [{
+            block,
+            inputRole: edge.inputRole,
+            inputSlotId: edge.inputSlotId,
+            ...(edge.referenceIntent
+              ? { referenceIntent: structuredClone(edge.referenceIntent) }
+              : {}),
+          }]
+        : [];
     });
 }
 

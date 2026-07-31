@@ -1,5 +1,6 @@
 import { annotationEditControlDescription, readAnnotationEditControlManifest } from '../src/core/annotationEditControls';
 import { inputRoleDefinition, isExecutionInputRole } from '../src/core/inputRoles';
+import { normalizeReferenceIntent, type ReferenceIntentV1 } from '../src/core/referenceIntent';
 import type { ExecutionInputRole, ExecutionRecord } from '../src/core/types';
 import {
   outpaintCapabilityId,
@@ -11,11 +12,13 @@ export interface ImageExecutionInputAssignment {
   assetId: string;
   inputRole: ExecutionInputRole;
   order?: number;
+  referenceIntent?: ReferenceIntentV1;
   title?: string;
 }
 
 export function imageExecutionInputAssignments(execution: ExecutionRecord): ImageExecutionInputAssignment[] {
   const explicitRoles = new Map<string, ExecutionInputRole>();
+  const explicitReferenceIntents = new Map<string, ReferenceIntentV1>();
   const explicitAssetIds: string[] = [];
   const rawBindings = Array.isArray(execution.params?.inputBindings) ? execution.params.inputBindings : [];
   for (const rawBinding of rawBindings) {
@@ -23,6 +26,10 @@ export function imageExecutionInputAssignments(execution: ExecutionRecord): Imag
       continue;
     }
     explicitRoles.set(rawBinding.assetId, rawBinding.inputRole);
+    const referenceIntent = normalizeReferenceIntent(rawBinding.referenceIntent);
+    if (referenceIntent) {
+      explicitReferenceIntents.set(rawBinding.assetId, referenceIntent);
+    }
     explicitAssetIds.push(rawBinding.assetId);
   }
 
@@ -78,6 +85,9 @@ export function imageExecutionInputAssignments(execution: ExecutionRecord): Imag
         ? { artifactType: storyboardReference.artifactType }
         : {}),
       ...(typeof storyboardReference?.order === 'number' ? { order: storyboardReference.order } : {}),
+      ...(explicitReferenceIntents.get(assetId)
+        ? { referenceIntent: explicitReferenceIntents.get(assetId) }
+        : {}),
       ...(typeof storyboardReference?.title === 'string' ? { title: storyboardReference.title } : {}),
     };
   });
@@ -150,11 +160,11 @@ export function createProviderImagePrompt(
   if (execution.capabilityId === 'image.image_to_image') {
     const sourceIndex = attachmentIndex(inputAssignments, 'source');
     const source = sourceIndex ? `attachment ${sourceIndex}` : 'the attached source image';
-    return `${command}Edit ${source} according to this instruction: ${sentence(instruction)}${inputContract}${geometry} Preserve its subject, composition, and all unmentioned primary content unless the instruction, an input role, or the requested output canvas explicitly changes it.${variant} Generate exactly one clean revised image.${toolRule}`;
+    return `${command}Edit ${source} according to this instruction: ${sentence(instruction)}${inputContract}${geometry} Preserve its subject, composition, and all unmentioned primary content unless the instruction, a reference intent, or the requested output canvas explicitly changes it.${variant} Generate exactly one clean revised image.${toolRule}`;
   }
 
   const references = inputAssignments.length
-    ? ' Use the attached images only according to their assigned reference roles; create a new image instead of treating any reference as the editable output base.'
+    ? ' Use the attached images only according to their declared reference intent; create a new image instead of treating any reference as the editable output base.'
     : '';
   return `${command}Generate exactly one image from this instruction: ${sentence(instruction)}${references}${inputContract}${geometry} Generate the composition directly on the requested canvas.${variant}${toolRule}`;
 }
@@ -171,9 +181,13 @@ function imageInputContractInstruction(assignments: readonly ImageExecutionInput
       assignment.artifactType ? `type=${assignment.artifactType}` : '',
       assignment.order ? `bound-order=${assignment.order}` : '',
     ].filter(Boolean).join(', ');
-    return `attachment ${index + 1} [${assignment.inputRole}]${identity ? ` (${identity})` : ''}: ${inputRoleDefinition(assignment.inputRole).promptDirective}`;
+    const intent = assignment.referenceIntent;
+    const directive = intent
+      ? `Reference content ${JSON.stringify(intent.label)}: ${intent.instruction}`
+      : inputRoleDefinition(assignment.inputRole).promptDirective;
+    return `attachment ${index + 1} [${assignment.inputRole}]${identity ? ` (${identity})` : ''}: ${directive}`;
   });
-  return ` Authoritative image input contract: ${descriptions.join(' ')} Do not reassign these roles based on the user instruction.`;
+  return ` Authoritative image input contract: ${descriptions.join(' ')} Do not reassign these roles, reinterpret a source as a reference, or replace the declared reference intent.`;
 }
 
 function imageGenerationGeometryInstruction(execution: ExecutionRecord): string {

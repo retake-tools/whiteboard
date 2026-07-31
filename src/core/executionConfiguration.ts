@@ -1,6 +1,7 @@
 import { connectedInputBlocks, promptTextFromInputs } from './capabilities';
 import { sourceImageAspectRatio } from './operationAspectRatio';
 import { recordLegacyExecutionContractSnapshot } from './executionContractSnapshot';
+import { normalizeReferenceIntent } from './referenceIntent';
 import type {
   BlockRecord,
   BoardSnapshot,
@@ -26,6 +27,10 @@ export function currentOperationConfiguration(
         assetId: typeof block.data.assetId === 'string' ? block.data.assetId : undefined,
         blockId: block.blockId,
         inputRole: edge.inputRole,
+        inputSlotId: edge.inputSlotId,
+        ...(edge.referenceIntent
+          ? { referenceIntent: structuredClone(edge.referenceIntent) }
+          : {}),
         title: block.data.title,
       }];
     })
@@ -111,16 +116,31 @@ export function recordExecutionConfiguration(
   operationBlock: BlockRecord,
 ): void {
   const inputBindings = readInputBindings(execution.params?.inputBindings);
+  const currentInputEdges = new Map(
+    snapshot.edges
+      .filter(
+        (edge) =>
+          edge.kind === 'execution_input'
+          && edge.targetBlockId === operationBlock.blockId,
+      )
+      .map((edge) => [edge.sourceBlockId, edge]),
+  );
   const imageInputs = execution.inputBlockIds.flatMap((blockId): ExecutionConfigurationInputSnapshot[] => {
     const block = snapshot.blocks.find((candidate) => candidate.blockId === blockId && candidate.type === 'image');
     if (!block) return [];
     const binding = inputBindings.find((candidate) => candidate.blockId === block.blockId);
+    const edge = currentInputEdges.get(block.blockId);
+    const referenceIntent = binding?.referenceIntent ?? edge?.referenceIntent;
     return [{
       assetId:
         binding?.assetId ??
         (typeof block.data.assetId === 'string' ? block.data.assetId : undefined),
       blockId: block.blockId,
-      inputRole: binding?.inputRole,
+      inputRole: binding?.inputRole ?? edge?.inputRole,
+      inputSlotId: binding?.inputSlotId ?? edge?.inputSlotId,
+      ...(referenceIntent
+        ? { referenceIntent: structuredClone(referenceIntent) }
+        : {}),
       title: block.data.title,
     }];
   });
@@ -180,6 +200,10 @@ export function executionConfiguration(execution: ExecutionRecord): ExecutionCon
       assetId: binding.assetId,
       blockId: binding.blockId,
       inputRole: binding.inputRole,
+      inputSlotId: binding.inputSlotId,
+      ...(binding.referenceIntent
+        ? { referenceIntent: structuredClone(binding.referenceIntent) }
+        : {}),
       title: binding.blockId,
     })),
     prompt: execution.prompt ?? '',
@@ -192,7 +216,19 @@ export function configurationFingerprint(configuration: ExecutionConfigurationSn
     capabilityId: normalized.capabilityId,
     connectionId: normalized.connectionId,
     generationProfileId: normalized.generationProfileId,
-    imageInputs: normalized.imageInputs.map(({ assetId, blockId, inputRole }) => ({ assetId, blockId, inputRole })),
+    imageInputs: normalized.imageInputs.map(({
+      assetId,
+      blockId,
+      inputRole,
+      inputSlotId,
+      referenceIntent,
+    }) => ({
+      assetId,
+      blockId,
+      inputRole,
+      inputSlotId,
+      referenceIntent,
+    })),
     parameters: normalized.parameters,
     prompt: normalized.prompt,
     schemaVersion: normalized.schemaVersion,
@@ -254,7 +290,14 @@ export function configurationChanges(
   for (const blockId of [...inputBlockIds].sort()) {
     const previousInput = previousInputs.get(blockId);
     const currentInput = currentInputs.get(blockId);
-    if (!previousInput || !currentInput || previousInput.assetId !== currentInput.assetId) {
+    if (
+      !previousInput
+      || !currentInput
+      || previousInput.assetId !== currentInput.assetId
+      || previousInput.inputSlotId !== currentInput.inputSlotId
+      || stableStringify(previousInput.referenceIntent)
+        !== stableStringify(currentInput.referenceIntent)
+    ) {
       changes.push({ kind: 'input', key: blockId, blockId, previous: previousInput, current: currentInput });
     }
     if (previousInput && currentInput && previousInput.inputRole !== currentInput.inputRole) {
@@ -349,12 +392,20 @@ function startedExecutionsForOperation(
 
 function normalizeConfiguration(configuration: ExecutionConfigurationSnapshot): ExecutionConfigurationSnapshot {
   const generationParams = sortRecord(configuration.generationParams);
+  const imageInputs = configuration.imageInputs.map((input) => {
+    const referenceIntent = normalizeReferenceIntent(input.referenceIntent);
+    return {
+      ...input,
+      inputSlotId: input.inputSlotId?.trim() || undefined,
+      ...(referenceIntent ? { referenceIntent } : { referenceIntent: undefined }),
+    };
+  });
   return {
     capabilityId: configuration.capabilityId,
     connectionId: configuration.connectionId,
     generationParams,
     generationProfileId: configuration.generationProfileId,
-    imageInputs: [...configuration.imageInputs].sort((left, right) => left.blockId.localeCompare(right.blockId)),
+    imageInputs: imageInputs.sort((left, right) => left.blockId.localeCompare(right.blockId)),
     parameters: normalizeParameters(
       configuration.capabilityId,
       generationParams,
@@ -435,6 +486,8 @@ function readInputBindings(value: unknown): ExecutionConfigurationInputSnapshot[
       assetId: typeof binding.assetId === 'string' ? binding.assetId : undefined,
       blockId: binding.blockId,
       inputRole: typeof binding.inputRole === 'string' ? binding.inputRole as ExecutionConfigurationInputSnapshot['inputRole'] : undefined,
+      inputSlotId: typeof binding.inputSlotId === 'string' ? binding.inputSlotId : undefined,
+      referenceIntent: normalizeReferenceIntent(binding.referenceIntent),
       title: binding.blockId,
     }];
   });

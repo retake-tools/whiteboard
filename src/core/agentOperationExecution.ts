@@ -133,7 +133,7 @@ function createAndValidateOperation(
     callableCapability.authoringKind,
   );
   const sourceImageBlockId = imageInputs.find(
-    (input) => input.inputRole === 'source',
+    (input) => input.bindingKind === 'source',
   )?.blockId;
   const draft = callableCapability.authoringKind === 'source_image_edit'
     ? createAgentImageToImageDraft(
@@ -155,9 +155,8 @@ function createAndValidateOperation(
   for (const imageInput of imageInputs) {
     ensureAgentImageInputEdge(
       snapshot,
-      imageInput.blockId,
       draft.operationBlock.blockId,
-      imageInput.inputRole,
+      imageInput,
     );
   }
   bindAgentCapabilitySlots(
@@ -244,7 +243,7 @@ function bindAgentCapabilitySlots(
       && slot.dataTypes.includes('image'),
   );
   if (
-    imageInputs.some((input) => input.inputRole !== 'source')
+    imageInputs.some((input) => input.bindingKind === 'reference')
     && !referenceSlot
   ) {
     throw new Error('Agent-created Capability does not declare a compatible image reference Slot.');
@@ -258,12 +257,15 @@ function bindAgentCapabilitySlots(
       edge.inputSlotId = promptSlot.slotId;
     }
     const imageInput = imageInputByBlockId.get(edge.sourceBlockId);
-    if (imageInput?.inputRole === 'source' && sourceSlot) {
-      edge.inputRole = imageInput.inputRole;
+    if (imageInput?.bindingKind === 'source' && sourceSlot) {
+      edge.inputRole = 'source';
       edge.inputSlotId = sourceSlot.slotId;
     } else if (imageInput && referenceSlot) {
-      edge.inputRole = imageInput.inputRole;
+      edge.inputRole = 'general_reference';
       edge.inputSlotId = referenceSlot.slotId;
+      if (imageInput.referenceIntent) {
+        edge.referenceIntent = structuredClone(imageInput.referenceIntent);
+      }
     }
   }
 }
@@ -279,14 +281,14 @@ function validateAgentImageInputs(
     : request.decision.sourceImageBlockId && request.decision.sourceBinding
       ? [{
           bindingSource: request.decision.sourceBinding,
+          bindingKind: 'source' as const,
           blockId: request.decision.sourceImageBlockId,
-          inputRole: 'source' as const,
         }]
       : [];
   if (inputs.length !== new Set(inputs.map((input) => input.blockId)).size) {
     throw new Error('Agent-created image inputs contain duplicate Blocks.');
   }
-  const sourceCount = inputs.filter((input) => input.inputRole === 'source').length;
+  const sourceCount = inputs.filter((input) => input.bindingKind === 'source').length;
   if (
     authoringKind === 'image_generate'
       ? sourceCount > 0
@@ -310,7 +312,12 @@ function validateAgentImageInputs(
       throw new Error('Agent-created image input is outside the typed message or Session binding.');
     }
   }
-  return inputs.map((input) => ({ ...input }));
+  return inputs.map((input) => ({
+    ...input,
+    ...(input.referenceIntent
+      ? { referenceIntent: structuredClone(input.referenceIntent) }
+      : {}),
+  }));
 }
 
 function agentImageInputIsBound(
@@ -347,26 +354,35 @@ function agentImageInputIsBound(
 
 function ensureAgentImageInputEdge(
   snapshot: BoardSnapshot,
-  sourceBlockId: string,
   operationBlockId: string,
-  inputRole: AgentImageInputBinding['inputRole'],
+  input: AgentImageInputBinding,
 ): void {
   const existing = snapshot.edges.find(
     (edge) =>
       edge.kind === 'execution_input'
-      && edge.sourceBlockId === sourceBlockId
+      && edge.sourceBlockId === input.blockId
       && edge.targetBlockId === operationBlockId,
   );
   if (existing) {
-    existing.inputRole = inputRole;
+    existing.inputRole = input.bindingKind === 'source'
+      ? 'source'
+      : 'general_reference';
+    if (input.referenceIntent) {
+      existing.referenceIntent = structuredClone(input.referenceIntent);
+    }
     return;
   }
   snapshot.edges.push({
     edgeId: createId('edge'),
     kind: 'execution_input',
-    sourceBlockId,
+    sourceBlockId: input.blockId,
     targetBlockId: operationBlockId,
-    inputRole,
+    inputRole: input.bindingKind === 'source'
+      ? 'source'
+      : 'general_reference',
+    ...(input.referenceIntent
+      ? { referenceIntent: structuredClone(input.referenceIntent) }
+      : {}),
   });
 }
 

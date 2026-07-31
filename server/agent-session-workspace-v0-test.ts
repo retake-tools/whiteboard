@@ -905,6 +905,12 @@ const attachmentMessage = appendAgentUserMessage(
         kind: 'block',
         slotId: 'agent_attachment',
       },
+      {
+        instruction: '',
+        kind: 'image_reference_setting',
+        mentionId: `block:${attachmentImage.blockId}:agent_attachment`,
+        mode: 'source',
+      },
     ],
   },
 );
@@ -914,12 +920,22 @@ const attachmentContext = agentRuntimeTurnContext(
   attachmentMessage.agentMessageId,
 );
 assert.deepEqual(attachmentContext.attachedImageBlockIds, [attachmentImage.blockId]);
+assert.deepEqual(attachmentContext.imageReferenceSettings, [{
+  blockId: attachmentImage.blockId,
+  instruction: '',
+  mode: 'source',
+}]);
 assert.equal(attachmentContext.agentPreferences?.outputType, 'image');
 const attachmentDecision = parseAgentRuntimeDecision(JSON.stringify({
   kind: 'operation_create_execute',
   message: '创建一个基于附件的新版本。',
-  capabilityId: 'image.image_to_image',
-  sourceImageBlockId: attachmentImage.blockId,
+  capabilityId: 'image.text_to_image',
+  imageInputs: [{
+    bindingKind: 'reference',
+    blockId: attachmentImage.blockId,
+    intentInstruction: '参考原图。',
+    intentLabel: '参考图',
+  }],
   operationPrompt: '保持构图，改为夜景。',
   suggestions: ['继续调整灯光'],
 }), attachmentContext);
@@ -928,6 +944,18 @@ assert.equal(
     ? attachmentDecision.sourceBinding
     : undefined,
   'message_attachment',
+);
+assert.equal(
+  attachmentDecision.kind === 'operation_create_execute'
+    ? attachmentDecision.capabilityId
+    : undefined,
+  'image.image_to_image',
+);
+assert.equal(
+  attachmentDecision.kind === 'operation_create_execute'
+    ? attachmentDecision.imageInputs?.[0]?.bindingKind
+    : undefined,
+  'source',
 );
 assert.deepEqual(attachmentDecision.suggestions, ['继续调整灯光']);
 
@@ -963,9 +991,24 @@ assert.deepEqual(
 const multiReferenceDecision = parseAgentRuntimeDecision(JSON.stringify({
   capabilityId: 'image.text_to_image',
   imageInputs: [
-    { blockId: compositionReference.blockId, inputRole: 'composition_reference' },
-    { blockId: environmentReference.blockId, inputRole: 'environment_reference' },
-    { blockId: styleReference.blockId, inputRole: 'style_reference' },
+    {
+      bindingKind: 'reference',
+      blockId: compositionReference.blockId,
+      intentInstruction: '参考主体位于画面左侧的空间安排。',
+      intentLabel: '左侧构图',
+    },
+    {
+      bindingKind: 'reference',
+      blockId: environmentReference.blockId,
+      intentInstruction: '参考背景环境，不复制主体。',
+      intentLabel: '背景环境',
+    },
+    {
+      bindingKind: 'reference',
+      blockId: styleReference.blockId,
+      intentInstruction: '参考整体视觉质感，不复制构图。',
+      intentLabel: '视觉质感',
+    },
   ],
   kind: 'operation_create_execute',
   message: '正在按三张参考图创建新的图片任务。',
@@ -974,14 +1017,42 @@ const multiReferenceDecision = parseAgentRuntimeDecision(JSON.stringify({
 assert.deepEqual(
   multiReferenceDecision.kind === 'operation_create_execute'
     ? multiReferenceDecision.imageInputs?.map((input) => ({
+        bindingKind: input.bindingKind,
         bindingSource: input.bindingSource,
-        inputRole: input.inputRole,
+        referenceIntent: input.referenceIntent,
       }))
     : undefined,
   [
-    { bindingSource: 'message_mention', inputRole: 'composition_reference' },
-    { bindingSource: 'message_mention', inputRole: 'environment_reference' },
-    { bindingSource: 'message_mention', inputRole: 'style_reference' },
+    {
+      bindingKind: 'reference',
+      bindingSource: 'message_mention',
+      referenceIntent: {
+        instruction: '参考主体位于画面左侧的空间安排。',
+        label: '左侧构图',
+        origin: 'ai',
+        schemaVersion: 1,
+      },
+    },
+    {
+      bindingKind: 'reference',
+      bindingSource: 'message_mention',
+      referenceIntent: {
+        instruction: '参考背景环境，不复制主体。',
+        label: '背景环境',
+        origin: 'ai',
+        schemaVersion: 1,
+      },
+    },
+    {
+      bindingKind: 'reference',
+      bindingSource: 'message_mention',
+      referenceIntent: {
+        instruction: '参考整体视觉质感，不复制构图。',
+        label: '视觉质感',
+        origin: 'ai',
+        schemaVersion: 1,
+      },
+    },
   ],
 );
 const multiReferenceTurn = applyAgentRuntimeTurn(multiReferenceSnapshot, {
@@ -1015,22 +1086,41 @@ const multiReferenceInputEdges = multiReferenceApplication.stagedSnapshot.edges
   .map((edge) => ({
     inputRole: edge.inputRole,
     inputSlotId: edge.inputSlotId,
+    referenceIntent: edge.referenceIntent,
     sourceBlockId: edge.sourceBlockId,
   }));
 assert.deepEqual(multiReferenceInputEdges, [
   {
-    inputRole: 'composition_reference',
+    inputRole: 'general_reference',
     inputSlotId: 'references',
+    referenceIntent: {
+      instruction: '参考主体位于画面左侧的空间安排。',
+      label: '左侧构图',
+      origin: 'ai',
+      schemaVersion: 1,
+    },
     sourceBlockId: compositionReference.blockId,
   },
   {
-    inputRole: 'environment_reference',
+    inputRole: 'general_reference',
     inputSlotId: 'references',
+    referenceIntent: {
+      instruction: '参考背景环境，不复制主体。',
+      label: '背景环境',
+      origin: 'ai',
+      schemaVersion: 1,
+    },
     sourceBlockId: environmentReference.blockId,
   },
   {
-    inputRole: 'style_reference',
+    inputRole: 'general_reference',
     inputSlotId: 'references',
+    referenceIntent: {
+      instruction: '参考整体视觉质感，不复制构图。',
+      label: '视觉质感',
+      origin: 'ai',
+      schemaVersion: 1,
+    },
     sourceBlockId: styleReference.blockId,
   },
 ]);

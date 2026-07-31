@@ -10,6 +10,11 @@ import type {
   GoalPlanWorkflowOptionV1,
 } from './goalPlanContracts';
 import type { AgentBoardReadModelV1 } from './agentBoardReadModelContracts';
+import type {
+  ComposerImageReferenceMode,
+  ImageReferenceBindingKind,
+  ReferenceIntentV1,
+} from './referenceIntent';
 
 export type AgentSessionStatus = 'active' | 'archived';
 
@@ -49,6 +54,12 @@ export type AgentMessageContextRef =
       variationCount?: 1 | 2 | 3 | 4;
     }
   | { entrypointId: string; kind: 'entrypoint' }
+  | {
+      instruction: string;
+      kind: 'image_reference_setting';
+      mentionId: string;
+      mode: ComposerImageReferenceMode;
+    }
   | { imageBlockIds: string[]; kind: 'canvas_image_selection' }
   | { kind: 'operation'; operationBlockId: string }
   | {
@@ -319,20 +330,11 @@ export interface ChangeDecisionRecord {
 
 export type AgentRunControlAction = 'cancel' | 'pause' | 'resume';
 
-export type AgentImageInputRole =
-  | 'source'
-  | 'character_reference'
-  | 'style_reference'
-  | 'composition_reference'
-  | 'pose_reference'
-  | 'object_reference'
-  | 'environment_reference'
-  | 'general_reference';
-
 export interface AgentImageInputBinding {
+  bindingKind: ImageReferenceBindingKind;
   bindingSource: 'message_attachment' | 'message_mention' | 'message_selection' | 'session_working_output';
   blockId: string;
-  inputRole: AgentImageInputRole;
+  referenceIntent?: ReferenceIntentV1;
 }
 
 export type AgentRuntimeTurnDecision = (
@@ -405,6 +407,11 @@ export interface AgentRuntimeTurnContext {
   }>;
   boardReadModel: AgentBoardReadModelV1;
   boardId: string;
+  imageReferenceSettings?: Array<{
+    blockId: string;
+    instruction: string;
+    mode: ComposerImageReferenceMode;
+  }>;
   attachedImageBlockIds: string[];
   mentionedImageBlockIds: string[];
   entrypointId?: string;

@@ -1,4 +1,4 @@
-import { ImageIcon, Plus, X } from 'lucide-react';
+import { ImageIcon, Plus, SlidersHorizontal, X } from 'lucide-react';
 import {
   useMemo,
   useRef,
@@ -8,14 +8,15 @@ import {
   type ReactElement,
 } from 'react';
 import {
-  imageComposerReferenceRoles,
-  type ImageComposerReferenceRole,
-} from '../core/imageComposer';
-import {
   packageComposerMentionId,
   type PackageComposerMention,
   type PackageComposerMentionOption,
 } from '../core/packageComposer';
+import type {
+  ComposerImageReferenceSetting,
+  ComposerImageReferenceMode,
+} from '../core/referenceIntent';
+import { referenceIntentSummary, createReferenceIntent } from '../core/referenceIntent';
 import type { BoardSnapshot } from '../core/types';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
@@ -24,9 +25,12 @@ interface ImageComposerReferenceTrayProps {
   mentionOptionsById: ReadonlyMap<string, PackageComposerMentionOption>;
   mentions: PackageComposerMention[];
   onAdd: () => void;
-  onChangeRole: (mentionId: string, role: ImageComposerReferenceRole) => void;
+  onChangeSetting: (
+    mentionId: string,
+    setting: ComposerImageReferenceSetting,
+  ) => void;
   onRemove: (mentionId: string) => void;
-  roles: Record<string, ImageComposerReferenceRole>;
+  settings: Readonly<Record<string, ComposerImageReferenceSetting>>;
   snapshot: BoardSnapshot;
 }
 
@@ -36,19 +40,25 @@ export interface ImageComposerReferencePresentation {
   title: string;
 }
 
+const automaticReferenceSetting: ComposerImageReferenceSetting = {
+  instruction: '',
+  mode: 'auto',
+};
+
 export function ImageComposerReferenceTray({
   mentionOptionsById,
   mentions,
   onAdd,
-  onChangeRole,
+  onChangeSetting,
   onRemove,
-  roles,
+  settings,
   snapshot,
 }: ImageComposerReferenceTrayProps): ReactElement {
   const { t } = useI18n();
   const rootRef = useRef<HTMLDivElement>(null);
   const [hoveredMentionId, setHoveredMentionId] = useState<string>();
   const [pinnedMentionId, setPinnedMentionId] = useState<string>();
+  const [editingMentionId, setEditingMentionId] = useState<string>();
   const presentations = useMemo(
     () => mentions.map((mention) => imageComposerReferencePresentation(
       snapshot,
@@ -57,28 +67,29 @@ export function ImageComposerReferenceTray({
     )),
     [mentionOptionsById, mentions, snapshot],
   );
-  const activeMentionId = pinnedMentionId ?? hoveredMentionId;
+  const activeMentionId = editingMentionId ?? pinnedMentionId ?? hoveredMentionId;
   const activePresentation = presentations.find(
     (presentation) => presentation.mentionId === activeMentionId,
   );
-  const activeRole = activePresentation
-    ? roles[activePresentation.mentionId] ?? 'general_reference'
+  const activeSetting = activePresentation
+    ? settings[activePresentation.mentionId] ?? automaticReferenceSetting
     : undefined;
 
-  function dismissPreview(): void {
+  function dismissFloatingContent(): void {
+    setEditingMentionId(undefined);
     setPinnedMentionId(undefined);
     setHoveredMentionId(undefined);
   }
 
   useDismissiblePopover({
-    active: Boolean(pinnedMentionId),
-    onDismiss: dismissPreview,
+    active: Boolean(editingMentionId || pinnedMentionId),
+    onDismiss: dismissFloatingContent,
     rootRef,
   });
 
-  function dismissPreviewOnEscape(event: KeyboardEvent<HTMLDivElement>): void {
+  function dismissOnEscape(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.key !== 'Escape' || !activePresentation) return;
-    dismissPreview();
+    dismissFloatingContent();
     event.stopPropagation();
   }
 
@@ -96,12 +107,13 @@ export function ImageComposerReferenceTray({
       ref={rootRef}
       className="image-composer-reference-tray"
       aria-label={t('skillComposer.selectedMentions')}
-      onKeyDownCapture={dismissPreviewOnEscape}
+      onKeyDownCapture={dismissOnEscape}
     >
       <div className="image-composer-reference-list">
         {presentations.map((presentation) => {
-          const role = roles[presentation.mentionId] ?? 'general_reference';
+          const setting = settings[presentation.mentionId] ?? automaticReferenceSetting;
           const isPinned = pinnedMentionId === presentation.mentionId;
+          const isEditing = editingMentionId === presentation.mentionId;
           return (
             <div
               key={presentation.mentionId}
@@ -119,29 +131,32 @@ export function ImageComposerReferenceTray({
                 aria-expanded={isPinned}
                 aria-label={`${t('skillComposer.referencePreview')}: ${presentation.title}`}
                 aria-pressed={isPinned}
-                onClick={() => setPinnedMentionId((current) => (
-                  current === presentation.mentionId ? undefined : presentation.mentionId
-                ))}
+                onClick={() => {
+                  setEditingMentionId(undefined);
+                  setPinnedMentionId((current) => (
+                    current === presentation.mentionId ? undefined : presentation.mentionId
+                  ));
+                }}
               >
                 {presentation.previewUrl
                   ? <img alt="" src={presentation.previewUrl} />
                   : <ImageIcon aria-hidden="true" size={18} strokeWidth={1.6} />}
               </button>
-              <select
-                className="image-composer-reference-role"
-                aria-label={`${t('skillComposer.referenceRole')}: ${presentation.title}`}
-                value={role}
-                onChange={(event) => onChangeRole(
-                  presentation.mentionId,
-                  event.target.value as ImageComposerReferenceRole,
-                )}
+              <button
+                type="button"
+                className="image-composer-reference-intent"
+                aria-expanded={isEditing}
+                aria-label={`${t('skillComposer.referenceIntent')}: ${presentation.title}`}
+                onClick={() => {
+                  setPinnedMentionId(undefined);
+                  setEditingMentionId((current) => (
+                    current === presentation.mentionId ? undefined : presentation.mentionId
+                  ));
+                }}
               >
-                {imageComposerReferenceRoles.map((candidate) => (
-                  <option key={candidate} value={candidate}>
-                    {imageReferenceRoleLabel(candidate, t)}
-                  </option>
-                ))}
-              </select>
+                <SlidersHorizontal aria-hidden="true" size={11} strokeWidth={1.8} />
+                <span>{referenceSettingLabel(setting, t)}</span>
+              </button>
               <button
                 type="button"
                 className="image-composer-reference-remove"
@@ -162,7 +177,14 @@ export function ImageComposerReferenceTray({
           <Plus aria-hidden="true" size={17} strokeWidth={1.75} />
         </button>
       </div>
-      {activePresentation ? (
+      {editingMentionId && activePresentation && activeSetting ? (
+        <ReferenceIntentEditor
+          presentation={activePresentation}
+          setting={activeSetting}
+          onChange={(setting) => onChangeSetting(editingMentionId, setting)}
+          onClose={() => setEditingMentionId(undefined)}
+        />
+      ) : activePresentation ? (
         <figure
           className="image-composer-reference-preview"
           aria-label={t('skillComposer.referencePreview')}
@@ -174,10 +196,73 @@ export function ImageComposerReferenceTray({
           </div>
           <figcaption>
             <strong>{activePresentation.title}</strong>
-            <span>{activeRole ? imageReferenceRoleLabel(activeRole, t) : null}</span>
+            <span>{activeSetting ? referenceSettingLabel(activeSetting, t) : null}</span>
           </figcaption>
         </figure>
       ) : null}
+    </div>
+  );
+}
+
+function ReferenceIntentEditor({
+  onChange,
+  onClose,
+  presentation,
+  setting,
+}: {
+  onChange: (setting: ComposerImageReferenceSetting) => void;
+  onClose: () => void;
+  presentation: ImageComposerReferencePresentation;
+  setting: ComposerImageReferenceSetting;
+}): ReactElement {
+  const { t } = useI18n();
+  function selectMode(mode: ComposerImageReferenceMode): void {
+    onChange({
+      instruction: mode === 'source' ? '' : setting.instruction,
+      mode,
+    });
+  }
+  return (
+    <div className="image-composer-reference-editor" role="dialog" aria-label={t('skillComposer.referenceIntent')}>
+      <header>
+        <strong>{presentation.title}</strong>
+        <button type="button" aria-label={t('context.close')} onClick={onClose}>
+          <X aria-hidden="true" size={12} />
+        </button>
+      </header>
+      <div className="image-composer-reference-mode-options">
+        {([
+          ['auto', 'skillComposer.referenceModeAuto'],
+          ['source', 'skillComposer.referenceModeSource'],
+          ['reference', 'skillComposer.referenceModeReference'],
+        ] as const).map(([mode, labelKey]) => (
+          <button
+            key={mode}
+            type="button"
+            className={setting.mode === mode ? 'is-selected' : ''}
+            aria-pressed={setting.mode === mode}
+            onClick={() => selectMode(mode)}
+          >
+            {t(labelKey)}
+          </button>
+        ))}
+      </div>
+      <label>
+        <span>{t('skillComposer.referenceIntent')}</span>
+        <textarea
+          rows={2}
+          disabled={setting.mode === 'source'}
+          placeholder={t('skillComposer.referenceIntentPlaceholder')}
+          value={setting.instruction}
+          onChange={(event) => onChange({
+            instruction: event.target.value,
+            mode: 'reference',
+          })}
+        />
+      </label>
+      <small>{t(setting.mode === 'source'
+        ? 'skillComposer.referenceSourceHint'
+        : 'skillComposer.referenceIntentHint')}</small>
     </div>
   );
 }
@@ -209,19 +294,15 @@ export function imageComposerReferencePresentation(
   };
 }
 
-function imageReferenceRoleLabel(
-  role: ImageComposerReferenceRole,
+function referenceSettingLabel(
+  setting: ComposerImageReferenceSetting,
   t: ReturnType<typeof useI18n>['t'],
 ): string {
-  const keys: Record<ImageComposerReferenceRole, Parameters<typeof t>[0]> = {
-    character_reference: 'skillComposer.referenceRoleCharacter',
-    composition_reference: 'skillComposer.referenceRoleComposition',
-    environment_reference: 'skillComposer.referenceRoleEnvironment',
-    general_reference: 'skillComposer.referenceRoleGeneral',
-    object_reference: 'skillComposer.referenceRoleObject',
-    pose_reference: 'skillComposer.referenceRolePose',
-    source: 'skillComposer.referenceRoleSource',
-    style_reference: 'skillComposer.referenceRoleStyle',
-  };
-  return t(keys[role]);
+  if (setting.mode === 'source') return t('skillComposer.referenceModeSource');
+  const intent = createReferenceIntent(setting.instruction, 'user');
+  const summary = referenceIntentSummary(intent);
+  if (summary) return summary;
+  return setting.mode === 'reference'
+    ? t('skillComposer.referenceModeReference')
+    : t('skillComposer.referenceModeAuto');
 }

@@ -359,18 +359,21 @@
   object-fit: cover;
 }
 
-.image-composer-reference-role {
+.image-composer-reference-intent {
   position: absolute;
   right: 3px;
   bottom: 3px;
   left: 3px;
+  display: flex;
   height: 17px;
-  padding: 0 13px 0 4px;
+  min-width: 0;
+  gap: 3px;
+  align-items: center;
+  padding: 0 4px;
   overflow: hidden;
   border: 0;
   border-radius: 5px;
   outline: 0;
-  appearance: none;
   background: rgb(15 23 42 / 78%);
   color: #fff;
   font: inherit;
@@ -380,7 +383,15 @@
   cursor: pointer;
 }
 
-.image-composer-reference-role:focus-visible {
+.image-composer-reference-intent span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-composer-reference-intent:focus-visible,
+.image-composer-reference-intent[aria-expanded='true'] {
   box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--retake-accent);
 }
 
@@ -469,6 +480,114 @@
 .image-composer-reference-preview span {
   color: var(--retake-text-subtle);
   font-size: 9px;
+}
+
+.image-composer-reference-editor {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 7;
+  display: grid;
+  width: min(320px, calc(100vw - 32px));
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--retake-border);
+  border-radius: 11px;
+  background: var(--retake-surface);
+  box-shadow: var(--retake-shadow-popover);
+}
+
+.image-composer-reference-editor header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.image-composer-reference-editor header strong {
+  overflow: hidden;
+  color: var(--retake-text-primary);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-composer-reference-editor header button {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--retake-text-subtle);
+}
+
+.image-composer-reference-mode-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.image-composer-reference-mode-options button {
+  min-width: 0;
+  min-height: 28px;
+  padding: 4px 7px;
+  border: 1px solid var(--retake-border);
+  border-radius: 7px;
+  background: var(--retake-surface-subtle);
+  color: var(--retake-text-secondary);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.image-composer-reference-mode-options button.is-selected {
+  border-color: var(--retake-accent-border);
+  background: color-mix(in srgb, var(--retake-accent) 9%, var(--retake-surface));
+  color: var(--retake-accent);
+}
+
+.image-composer-reference-editor label {
+  display: grid;
+  gap: 4px;
+  color: var(--retake-text-secondary);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.image-composer-reference-editor textarea {
+  width: 100%;
+  min-height: 52px;
+  resize: vertical;
+  padding: 7px 8px;
+  border: 1px solid var(--retake-border);
+  border-radius: 7px;
+  outline: 0;
+  background: var(--retake-surface);
+  color: var(--retake-text-primary);
+  font: inherit;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.image-composer-reference-editor textarea:focus {
+  border-color: var(--retake-accent-border);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--retake-accent) 10%, transparent);
+}
+
+.image-composer-reference-editor textarea:disabled {
+  background: var(--retake-surface-subtle);
+  color: var(--retake-text-subtle);
+}
+
+.image-composer-reference-editor > small {
+  color: var(--retake-text-subtle);
+  font-size: 9px;
+  line-height: 13px;
 }
 
 .skill-composer-inline-input {

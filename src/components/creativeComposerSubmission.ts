@@ -4,13 +4,16 @@ import {
   type CreativeRequestReferenceInput,
 } from '../core/creativeRequestCompiler';
 import { requestCreativeRequestCompilation } from '../core/creativeRequestCompilerClient';
-import type { ImageComposerReferenceRole } from '../core/imageComposer';
 import type { ImageGenerationParams } from '../core/imageOperations';
 import {
   packageComposerMentionId,
   type PackageComposerMention,
 } from '../core/packageComposer';
 import type { BoardSnapshot } from '../core/types';
+import {
+  createReferenceIntent,
+  type ComposerImageReferenceSetting,
+} from '../core/referenceIntent';
 import type {
   UnifiedComposerImageDraftInput,
   UnifiedComposerVideoDraftInput,
@@ -18,14 +21,14 @@ import type {
 
 export async function compileImageComposerSubmission(input: {
   connectionId: string;
-  explicitRoles: Readonly<Record<string, ImageComposerReferenceRole>>;
+  referenceSettings: Readonly<Record<string, ComposerImageReferenceSetting>>;
   generationParams: ImageGenerationParams;
   generationParamsTouched: boolean;
   instruction: string;
   mentions: readonly PackageComposerMention[];
   snapshot: BoardSnapshot;
 }): Promise<UnifiedComposerImageDraftInput> {
-  const references = creativeReferenceInputs(input.mentions, input.explicitRoles);
+  const references = creativeReferenceInputs(input.mentions, input.referenceSettings);
   const compiled = await requestCreativeRequestCompilation({
     boardId: input.snapshot.board.boardId,
     explicitParameters: { ...input.generationParams },
@@ -94,22 +97,15 @@ export async function compileVideoComposerSubmission(input: {
     outputCount: input.outputCount,
     references: compiled.references.map((reference) => {
       const mention = mentionsById.get(reference.mentionId);
-      if (
-        !mention
-        || (
-          reference.role !== 'character_reference'
-          && reference.role !== 'environment_reference'
-          && reference.role !== 'first_frame'
-          && reference.role !== 'general_reference'
-          && reference.role !== 'last_frame'
-        )
-      ) {
+      if (!mention) {
         throw new Error('Compiled video reference cannot be resolved.');
       }
       return {
+        inputSlotId: reference.inputSlotId,
         mention: withReferenceSlot(mention),
-        ...(reference.purpose ? { purpose: reference.purpose } : {}),
-        role: reference.role,
+        ...(reference.referenceIntent
+          ? { referenceIntent: structuredClone(reference.referenceIntent) }
+          : {}),
       };
     }),
   };
@@ -117,16 +113,30 @@ export async function compileVideoComposerSubmission(input: {
 
 function creativeReferenceInputs(
   mentions: readonly PackageComposerMention[],
-  explicitRoles: Readonly<Record<string, ImageComposerReferenceRole>>,
+  referenceSettings: Readonly<Record<string, ComposerImageReferenceSetting>>,
 ): CreativeRequestReferenceInput[] {
   return mentions.map((mention) => {
     const normalizedMention = withReferenceSlot(mention);
     const originalMentionId = packageComposerMentionId(mention);
+    const setting = referenceSettings[originalMentionId];
+    const inputSlotId = setting?.mode === 'source'
+      ? 'source_image'
+      : setting?.mode === 'reference'
+        ? 'references'
+        : undefined;
+    const referenceIntent = setting?.mode === 'reference'
+      ? createReferenceIntent(setting.instruction, 'user')
+      : undefined;
     return {
       mention: normalizedMention,
       mentionId: packageComposerMentionId(normalizedMention),
-      ...(explicitRoles[originalMentionId]
-        ? { explicitRole: explicitRoles[originalMentionId] }
+      ...(inputSlotId
+        ? {
+            explicitBinding: {
+              inputSlotId,
+              ...(referenceIntent ? { referenceIntent } : {}),
+            },
+          }
         : {}),
     };
   });

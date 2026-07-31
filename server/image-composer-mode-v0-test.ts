@@ -6,8 +6,8 @@ import {
   defaultImageComposerGenerationParams,
   imageComposerGenerationParams,
   listImageComposerReferenceOptions,
-  type ImageComposerReferenceRole,
 } from '../src/core/imageComposer';
+import { createReferenceIntent } from '../src/core/referenceIntent';
 import { imageComposerReferencePresentation } from '../src/components/ImageComposerReferenceTray';
 import {
   imageComposerWorkflowGeometry,
@@ -65,15 +65,17 @@ assert.match(controlsSource, /image-composer-popover is-parameters/);
 assert.match(controlsSource, /setImageGenerationParamsTouched\(true\)/);
 assert.doesNotMatch(controlsSource, /<select/);
 assert.match(providerSource, /composerMode/);
-assert.match(providerSource, /imageReferenceRoles/);
+assert.match(providerSource, /imageReferenceSettings/);
 assert.match(providerSource, /imageGenerationParamsTouched/);
 assert.match(referenceTraySource, /useDismissiblePopover/);
 assert.match(referenceTraySource, /onPointerEnter/);
 assert.match(referenceTraySource, /onFocusCapture/);
 assert.match(referenceTraySource, /aria-pressed/);
 assert.match(referenceTraySource, /image-composer-reference-preview/);
-assert.match(referenceTraySource, /function dismissPreview\(\): void \{\s*setPinnedMentionId\(undefined\);\s*setHoveredMentionId\(undefined\);/);
-assert.match(referenceTraySource, /onKeyDownCapture=\{dismissPreviewOnEscape\}/);
+assert.match(referenceTraySource, /function dismissFloatingContent\(\): void/);
+assert.match(referenceTraySource, /onKeyDownCapture=\{dismissOnEscape\}/);
+assert.match(referenceTraySource, /referenceModeSource/);
+assert.match(referenceTraySource, /referenceIntentPlaceholder/);
 assert.match(toolbarStyles, /\.image-composer-reference-thumbnail/);
 assert.match(toolbarStyles, /\.image-composer-reference-preview/);
 
@@ -126,12 +128,16 @@ const result = createImageComposerDraft(snapshot, {
   operationTitle: '生成图片',
   references: [
     {
+      bindingKind: 'reference',
+      inputSlotId: 'references',
       mention: { kind: 'block', blockId: referenceBlock.blockId, slotId: 'references' },
-      role: 'character_reference',
+      referenceIntent: createReferenceIntent('保持角色身份和服装设计。', 'user'),
     },
     {
+      bindingKind: 'reference',
+      inputSlotId: 'references',
       mention: { kind: 'asset', assetId: secondAsset.assetId, slotId: 'references' },
-      role: 'style_reference',
+      referenceIntent: createReferenceIntent('参考霓虹雨夜的质感。', 'user'),
     },
   ],
   slotBlockId: outputSlot.blockId,
@@ -222,11 +228,13 @@ assert.ok(
 assert.ok(snapshot.edges.some((edge) =>
   edge.sourceBlockId === referenceBlock.blockId
   && edge.targetBlockId === result.operationBlock.blockId
-  && edge.inputRole === 'character_reference'));
+  && edge.inputSlotId === 'references'
+  && edge.referenceIntent?.instruction === '保持角色身份和服装设计。'));
 assert.ok(snapshot.edges.some((edge) =>
   edge.sourceBlockId === result.referenceBlockIds[1]
   && edge.targetBlockId === result.operationBlock.blockId
-  && edge.inputRole === 'style_reference'));
+  && edge.inputSlotId === 'references'
+  && edge.referenceIntent?.instruction === '参考霓虹雨夜的质感。'));
 assert.ok(snapshot.edges.some((edge) =>
   edge.sourceBlockId === result.operationBlock.blockId
   && edge.targetBlockId === outputSlot.blockId
@@ -257,29 +265,30 @@ assert.throws(() => createImageComposerDraft(invalidSnapshot, {
   instruction: '测试',
   operationTitle: '生成图片',
   references: [{
+    bindingKind: 'reference',
+    inputSlotId: 'references',
     mention: { kind: 'asset', assetId: foreignAsset.assetId, slotId: 'references' },
-    role: 'general_reference',
   }],
   textBlockTitle: '提示词',
 }), /reference is invalid/);
 assert.equal(invalidSnapshot.blocks.length, initialBlockCount);
 
-const invalidRole = 'first_frame' as ImageComposerReferenceRole;
-const roleSnapshot = await emptySnapshot();
-const roleAsset = imageAsset(roleSnapshot, 'asset_invalid_role');
-roleSnapshot.assets.push(roleAsset);
-assert.throws(() => createImageComposerDraft(roleSnapshot, {
+const slotSnapshot = await emptySnapshot();
+const slotAsset = imageAsset(slotSnapshot, 'asset_invalid_slot');
+slotSnapshot.assets.push(slotAsset);
+assert.throws(() => createImageComposerDraft(slotSnapshot, {
   connectionId: 'codex-managed',
   generationParams: defaultImageComposerGenerationParams(),
   instruction: '测试',
   operationTitle: '生成图片',
   references: [{
-    mention: { kind: 'asset', assetId: roleAsset.assetId, slotId: 'references' },
-    role: invalidRole,
+    bindingKind: 'reference',
+    inputSlotId: '',
+    mention: { kind: 'asset', assetId: slotAsset.assetId, slotId: 'references' },
   }],
   textBlockTitle: '提示词',
-}), /role is invalid/);
-assert.equal(roleSnapshot.blocks.length, 0);
+}), /slot is invalid/);
+assert.equal(slotSnapshot.blocks.length, 0);
 
 const imageToImageSnapshot = await emptySnapshot();
 const sourceAsset = imageAsset(imageToImageSnapshot, 'asset_image_composer_source');
@@ -306,12 +315,15 @@ const imageToImageResult = createImageComposerDraft(imageToImageSnapshot, {
   operationTitle: '编辑图片',
   references: [
     {
+      bindingKind: 'source',
+      inputSlotId: 'source_image',
       mention: { kind: 'block', blockId: sourceBlock.blockId, slotId: 'references' },
-      role: 'source',
     },
     {
+      bindingKind: 'reference',
+      inputSlotId: 'references',
       mention: { kind: 'asset', assetId: styleAsset.assetId, slotId: 'references' },
-      role: 'style_reference',
+      referenceIntent: createReferenceIntent('只参考冷色月夜光线。', 'user'),
     },
   ],
   textBlockTitle: '修改要求',
@@ -332,7 +344,8 @@ assert.ok(imageToImageSnapshot.edges.some((edge) => (
 )));
 assert.ok(imageToImageSnapshot.edges.some((edge) => (
   edge.targetBlockId === imageToImageResult.operationBlock.blockId
-  && edge.inputRole === 'style_reference'
+  && edge.inputSlotId === 'references'
+  && edge.referenceIntent?.instruction === '只参考冷色月夜光线。'
 )));
 
 const autoExecuteSnapshot = await emptySnapshot();
@@ -354,8 +367,10 @@ const autoDraft = createImageComposerDraft(autoExecuteSnapshot, {
   instruction: '生成一张白天的家具图。',
   operationTitle: '生成图片',
   references: [{
+    bindingKind: 'reference',
+    inputSlotId: 'references',
     mention: { kind: 'block', blockId: autoReferenceBlock.blockId, slotId: 'references' },
-    role: 'style_reference',
+    referenceIntent: createReferenceIntent('参考家具摄影光线。', 'user'),
   }],
   textBlockTitle: '提示词',
 });
@@ -392,7 +407,8 @@ assert.ok(autoExecuteSnapshot.edges.some((edge) => (
   edge.sourceBlockId === autoReferenceBlock.blockId
   && edge.targetBlockId === autoDraft.operationBlock.blockId
   && edge.kind === 'execution_input'
-  && edge.inputRole === 'style_reference'
+  && edge.inputSlotId === 'references'
+  && edge.referenceIntent?.instruction === '参考家具摄影光线。'
 )));
 assert.ok(autoExecuteSnapshot.edges.some((edge) => (
   edge.sourceBlockId === autoDraft.operationBlock.blockId

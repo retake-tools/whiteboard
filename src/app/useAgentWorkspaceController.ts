@@ -17,6 +17,7 @@ import type {
   AgentDraftLaunchTarget,
   AgentMessageContextRef,
 } from '../core/agentSessionContracts';
+import type { ComposerImageReferenceSetting } from '../core/referenceIntent';
 import { loadBoardSnapshot } from '../core/boardStore';
 import { requestAgentRuntimeTurn } from '../core/agentRuntimeClient';
 import {
@@ -340,6 +341,7 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     };
     content: string;
     entrypointId?: string;
+    imageReferenceSettings: Record<string, ComposerImageReferenceSetting>;
     inlineValues: Extract<AgentMessageContextRef, { kind: 'inline' }>[];
     mentions: PackageComposerMention[];
     parameters: Record<string, unknown>;
@@ -359,6 +361,14 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
         },
         ...(input.entrypointId ? [{ kind: 'entrypoint' as const, entrypointId: input.entrypointId }] : []),
         ...canvasImageSelectionRefs(snapshotRef.current, selectedBlockIdsRef.current),
+        ...Object.entries(input.imageReferenceSettings)
+          .filter(([, setting]) => setting.mode !== 'auto')
+          .map(([mentionId, setting]) => ({
+            instruction: setting.instruction,
+            kind: 'image_reference_setting' as const,
+            mentionId,
+            mode: setting.mode,
+          })),
         ...input.inlineValues,
         ...input.mentions,
         ...(Object.keys(input.parameters).length > 0

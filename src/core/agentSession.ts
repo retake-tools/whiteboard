@@ -286,6 +286,25 @@ export function agentRuntimeTurnContext(
   const entrypoint = message.contextRefs.find((ref) => ref.kind === 'entrypoint');
   const agentPreferences = message.contextRefs.find((ref) => ref.kind === 'agent_preferences');
   const mentions = message.contextRefs.filter((ref) => ref.kind === 'block' || ref.kind === 'asset');
+  const imageReferenceSettings = message.contextRefs
+    .filter((ref) => ref.kind === 'image_reference_setting')
+    .flatMap((setting) => {
+      const mention = mentions.find(
+        (candidate) => packageComposerMentionId(candidate) === setting.mentionId,
+      );
+      if (mention?.kind !== 'block') return [];
+      const block = snapshot.blocks.find(
+        (candidate) =>
+          candidate.blockId === mention.blockId
+          && candidate.type === 'image'
+          && typeof candidate.data.assetId === 'string',
+      );
+      return block ? [{
+        blockId: block.blockId,
+        instruction: setting.instruction,
+        mode: setting.mode,
+      }] : [];
+    });
   const attachedImageBlockIds = mentions.flatMap((mention) => {
     if (mention.kind !== 'block' || mention.slotId !== 'agent_attachment') return [];
     const block = snapshot.blocks.find(
@@ -358,6 +377,7 @@ export function agentRuntimeTurnContext(
         ...workingOutputImageBlockIds,
       ],
     }),
+    imageReferenceSettings,
     attachedImageBlockIds,
     boardId: snapshot.board.boardId,
     ...(entrypoint?.kind === 'entrypoint' ? { entrypointId: entrypoint.entrypointId } : {}),

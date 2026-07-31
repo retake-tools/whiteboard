@@ -1,4 +1,5 @@
 import { createBlockRecord, touchBoard } from './blockFactory';
+import { capabilityDefinitionFor } from './capabilityRegistry';
 import { expandGroupToContents } from './grouping';
 import { createId } from './id';
 import {
@@ -16,25 +17,19 @@ import type {
   BoardSnapshot,
   ExecutionInputRole,
 } from './types';
-import { imageCreativeRequestRoles } from './creativeRequestCompiler';
+import { legacyInputRoleForSlot } from './creativeRequestCompiler';
+import type {
+  ImageReferenceBindingKind,
+  ReferenceIntentV1,
+} from './referenceIntent';
 
 export type ComposerMode = 'agent' | 'image' | 'video';
 
-export type ImageComposerReferenceRole = Extract<
-  ExecutionInputRole,
-  | 'character_reference'
-  | 'composition_reference'
-  | 'environment_reference'
-  | 'general_reference'
-  | 'object_reference'
-  | 'pose_reference'
-  | 'source'
-  | 'style_reference'
->;
-
 export interface ImageComposerReference {
+  bindingKind: ImageReferenceBindingKind;
+  inputSlotId: string;
   mention: PackageComposerMention;
-  role: ImageComposerReferenceRole;
+  referenceIntent?: ReferenceIntentV1;
 }
 
 export interface ImageComposerDraftInput {
@@ -55,14 +50,6 @@ export interface ImageComposerDraftResult {
   referenceBlockIds: string[];
   textBlock: BlockRecord;
 }
-
-export const imageComposerReferenceRoles: ImageComposerReferenceRole[] = [
-  ...imageCreativeRequestRoles.filter(
-    (role): role is ImageComposerReferenceRole => (
-      role !== 'first_frame' && role !== 'last_frame'
-    ),
-  ),
-];
 
 export const imageComposerAspectRatios = [
   '1:1',
@@ -173,15 +160,18 @@ export function createImageComposerDraft(
     throw new Error('Image Composer source is duplicated.');
   }
   for (const reference of input.references) {
-    if (reference.mention.slotId !== 'references') {
+    if (reference.mention.slotId !== 'references' || !reference.inputSlotId.trim()) {
       throw new Error('Image Composer reference slot is invalid.');
     }
-    if (!imageComposerReferenceRoles.includes(reference.role)) {
-      throw new Error('Image Composer reference role is invalid.');
+    if (reference.bindingKind === 'source' && reference.referenceIntent) {
+      throw new Error('Image Composer source image cannot have a reference intent.');
     }
   }
   const capabilityId = input.capabilityId ?? 'image.text_to_image';
-  const sourceReferences = input.references.filter(({ role }) => role === 'source');
+  const definition = capabilityDefinitionFor(capabilityId);
+  const sourceReferences = input.references.filter(
+    ({ bindingKind }) => bindingKind === 'source',
+  );
   if (
     (capabilityId === 'image.image_to_image' && sourceReferences.length !== 1)
     || (capabilityId === 'image.text_to_image' && sourceReferences.length !== 0)
@@ -233,10 +223,18 @@ export function createImageComposerDraft(
   }
 
   const referenceBlockIds = input.references.map((reference, index) => {
-    const block = reference.role === 'source' && sourceBlock
+    const block = reference.bindingKind === 'source' && sourceBlock
       ? sourceBlock
       : resolveReferenceBlock(snapshot, result.operationBlock, reference.mention, index);
-    ensureImageComposerEdge(snapshot, block.blockId, result.operationBlock.blockId, 'execution_input', reference.role);
+    ensureImageComposerEdge(
+      snapshot,
+      block.blockId,
+      result.operationBlock.blockId,
+      'execution_input',
+      legacyInputRoleForSlot(definition, reference.inputSlotId),
+      reference.inputSlotId,
+      reference.referenceIntent,
+    );
     return block.blockId;
   });
   if (outputSlot) {
@@ -371,6 +369,8 @@ function ensureImageComposerEdge(
   targetBlockId: string,
   kind: 'execution_input' | 'execution_output',
   inputRole?: ExecutionInputRole,
+  inputSlotId?: string,
+  referenceIntent?: ReferenceIntentV1,
 ): void {
   const existing = snapshot.edges.find((edge) => (
     edge.sourceBlockId === sourceBlockId
@@ -379,6 +379,8 @@ function ensureImageComposerEdge(
   ));
   if (existing) {
     if (inputRole) existing.inputRole = inputRole;
+    if (inputSlotId) existing.inputSlotId = inputSlotId;
+    if (referenceIntent) existing.referenceIntent = structuredClone(referenceIntent);
     return;
   }
   snapshot.edges.push({
@@ -387,6 +389,10 @@ function ensureImageComposerEdge(
     targetBlockId,
     kind,
     inputRole,
+    inputSlotId,
+    ...(referenceIntent
+      ? { referenceIntent: structuredClone(referenceIntent) }
+      : {}),
   });
 }
 

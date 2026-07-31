@@ -24,6 +24,7 @@ import type {
   ChangeProposalRecord,
 } from './agentSessionContracts';
 import type { PluginJsonValueV2 } from '@retake-tools/package-sdk';
+import type { ReferenceIntentV1 } from './referenceIntent';
 
 export type BlockType = 'text' | 'document' | 'image' | 'video' | 'operation' | 'group';
 
@@ -235,6 +236,8 @@ export interface ExecutionConfigurationInputSnapshot {
   assetId?: string;
   blockId: string;
   inputRole?: ExecutionInputRole;
+  inputSlotId?: string;
+  referenceIntent?: ReferenceIntentV1;
   title: string;
 }
 
@@ -427,6 +430,7 @@ export interface BoardEdgeRecord {
   kind: ConnectionKind;
   inputRole?: ExecutionInputRole;
   inputSlotId?: string;
+  referenceIntent?: ReferenceIntentV1;
 }
 
 export interface BoardSnapshot {
@@ -484,6 +488,7 @@ export type RetakeEdge = Edge<{
   inputSlotId?: string;
   kind: ConnectionKind;
   proxyEdgeIds?: string[];
+  referenceIntent?: ReferenceIntentV1;
   resultCount?: number;
   resultHeight?: number;
   resultIndex?: number;
