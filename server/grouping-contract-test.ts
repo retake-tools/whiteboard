@@ -35,7 +35,7 @@ assert.match(
 );
 assert.match(
   blockNodeSource,
-  /useImagePreviewDoubleTap\(\{[\s\S]*?gestureKey: blockId[\s\S]*?dispatchOpenExecutionInspector\(blockId\)[\s\S]*?className="image-preview"[\s\S]*?onClickCapture=\{imagePreviewDoubleTap\.onClickCapture\}[\s\S]*?onDoubleClickCapture=\{imagePreviewDoubleTap\.onDoubleClickCapture\}[\s\S]*?onPointerDown=\{imagePreviewDoubleTap\.onPointerDown\}/,
+  /useImagePreviewDoubleTap\(\{[\s\S]*?gestureKey: id[\s\S]*?dispatchOpenExecutionInspector\(id\)[\s\S]*?onClickCapture=\{blockType === 'image' \? \(event\)[\s\S]*?imagePreviewDoubleTap\.onClickCapture\(event\)[\s\S]*?onDoubleClickCapture=\{blockType === 'image' \? \(event\)[\s\S]*?imagePreviewDoubleTap\.onDoubleClickCapture\(event\)[\s\S]*?onPointerDownCapture=\{blockType === 'image' \? \(event\)[\s\S]*?imagePreviewDoubleTap\.onPointerDown\(event\)/,
 );
 assert.match(imagePreviewDoubleTapSource, /window\.addEventListener\('pointerup', handlePointerUp, true\)/);
 assert.match(imagePreviewDoubleTapSource, /window\.addEventListener\('pointermove', handlePointerMove, true\)/);
@@ -55,14 +55,14 @@ assert.doesNotMatch(
 );
 assert.match(
   canvasSource,
-  /const onNodeDoubleClick[\s\S]*?cancelTerminalImageStatusDismiss\(\)/,
+  /const onNodeDoubleClick[\s\S]*?cancelTerminalImageStatusDismiss\(\)[\s\S]*?node\.type === 'image'[\s\S]*?retake:open-execution-inspector/,
 );
 assert.match(canvasViewSource, /data-pointer-moving="false"[\s\S]*?onPointerMoveCapture=\{handleCanvasPointerMove\}/);
 assert.match(
   blockNodeSource,
-  /className="image-preview"[\s\S]*?onDoubleClickCapture=\{imagePreviewDoubleTap\.onDoubleClickCapture\}/,
+  /function isImageDetailGestureTarget[\s\S]*?\.block-heading[\s\S]*?\.react-flow__resize-control/,
 );
-assert.match(blockNodeSource, /enabled: type === 'image' && Boolean\(data\.previewUrl\)/);
+assert.match(blockNodeSource, /enabled: blockType === 'image' && hasImagePreview/);
 assert.doesNotMatch(
   blockNodeSource,
   /onDoubleClick=\{\(event\) => \{\s*if \(!hasExecutionDetails\(data\)\) return;/,

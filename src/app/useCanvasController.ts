@@ -499,6 +499,17 @@ export function useCanvasController(options: CanvasControllerOptions) {
   };
   const onNodeDoubleClick: NodeMouseHandler<RetakeNode> = (event, node) => {
     cancelTerminalImageStatusDismiss();
+    if (node.type === 'image') {
+      const target = event.target instanceof Element ? event.target : undefined;
+      if (!target?.closest('.block-heading, .react-flow__handle, .react-flow__resize-control, button, input, select, textarea')) {
+        window.dispatchEvent(new CustomEvent('retake:open-execution-inspector', {
+          detail: { blockId: node.id },
+        }));
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+    }
     if (node.type !== 'text' && node.type !== 'operation' && event.target instanceof HTMLElement && isInteractiveNodeTarget(event.target)) return;
     selectConnectedWorkflow(node.id);
   };
