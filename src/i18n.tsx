@@ -435,6 +435,7 @@ export type TranslationKey =
   | 'skillComposer.clearEntryPoint'
   | 'skillComposer.addMention'
   | 'skillComposer.addAttachment'
+  | 'skillComposer.addImageReference'
   | 'skillComposer.attachmentFailed'
   | 'skillComposer.imageAttachmentOnly'
   | 'skillComposer.auto'
@@ -481,6 +482,7 @@ export type TranslationKey =
   | 'skillComposer.promptLanguage'
   | 'skillComposer.maxPromptChars'
   | 'skillComposer.referenceRole'
+  | 'skillComposer.referencePreview'
   | 'skillComposer.referenceRequired'
   | 'skillComposer.referencePurpose'
   | 'skill.common.referencesInput'
@@ -1563,6 +1565,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.clearEntryPoint': 'Clear selected skill or workflow',
     'skillComposer.addMention': 'Reference block or asset',
     'skillComposer.addAttachment': 'Add attachment',
+    'skillComposer.addImageReference': 'Add image reference',
     'skillComposer.attachmentFailed': 'The attachment could not be imported.',
     'skillComposer.imageAttachmentOnly': 'Direct image and video creation only accepts image attachments.',
     'skillComposer.auto': 'Auto',
@@ -1609,6 +1612,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.promptLanguage': 'Prompt language',
     'skillComposer.maxPromptChars': 'Submit-source budget',
     'skillComposer.referenceRole': 'Reference role',
+    'skillComposer.referencePreview': 'Reference preview',
     'skillComposer.referenceRequired': 'Required',
     'skillComposer.referencePurpose': 'Purpose',
     'skill.common.referencesInput': 'Additional direction / references',
@@ -2686,6 +2690,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.clearEntryPoint': '清除已选 Skill 或 Workflow',
     'skillComposer.addMention': '引用 Block 或 Asset',
     'skillComposer.addAttachment': '添加附件',
+    'skillComposer.addImageReference': '添加参考图',
     'skillComposer.attachmentFailed': '附件导入失败。',
     'skillComposer.imageAttachmentOnly': '图片和视频直接创作目前只接受图片附件。',
     'skillComposer.auto': '自动',
@@ -2732,6 +2737,7 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.promptLanguage': '提示词语言',
     'skillComposer.maxPromptChars': '提交源字数预算',
     'skillComposer.referenceRole': '参考角色',
+    'skillComposer.referencePreview': '参考图预览',
     'skillComposer.referenceRequired': '必需',
     'skillComposer.referencePurpose': '用途',
     'skill.common.referencesInput': '补充要求 / 参考资料',

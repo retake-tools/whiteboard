@@ -25,10 +25,8 @@ import {
   type SetStateAction,
 } from 'react';
 import {
-  imageComposerReferenceRoles,
   listImageComposerReferenceOptions,
   type ComposerMode,
-  type ImageComposerReferenceRole,
 } from '../core/imageComposer';
 import {
   listPackageComposerInlineInputOptions,
@@ -70,6 +68,7 @@ import {
   type UnifiedComposerVideoDraftInput,
 } from './UnifiedComposerProvider';
 import { ImageComposerControls } from './ImageComposerControls';
+import { ImageComposerReferenceTray } from './ImageComposerReferenceTray';
 import { AgentComposerPreferencesControls } from './AgentComposerPreferencesControls';
 import { VideoComposerControls } from './VideoComposerControls';
 import {
@@ -562,7 +561,22 @@ export function SkillQuickInputComposer({
           }}
         />
         <div className="skill-composer-input-shell">
-          {mentions.length > 0 ? (
+          {mentions.length > 0 && composerMode === 'image' ? (
+            <ImageComposerReferenceTray
+              mentionOptionsById={mentionOptionsById}
+              mentions={mentions}
+              roles={imageReferenceRoles}
+              snapshot={snapshot}
+              onAdd={() => attachmentInputRef.current?.click()}
+              onChangeRole={(mentionId, role) => setImageReferenceRoles((current) => ({
+                ...current,
+                [mentionId]: role,
+              }))}
+              onRemove={(mentionId) => setMentions((current) => current.filter(
+                (candidate) => packageComposerMentionId(candidate) !== mentionId,
+              ))}
+            />
+          ) : mentions.length > 0 ? (
             <div className="skill-composer-mentions" aria-label={t('skillComposer.selectedMentions')}>
               {mentions.map((mention) => {
                 const mentionId = packageComposerMentionId(mention);
@@ -571,20 +585,7 @@ export function SkillQuickInputComposer({
                   <span key={mentionId} className="skill-composer-mention-chip">
                     <AtSign size={11} />
                     {option?.label ?? attachmentMentionLabel(snapshot, mention)}
-                    {composerMode === 'image' ? (
-                      <select
-                        aria-label={t('skillComposer.referenceRole')}
-                        value={imageReferenceRoles[mentionId] ?? 'general_reference'}
-                        onChange={(event) => setImageReferenceRoles((current) => ({
-                          ...current,
-                          [mentionId]: event.target.value as ImageComposerReferenceRole,
-                        }))}
-                      >
-                        {imageComposerReferenceRoles.map((role) => (
-                          <option key={role} value={role}>{imageReferenceRoleLabel(role, t)}</option>
-                        ))}
-                      </select>
-                    ) : mention.slotId === 'agent_reference' || mention.slotId === 'agent_attachment'
+                    {mention.slotId === 'agent_reference' || mention.slotId === 'agent_attachment'
                       ? null
                       : <small>{mention.slotId}</small>}
                     <button
@@ -1125,23 +1126,6 @@ function mentionForOption(option: PackageComposerMentionOption): PackageComposer
   return option.kind === 'block'
     ? { kind: 'block', blockId: option.blockId, slotId: option.slotId }
     : { kind: 'asset', assetId: option.assetId, slotId: option.slotId };
-}
-
-function imageReferenceRoleLabel(
-  role: ImageComposerReferenceRole,
-  t: ReturnType<typeof useI18n>['t'],
-): string {
-  const keys: Record<ImageComposerReferenceRole, Parameters<typeof t>[0]> = {
-    character_reference: 'skillComposer.referenceRoleCharacter',
-    composition_reference: 'skillComposer.referenceRoleComposition',
-    environment_reference: 'skillComposer.referenceRoleEnvironment',
-    general_reference: 'skillComposer.referenceRoleGeneral',
-    object_reference: 'skillComposer.referenceRoleObject',
-    pose_reference: 'skillComposer.referenceRolePose',
-    source: 'skillComposer.referenceRoleSource',
-    style_reference: 'skillComposer.referenceRoleStyle',
-  };
-  return t(keys[role]);
 }
 
 function trailingTriggerQuery(value: string, trigger: '/' | '@'): string | undefined {

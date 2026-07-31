@@ -8,23 +8,35 @@ import {
   listImageComposerReferenceOptions,
   type ImageComposerReferenceRole,
 } from '../src/core/imageComposer';
+import { imageComposerReferencePresentation } from '../src/components/ImageComposerReferenceTray';
 import { executeExistingImageOperationBlock } from '../src/core/imageOperations';
 import type { ExecutionConnectionSummary } from '../src/core/executionProviders';
 import type { AssetRecord, BoardSnapshot } from '../src/core/types';
 import { resetWorkspace } from './local-store/snapshot-store';
 
-const [appSource, composerSource, controllerSource, controlsSource, providerSource] = await Promise.all([
+const [
+  appSource,
+  composerSource,
+  controllerSource,
+  controlsSource,
+  providerSource,
+  referenceTraySource,
+  toolbarStyles,
+] = await Promise.all([
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/SkillQuickInputComposer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/useImageOperationController.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/ImageComposerControls.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/UnifiedComposerProvider.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/ImageComposerReferenceTray.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/styles/toolbars.css', import.meta.url), 'utf8'),
 ]);
 
 assert.match(composerSource, /listAvailableComposerModes/);
 assert.doesNotMatch(composerSource, /<option value="image" disabled>/);
 assert.match(composerSource, /listImageComposerReferenceOptions/);
 assert.match(composerSource, /onCreateImage/);
+assert.match(composerSource, /ImageComposerReferenceTray/);
 assert.match(composerSource, /resetImageSubmission/);
 assert.match(appSource, /onCreateImage=\{\(input\) => createAndStartImageComposerOperation/);
 assert.match(controllerSource, /createTextToImageDraftOperation\(input, \{ persist: false \}\)/);
@@ -42,6 +54,15 @@ assert.doesNotMatch(controlsSource, /<select/);
 assert.match(providerSource, /composerMode/);
 assert.match(providerSource, /imageReferenceRoles/);
 assert.match(providerSource, /imageGenerationParamsTouched/);
+assert.match(referenceTraySource, /useDismissiblePopover/);
+assert.match(referenceTraySource, /onPointerEnter/);
+assert.match(referenceTraySource, /onFocusCapture/);
+assert.match(referenceTraySource, /aria-pressed/);
+assert.match(referenceTraySource, /image-composer-reference-preview/);
+assert.match(referenceTraySource, /function dismissPreview\(\): void \{\s*setPinnedMentionId\(undefined\);\s*setHoveredMentionId\(undefined\);/);
+assert.match(referenceTraySource, /onKeyDownCapture=\{dismissPreviewOnEscape\}/);
+assert.match(toolbarStyles, /\.image-composer-reference-thumbnail/);
+assert.match(toolbarStyles, /\.image-composer-reference-preview/);
 
 const snapshot = await emptySnapshot();
 const firstAsset = imageAsset(snapshot, 'asset_image_composer_block');
@@ -59,6 +80,22 @@ const outputSlot = createBlockRecord(snapshot, 'image');
 outputSlot.blockId = 'block_image_composer_output';
 outputSlot.data = { ...outputSlot.data, title: '图片输出' };
 snapshot.blocks.push(referenceBlock, outputSlot);
+
+const referencePresentation = imageComposerReferencePresentation(
+  snapshot,
+  { kind: 'block', blockId: referenceBlock.blockId, slotId: 'references' },
+);
+assert.deepEqual(referencePresentation, {
+  mentionId: `block:${referenceBlock.blockId}:references`,
+  previewUrl: firstAsset.previewUrl,
+  title: '角色参考',
+});
+const assetPresentation = imageComposerReferencePresentation(
+  snapshot,
+  { kind: 'asset', assetId: secondAsset.assetId, slotId: 'references' },
+);
+assert.equal(assetPresentation.previewUrl, secondAsset.previewUrl);
+assert.equal(assetPresentation.title, `${secondAsset.assetId}.png`);
 
 const options = listImageComposerReferenceOptions(snapshot);
 assert.ok(options.some((option) => option.kind === 'block' && option.blockId === referenceBlock.blockId));
