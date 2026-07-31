@@ -24,7 +24,7 @@ import { blockLockedByGroup } from '../core/grouping';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
 import type { useI18n } from '../i18n';
 import { BlockNode } from '../nodes/BlockNode';
-import { downloadAsset } from './appHelpers';
+import { downloadAsset, operationModeFromBlock } from './appHelpers';
 import type { useBlockActions } from './useBlockActions';
 import type { useCanvasController } from './useCanvasController';
 import type { useGroupController } from './useGroupController';
@@ -148,6 +148,10 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
         ? hoveredImageToolbarContext
         : undefined
     );
+  const imageToolbarOperation = imageToolbarContextOperation(
+    snapshot,
+    imageToolbarContext?.block,
+  );
 
   useEffect(() => () => {
     if (pointerIdleTimerRef.current !== undefined) window.clearTimeout(pointerIdleTimerRef.current);
@@ -388,7 +392,6 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
                 )}
                 selectedBlock={imageToolbarContext.block}
                 selectedImageUrl={imageToolbarContext.previewUrl}
-                onCreateSimilar={() => imageOperations.createImageToImageDraftOperation(imageToolbarContext.block, 'create_similar')}
                 onDownloadImage={() => downloadAsset(imageToolbarContext.asset, imageToolbarContext.block.data.title)}
                 onInteract={() => {
                   if (
@@ -404,7 +407,13 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
                   pendingDirectImageImportBlockIdRef.current = imageToolbarContext.block.blockId;
                   directImageImportInputRef.current?.click();
                 }}
-                onRunQuickEdit={({ instruction }) => imageOperations.createImageToImageDraftOperation(imageToolbarContext.block, 'quick_edit', instruction)}
+                onRegenerate={imageToolbarOperation ? () => {
+                  void imageOperations.startExistingOperationBlock({
+                    block: imageToolbarOperation,
+                    operation: operationModeFromBlock(imageToolbarOperation),
+                    revealOnStart: true,
+                  });
+                } : undefined}
               />
             </div>
           </NodeToolbar>
@@ -451,4 +460,19 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
       ) : null}
     </section>
   );
+}
+
+function imageToolbarContextOperation(
+  snapshot: BoardSnapshot,
+  imageBlock: BlockRecord | undefined,
+): BlockRecord | undefined {
+  const operationBlockId = imageBlock?.data.operationBlockId;
+  if (typeof operationBlockId !== 'string') return undefined;
+  return snapshot.blocks.find((block) => (
+    block.blockId === operationBlockId
+    && block.type === 'operation'
+    && block.data.adapter !== 'local_canvas'
+    && block.data.status !== 'queued'
+    && block.data.status !== 'running'
+  ));
 }

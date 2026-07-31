@@ -3,7 +3,6 @@ import {
   ImagePlus,
   ImageUp,
   MoreHorizontal,
-  WandSparkles,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type {
@@ -17,18 +16,17 @@ import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
 import { TooltipIconButton, TooltipWrapper } from './Tooltip';
 
-type ImageTool = 'quick-edit' | 'create-similar' | 'more';
+type ImageTool = 'more';
 
 interface ContextToolbarProps {
   canvasZoom: number;
   pluginActions?: ReactNode;
   selectedBlock?: BlockRecord;
   selectedImageUrl?: string;
-  onCreateSimilar: () => void;
   onDownloadImage: () => void;
   onInteract?: () => void;
+  onRegenerate?: () => void;
   onReplaceImage: () => void;
-  onRunQuickEdit: (input: { instruction: string }) => void;
 }
 
 export function ContextToolbar({
@@ -36,14 +34,12 @@ export function ContextToolbar({
   pluginActions,
   selectedBlock,
   selectedImageUrl,
-  onCreateSimilar,
   onDownloadImage,
   onInteract,
+  onRegenerate,
   onReplaceImage,
-  onRunQuickEdit,
 }: ContextToolbarProps): ReactElement | null {
   const [activeTool, setActiveTool] = useState<ImageTool | null>(null);
-  const [quickEditInstruction, setQuickEditInstruction] = useState('');
   const dockRef = useRef<HTMLDivElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const { t } = useI18n();
@@ -85,22 +81,18 @@ export function ContextToolbar({
       aria-label={t('context.selectedTools')}
     >
       <div className="context-toolbar">
-        <IconButton label={t('context.quickEdit')} onClick={() => toggleTool('quick-edit')}>
-          <WandSparkles size={16} />
-        </IconButton>
-        <IconButton label={t('context.createSimilar')} onClick={() => toggleTool('create-similar')}>
-          <ImagePlus size={16} />
-        </IconButton>
-        <IconButton
-          label={t('context.downloadImage')}
-          onClick={() => {
-            onDownloadImage();
-            onInteract?.();
-          }}
-        >
-          <Download size={16} />
-        </IconButton>
         {pluginActions}
+        {onRegenerate ? (
+          <IconButton
+            label={t('context.regenerate')}
+            onClick={() => {
+              onRegenerate();
+              onInteract?.();
+            }}
+          >
+            <ImagePlus size={16} />
+          </IconButton>
+        ) : null}
         {canReplaceImage ? (
           <IconButton
             label={t('context.replaceImage')}
@@ -112,6 +104,15 @@ export function ContextToolbar({
             <ImageUp size={16} />
           </IconButton>
         ) : null}
+        <IconButton
+          label={t('context.downloadImage')}
+          onClick={() => {
+            onDownloadImage();
+            onInteract?.();
+          }}
+        >
+          <Download size={16} />
+        </IconButton>
         <IconButton label={t('context.moreTools')} onClick={() => toggleTool('more')}>
           <MoreHorizontal size={16} />
         </IconButton>
@@ -119,11 +120,6 @@ export function ContextToolbar({
       {visibleActiveTool ? (
         <ImageToolPopover
           popoverRef={popoverRef}
-          quickEditInstruction={quickEditInstruction}
-          tool={visibleActiveTool}
-          onCreateSimilar={onCreateSimilar}
-          onQuickEditInstructionChange={setQuickEditInstruction}
-          onRunQuickEdit={() => onRunQuickEdit({ instruction: quickEditInstruction })}
         />
       ) : null}
     </div>
@@ -132,48 +128,10 @@ export function ContextToolbar({
 
 function ImageToolPopover({
   popoverRef,
-  quickEditInstruction,
-  tool,
-  onCreateSimilar,
-  onQuickEditInstructionChange,
-  onRunQuickEdit,
 }: {
   popoverRef: RefObject<HTMLDivElement | null>;
-  quickEditInstruction: string;
-  tool: ImageTool;
-  onCreateSimilar: () => void;
-  onQuickEditInstructionChange: (instruction: string) => void;
-  onRunQuickEdit: () => void;
 }): ReactElement {
   const { t } = useI18n();
-
-  if (tool === 'create-similar') {
-    return (
-      <div ref={popoverRef} className="context-popover" aria-label={t('context.createSimilar')}>
-        <h2>{t('context.createSimilar')}</h2>
-        <button type="button" className="primary-popover-button" onClick={onCreateSimilar}>
-          {t('context.run')}
-        </button>
-      </div>
-    );
-  }
-
-  if (tool === 'quick-edit') {
-    return (
-      <div ref={popoverRef} className="context-popover" aria-label={t('context.quickEdit')}>
-        <h2>{t('context.quickEdit')}</h2>
-        <textarea
-          placeholder={t('context.describeChange')}
-          rows={3}
-          value={quickEditInstruction}
-          onChange={(event) => onQuickEditInstructionChange(event.target.value)}
-        />
-        <button type="button" className="primary-popover-button" onClick={onRunQuickEdit}>
-          {t('context.run')}
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div ref={popoverRef} className="context-popover" aria-label={t('context.moreTools')}>

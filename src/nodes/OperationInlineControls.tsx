@@ -98,7 +98,7 @@ function LocalCanvasOperationControls({ data }: { data: BlockData }): ReactEleme
       </div>
       <div className="operation-option-row is-read-only">
         <span>{t('operationToolbar.params')}</span>
-        <strong>{localCanvasParameterSummary(params, t)}</strong>
+        <strong>{localCanvasParameterSummary(params, data.capabilityId, t)}</strong>
       </div>
       <OperationReferenceInputs data={data} />
     </div>
@@ -613,9 +613,34 @@ function localCanvasParameters(
 
 function localCanvasParameterSummary(
   params: Array<[string, string | number | boolean | null]>,
+  capabilityId: unknown,
   t: ReturnType<typeof useI18n>['t'],
 ): string {
   if (params.length === 0) return '—';
+  const values = new Map(params);
+  if (capabilityId === 'image.local_crop') {
+    const aspectPreset = values.get('aspectPreset');
+    const outputWidth = values.get('outputWidth');
+    const outputHeight = values.get('outputHeight');
+    const ratio = aspectPreset === 'original'
+      ? t('operationToolbar.sourceAspectRatio')
+      : typeof aspectPreset === 'string' ? aspectPreset : undefined;
+    const dimensions = typeof outputWidth === 'number' && typeof outputHeight === 'number'
+      ? `${outputWidth} × ${outputHeight}`
+      : undefined;
+    return [ratio, dimensions].filter(Boolean).join(' · ') || '—';
+  }
+  if (capabilityId === 'image.local_resize') {
+    const outputWidth = values.get('outputWidth');
+    const outputHeight = values.get('outputHeight');
+    const outputFormat = values.get('outputFormat');
+    return [
+      typeof outputWidth === 'number' && typeof outputHeight === 'number'
+        ? `${outputWidth} × ${outputHeight}`
+        : undefined,
+      typeof outputFormat === 'string' ? outputFormat.toUpperCase() : undefined,
+    ].filter(Boolean).join(' · ') || '—';
+  }
   return params.map(([key, value]) => (
     `${localCanvasParameterLabel(key, t)} ${
       typeof value === 'number' ? signedValue(value) : String(value)

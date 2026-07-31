@@ -142,6 +142,7 @@ export type TranslationKey =
   | 'context.noMarks'
   | 'context.penTool'
   | 'context.quickEdit'
+  | 'context.regenerate'
   | 'context.replaceImage'
   | 'context.referenceImage'
   | 'context.referenceImages'
@@ -1286,6 +1287,7 @@ const translations: Record<Locale, Translations> = {
     'context.noMarks': 'Add a mark on the image, then describe the change here.',
     'context.penTool': 'Pen',
     'context.quickEdit': 'Quick edit',
+    'context.regenerate': 'Generate another',
     'context.replaceImage': 'Replace image',
     'context.referenceImage': 'Reference image',
     'context.referenceImages': 'Reference images',
@@ -2425,6 +2427,7 @@ const translations: Record<Locale, Translations> = {
     'context.noMarks': '先在图片上添加标记，再在这里说明修改内容。',
     'context.penTool': '画笔',
     'context.quickEdit': '快捷编辑',
+    'context.regenerate': '再生成一张',
     'context.replaceImage': '替换图片',
     'context.referenceImage': '参考图',
     'context.referenceImages': '参考图 / 风格图',

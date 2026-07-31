@@ -25,6 +25,7 @@ import {
   annotationOperationBranchLayout,
   imageBranchDraftLayout,
   imageOperationResultRowLayout,
+  pluginImageOperationBranchLayout,
 } from './imageOperationLayout';
 import {
   defaultGenerationProfileId,
@@ -671,17 +672,22 @@ export function addPluginImageOperation(
   const createdAt = nowIso();
   const executionId = createId('exec');
   const nextZ = maxZIndex(snapshot.blocks) + 1;
+  const operationSize = { width: 320, height: 190 };
+  const resultSize = { ...sourceBlock.size };
+  const branchLayout = pluginImageOperationBranchLayout(
+    snapshot,
+    sourceBlock,
+    operationSize,
+    resultSize,
+  );
   const operationBlock: BlockRecord = {
     blockId: createId('block'),
     boardId: snapshot.board.boardId,
     type: 'operation',
     layerId: 'layer_default',
-    parentGroupId: sourceBlock.parentGroupId,
-    position: {
-      x: sourceBlock.position.x + sourceBlock.size.width + 80,
-      y: sourceBlock.position.y,
-    },
-    size: { width: 320, height: 190 },
+    parentGroupId: branchLayout.parentGroupId,
+    position: branchLayout.operationPosition,
+    size: operationSize,
     zIndex: nextZ,
     data: {
       title: input.title,
@@ -704,12 +710,9 @@ export function addPluginImageOperation(
     boardId: snapshot.board.boardId,
     type: 'image',
     layerId: 'layer_default',
-    parentGroupId: sourceBlock.parentGroupId,
-    position: {
-      x: operationBlock.position.x + operationBlock.size.width + 80,
-      y: sourceBlock.position.y,
-    },
-    size: { ...sourceBlock.size },
+    parentGroupId: branchLayout.parentGroupId,
+    position: branchLayout.resultPosition,
+    size: resultSize,
     zIndex: nextZ + 1,
     data: {
       title: input.title,

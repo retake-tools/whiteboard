@@ -6,6 +6,7 @@ import type { BlockType, BoardSnapshot } from '../core/types';
 interface AppEventBindingsOptions {
   addOperationInputBlock: (operationBlockId: string, type: Extract<BlockType, 'image' | 'text' | 'video'>) => void;
   directImageImportInputRef: RefObject<HTMLInputElement | null>;
+  deleteBlockIds: (blockIds: string[]) => void;
   isMiniMapVisible: boolean;
   onBindAgentOperation: (operationBlockId: string) => void;
   onUseImageInAgent: (imageBlockId: string) => void;
@@ -22,6 +23,7 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
   const {
     addOperationInputBlock,
     directImageImportInputRef,
+    deleteBlockIds,
     isMiniMapVisible,
     onBindAgentOperation,
     onUseImageInAgent,
@@ -37,6 +39,8 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
   onBindAgentOperationRef.current = onBindAgentOperation;
   const onUseImageInAgentRef = useRef(onUseImageInAgent);
   onUseImageInAgentRef.current = onUseImageInAgent;
+  const deleteBlockIdsRef = useRef(deleteBlockIds);
+  deleteBlockIdsRef.current = deleteBlockIds;
 
   useEffect(() => { saveUiPreferences({ isMiniMapVisible }); }, [isMiniMapVisible]);
   useEffect(() => { saveUiPreferences({ showGrid }); }, [showGrid]);
@@ -89,12 +93,20 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
       if (!image) return;
       onUseImageInAgentRef.current(blockId);
     }
+    function onDeleteBlock(event: Event): void {
+      const blockId = (event as CustomEvent<{ blockId?: string }>).detail?.blockId;
+      if (!blockId) return;
+      const current = snapshotRef.current;
+      if (!current.blocks.some((block) => block.blockId === blockId)) return;
+      deleteBlockIdsRef.current([blockId]);
+    }
     window.addEventListener('retake:open-execution-inspector', onOpenInspector);
     window.addEventListener('retake:retry-image-result', onRetryImageResult);
     window.addEventListener('retake:add-operation-input', onAddOperationInput);
     window.addEventListener('retake:request-image-import', onRequestImageImport);
     window.addEventListener('retake:bind-agent-operation', onBindOperationToAgent);
     window.addEventListener('retake:use-image-in-agent', onUseImageInAgent);
+    window.addEventListener('retake:delete-block', onDeleteBlock);
     return () => {
       window.removeEventListener('retake:open-execution-inspector', onOpenInspector);
       window.removeEventListener('retake:retry-image-result', onRetryImageResult);
@@ -102,6 +114,7 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
       window.removeEventListener('retake:request-image-import', onRequestImageImport);
       window.removeEventListener('retake:bind-agent-operation', onBindOperationToAgent);
       window.removeEventListener('retake:use-image-in-agent', onUseImageInAgent);
+      window.removeEventListener('retake:delete-block', onDeleteBlock);
     };
   }, []);
 }

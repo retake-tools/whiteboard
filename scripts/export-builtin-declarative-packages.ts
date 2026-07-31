@@ -45,19 +45,6 @@ const packages = [
     updateSource:
       'github:retake-tools/image-studio@main#subdirectory=plugin',
   },
-  {
-    archiveStem: 'video-studio',
-    packageRoot: path.resolve(
-      process.env.RETAKE_VIDEO_STUDIO_PACKAGE_ROOT
-        ?? path.join(retakeRoot, 'video-studio', 'package'),
-    ),
-    pluginModules: [{
-      permissions: [] satisfies RetakePluginPermission[],
-      pluginModuleId: 'design.retake.video-studio.web',
-    }],
-    updateSource:
-      'github:retake-tools/video-studio@main#subdirectory=package',
-  },
 ] as const;
 
 await exportDefaultStudioArchives();

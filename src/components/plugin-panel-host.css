@@ -2,7 +2,7 @@
   display: grid;
   gap: 12px;
   max-height: calc(100vh - 112px);
-  max-width: min(420px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
   overflow: auto;
   pointer-events: none;
   position: fixed;

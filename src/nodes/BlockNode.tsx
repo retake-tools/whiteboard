@@ -1,5 +1,5 @@
 import { Handle, NodeResizer, Position, type NodeProps, type ResizeParams } from '@xyflow/react';
-import { ArrowRight, Bot, Check, ChevronDown, Clock, Expand, FileText, ImageIcon, Info, Layers3, LockKeyhole, Play, Plus, RefreshCw, Video } from 'lucide-react';
+import { ArrowRight, Bot, Check, ChevronDown, Clock, Expand, FileText, GripVertical, ImageIcon, Info, Layers3, LockKeyhole, Play, Plus, RefreshCw, Trash2, Video } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { schemaForCapability } from '../core/capabilities';
 import type { SwitchableOperationMode } from '../core/imageOperations';
@@ -155,6 +155,9 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
         onPointerEnter={() => setIsHeadingHovered(true)}
         onPointerLeave={() => setIsHeadingHovered(false)}
       >
+        {blockType === 'text' || blockType === 'operation'
+          ? <GripVertical className="block-heading-drag-handle" size={13} />
+          : null}
         <Icon size={16} />
         <span>{title}</span>
         {blockType === 'image'
@@ -205,19 +208,33 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
           />
         ) : null}
         {blockType === 'text' ? (
-          <button
-            type="button"
-            className="block-heading-info-button nodrag nopan"
-            aria-label={t('textEditor.open')}
-            title={t('textEditor.open')}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              dispatchOpenTextBlockEditor(id);
-            }}
-          >
-            <Expand size={14} />
-          </button>
+          <>
+            <button
+              type="button"
+              className="block-heading-info-button nodrag nopan"
+              aria-label={t('textEditor.open')}
+              title={t('textEditor.open')}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                dispatchOpenTextBlockEditor(id);
+              }}
+            >
+              <Expand size={14} />
+            </button>
+            <TooltipIconButton
+              className="block-heading-delete-button nodrag nopan"
+              disabled={data.groupContentLocked === true}
+              label={t('toolbar.deleteSelection')}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                dispatchDeleteBlock(id);
+              }}
+            >
+              <Trash2 size={13} />
+            </TooltipIconButton>
+          </>
         ) : null}
         {hasWorkflowContinuation ? (
           <button
@@ -637,6 +654,11 @@ function TextBlockBody({
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
     event.stopPropagation();
+    if (event.key === 'Escape') {
+      commit(event.currentTarget.value);
+      event.currentTarget.blur();
+      return;
+    }
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
       event.currentTarget.blur();
     }
@@ -707,6 +729,12 @@ function dispatchUpdateTextBlock(blockId: string, body: string): void {
 
 function dispatchOpenTextBlockEditor(blockId: string): void {
   window.dispatchEvent(new CustomEvent('retake:open-text-block-editor', {
+    detail: { blockId },
+  }));
+}
+
+function dispatchDeleteBlock(blockId: string): void {
+  window.dispatchEvent(new CustomEvent('retake:delete-block', {
     detail: { blockId },
   }));
 }

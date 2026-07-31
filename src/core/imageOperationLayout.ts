@@ -28,6 +28,12 @@ export interface AnnotationOperationBranchLayout {
   resultPosition: Position;
 }
 
+export interface PluginImageOperationBranchLayout {
+  operationPosition: Position;
+  parentGroupId?: string;
+  resultPosition: Position;
+}
+
 export function imageBranchDraftSelectionBlockIds(
   sourceBlock: BlockRecord,
   textBlock: BlockRecord,
@@ -46,6 +52,68 @@ const branchLaneOutputClearance = 160;
 const collisionGap = 28;
 const resultHorizontalGap = 32;
 const resultGroupPadding = { top: 48, right: 28, bottom: 28, left: 28 };
+
+export function pluginImageOperationBranchLayout(
+  snapshot: BoardSnapshot,
+  sourceBlock: BlockRecord,
+  operationSize: Size,
+  resultSize: Size,
+): PluginImageOperationBranchLayout {
+  const sourceParent = sourceBlock.parentGroupId
+    ? snapshot.blocks.find((block) => (
+        block.blockId === sourceBlock.parentGroupId && block.type === 'group'
+      ))
+    : undefined;
+  const resultGroup = sourceParent?.data.groupKind === 'execution_results'
+    ? sourceParent
+    : undefined;
+  const anchor = resultGroup ?? sourceBlock;
+  const parentGroupId = resultGroup
+    ? resultGroup.parentGroupId
+    : sourceBlock.parentGroupId;
+  const operationResultGap = 80;
+  const laneGap = 64;
+  const branchSize = {
+    width: operationSize.width + operationResultGap + resultSize.width,
+    height: Math.max(operationSize.height, resultSize.height),
+  };
+  const base = {
+    x: anchor.position.x + anchor.size.width + laneGap,
+    y: anchor.position.y,
+  };
+  const occupied = snapshot.blocks.filter((block) => (
+    block.parentGroupId === parentGroupId
+    && block.blockId !== sourceBlock.blockId
+  ));
+  const candidates: Position[] = [base];
+  for (let lane = 1; lane < 80; lane += 1) {
+    const distance = Math.ceil(lane / 2) * (branchSize.height + laneGap);
+    candidates.push({
+      x: base.x,
+      y: base.y + (lane % 2 === 1 ? distance : -distance),
+    });
+  }
+  const branchPosition = candidates.find((candidate) => occupied.every(
+    (block) => !rectanglesOverlap(
+      candidate,
+      branchSize,
+      block.position,
+      block.size,
+      collisionGap,
+    ),
+  )) ?? base;
+  return {
+    operationPosition: {
+      x: branchPosition.x,
+      y: branchPosition.y + Math.max(0, (branchSize.height - operationSize.height) / 2),
+    },
+    parentGroupId,
+    resultPosition: {
+      x: branchPosition.x + operationSize.width + operationResultGap,
+      y: branchPosition.y + Math.max(0, (branchSize.height - resultSize.height) / 2),
+    },
+  };
+}
 
 export function annotationOperationBranchLayout(
   snapshot: BoardSnapshot,

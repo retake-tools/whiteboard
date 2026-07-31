@@ -99,6 +99,22 @@ const started = addPluginImageOperation(snapshot, {
   title: 'Adjust',
 });
 
+const secondStarted = addPluginImageOperation(snapshot, {
+  body: 'Crop',
+  capabilityId: 'image.local_adjust',
+  params: { brightness: 0, contrast: 0, saturation: 0 },
+  sourceBlockId: sourceBlock.blockId,
+  title: 'Second local operation',
+});
+assert.equal(
+  rectanglesOverlap(started.operationBlock, secondStarted.operationBlock),
+  false,
+);
+assert.equal(
+  rectanglesOverlap(started.resultBlock, secondStarted.resultBlock),
+  false,
+);
+
 assert.equal(started.execution.adapter, 'local_canvas');
 assert.equal(started.execution.triggerMode, 'local_canvas');
 assert.equal(started.execution.status, 'running');
@@ -180,3 +196,12 @@ console.log({
   outputAssetId: completed.execution.outputAssetIds[0],
   status: completed.execution.status,
 });
+
+function rectanglesOverlap(left: BlockRecord, right: BlockRecord): boolean {
+  return !(
+    left.position.x + left.size.width <= right.position.x
+    || right.position.x + right.size.width <= left.position.x
+    || left.position.y + left.size.height <= right.position.y
+    || right.position.y + right.size.height <= left.position.y
+  );
+}

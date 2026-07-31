@@ -108,8 +108,10 @@ export function PluginPanelHost({
   return (
     <section
       aria-label="Plugin panels"
-      className={`plugin-panel-host${anchorBlockId ? ' is-block-anchored' : ''}`}
+      className={`plugin-panel-host nodrag nopan nowheel${anchorBlockId ? ' is-block-anchored' : ''}`}
       data-retake-plugin-slot="workspace.overlay"
+      onPointerDown={(event) => event.stopPropagation()}
+      onWheel={(event) => event.stopPropagation()}
       ref={hostRef}
       style={anchorStyle}
     >

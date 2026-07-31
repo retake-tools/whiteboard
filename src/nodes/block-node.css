@@ -298,6 +298,11 @@
   flex: 0 0 auto;
 }
 
+.block-heading-drag-handle {
+  margin-left: -4px;
+  opacity: 0.5;
+}
+
 .block-heading > span:not(.block-heading-status) {
   min-width: 0;
   flex: 0 1 auto;
@@ -316,6 +321,7 @@
 
 .block-heading-info-button,
 .block-heading-agent-button,
+.block-heading-delete-button,
 .block-heading-status,
 .operation-capability-control {
   pointer-events: auto;
@@ -575,6 +581,15 @@
   background: var(--retake-accent-soft);
   color: var(--retake-accent);
   outline: none;
+}
+
+.block-heading-delete-button {
+  color: #94a3b8;
+}
+
+.block-heading-delete-button:hover:not(:disabled),
+.block-heading-delete-button:focus-visible {
+  color: #dc2626;
 }
 
 .block-heading-agent-button:disabled {

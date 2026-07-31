@@ -667,6 +667,7 @@ function ReadyApp({
 
   useAppEventBindings({
     addOperationInputBlock,
+    deleteBlockIds: blockActions.deleteBlockIds,
     directImageImportInputRef,
     isMiniMapVisible,
     onBindAgentOperation: (operationBlockId) => {

@@ -171,12 +171,32 @@ const toolbarStyles = await readFile(
   new URL('../src/styles/toolbars.css', import.meta.url),
   'utf8',
 );
+const contextToolbarSource = await readFile(
+  new URL('../src/components/ContextToolbar.tsx', import.meta.url),
+  'utf8',
+);
+const pluginPanelHostSource = await readFile(
+  new URL('../src/components/PluginPanelHost.tsx', import.meta.url),
+  'utf8',
+);
+const pluginPanelHostStyles = await readFile(
+  new URL('../src/components/plugin-panel-host.css', import.meta.url),
+  'utf8',
+);
 assert.match(canvasSource, /hoveredImageBlockId/);
 assert.match(canvasSource, /handleCanvasPointerMove/);
 assert.match(canvasSource, /onFocusCapture=\{handleCanvasFocus\}/);
 assert.match(canvasSource, /image-context-toolbar-bridge/);
 assert.match(canvasSource, /pointerEvents: 'all'/);
+assert.match(canvasSource, /startExistingOperationBlock/);
+assert.match(canvasSource, /onRegenerate=\{imageToolbarOperation/);
+assert.match(contextToolbarSource, /context\.regenerate/);
+assert.doesNotMatch(contextToolbarSource, /quick-edit|create-similar/);
 assert.match(toolbarStyles, /\.image-context-toolbar-bridge\s*\{[\s\S]*pointer-events: auto/);
+assert.match(pluginPanelHostSource, /plugin-panel-host nodrag nopan nowheel/);
+assert.match(pluginPanelHostSource, /onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/);
+assert.match(pluginPanelHostSource, /onWheel=\{\(event\) => event\.stopPropagation\(\)\}/);
+assert.match(pluginPanelHostStyles, /max-width: calc\(100vw - 32px\)/);
 
 const selectionRegistry = createPluginContributionRegistry();
 assert.deepEqual(selectionRegistry.replace([{
