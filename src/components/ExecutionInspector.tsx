@@ -195,7 +195,9 @@ export function ExecutionInspector({
     <div
       className={`execution-inspector-backdrop${reserveAgentWorkspace ? ' has-agent-workspace' : ''}`}
       role="presentation"
-      onClick={onClose}
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
     >
       <section
         className="execution-inspector"

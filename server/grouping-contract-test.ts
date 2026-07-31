@@ -22,6 +22,7 @@ assert.match(canvasSource, /if \(!nodeDragActiveRef\.current\) setNodes\(createF
 const canvasViewSource = await readFile('src/app/WhiteboardCanvas.tsx', 'utf8');
 const canvasCss = await readFile('src/styles/canvas.css', 'utf8');
 const blockNodeSource = await readFile('src/nodes/BlockNode.tsx', 'utf8');
+const executionInspectorSource = await readFile('src/components/ExecutionInspector.tsx', 'utf8');
 const operationControlsSource = await readFile('src/nodes/OperationInlineControls.tsx', 'utf8');
 const operationReferenceInputsSource = await readFile('src/nodes/OperationReferenceInputs.tsx', 'utf8');
 const imagePreviewDoubleTapSource = await readFile('src/nodes/useImagePreviewDoubleTap.ts', 'utf8');
@@ -34,11 +35,24 @@ assert.match(
 );
 assert.match(
   blockNodeSource,
-  /useImagePreviewDoubleTap\(\{[\s\S]*?gestureKey: blockId[\s\S]*?dispatchOpenExecutionInspector\(blockId\)[\s\S]*?className="image-preview"[\s\S]*?onClickCapture=\{imagePreviewDoubleTap\.onClickCapture\}[\s\S]*?onPointerDown=\{imagePreviewDoubleTap\.onPointerDown\}/,
+  /useImagePreviewDoubleTap\(\{[\s\S]*?gestureKey: blockId[\s\S]*?dispatchOpenExecutionInspector\(blockId\)[\s\S]*?className="image-preview"[\s\S]*?onClickCapture=\{imagePreviewDoubleTap\.onClickCapture\}[\s\S]*?onDoubleClickCapture=\{imagePreviewDoubleTap\.onDoubleClickCapture\}[\s\S]*?onPointerDown=\{imagePreviewDoubleTap\.onPointerDown\}/,
 );
 assert.match(imagePreviewDoubleTapSource, /window\.addEventListener\('pointerup', handlePointerUp, true\)/);
 assert.match(imagePreviewDoubleTapSource, /window\.addEventListener\('pointermove', handlePointerMove, true\)/);
 assert.match(imagePreviewDoubleTapSource, /completedTapsByGestureKey[\s\S]*?onClickCapture/);
+assert.match(imagePreviewDoubleTapSource, /doubleTapOpenDelayMs = 40/);
+assert.match(
+  imagePreviewDoubleTapSource,
+  /const scheduleDoubleTap[\s\S]*?window\.setTimeout[\s\S]*?onDoubleTapRef\.current\(\)/,
+);
+assert.match(
+  executionInspectorSource,
+  /className=\{`execution-inspector-backdrop[\s\S]*?onPointerDown=\{\(event\) => \{\s*if \(event\.target === event\.currentTarget\) onClose\(\);/,
+);
+assert.doesNotMatch(
+  executionInspectorSource,
+  /className=\{`execution-inspector-backdrop[\s\S]*?role="presentation"\s*onClick=\{onClose\}/,
+);
 assert.match(
   canvasSource,
   /const onNodeDoubleClick[\s\S]*?cancelTerminalImageStatusDismiss\(\)/,
@@ -46,7 +60,7 @@ assert.match(
 assert.match(canvasViewSource, /data-pointer-moving="false"[\s\S]*?onPointerMoveCapture=\{handleCanvasPointerMove\}/);
 assert.match(
   blockNodeSource,
-  /className="image-preview"[\s\S]*?onDoubleClick=\{\(event\) => \{[\s\S]*?dispatchOpenExecutionInspector\(blockId\)/,
+  /className="image-preview"[\s\S]*?onDoubleClickCapture=\{imagePreviewDoubleTap\.onDoubleClickCapture\}/,
 );
 assert.match(blockNodeSource, /enabled: type === 'image' && Boolean\(data\.previewUrl\)/);
 assert.doesNotMatch(

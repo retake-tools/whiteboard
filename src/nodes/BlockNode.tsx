@@ -549,12 +549,8 @@ function BlockBody({
       <div
         className="image-preview"
         onClickCapture={imagePreviewDoubleTap.onClickCapture}
+        onDoubleClickCapture={imagePreviewDoubleTap.onDoubleClickCapture}
         onPointerDown={imagePreviewDoubleTap.onPointerDown}
-        onDoubleClick={(event) => {
-          dispatchOpenExecutionInspector(blockId);
-          event.preventDefault();
-          event.stopPropagation();
-        }}
       >
         <img src={data.previewUrl} alt={title} />
         <ResultBatchBadge data={data} />
