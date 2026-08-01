@@ -66,6 +66,31 @@ assert.deepEqual(
     { bindingKind: 'reference', label: '色彩光影', slot: 'references' },
   ],
 );
+assert.equal(
+  operationNode?.style?.height,
+  246,
+  'image.generate expands once when one or more Image inputs are visible',
+);
+
+const promptBlock = snapshot.blocks.find(
+  (block) => snapshot.edges.some((edge) => (
+    edge.kind === 'execution_input'
+    && edge.inputSlotId === 'prompt'
+    && edge.sourceBlockId === block.blockId
+    && edge.targetBlockId === draft.operationBlock.blockId
+  )),
+);
+assert.equal(promptBlock?.type, 'text');
+const originalPrompt = promptBlock?.data.body;
+if (promptBlock) promptBlock.data.body = '';
+assert.equal(
+  createFlowNodes(snapshot).find(
+    (node) => node.id === draft.operationBlock.blockId,
+  )?.style?.height,
+  296,
+  'Image inputs and a visible readiness issue both reserve vertical space',
+);
+if (promptBlock) promptBlock.data.body = originalPrompt;
 
 const before = currentOperationConfiguration(snapshot, draft.operationBlock);
 snapshot.edges.find(
