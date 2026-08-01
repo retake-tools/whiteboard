@@ -220,6 +220,14 @@ export function createFlowNodes(
       operationQueuedConfigurationStale:
         block.type === 'operation' ? queuedOperationConfigurationIsStale(readinessSnapshot, block) : undefined,
       operationReadinessIssues,
+      operationHasSourceImage:
+        block.type === 'operation'
+          ? snapshot.edges.some((edge) => (
+              edge.kind === 'execution_input'
+              && edge.targetBlockId === block.blockId
+              && edge.inputSlotId === 'source_image'
+            ))
+          : undefined,
       operationSourceAspectRatio:
         block.type === 'operation' ? sourceImageAspectRatio(readinessSnapshot, block.blockId) : undefined,
       workflowStepRunFreshness: workflowStepRuntime?.freshness,
@@ -370,7 +378,7 @@ function operationReferenceInputsFor(
   if (operation.type !== 'operation') return [];
   const capabilityId = typeof operation.data.capabilityId === 'string'
     ? operation.data.capabilityId
-    : 'image.text_to_image';
+    : 'image.generate';
   let definition: ReturnType<typeof capabilityDefinitionFor> | undefined;
   try {
     definition = capabilityDefinitionFor(capabilityId);

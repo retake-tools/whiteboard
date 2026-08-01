@@ -92,7 +92,7 @@ export function restoreExecutionConfiguration(
     connectionId: configuration.connectionId,
     generationParams: structuredClone(configuration.generationParams),
     generationProfileId: configuration.generationProfileId,
-    operationMode: sourceBlock ? 'image_to_image' : 'text_to_image',
+    operationMode: configuration.capabilityId === 'image.generate' ? undefined : operationBlock.data.operationMode,
     promptSourceBlockId: promptBlock.blockId,
     sourceAssetId: sourceBlock?.data.assetId,
     sourceBlockId: sourceBlock?.blockId,

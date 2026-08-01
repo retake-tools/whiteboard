@@ -514,8 +514,8 @@ export function parseAgentRuntimeDecision(
     const operationPrompt = typeof parsed.operationPrompt === 'string'
       ? parsed.operationPrompt.trim()
       : '';
-    if (operation.capabilityId === 'image.text_to_image' && !operationPrompt) {
-      throw new Error('Agent Runtime must provide an execution prompt for text-to-image.');
+    if (operation.capabilityId === 'image.generate' && !operationPrompt) {
+      throw new Error('Agent Runtime must provide an execution prompt for image generation.');
     }
     return {
       bindingSource,

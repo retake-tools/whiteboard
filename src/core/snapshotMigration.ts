@@ -11,6 +11,7 @@ import { fitImageBlockSize, imageResultColumnGap } from './blockSizing';
 import { ensureExecutionResultGroups, repairGroupRelationships } from './grouping';
 import type { ChangeProposalCommand } from './agentSessionContracts';
 import { normalizeBoardBackground } from './boardBackground';
+import { imageGenerateCapabilityId } from './imageGenerateContracts';
 
 type LegacyBlockType = BlockType | 'task' | 'frame';
 type LegacyConnectionKind = ConnectionKind | 'reference' | 'derived_from';
@@ -89,7 +90,9 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
         snapshotWithoutLegacyViewport.board.background,
       ),
     },
-    blocks: repairedBlocks,
+    blocks: (legacy.imageGenerateMigrationVersion ?? 0) < 1
+      ? migrateImageGenerateOperationContracts(repairedBlocks, migratedEdges)
+      : repairedBlocks,
     edges: migratedEdges,
     executions: migratedExecutions,
     agentRuns: (legacy.agentRuns ?? []).map((run) => ({
@@ -150,7 +153,70 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
   repairGroupRelationships(migratedSnapshot);
   ensureExecutionResultGroups(migratedSnapshot);
   if ((legacy.groupMigrationVersion ?? 0) < 1) migratedSnapshot.groupMigrationVersion = 1;
+  if ((legacy.imageGenerateMigrationVersion ?? 0) < 1) {
+    migratedSnapshot.imageGenerateMigrationVersion = 1;
+  }
   return migratedSnapshot;
+}
+
+function migrateImageGenerateOperationContracts(
+  blocks: BlockRecord[],
+  edges: BoardEdgeRecord[],
+): BlockRecord[] {
+  const blockById = new Map(blocks.map((block) => [block.blockId, block]));
+  return blocks.map((block) => {
+    if (block.type !== 'operation') return block;
+    const legacyCapabilityId = block.data.capabilityId;
+    const isLegacyText = legacyCapabilityId === 'image.text_to_image';
+    const isLegacySource = legacyCapabilityId === 'image.image_to_image'
+      || legacyCapabilityId === 'image.generate.similar'
+      || legacyCapabilityId === 'image.edit';
+    const isCanonical = legacyCapabilityId === imageGenerateCapabilityId;
+    if (!isLegacyText && !isLegacySource && !isCanonical) return block;
+
+    const inputEdges = edges.filter((edge) => (
+      edge.kind === 'execution_input' && edge.targetBlockId === block.blockId
+    ));
+    const textEdges = inputEdges.filter((edge) => blockById.get(edge.sourceBlockId)?.type === 'text');
+    const imageEdges = inputEdges.filter((edge) => blockById.get(edge.sourceBlockId)?.type === 'image');
+    if (
+      textEdges.length === 1
+      && !textEdges[0]!.inputSlotId
+      && !inputEdges.some((edge) => edge.inputSlotId === 'prompt')
+    ) {
+      textEdges[0]!.inputSlotId = 'prompt';
+    }
+    if (
+      isLegacySource
+      && imageEdges.length === 1
+      && !imageEdges[0]!.inputSlotId
+      && !inputEdges.some((edge) => edge.inputSlotId === 'source_image')
+    ) {
+      imageEdges[0]!.inputSlotId = 'source_image';
+    }
+
+    const sourceCount = inputEdges.filter((edge) => edge.inputSlotId === 'source_image').length;
+    const migrationInvalid = (isLegacyText && sourceCount !== 0) || (isLegacySource && sourceCount !== 1);
+    const data = { ...block.data, capabilityId: imageGenerateCapabilityId };
+    if (
+      data.operationMode === 'text_to_image'
+      || data.operationMode === 'image_to_image'
+      || data.operationMode === 'generate_image'
+      || data.operationMode === 'quick_edit'
+      || data.operationMode === 'create_similar'
+    ) {
+      delete data.operationMode;
+    }
+    if (isLegacyText || isLegacySource) {
+      if (data.title === legacyCapabilityId) data.title = 'Generate image';
+      if (migrationInvalid) {
+        data.operationContractMigrationIssue = 'legacy_image_generate_input_mismatch';
+      } else {
+        delete data.operationContractMigrationIssue;
+      }
+    }
+    return { ...block, data };
+  });
 }
 
 function migrateChangeProposalCommand(
@@ -419,19 +485,26 @@ function migrateBlockData(type: BlockType, block: LegacyBlockRecord): BlockRecor
   }
   if (type !== 'operation') return block.data;
 
-  return {
+  const capabilityId = typeof block.data.capabilityId === 'string'
+    ? block.data.capabilityId
+    : imageGenerateCapabilityId;
+  const data: BlockRecord['data'] = {
     ...block.data,
     title: block.data.title || 'Operation',
     body: block.data.body || 'Configure inputs and run this operation.',
     status: block.data.sourceExecutionId ? block.data.status : undefined,
-    capabilityId:
-      typeof block.data.capabilityId === 'string' ? block.data.capabilityId : 'image.text_to_image',
+    capabilityId,
     generationProfileId:
       typeof block.data.generationProfileId === 'string'
         ? block.data.generationProfileId
         : defaultGenerationProfileId,
-    operationMode: migrateOperationMode(block),
   };
+  if (capabilityId === imageGenerateCapabilityId) {
+    delete data.operationMode;
+  } else {
+    data.operationMode = migrateOperationMode(block);
+  }
+  return data;
 }
 
 function migrateOperationMode(block: LegacyBlockRecord): string {

@@ -126,11 +126,11 @@ export function useOperationInputController(options: OperationInputControllerOpt
       const slot = ui.inputSlots?.find((candidate) => candidate.slotId === slotId);
       return slot?.placeholder ?? ui.placeholder;
     }
-    const mode = operationBlock.data.operationMode;
+    const mode = operationModeFromBlock(operationBlock, snapshotRef.current);
     if (operationBlock.data.operationVariant === 'create_similar') {
       return imageOperationDefaultPrompt('create_similar', t);
     }
-    if (mode === 'image_to_image' || mode === 'quick_edit' || mode === 'create_similar') {
+    if (mode === 'image_to_image') {
       return imageOperationDefaultPrompt('quick_edit', t);
     }
     return imageOperationDefaultPrompt('generate_image', t);
@@ -355,7 +355,7 @@ export function useOperationInputController(options: OperationInputControllerOpt
     } else {
       await startExistingOperationBlock({
         block,
-        operation: operationModeFromBlock(block),
+        operation: operationModeFromBlock(block, snapshotRef.current),
         revealOnStart,
       });
     }
@@ -578,7 +578,7 @@ function inputSlotSemantics(
 ): Array<{ semanticRole: string; slotId: string }> {
   const capabilityId = typeof operationBlock.data.capabilityId === 'string'
     ? operationBlock.data.capabilityId
-    : 'image.text_to_image';
+    : 'image.generate';
   try {
     const definition = capabilityDefinitionFor(capabilityId);
     return slotIds.map((slotId) => ({

@@ -99,7 +99,6 @@ export function createDraftStoryboardSheetOperation(
     body: input.labels.promptPlaceholder,
     capabilityId: storyboardSheetCapabilityId,
     skillId: storyboardSheetSkillId,
-    operationMode: 'text_to_image',
     adapter: usesCodexAppServer ? 'codex_app_server' : 'mcp_agent',
     agentHost: 'codex',
     triggerMode: usesCodexAppServer ? 'agent_bridge' : 'manual_agent_session',

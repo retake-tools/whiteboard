@@ -44,6 +44,7 @@ export type OperationReadinessIssue =
   | 'image_asset_missing'
   | 'image_input_missing'
   | 'image_binding_missing'
+  | 'input_contract_migration_required'
   | 'prompt_empty'
   | 'source_image_missing'
   | 'text_input_missing'
@@ -363,6 +364,9 @@ export interface BlockData {
   operationChangeKinds?: ExecutionConfigurationChangeKind[];
   operationQueuedConfigurationStale?: boolean;
   operationReadinessIssues?: OperationReadinessIssue[];
+  operationHasSourceImage?: boolean;
+  operationContractMigrationIssue?: 'legacy_image_generate_input_mismatch';
+  operationMode?: string;
   operationSourceAspectRatio?: number;
   packageDigest?: string;
   packageEntryPointId?: string;
@@ -441,6 +445,7 @@ export interface BoardSnapshot {
   workflowApprovalDecisions?: WorkflowApprovalDecisionRecord[];
   historyEvents?: BoardHistoryEvent[];
   groupMigrationVersion?: number;
+  imageGenerateMigrationVersion?: number;
 }
 
 export interface WorkspaceBoardSummary {

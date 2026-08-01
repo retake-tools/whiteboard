@@ -515,7 +515,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
                 onRegenerate={imageToolbarOperation ? () => {
                   void imageOperations.startExistingOperationBlock({
                     block: imageToolbarOperation,
-                    operation: operationModeFromBlock(imageToolbarOperation),
+                    operation: operationModeFromBlock(imageToolbarOperation, snapshot),
                     revealOnStart: true,
                   });
                 } : undefined}
