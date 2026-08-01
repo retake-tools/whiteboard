@@ -113,7 +113,6 @@ const connectors: ExecutionConnectorDefinition[] = [
     supportedCapabilityIds: [
       imageGenerateCapabilityId,
       'image.annotation_edit',
-      'image.guided_edit',
       'image.masked_edit',
       'image.outpaint',
     ],
@@ -132,7 +131,6 @@ const connectors: ExecutionConnectorDefinition[] = [
       ...codexTextDocumentCapabilityIds,
       imageGenerateCapabilityId,
       'image.annotation_edit',
-      'image.guided_edit',
       'image.masked_edit',
       'image.outpaint',
       'previs.storyboard_sheet.generate',

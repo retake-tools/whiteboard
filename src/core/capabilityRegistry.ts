@@ -567,15 +567,14 @@ export const codexAppServerTextAdapterDefinition: AdapterDefinition = {
 export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.image.codex-app-server',
-  version: '0.4.0',
-  definitionHash: 'sha256:retake-image-codex-app-server-canonical-generate-v1',
+  version: '0.5.0',
+  definitionHash: 'sha256:retake-image-codex-app-server-guided-package-cutover-v1',
   adapterClass: 'agent_runtime.media',
   routeKind: 'codex_app_server',
   provider: 'codex',
   supportedCapabilityIds: [
     'image.generate',
     'image.annotation_edit',
-    'image.guided_edit',
     'image.masked_edit',
     'image.outpaint',
     'previs.storyboard_sheet.generate',
@@ -598,12 +597,6 @@ export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
       profileId: 'codex_annotation_edit',
       requiredSlots: ['prompt', 'source_image'],
       optionalSlots: ['references'],
-    },
-    {
-      capabilityIds: ['image.guided_edit'],
-      profileId: 'codex_guided_edit',
-      requiredSlots: ['prompt', 'source_image'],
-      optionalSlots: ['guidance_image'],
     },
     {
       capabilityIds: ['image.masked_edit'],

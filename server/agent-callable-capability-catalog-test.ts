@@ -86,7 +86,7 @@ assert.equal(
 );
 assert.equal(
   installedCatalog.some((capability) => capability.capabilityId === 'image.guided_edit'),
-  true,
+  false,
 );
 assert.equal(
   installedCatalog.some((capability) => capability.capabilityId === 'image.masked_edit'),

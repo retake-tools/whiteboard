@@ -80,7 +80,7 @@ try {
   );
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.version),
-    ['0.10.8'],
+    ['0.11.0'],
   );
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.updateSource),
@@ -130,7 +130,7 @@ try {
     first.snapshot.capabilities.some(
       (definition) => definition.capabilityId === 'image.guided_edit',
     ),
-    true,
+    false,
   );
   assert.equal(await readFile(sentinelPath, 'utf8'), 'board-data-must-remain\n');
   assert.deepEqual(
@@ -172,8 +172,8 @@ try {
   assert.equal(listWorkflows().length, 5);
   assert.equal(listAgentPresets().length, 2);
   assert.equal(
-    capabilityDefinitionFor('image.guided_edit').definitionHash,
-    'sha256:image-guided-edit-v3',
+    capabilityDefinitionFor('image.generate').definitionHash,
+    'sha256:retake-image-generate-v1',
   );
   assert.equal(listPackageEntryPoints().length, 15);
   assert.equal(
