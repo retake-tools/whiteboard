@@ -3,7 +3,8 @@ import {
   projectAgentCallableCapabilities,
   type AgentCallableCapabilityV1,
 } from '../src/core/agentCallableCapabilities';
-import { definitionForLegacyCapability } from '../src/core/legacyCapabilityAdapter';
+import { capabilityDefinitionFor } from '../src/core/capabilityRegistry';
+import { imageGenerateCapabilityId } from '../src/core/imageGenerateContracts';
 import {
   ensureDefaultDeclarativePackageBootstrap,
   type DeclarativePackageBootstrapResult,
@@ -11,8 +12,7 @@ import {
 import { retakeRoot } from './local-store/context';
 
 const coreImageDefinitions = [
-  definitionForLegacyCapability('image.text_to_image'),
-  definitionForLegacyCapability('image.image_to_image'),
+  capabilityDefinitionFor(imageGenerateCapabilityId),
 ];
 
 export function coreAgentCallableCapabilities(): AgentCallableCapabilityV1[] {

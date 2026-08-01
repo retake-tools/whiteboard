@@ -65,7 +65,7 @@ assert.equal(createResult.decision.kind, 'operation_create_execute');
 if (createResult.decision.kind !== 'operation_create_execute') {
   throw new Error('Expected a create-and-execute Operation decision.');
 }
-assert.equal(createResult.decision.capabilityId, 'image.text_to_image');
+assert.equal(createResult.decision.capabilityId, 'image.generate');
 assert.match(createResult.decision.operationPrompt, /落地灯/);
 
 const createTurn = applyAgentRuntimeTurn(snapshot, {

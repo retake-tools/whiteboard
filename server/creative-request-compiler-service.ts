@@ -1,6 +1,5 @@
 import path from 'node:path';
 import {
-  capabilitiesFor,
   creativeRequestInputSlotsFor,
   generalReferenceSlot,
   imageInputSlots,
@@ -48,7 +47,7 @@ const compilerInstructions = [
   'For each reference, describe the exact content to borrow in open user language. Do not force it into a fixed style, scene, composition, or character category.',
   'A source image has no reference intent.',
   'For video requests, first_frame and last_frame are temporal anchors; other inputs use the most suitable declared reference Slot.',
-  'Never invent a Capability ID, input Slot, Block, Asset, or mention.',
+  'The Capability is fixed by Retake. Compile only input Slot semantics and never invent an input Slot, Block, Asset, or mention.',
 ].join('\n');
 
 export async function compileCreativeRequest(
@@ -85,11 +84,12 @@ export async function compileCreativeRequest(
       ephemeral: true,
       localImagePaths: references.map((reference) => reference.localPath),
       model: connection.modelId,
-      outputSchema: compilerOutputSchema(input.mediaKind, inputSlots.map((slot) => slot.inputSlotId)),
+      outputSchema: compilerOutputSchema(inputSlots.map((slot) => slot.inputSlotId)),
       prompt: JSON.stringify({
         instruction,
         mediaKind: input.mediaKind,
-        allowedCapabilities: capabilitiesFor(input.mediaKind).map((capabilityId) => {
+        capability: (() => {
+          const capabilityId = capabilityForMediaKind(input.mediaKind);
           const definition = capabilityDefinitionFor(capabilityId);
           return {
             capabilityId,
@@ -100,7 +100,7 @@ export async function compileCreativeRequest(
               slotId: slot.slotId,
             })),
           };
-        }),
+        })(),
         references: references.map((reference, index) => ({
           attachmentIndex: index + 1,
           mentionId: reference.mentionId,
@@ -130,7 +130,7 @@ function deterministicRequest(
   input: CreativeRequestCompileInput,
   references: readonly ResolvedCreativeReference[],
 ): CompiledCreativeRequest {
-  const capabilityId = capabilityForDeterministicRequest(input.mediaKind, references);
+  const capabilityId = capabilityForMediaKind(input.mediaKind);
   const definition = capabilityDefinitionFor(capabilityId);
   const fallbackSlot = generalReferenceSlot(definition)
     ?? imageInputSlots(definition).find((slot) => !slot.required)
@@ -171,15 +171,10 @@ function parseCompilerResult(
   model: string,
 ): CompiledCreativeRequest {
   const parsed = JSON.parse(text) as {
-    capabilityId?: unknown;
     references?: unknown;
   };
-  const allowedCapabilities = capabilitiesFor(input.mediaKind);
-  const capabilityId = typeof parsed.capabilityId === 'string'
-    && allowedCapabilities.includes(parsed.capabilityId as CreativeRequestCapabilityId)
-    ? parsed.capabilityId as CreativeRequestCapabilityId
-    : undefined;
-  if (!capabilityId || !Array.isArray(parsed.references)) {
+  const capabilityId = capabilityForMediaKind(input.mediaKind);
+  if (!Array.isArray(parsed.references)) {
     throw new Error('Creative Request Compiler returned an invalid result.');
   }
   const definition = capabilityDefinitionFor(capabilityId);
@@ -317,18 +312,11 @@ function preferredCompilerConnection(
     .find(Boolean) ?? ready[0];
 }
 
-function compilerOutputSchema(
-  mediaKind: CreativeRequestCompileInput['mediaKind'],
-  inputSlotIds: readonly string[],
-): Record<string, unknown> {
+function compilerOutputSchema(inputSlotIds: readonly string[]): Record<string, unknown> {
   return {
     type: 'object',
     additionalProperties: false,
     properties: {
-      capabilityId: {
-        type: 'string',
-        enum: capabilitiesFor(mediaKind),
-      },
       references: {
         type: 'array',
         items: {
@@ -344,23 +332,15 @@ function compilerOutputSchema(
         },
       },
     },
-    required: ['capabilityId', 'references'],
+    required: ['references'],
   };
 }
 
-function capabilityForDeterministicRequest(
+function capabilityForMediaKind(
   mediaKind: CreativeRequestCompileInput['mediaKind'],
-  references: readonly ResolvedCreativeReference[],
 ): CreativeRequestCapabilityId {
   if (mediaKind === 'video') return 'video.generate';
-  const sourceSlotId = sourceImageSlot(
-    capabilityDefinitionFor('image.image_to_image'),
-  )?.slotId;
-  return references.some(
-    (reference) => reference.explicitBinding?.inputSlotId === sourceSlotId,
-  )
-    ? 'image.image_to_image'
-    : 'image.text_to_image';
+  return 'image.generate';
 }
 
 function referenceIsFullyExplicit(reference: ResolvedCreativeReference): boolean {

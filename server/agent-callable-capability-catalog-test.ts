@@ -11,8 +11,9 @@ import {
 import { stageAgentOperationExecution } from '../src/core/agentOperationExecution';
 import { createBlockRecord } from '../src/core/blockFactory';
 import { operationReadinessFor } from '../src/core/capabilities';
+import { capabilityDefinitionFor } from '../src/core/capabilityRegistry';
+import { imageGenerateCapabilityId } from '../src/core/imageGenerateContracts';
 import { executeExistingImageOperationBlock } from '../src/core/imageOperations';
-import { definitionForLegacyCapability } from '../src/core/legacyCapabilityAdapter';
 import {
   replacePluginCapabilityDefinitions,
 } from '../src/core/pluginCapabilityDefinitions';
@@ -50,15 +51,18 @@ const localCropDefinition = imageCapability({
 });
 
 const catalog = projectAgentCallableCapabilities([
-  definitionForLegacyCapability('image.text_to_image'),
-  definitionForLegacyCapability('image.image_to_image'),
+  capabilityDefinitionFor(imageGenerateCapabilityId),
   guidedEditDefinition,
   maskedEditDefinition,
   localCropDefinition,
 ]);
 assert.deepEqual(
   catalog.map((capability) => capability.capabilityId),
-  ['image.guided_edit', 'image.image_to_image', 'image.text_to_image'],
+  ['image.generate', 'image.guided_edit'],
+);
+assert.equal(
+  catalog.find((capability) => capability.capabilityId === imageGenerateCapabilityId)?.authoringKind,
+  'image_generate',
 );
 assert.equal(
   catalog.find((capability) => capability.capabilityId === 'image.guided_edit')?.authoringKind,
@@ -66,9 +70,20 @@ assert.equal(
 );
 assert.deepEqual(
   agentRuntimeDecisionSchemaFor(catalog).properties.capabilityId.enum,
-  ['image.guided_edit', 'image.image_to_image', 'image.text_to_image', null],
+  ['image.generate', 'image.guided_edit', null],
 );
 const installedCatalog = await loadAgentCallableCapabilities();
+assert.equal(
+  installedCatalog.some((capability) => capability.capabilityId === imageGenerateCapabilityId),
+  true,
+);
+assert.equal(
+  installedCatalog.some((capability) => (
+    capability.capabilityId === 'image.text_to_image'
+    || capability.capabilityId === 'image.image_to_image'
+  )),
+  false,
+);
 assert.equal(
   installedCatalog.some((capability) => capability.capabilityId === 'image.guided_edit'),
   true,

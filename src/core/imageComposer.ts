@@ -31,7 +31,7 @@ export interface ImageComposerReference {
 }
 
 export interface ImageComposerDraftInput {
-  capabilityId?: 'image.image_to_image' | 'image.text_to_image';
+  capabilityId?: typeof imageGenerateCapabilityId;
   connectionId: string;
   creativeRequest?: unknown;
   generationParams?: ImageGenerationParams;

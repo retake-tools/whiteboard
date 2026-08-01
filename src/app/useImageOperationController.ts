@@ -429,7 +429,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
   }
 
   function createTextToImageDraftOperation(input: {
-    capabilityId?: 'image.image_to_image' | 'image.text_to_image';
+    capabilityId?: typeof imageGenerateCapabilityId;
     connectionId?: string;
     creativeRequest?: CompiledCreativeRequest;
     generationParams?: ImageGenerationParams;
@@ -441,7 +441,10 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     let selectedWorkflowIds: string[] = [];
     let createdOperationBlockId: string | undefined;
     const nextSnapshot = updateSnapshot((current) => {
-      const selectedSlot = input.capabilityId !== 'image.image_to_image'
+      const hasSourceImage = input.references?.some(
+        (reference) => reference.bindingKind === 'source',
+      ) ?? false;
+      const selectedSlot = !hasSourceImage
         ? input.slotBlock ?? (
             input.reuseSelectedImageSlot
             && selectedBlock?.type === 'image'
@@ -457,7 +460,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
           current,
           imageGenerateCapabilityId,
         );
-      const composerOperation = input.capabilityId === 'image.image_to_image'
+      const composerOperation = hasSourceImage
         ? 'quick_edit'
         : 'generate_image';
       const result = input.instruction === undefined
@@ -506,7 +509,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
   }
 
   function createAndStartImageComposerOperation(input: {
-    capabilityId?: 'image.image_to_image' | 'image.text_to_image';
+    capabilityId?: typeof imageGenerateCapabilityId;
     connectionId?: string;
     creativeRequest?: CompiledCreativeRequest;
     generationParams?: ImageGenerationParams;

@@ -26,6 +26,7 @@ import {
 } from '../core/imageComposer';
 import type { ImageGenerationParams } from '../core/imageOperations';
 import type { CompiledCreativeRequest } from '../core/creativeRequestCompiler';
+import { imageGenerateCapabilityId } from '../core/imageGenerateContracts';
 import type {
   ComposerImageReferenceSetting,
   ReferenceIntentV1,
@@ -56,7 +57,7 @@ export interface AgentComposerPreferences {
 }
 
 export interface UnifiedComposerImageDraftInput {
-  capabilityId: 'image.image_to_image' | 'image.text_to_image';
+  capabilityId: typeof imageGenerateCapabilityId;
   connectionId: string;
   creativeRequest: CompiledCreativeRequest;
   generationParams: ImageGenerationParams;
