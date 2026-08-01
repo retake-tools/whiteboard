@@ -90,10 +90,8 @@ assert.deepEqual(connection?.supportedCapabilityIds, [
   'image.generate',
   'image.annotation_edit',
   'image.guided_edit',
-  'image.image_to_image',
   'image.masked_edit',
   'image.outpaint',
-  'image.text_to_image',
   'previs.storyboard_sheet.generate',
 ]);
 
@@ -195,6 +193,7 @@ const imageRun = executeExistingImageOperationBlock(completed, {
 assert.equal(imageRun.execution.adapter, 'codex_app_server');
 assert.equal(imageRun.execution.triggerMode, 'agent_bridge');
 assert.equal(imageRun.execution.adapterSnapshot?.routeKind, 'codex_app_server');
+assert.equal(imageRun.execution.adapterSnapshot?.inputProfileId, 'codex_image_generation');
 assert.equal(imageRun.execution.agentPrompt, undefined);
 await saveSnapshot(completed);
 

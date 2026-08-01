@@ -182,6 +182,7 @@ try {
       (profile) => profile.profileId === 'codex_guided_edit',
     ),
     {
+      capabilityIds: ['image.guided_edit'],
       profileId: 'codex_guided_edit',
       requiredSlots: ['prompt', 'source_image'],
       optionalSlots: ['guidance_image'],

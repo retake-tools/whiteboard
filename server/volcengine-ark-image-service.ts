@@ -17,6 +17,9 @@ import {
   type VolcengineArkImageConfig,
   type VolcengineArkImageResult,
 } from './volcengine-ark-image-client';
+import { imageGenerateCapabilityId } from '../src/core/imageGenerateContracts';
+import { volcengineArkSeedreamImageAdapterDefinition } from '../src/core/capabilityRegistry';
+import { resolveExecutionAdapterInputProfile } from '../src/core/adapterInputProfiles';
 
 interface ArkImageServiceDependencies {
   config?: VolcengineArkImageConfig;
@@ -72,6 +75,9 @@ async function executeArkImageRun(
 ): Promise<void> {
   const initial = await loadSnapshot(execution.projectId, execution.boardId);
   const inputAssignments = imageExecutionInputAssignments(execution);
+  if (execution.capabilityId === imageGenerateCapabilityId) {
+    resolveExecutionAdapterInputProfile(volcengineArkSeedreamImageAdapterDefinition, execution);
+  }
   const referenceImages = await executionInputImages(initial, inputAssignments.map((assignment) => assignment.assetId));
   const size = requestedSize(execution);
   const requests = resultBlockIds.map((outputBlockId) => ({

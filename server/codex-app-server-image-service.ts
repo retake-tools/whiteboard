@@ -41,6 +41,9 @@ import {
   StoryboardSheetContractError,
   storyboardSheetCapabilityId,
 } from '../src/core/storyboardSheetContracts';
+import { imageGenerateCapabilityId } from '../src/core/imageGenerateContracts';
+import { codexAppServerImageAdapterDefinition } from '../src/core/capabilityRegistry';
+import { resolveExecutionAdapterInputProfile } from '../src/core/adapterInputProfiles';
 
 interface CodexAppServerImageDependencies {
   connectionCheck?: ExecutionConnectionCheckDependencies;
@@ -117,6 +120,9 @@ async function executeCodexImageRun(
       (asset) => asset.assetId === assetId && asset.kind === 'image',
     ),
   );
+  if (execution.capabilityId === imageGenerateCapabilityId) {
+    resolveExecutionAdapterInputProfile(codexAppServerImageAdapterDefinition, execution);
+  }
   const localImagePaths = await executionInputImagePaths(initial, inputAssignments);
   const localImagePathBySlot = new Map(
     inputAssignments.map((assignment, index) => [

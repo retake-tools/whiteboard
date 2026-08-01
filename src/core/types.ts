@@ -189,7 +189,7 @@ export interface ExecutionRecord {
     | 'routeKind'
     | 'provider'
     | 'model'
-  >;
+  > & { inputProfileId?: string };
   inputBindingsSnapshot?: CapabilityInputBinding[];
   outputSlotResults?: ExecutionOutputSlotResult[];
   resultSummary?: ExecutionResultSummary;
