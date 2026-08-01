@@ -148,6 +148,7 @@ export type AdapterRouteKind =
   | 'manual';
 
 export interface AdapterInputProfile {
+  capabilityIds?: string[];
   profileId: string;
   requiredSlots: string[];
   optionalSlots: string[];
@@ -289,11 +290,22 @@ export function validateAdapterDefinition(input: unknown): ContractValidationIss
     issues.push(issue('route_kind_invalid', '$.routeKind', 'Adapter routeKind is not supported.'));
   }
   requireStringArray(input.supportedCapabilityIds, '$.supportedCapabilityIds', issues, true);
+  const supportedCapabilityIds = new Set(
+    Array.isArray(input.supportedCapabilityIds)
+      ? input.supportedCapabilityIds.filter(isNonEmptyString)
+      : [],
+  );
   if (!Array.isArray(input.inputProfiles)) {
     issues.push(issue('input_profiles_invalid', '$.inputProfiles', 'inputProfiles must be an array.'));
   } else {
     const profileIds = new Set<string>();
-    input.inputProfiles.forEach((profile, index) => validateInputProfile(profile, index, profileIds, issues));
+    input.inputProfiles.forEach((profile, index) => validateInputProfile(
+      profile,
+      index,
+      profileIds,
+      supportedCapabilityIds,
+      issues,
+    ));
   }
   if (!isRecord(input.constraints)) issues.push(issue('constraints_invalid', '$.constraints', 'constraints must be an object.'));
   if (!['installed', 'unavailable', 'disabled'].includes(String(input.availability))) {
@@ -576,6 +588,7 @@ function validateInputProfile(
   input: unknown,
   index: number,
   profileIds: Set<string>,
+  supportedCapabilityIds: Set<string>,
   issues: ContractValidationIssue[],
 ): void {
   const path = `$.inputProfiles[${index}]`;
@@ -585,6 +598,20 @@ function validateInputProfile(
   }
   if (profileIds.has(input.profileId)) issues.push(issue('input_profile_duplicate', `${path}.profileId`, 'profileId must be unique.'));
   profileIds.add(input.profileId);
+  if (input.capabilityIds !== undefined) {
+    requireStringArray(input.capabilityIds, `${path}.capabilityIds`, issues, true);
+    if (Array.isArray(input.capabilityIds)) {
+      input.capabilityIds.forEach((capabilityId, capabilityIndex) => {
+        if (isNonEmptyString(capabilityId) && !supportedCapabilityIds.has(capabilityId)) {
+          issues.push(issue(
+            'input_profile_capability_unsupported',
+            `${path}.capabilityIds[${capabilityIndex}]`,
+            `Capability ${capabilityId} is not supported by this Adapter.`,
+          ));
+        }
+      });
+    }
+  }
   requireStringArray(input.requiredSlots, `${path}.requiredSlots`, issues);
   requireStringArray(input.optionalSlots, `${path}.optionalSlots`, issues);
 }

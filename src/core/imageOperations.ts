@@ -46,6 +46,7 @@ import {
 } from './capabilities';
 import { outpaintCapabilityId } from './outpaintContracts';
 import { imageGenerateCapabilityId } from './imageGenerateContracts';
+import { resolveExecutionAdapterInputProfile } from './adapterInputProfiles';
 
 export type ImageCodexOperation = 'generate_image' | 'create_similar' | 'quick_edit' | 'annotation_edit';
 export type SwitchableOperationMode = 'text_to_image' | 'image_to_image';
@@ -457,6 +458,9 @@ export function addImageCodexOperation(
   }
   recordExecutionConfiguration(snapshot, execution, operationBlock);
   if (directApi) {
+    const inputProfile = capabilityId === imageGenerateCapabilityId
+      ? resolveExecutionAdapterInputProfile(volcengineArkSeedreamImageAdapterDefinition, execution)
+      : undefined;
     execution.adapterSnapshot = {
       adapterId: volcengineArkSeedreamImageAdapterDefinition.adapterId,
       version: volcengineArkSeedreamImageAdapterDefinition.version,
@@ -465,8 +469,12 @@ export function addImageCodexOperation(
       routeKind: volcengineArkSeedreamImageAdapterDefinition.routeKind,
       provider: volcengineArkSeedreamImageAdapterDefinition.provider,
       model: input.connection?.modelId ?? volcengineArkSeedreamImageAdapterDefinition.model,
+      ...(inputProfile ? { inputProfileId: inputProfile.profileId } : {}),
     };
   } else if (codexAppServer) {
+    const inputProfile = capabilityId === imageGenerateCapabilityId
+      ? resolveExecutionAdapterInputProfile(codexAppServerImageAdapterDefinition, execution)
+      : undefined;
     execution.adapterSnapshot = {
       adapterId: codexAppServerImageAdapterDefinition.adapterId,
       version: codexAppServerImageAdapterDefinition.version,
@@ -475,6 +483,7 @@ export function addImageCodexOperation(
       routeKind: codexAppServerImageAdapterDefinition.routeKind,
       provider: codexAppServerImageAdapterDefinition.provider,
       model: input.connection?.modelId ?? codexAppServerImageAdapterDefinition.model,
+      ...(inputProfile ? { inputProfileId: inputProfile.profileId } : {}),
     };
   }
   snapshot.executions.unshift(execution);
@@ -1076,6 +1085,9 @@ export function executeExistingImageOperationBlock(
   }
   recordExecutionConfiguration(snapshot, execution, operationBlock);
   if (directApi) {
+    const inputProfile = capabilityId === imageGenerateCapabilityId
+      ? resolveExecutionAdapterInputProfile(volcengineArkSeedreamImageAdapterDefinition, execution)
+      : undefined;
     execution.adapterSnapshot = {
       adapterId: volcengineArkSeedreamImageAdapterDefinition.adapterId,
       version: volcengineArkSeedreamImageAdapterDefinition.version,
@@ -1084,8 +1096,12 @@ export function executeExistingImageOperationBlock(
       routeKind: volcengineArkSeedreamImageAdapterDefinition.routeKind,
       provider: volcengineArkSeedreamImageAdapterDefinition.provider,
       model: input.connection?.modelId ?? volcengineArkSeedreamImageAdapterDefinition.model,
+      ...(inputProfile ? { inputProfileId: inputProfile.profileId } : {}),
     };
   } else if (codexAppServer) {
+    const inputProfile = capabilityId === imageGenerateCapabilityId
+      ? resolveExecutionAdapterInputProfile(codexAppServerImageAdapterDefinition, execution)
+      : undefined;
     execution.adapterSnapshot = {
       adapterId: codexAppServerImageAdapterDefinition.adapterId,
       version: codexAppServerImageAdapterDefinition.version,
@@ -1094,6 +1110,7 @@ export function executeExistingImageOperationBlock(
       routeKind: codexAppServerImageAdapterDefinition.routeKind,
       provider: codexAppServerImageAdapterDefinition.provider,
       model: input.connection?.modelId ?? codexAppServerImageAdapterDefinition.model,
+      ...(inputProfile ? { inputProfileId: inputProfile.profileId } : {}),
     };
   }
   snapshot.executions.unshift(execution);

@@ -567,8 +567,8 @@ export const codexAppServerTextAdapterDefinition: AdapterDefinition = {
 export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.image.codex-app-server',
-  version: '0.2.0',
-  definitionHash: 'sha256:retake-image-codex-app-server-storyboard-sheet-v1',
+  version: '0.3.0',
+  definitionHash: 'sha256:retake-image-codex-app-server-profile-routing-v1',
   adapterClass: 'agent_runtime.media',
   routeKind: 'codex_app_server',
   provider: 'codex',
@@ -584,31 +584,37 @@ export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
   ],
   inputProfiles: [
     {
+      capabilityIds: ['image.generate', 'image.text_to_image'],
       profileId: 'codex_image_generation',
       requiredSlots: ['prompt'],
       optionalSlots: ['references'],
     },
     {
+      capabilityIds: ['image.generate', 'image.image_to_image'],
       profileId: 'codex_image_edit',
       requiredSlots: ['prompt', 'source_image'],
       optionalSlots: ['references'],
     },
     {
+      capabilityIds: ['image.annotation_edit'],
       profileId: 'codex_annotation_edit',
       requiredSlots: ['prompt', 'source_image'],
       optionalSlots: ['references'],
     },
     {
+      capabilityIds: ['image.guided_edit'],
       profileId: 'codex_guided_edit',
       requiredSlots: ['prompt', 'source_image'],
       optionalSlots: ['guidance_image'],
     },
     {
+      capabilityIds: ['image.masked_edit'],
       profileId: 'codex_masked_edit',
       requiredSlots: ['prompt', 'source_image', 'inpaint_mask'],
       optionalSlots: [],
     },
     {
+      capabilityIds: ['image.outpaint'],
       profileId: 'codex_outpaint',
       requiredSlots: [
         'prompt',
@@ -619,6 +625,7 @@ export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
       optionalSlots: [],
     },
     {
+      capabilityIds: ['previs.storyboard_sheet.generate'],
       profileId: 'storyboard_sheet_from_unit',
       requiredSlots: ['storyboard_plan', 'unit_id'],
       optionalSlots: ['references'],
@@ -837,8 +844,8 @@ export const dreaminaCliAdapterDefinition: AdapterDefinition = {
 export const volcengineArkSeedreamImageAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.image.volcengine-ark-seedream',
-  version: '0.1.0',
-  definitionHash: 'sha256:retake-image-volcengine-ark-seedream-v0',
+  version: '0.2.0',
+  definitionHash: 'sha256:retake-image-volcengine-ark-seedream-profile-routing-v1',
   adapterClass: 'image.generate',
   routeKind: 'direct_api',
   provider: 'volcengine-ark',
@@ -846,11 +853,13 @@ export const volcengineArkSeedreamImageAdapterDefinition: AdapterDefinition = {
   supportedCapabilityIds: ['image.generate', 'image.text_to_image', 'image.image_to_image'],
   inputProfiles: [
     {
+      capabilityIds: ['image.generate', 'image.text_to_image'],
       profileId: 'seedream_text_to_image',
       requiredSlots: ['prompt'],
       optionalSlots: ['references'],
     },
     {
+      capabilityIds: ['image.generate', 'image.image_to_image'],
       profileId: 'seedream_image_to_image',
       requiredSlots: ['prompt', 'source_image'],
       optionalSlots: ['references'],

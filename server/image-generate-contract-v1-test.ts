@@ -4,7 +4,12 @@ import {
   validateCapabilityExecutionRequest,
   type CapabilityExecutionRequest,
 } from '../src/core/capabilityContracts';
-import { capabilityDefinitionFor } from '../src/core/capabilityRegistry';
+import {
+  capabilityDefinitionFor,
+  codexAppServerImageAdapterDefinition,
+  volcengineArkSeedreamImageAdapterDefinition,
+} from '../src/core/capabilityRegistry';
+import { resolveAdapterInputProfile } from '../src/core/adapterInputProfiles';
 import {
   imageGenerateCapabilityDefinition,
   imageGenerateCapabilityId,
@@ -47,6 +52,38 @@ assert.deepEqual(
     slot.cardinality,
   ]),
   [['images', 'generated_images', 'image', 'many']],
+);
+assert.equal(
+  resolveAdapterInputProfile(
+    codexAppServerImageAdapterDefinition,
+    imageGenerateCapabilityId,
+    ['prompt', 'references'],
+  ).profileId,
+  'codex_image_generation',
+);
+assert.equal(
+  resolveAdapterInputProfile(
+    codexAppServerImageAdapterDefinition,
+    imageGenerateCapabilityId,
+    ['references', 'source_image', 'prompt'],
+  ).profileId,
+  'codex_image_edit',
+);
+assert.equal(
+  resolveAdapterInputProfile(
+    volcengineArkSeedreamImageAdapterDefinition,
+    imageGenerateCapabilityId,
+    ['prompt'],
+  ).profileId,
+  'seedream_text_to_image',
+);
+assert.equal(
+  resolveAdapterInputProfile(
+    volcengineArkSeedreamImageAdapterDefinition,
+    imageGenerateCapabilityId,
+    ['prompt', 'source_image', 'references'],
+  ).profileId,
+  'seedream_image_to_image',
 );
 
 assert.deepEqual(validateImageGenerateParametersV1({
