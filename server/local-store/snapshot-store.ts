@@ -2,6 +2,7 @@ import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { defaultSnapshot } from '../../src/core/sampleBoard';
 import { migrateBoardSnapshot } from '../../src/core/snapshotMigration';
+import { executionRecordVersion } from '../../src/core/executionRecordVersion';
 import type { BoardRecord, BoardSnapshot, ProjectRecord } from '../../src/core/types';
 import { reconcileAgentRuntime } from '../../src/core/agentRuntime';
 import { reconcileWorkflowRuntime } from '../../src/core/workflowRuntime';
@@ -12,6 +13,7 @@ import {
   retakeRoot,
   workspaceRoot,
   writeJson,
+  writeJsonAtomic,
 } from './context';
 
 export class SnapshotWriteConflictError extends Error {
@@ -20,6 +22,8 @@ export class SnapshotWriteConflictError extends Error {
     this.name = 'SnapshotWriteConflictError';
   }
 }
+
+const snapshotWriteQueues = new Map<string, Promise<void>>();
 
 export async function ensureDefaultSnapshot(): Promise<BoardSnapshot> {
   await ensureWorkspace();
@@ -47,6 +51,21 @@ export async function getBoardSnapshot(input?: { projectId?: string; boardId?: s
 }
 
 export async function saveSnapshot(snapshot: BoardSnapshot): Promise<void> {
+  const pendingSnapshot = structuredClone(snapshot);
+  const key = `${pendingSnapshot.project.projectId}/${pendingSnapshot.board.boardId}`;
+  const previousWrite = snapshotWriteQueues.get(key) ?? Promise.resolve();
+  const nextWrite = previousWrite
+    .catch(() => undefined)
+    .then(() => saveSnapshotNow(pendingSnapshot));
+  snapshotWriteQueues.set(key, nextWrite);
+  try {
+    await nextWrite;
+  } finally {
+    if (snapshotWriteQueues.get(key) === nextWrite) snapshotWriteQueues.delete(key);
+  }
+}
+
+async function saveSnapshotNow(snapshot: BoardSnapshot): Promise<void> {
   await ensureWorkspace();
 
   const normalizedSnapshot = migrateBoardSnapshot(snapshot);
@@ -63,9 +82,9 @@ export async function saveSnapshot(snapshot: BoardSnapshot): Promise<void> {
   await mkdir(path.join(projectDir, 'executions'), { recursive: true });
   await mkdir(path.join(projectDir, 'skills'), { recursive: true });
 
-  await writeJson(path.join(projectDir, 'project.json'), normalizedSnapshot.project);
-  await writeJson(path.join(boardDir, 'board.json'), normalizedSnapshot.board);
-  await writeJson(snapshotPath, normalizedSnapshot);
+  await writeJsonAtomic(path.join(projectDir, 'project.json'), normalizedSnapshot.project);
+  await writeJsonAtomic(path.join(boardDir, 'board.json'), normalizedSnapshot.board);
+  await writeJsonAtomic(snapshotPath, normalizedSnapshot);
 }
 
 export async function resetWorkspace(): Promise<BoardSnapshot> {
@@ -217,11 +236,11 @@ function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSna
   // Assets, executions, and history are durable lineage. Ordinary board saves
   // may update them but must not silently erase records that already exist.
   incoming.assets = mergeRecords(incoming.assets, previous.assets, (asset) => asset.assetId);
-  incoming.executions = mergeRecords(
+  incoming.executions = mergeExecutionRecords(
     incoming.executions,
     previous.executions,
-    (execution) => execution.executionId,
   );
+  reconcileExecutionBlockStatuses(incoming);
   incoming.historyEvents = mergeRecords(
     incoming.historyEvents ?? [],
     previous.historyEvents ?? [],
@@ -319,6 +338,40 @@ function mergeRecords<T>(incoming: T[], previous: T[], idFor: (record: T) => str
     merged.push(record);
   }
   return merged;
+}
+
+function mergeExecutionRecords(
+  incoming: BoardSnapshot['executions'],
+  previous: BoardSnapshot['executions'],
+): BoardSnapshot['executions'] {
+  const previousById = new Map(previous.map((execution) => [execution.executionId, execution]));
+  const merged = incoming.map((execution) => {
+    const prior = previousById.get(execution.executionId);
+    previousById.delete(execution.executionId);
+    return prior && executionRecordVersion(prior) > executionRecordVersion(execution)
+      ? prior
+      : execution;
+  });
+  return [...merged, ...previousById.values()];
+}
+
+function reconcileExecutionBlockStatuses(snapshot: BoardSnapshot): void {
+  const executionById = new Map(
+    snapshot.executions.map((execution) => [execution.executionId, execution]),
+  );
+  for (const block of snapshot.blocks) {
+    const executionId = block.data.sourceExecutionId;
+    if (typeof executionId !== 'string') continue;
+    const execution = executionById.get(executionId);
+    if (!execution) continue;
+    const isCompletedOutput = execution.outputBlockIds.includes(block.blockId)
+      && (block.type === 'image' || block.type === 'video' || block.type === 'document')
+      && typeof block.data.assetId === 'string';
+    block.data.status = isCompletedOutput ? 'succeeded' : execution.status;
+    if (execution.status === 'queued' || execution.status === 'running' || execution.status === 'failed') {
+      delete block.data.statusVisualDismissed;
+    }
+  }
 }
 
 function mergeVersionedRecords<T extends { recordVersion: number }>(

@@ -26,6 +26,7 @@ import {
   currentOperationConfiguration,
 } from './executionConfiguration';
 import { createId, nowIso } from './id';
+import { advanceExecutionRecordVersion } from './executionRecordVersion';
 import { MockVideoAdapter } from './mockVideoAdapter';
 import { skillDefinitionFor } from './skillRegistry';
 import type { AssetRecord, BlockRecord, BoardHistoryEvent, BoardSnapshot, ExecutionRecord } from './types';
@@ -219,6 +220,7 @@ export function createVideoGenerationExecution(
   );
   const execution: ExecutionRecord = {
     executionId,
+    recordVersion: 1,
     requestId,
     projectId: snapshot.project.projectId,
     boardId: snapshot.board.boardId,
@@ -337,6 +339,7 @@ function completeMockVideoGeneration(
     block.updatedAt = completedAt;
   });
   execution.status = 'succeeded';
+  advanceExecutionRecordVersion(execution);
   execution.outputAssetIds = assets.map((asset) => asset.assetId);
   execution.outputSlotResults = [{ slotId: 'videos', assetIds: [...execution.outputAssetIds] }];
   execution.resultSummary = { requested: resultBlocks.length, succeeded: assets.length, failed: 0 };
@@ -427,6 +430,7 @@ function failMockVideoGeneration(
 ): void {
   const completedAt = nowIso();
   execution.status = 'failed';
+  advanceExecutionRecordVersion(execution);
   execution.completedAt = completedAt;
   execution.errorMessage = error instanceof Error ? error.message : 'Mock video generation failed.';
   execution.resultSummary = { requested: resultBlocks.length, succeeded: 0, failed: resultBlocks.length };

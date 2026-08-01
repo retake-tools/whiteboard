@@ -12,6 +12,10 @@ import {
   saveSnapshot,
   SnapshotWriteConflictError,
 } from './local-store';
+import {
+  markExecutionRunning,
+  recordExecutionRequestPrompts,
+} from './local-store/execution-store';
 
 const sessionOnly = await resetWorkspace();
 const session = createAgentSession(sessionOnly, {
@@ -210,12 +214,64 @@ assert.equal(
 globalThis.fetch = originalFetch;
 delete (globalThis as { localStorage?: Storage }).localStorage;
 
+const executionRaceSnapshot = await resetWorkspace();
+const raceExecutionId = createId('exec');
+const raceBlock = executionRaceSnapshot.blocks.find((block) => block.type === 'operation');
+assert(raceBlock);
+raceBlock.data.sourceExecutionId = raceExecutionId;
+raceBlock.data.status = 'queued';
+executionRaceSnapshot.executions = [{
+  executionId: raceExecutionId,
+  recordVersion: 1,
+  projectId: executionRaceSnapshot.project.projectId,
+  boardId: executionRaceSnapshot.board.boardId,
+  capabilityId: 'image.generate',
+  adapter: 'codex_app_server',
+  status: 'queued',
+  inputBlockIds: [],
+  outputBlockIds: [],
+  outputAssetIds: [],
+  params: { operationBlockId: raceBlock.blockId },
+  startedAt: nowIso(),
+}];
+await saveSnapshot(executionRaceSnapshot);
+const staleQueuedSnapshot = structuredClone(executionRaceSnapshot);
+const running = await markExecutionRunning({
+  projectId: executionRaceSnapshot.project.projectId,
+  boardId: executionRaceSnapshot.board.boardId,
+  executionId: raceExecutionId,
+});
+assert.equal(running.execution.status, 'running');
+assert.equal(running.execution.recordVersion, 2);
+
+await saveSnapshot(staleQueuedSnapshot);
+const promptRecorded = await recordExecutionRequestPrompts({
+  projectId: executionRaceSnapshot.project.projectId,
+  boardId: executionRaceSnapshot.board.boardId,
+  executionId: raceExecutionId,
+  requestPrompts: [{ index: 0, prompt: 'Generate a regression-test image.' }],
+});
+assert.equal(promptRecorded.execution.status, 'running');
+assert.equal(promptRecorded.execution.recordVersion, 3);
+assert.equal(promptRecorded.execution.requestPrompts?.[0]?.prompt, 'Generate a regression-test image.');
+assert.equal(
+  promptRecorded.snapshot.blocks.find((block) => block.blockId === raceBlock.blockId)?.data.status,
+  'running',
+);
+assert.equal(
+  promptRecorded.snapshot.historyEvents?.some(
+    (event) => event.type === 'execution_started' && event.executionId === raceExecutionId,
+  ),
+  true,
+);
+
 console.log({
   agentSessionDoesNotLookLikeBootstrap: true,
   apiConflictSurfaced: true,
   bootstrapOverwriteRejected: true,
   durableHistoryPreserved: true,
   pluginOperationModePreserved: true,
+  staleQueuedExecutionRejected: true,
   staleSelectionRecoveredFromServer: true,
   testWorkspace: process.env.RETAKE_WORKSPACE_DIR,
 });

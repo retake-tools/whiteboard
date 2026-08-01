@@ -148,6 +148,7 @@ export interface AssetRecord {
 
 export interface ExecutionRecord {
   executionId: string;
+  recordVersion?: number;
   projectId: string;
   boardId: string;
   capabilityId: string;

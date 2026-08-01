@@ -1,5 +1,6 @@
 import { createId, nowIso } from './id';
 import { fitGroupToChildren } from './grouping';
+import { advanceExecutionRecordVersion } from './executionRecordVersion';
 import type { BoardHistoryEvent, BoardSnapshot, ExecutionRecord } from './types';
 
 export interface ExecutionCancellationResult {
@@ -114,6 +115,7 @@ export function cancelExecution(
   }
 
   execution.status = 'canceled';
+  advanceExecutionRecordVersion(execution);
   execution.completedAt = updatedAt;
   delete execution.errorMessage;
   const historyEvent: BoardHistoryEvent = {

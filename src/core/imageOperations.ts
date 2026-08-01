@@ -1,4 +1,5 @@
 import { createId, nowIso } from './id';
+import { advanceExecutionRecordVersion } from './executionRecordVersion';
 import type { AnnotationManifest } from './imageAnnotations';
 import { annotationEditControlsFromManifest } from './annotationEditControls';
 import type {
@@ -378,6 +379,7 @@ export function addImageCodexOperation(
 
   const execution: ExecutionRecord = {
     executionId,
+    recordVersion: 1,
     projectId: snapshot.project.projectId,
     boardId: snapshot.board.boardId,
     capabilityId,
@@ -738,6 +740,7 @@ export function addPluginImageOperation(
   };
   const execution: ExecutionRecord = {
     executionId,
+    recordVersion: 1,
     projectId: snapshot.project.projectId,
     boardId: snapshot.board.boardId,
     capabilityId: input.capabilityId,
@@ -816,6 +819,7 @@ export function completePluginImageOperation(
     snapshot.assets.unshift(asset);
   }
   execution.status = 'succeeded';
+  advanceExecutionRecordVersion(execution);
   execution.completedAt = completedAt;
   execution.outputAssetIds = [asset.assetId];
   syncExecutionOutputContractSnapshot(execution);
@@ -860,6 +864,7 @@ export function failPluginImageOperation(
 
   const completedAt = nowIso();
   execution.status = 'failed';
+  advanceExecutionRecordVersion(execution);
   execution.completedAt = completedAt;
   syncExecutionOutputContractSnapshot(execution);
   execution.errorMessage = input.errorMessage;
@@ -1039,6 +1044,7 @@ export function executeExistingImageOperationBlock(
 
   const execution: ExecutionRecord = {
     executionId,
+    recordVersion: 1,
     projectId: snapshot.project.projectId,
     boardId: snapshot.board.boardId,
     capabilityId,

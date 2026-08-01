@@ -336,6 +336,7 @@ export function executeExistingGenerationPreparationOperation(
   );
   const execution: ExecutionRecord = {
     executionId,
+    recordVersion: 1,
     projectId: snapshot.project.projectId,
     boardId: snapshot.board.boardId,
     capabilityId: generationPreparationCapabilityId,

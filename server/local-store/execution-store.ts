@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { assignExecutionVersion } from '../../src/core/executionConfiguration';
+import { advanceExecutionRecordVersion } from '../../src/core/executionRecordVersion';
 import { syncExecutionOutputContractSnapshot } from '../../src/core/executionContractSnapshot';
 import type {
   AssetRecord,
@@ -30,6 +31,7 @@ export async function createExecution(input: {
   const snapshot = await loadSnapshot(input.projectId, input.boardId);
   const execution: ExecutionRecord = {
     executionId: `exec_${randomUUID().slice(0, 8)}`,
+    recordVersion: 1,
     projectId: input.projectId,
     boardId: input.boardId,
     capabilityId: input.capabilityId,
@@ -92,6 +94,7 @@ export async function markExecutionRunning(input: { projectId: string; boardId: 
 
   assignExecutionVersion(snapshot, execution);
   execution.status = 'running';
+  advanceExecutionRecordVersion(execution);
   delete execution.completedAt;
   delete execution.errorMessage;
   syncExecutionBlocks(snapshot, execution);
@@ -128,6 +131,7 @@ export async function markExecutionAdapterRetryRunning(input: {
   }
 
   execution.status = 'running';
+  advanceExecutionRecordVersion(execution);
   delete execution.completedAt;
   delete execution.errorMessage;
   syncExecutionBlocks(snapshot, execution);
@@ -154,6 +158,7 @@ export async function completeExecution(input: {
   const execution = findExecutionOrThrow(snapshot, input.executionId);
   assertExecutionNotCanceled(execution, 'complete');
   execution.status = 'succeeded';
+  advanceExecutionRecordVersion(execution);
   execution.outputBlockIds = mergeUnique(execution.outputBlockIds, input.outputBlockIds ?? []);
   execution.outputAssetIds = mergeUnique(execution.outputAssetIds, input.outputAssetIds ?? []);
   syncExecutionOutputContractSnapshot(execution);
@@ -176,6 +181,7 @@ export async function failExecution(input: { projectId: string; boardId: string;
   assertExecutionNotCanceled(execution, 'fail');
   const failedResultBlockIds = incompleteExecutionResultBlockIds(snapshot, execution);
   execution.status = 'failed';
+  advanceExecutionRecordVersion(execution);
   execution.completedAt = new Date().toISOString();
   execution.errorMessage = input.errorMessage;
   const succeeded = execution.outputBlockIds.length - failedResultBlockIds.length;
@@ -212,6 +218,7 @@ export async function recordExecutionRequestPrompts(input: {
   );
   for (const requestPrompt of input.requestPrompts) promptsByIndex.set(requestPrompt.index, requestPrompt);
   execution.requestPrompts = structuredClone([...promptsByIndex.values()].sort((left, right) => left.index - right.index));
+  advanceExecutionRecordVersion(execution);
   touchSnapshot(snapshot);
   await saveSnapshot(snapshot);
   return { snapshot, execution };
@@ -313,6 +320,7 @@ async function updateMediaResultBlock(input: {
     return outputBlock?.type === input.blockType && typeof outputBlock.data.assetId === 'string';
   });
   execution.status = allOutputsComplete ? 'succeeded' : 'running';
+  advanceExecutionRecordVersion(execution);
   if (allOutputsComplete) execution.completedAt = now;
   else delete execution.completedAt;
   delete execution.errorMessage;

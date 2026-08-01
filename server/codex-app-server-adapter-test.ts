@@ -195,13 +195,18 @@ assert.equal(imageRun.execution.adapterSnapshot?.routeKind, 'codex_app_server');
 assert.equal(imageRun.execution.adapterSnapshot?.inputProfileId, 'codex_image_generation');
 assert.equal(imageRun.execution.agentPrompt, undefined);
 await saveSnapshot(completed);
+const staleQueuedImageSnapshot = structuredClone(completed);
 
 let imageCalls = 0;
 let concurrentImageCalls = 0;
 let maxConcurrentImageCalls = 0;
 let releaseConcurrentImages: (() => void) | undefined;
+let releaseImageCompletion: (() => void) | undefined;
 const allImagesStarted = new Promise<void>((resolve) => {
   releaseConcurrentImages = resolve;
+});
+const imageCompletionGate = new Promise<void>((resolve) => {
+  releaseImageCompletion = resolve;
 });
 const concurrentImagesReady = Promise.race([
   allImagesStarted,
@@ -225,6 +230,7 @@ const imageStarted = await startCodexAppServerImageGeneration({
     maxConcurrentImageCalls = Math.max(maxConcurrentImageCalls, concurrentImageCalls);
     if (imageCalls === 4) releaseConcurrentImages?.();
     await concurrentImagesReady;
+    await imageCompletionGate;
     assert.match(input.prompt, /^\$imagegen Generate exactly one image/);
     assert.match(input.prompt, /Required output aspect ratio: 9:16 \(portrait, width:height\)/);
     assert.match(input.prompt, /hard output-canvas requirement/);
@@ -246,11 +252,18 @@ const imageStarted = await startCodexAppServerImageGeneration({
     };
   },
 });
+await concurrentImagesReady;
+await saveSnapshot(staleQueuedImageSnapshot);
+releaseImageCompletion?.();
 await imageStarted.completion;
 completed = await loadSnapshot(completed.project.projectId, completed.board.boardId);
 const imageExecution = completed.executions.find((candidate) => candidate.executionId === imageRun.execution.executionId);
 const imageResult = completed.blocks.find((candidate) => candidate.blockId === imageRun.resultBlock.blockId);
 assert.equal(imageExecution?.status, 'succeeded');
+assert.ok(
+  (imageExecution?.recordVersion ?? 0) > (imageRun.execution.recordVersion ?? 1),
+  'A stale Agent-authored queued snapshot must not overwrite a running Codex App Server execution.',
+);
 assert.equal(imageExecution?.outputAssetIds.length, 4);
 assert.equal(imageExecution?.requestPrompts?.length, 4);
 assert.match(imageExecution?.requestPrompts?.[0]?.prompt ?? '', /^\$imagegen Generate exactly one image/);

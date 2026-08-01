@@ -70,6 +70,10 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
   const validBlockIds = new Set(promptMigratedBlocks.map((block) => block.blockId));
   const migratedExecutions = legacy.executions.map((execution) => ({
     ...execution,
+    recordVersion:
+      typeof execution.recordVersion === 'number' && execution.recordVersion >= 1
+        ? execution.recordVersion
+        : 1,
     inputBlockIds: execution.inputBlockIds.filter((blockId) => validBlockIds.has(blockId)),
     outputBlockIds: execution.outputBlockIds.filter((blockId) => validBlockIds.has(blockId)),
   }));
