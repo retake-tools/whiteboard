@@ -749,6 +749,8 @@ export type TranslationKey =
   | 'agentWorkspace.goalPlan'
   | 'agentWorkspace.coverage'
   | 'agentWorkspace.planScope'
+  | 'agentWorkspace.renameSession'
+  | 'agentWorkspace.renameSessionHint'
   | 'agentWorkspace.budget'
   | 'agentWorkspace.limitation'
   | 'agentWorkspace.goalLaunchWarning'
@@ -1910,6 +1912,8 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.goalPlan': 'Goal Plan',
     'agentWorkspace.coverage': 'Coverage',
     'agentWorkspace.planScope': 'Plan scope',
+    'agentWorkspace.renameSession': 'Rename Agent',
+    'agentWorkspace.renameSessionHint': 'Double-click to rename this Agent',
     'agentWorkspace.budget': 'Budget boundary',
     'agentWorkspace.limitation': 'Limitation',
     'agentWorkspace.goalLaunchWarning': 'Starting only authorizes the locked Workflow orchestration. Gates, candidate selection, and external Provider actions still require their own explicit decisions.',
@@ -3066,6 +3070,8 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.goalPlan': 'Goal 计划',
     'agentWorkspace.coverage': '覆盖范围',
     'agentWorkspace.planScope': '计划范围',
+    'agentWorkspace.renameSession': '重命名 Agent',
+    'agentWorkspace.renameSessionHint': '双击重命名当前 Agent',
     'agentWorkspace.budget': '预算边界',
     'agentWorkspace.limitation': '未覆盖范围',
     'agentWorkspace.goalLaunchWarning': '本次只授权已锁定 Workflow 的编排；Gate、候选选择与 Provider 外部动作仍需各自明确确认。',

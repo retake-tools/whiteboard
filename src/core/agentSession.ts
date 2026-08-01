@@ -235,6 +235,21 @@ export function archiveAgentSession(snapshot: BoardSnapshot, agentSessionId: str
   return session;
 }
 
+export function renameAgentSession(
+  snapshot: BoardSnapshot,
+  agentSessionId: string,
+  title: string,
+): AgentSessionRecord {
+  const session = requireActiveSession(snapshot, agentSessionId);
+  const normalizedTitle = title.trim().replace(/\s+/g, ' ');
+  if (!normalizedTitle) throw new Error('Agent name cannot be empty.');
+  if (normalizedTitle.length > 80) throw new Error('Agent name cannot exceed 80 characters.');
+  if (session.title === normalizedTitle) return session;
+  session.title = normalizedTitle;
+  touchSession(session);
+  return session;
+}
+
 export function setAgentSessionRun(
   snapshot: BoardSnapshot,
   agentSessionId: string,

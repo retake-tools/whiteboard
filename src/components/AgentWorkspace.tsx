@@ -1,4 +1,4 @@
-import { Activity, Bot, CircleAlert, CircleStop, MapPin, Pause, Play, X } from 'lucide-react';
+import { Activity, Bot, CircleAlert, CircleStop, MapPin, Pause, Play } from 'lucide-react';
 import {
   useEffect,
   useRef,
@@ -43,9 +43,7 @@ import { useI18n } from '../i18n';
 import { AgentMessageCard } from './AgentMessageCard';
 import { AgentOperationRunCard } from './AgentOperationRunCard';
 import { AgentWorkspaceComposer } from './AgentWorkspaceComposer';
-import { AgentSessionHistoryMenu } from './AgentSessionHistoryMenu';
-import { AgentRuntimeNewSessionMenu } from './AgentRuntimeNewSessionMenu';
-import { TooltipIconButton } from './Tooltip';
+import { AgentWorkspaceHeader } from './AgentWorkspaceHeader';
 import { WorkflowAgentTargetPicker } from './WorkflowAgentTargetPicker';
 import {
   currentInstalledRuntimeRegistryRevision,
@@ -74,6 +72,7 @@ export function AgentWorkspace({
   onLocateBlock,
   onResumeAgentRun,
   onRequestCanvasMode,
+  onRenameSession,
   onSelectLaunchConnection,
   onSelectAgentRun,
   onSelectSession,
@@ -109,6 +108,7 @@ export function AgentWorkspace({
   onLocateBlock: (blockId: string) => void;
   onResumeAgentRun: (agentRunId: string) => void;
   onRequestCanvasMode: () => void;
+  onRenameSession: (title: string) => boolean;
   onSelectLaunchConnection: (
     blockId: string,
     connectionId: string,
@@ -179,30 +179,19 @@ export function AgentWorkspace({
       aria-label={t('agentWorkspace.title')}
       onKeyDown={trapNarrowWorkspaceFocus}
     >
-      <header>
-        <div className="agent-workspace-heading">
-          <span><Bot size={15} />{t('agentWorkspace.eyebrow')}</span>
-          <strong>{selectedSession?.title ?? t('agentWorkspace.defaultSession')}</strong>
-          {binding ? (
-            <small className="agent-workspace-runtime-label">
-              {runtimeConnection?.displayName ?? binding.connectionId} · {binding.model}
-            </small>
-          ) : null}
-        </div>
-        <div className="agent-workspace-header-actions">
-          <AgentSessionHistoryMenu
-            selectedSession={selectedSession}
-            sessions={sessions}
-            onArchiveSession={onArchiveSession}
-            onSelectSession={onSelectSession}
-          />
-          <AgentRuntimeNewSessionMenu
-            onCreateSession={onCreateSession}
-            projectId={snapshot.project.projectId}
-          />
-          <TooltipIconButton className="icon-button" label={t('context.close')} onClick={onClose}><X size={15} /></TooltipIconButton>
-        </div>
-      </header>
+      <AgentWorkspaceHeader
+        onArchiveSession={onArchiveSession}
+        onClose={onClose}
+        onCreateSession={onCreateSession}
+        onRenameSession={onRenameSession}
+        onSelectSession={onSelectSession}
+        projectId={snapshot.project.projectId}
+        runtimeLabel={binding
+          ? `${runtimeConnection?.displayName ?? binding.connectionId} · ${binding.model}`
+          : undefined}
+        selectedSession={selectedSession}
+        sessions={sessions}
+      />
       {selectedSession && (activeRun || pendingProposalCount > 0) ? (
         <div
           className="agent-workspace-context-bar"

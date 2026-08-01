@@ -9,6 +9,7 @@ import {
   ensureDefaultAgentSession,
   messagesForSession,
   proposalsForSession,
+  renameAgentSession,
   runtimeEventsForSession,
   runtimeBindingForSession,
   setAgentSessionRun,
@@ -28,6 +29,7 @@ import './studio-domain-test-fixtures';
 const [
   portSource,
   workspaceSource,
+  workspaceHeaderSource,
   composerSource,
   sharedComposerSource,
   controllerSource,
@@ -44,6 +46,7 @@ const [
 ] = await Promise.all([
   readFile(new URL('./agent-runtime-port.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentWorkspace.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/AgentWorkspaceHeader.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentWorkspaceComposer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/SkillQuickInputComposer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/useAgentWorkspaceController.ts', import.meta.url), 'utf8'),
@@ -73,7 +76,13 @@ assert.doesNotMatch(appServerSource, /excludeTurns/);
 assert.doesNotMatch(appServerSource, /dynamicTools:/);
 assert.doesNotMatch(workspaceSource, /\['chat', 'run', 'changes'\]/);
 assert.doesNotMatch(workspaceSource, /agentWorkspace\.createSession/);
-assert.match(workspaceSource, /AgentSessionHistoryMenu/);
+assert.match(workspaceSource, /AgentWorkspaceHeader/);
+assert.match(workspaceHeaderSource, /AgentSessionHistoryMenu/);
+assert.match(workspaceHeaderSource, /onDoubleClick=\{startEditing\}/);
+assert.match(workspaceHeaderSource, /event\.key !== 'Enter' && event\.key !== 'F2'/);
+assert.match(workspaceHeaderSource, /event\.key !== 'Escape'/);
+assert.match(workspaceHeaderSource, /maxLength=\{80\}/);
+assert.match(workspaceHeaderSource, /agent-workspace-runtime-label/);
 assert.match(workspaceSource, /AgentRunSummaryCard/);
 assert.match(workspaceSource, /AgentOperationRunCard/);
 assert.match(workspaceSource, /agentWorkspace\.quickStartPoster/);
@@ -712,6 +721,18 @@ assert.notEqual(created.session.agentSessionId, snapshot.board.boardId);
 assert.equal(created.session.activeAgentRunId, run.record.agentRunId);
 assert.equal(created.binding.runtimeKind, 'codex_app_server');
 assert.equal(activeBoardAgentSessions(snapshot)[0]?.agentSessionId, created.session.agentSessionId);
+const initialSessionVersion = created.session.recordVersion;
+renameAgentSession(snapshot, created.session.agentSessionId, '  Story Director  ');
+assert.equal(created.session.title, 'Story Director');
+assert.equal(created.session.recordVersion, initialSessionVersion + 1);
+assert.throws(
+  () => renameAgentSession(snapshot, created.session.agentSessionId, '   '),
+  /cannot be empty/,
+);
+assert.throws(
+  () => renameAgentSession(snapshot, created.session.agentSessionId, 'A'.repeat(81)),
+  /cannot exceed 80 characters/,
+);
 
 const userMessage = appendAgentUserMessage(snapshot, created.session.agentSessionId, {
   content: '暂停当前运行',

@@ -6,6 +6,7 @@ import {
   archiveAgentSession,
   createAgentSession,
   ensureDefaultAgentSession,
+  renameAgentSession,
   markAgentRuntimeFailure,
   runtimeBindingForSession,
   setAgentSessionRun,
@@ -154,6 +155,21 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
   function selectSession(agentSessionId: string): void {
     setSelectedSessionId(agentSessionId);
     setError(undefined);
+  }
+
+  function renameSession(title: string): boolean {
+    if (!selectedSessionId) return false;
+    try {
+      updateSnapshot((current) => {
+        renameAgentSession(current, selectedSessionId, title);
+        return current;
+      }, { history: true, persist: true, syncFlow: false });
+      setError(undefined);
+      return true;
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught));
+      return false;
+    }
   }
 
   function selectAgentRun(agentRunId?: string): void {
@@ -511,6 +527,7 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     launchProposal,
     launchingProposalId,
     newSession,
+    renameSession,
     selectAgentRun,
     selectedBinding,
     selectedSession,

@@ -18,7 +18,7 @@
 
 .agent-workspace > header,
 .agent-workspace > header > div,
-.agent-workspace > header > div:first-child > span {
+.agent-workspace-name-row {
   display: flex;
   align-items: center;
 }
@@ -31,19 +31,56 @@
 }
 
 .agent-workspace > header > div { gap: 6px; }
-.agent-workspace-heading { align-items: flex-start; flex-direction: column; min-width: 0; gap: 3px; }
-.agent-workspace-heading > span { gap: 5px; color: var(--retake-text-muted); font-size: 10px; font-weight: 760; text-transform: uppercase; }
-.agent-workspace-heading strong { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agent-workspace-runtime-label {
+.agent-workspace > header > .agent-workspace-heading {
+  min-width: 0;
+  flex: 1;
+  align-items: stretch;
+  flex-direction: column;
+  gap: 3px;
+}
+.agent-workspace-name-row { min-width: 0; justify-content: flex-start; gap: 6px; }
+.agent-workspace-name-row > svg { flex: 0 0 auto; color: var(--retake-text-muted); }
+.agent-workspace-name {
+  min-width: 0;
   max-width: 240px;
   overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--retake-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 720;
+  line-height: 20px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+.agent-workspace-name:disabled { color: var(--retake-text); cursor: default; opacity: 1; }
+.agent-workspace-name-input {
+  width: min(240px, calc(100% - 24px));
+  min-width: 0;
+  padding: 1px 5px;
+  border: 1px solid var(--retake-accent-border);
+  border-radius: 5px;
+  background: var(--retake-surface);
+  color: var(--retake-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 720;
+  line-height: 18px;
+}
+.agent-workspace-runtime-label {
+  max-width: 264px;
+  overflow: hidden;
+  padding-left: 22px;
   color: var(--retake-text-muted);
   font-size: 10px;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.agent-workspace > header strong { color: var(--retake-text); font-size: 14px; }
 .agent-workspace > header .icon-button { width: 30px; height: 30px; }
 
 .agent-workspace button:focus-visible,

@@ -1096,6 +1096,7 @@ function ReadyApp({
           onPauseAgentRun={agentRuntimeController.pauseAgentRun}
           onResumeAgentRun={agentRuntimeController.resumeAgentRun}
           onRequestCanvasMode={closeAgentWorkspace}
+          onRenameSession={agentWorkspaceController.renameSession}
           onSelectLaunchConnection={
             imageOperationController.updateOperationConnection
           }
