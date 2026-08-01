@@ -95,6 +95,21 @@ snapshot.workflowStepRuns.push(
   step('step_publish', workflowRun.workflowRunId, 'publish', operations[3].blockId, 'blocked'),
   step('step_history', historyRun.workflowRunId, 'history', operations[0].blockId, 'succeeded'),
 );
+snapshot.executions.push({
+  adapter: 'mcp_agent',
+  boardId: snapshot.board.boardId,
+  capabilityId: 'image.generate',
+  completedAt: historyRun.updatedAt,
+  executionId: 'execution_step_history',
+  inputBlockIds: [],
+  outputAssetIds: [],
+  outputBlockIds: [],
+  projectId: snapshot.project.projectId,
+  startedAt: historyRun.updatedAt,
+  status: 'succeeded',
+  stepRunId: 'step_history',
+  workflowRunId: historyRun.workflowRunId,
+});
 
 const agentRun: AgentRunRecord = {
   agentRunId: 'agent_run_guided_image',
