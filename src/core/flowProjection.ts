@@ -29,6 +29,11 @@ import type {
 import { sourceImageAspectRatio } from './operationAspectRatio';
 import { workflowStepRuntimeForOperation } from './workflowRuntime';
 import type { CanvasProjectionMode } from './canvasProjectionViewState';
+import { imageGenerateCapabilityId } from './imageGenerateContracts';
+
+const imageGenerateOperationBaseHeight = 190;
+const operationReferenceSectionExpansion = 56;
+const operationReadinessSectionExpansion = 50;
 
 const groupFillColors: Record<GroupColor, string> = {
   transparent: '#f8fafc',
@@ -154,6 +159,9 @@ export function createFlowNodes(
         : workflowStepRuntime && !workflowStepRuntime.canStart
           ? ['workflow_step_not_ready' as const]
           : [];
+    const operationReferenceInputs = block.type === 'operation'
+      ? operationReferenceInputsFor(snapshot, block)
+      : [];
     const operationChanges = operationChangesById.get(block.blockId) ?? [];
     const latestOperationExecution = block.type === 'operation'
       ? latestStartedExecutionForOperation(readinessSnapshot, block.blockId)
@@ -208,7 +216,7 @@ export function createFlowNodes(
       executionVersion: groupExecutionMetadata?.version,
       executionStatus: groupExecutionMetadata?.status,
       operationReferenceInputs: block.type === 'operation'
-        ? operationReferenceInputsFor(snapshot, block)
+        ? operationReferenceInputs
         : undefined,
       operationCanRun,
       operationCompact: compactOperation,
@@ -250,7 +258,11 @@ export function createFlowNodes(
     },
     style: {
       width: isCollapsed ? 260 : compactOperation ? 36 : block.size.width,
-      height: isCollapsed ? 88 : compactOperation ? 36 : block.size.height,
+      height: isCollapsed
+        ? 88
+        : compactOperation
+          ? 36
+          : projectedBlockHeight(block, operationReferenceInputs.length, operationReadinessIssues.length > 0),
     },
     connectable: !contentLocked,
     deletable:
@@ -259,6 +271,23 @@ export function createFlowNodes(
     draggable: !contentLocked && !(block.type === 'group' && block.data.groupPositionLocked),
     });
   });
+}
+
+function projectedBlockHeight(
+  block: BoardSnapshot['blocks'][number],
+  operationReferenceCount: number,
+  hasReadinessIssue: boolean,
+): number {
+  if (block.type !== 'operation' || block.data.capabilityId !== imageGenerateCapabilityId) {
+    return block.size.height;
+  }
+  const showReadinessIssue = hasReadinessIssue
+    && block.data.status !== 'queued'
+    && block.data.status !== 'running';
+  const minimumHeight = imageGenerateOperationBaseHeight
+    + (operationReferenceCount > 0 ? operationReferenceSectionExpansion : 0)
+    + (showReadinessIssue ? operationReadinessSectionExpansion : 0);
+  return Math.max(block.size.height, minimumHeight);
 }
 
 function operationResultCount(
