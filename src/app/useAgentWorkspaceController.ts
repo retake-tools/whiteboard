@@ -429,14 +429,11 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
                 projectId: applicationSnapshot.project.projectId,
               })?.connectionId,
             operationTitle: imageOperationTitle('generate_image', t),
-            imageToImageOperationTitle: imageOperationTitle('quick_edit', t),
+            imageToImageOperationTitle: imageOperationTitle('generate_image', t),
             imageToImagePromptPlaceholder: imageOperationDefaultPrompt('quick_edit', t),
             operationTitleForCapability: (capabilityId) => {
-              if (capabilityId === 'image.text_to_image') {
+              if (capabilityId === 'image.generate') {
                 return imageOperationTitle('generate_image', t);
-              }
-              if (capabilityId === 'image.image_to_image') {
-                return imageOperationTitle('quick_edit', t);
               }
               return capabilityDefinitionFor(capabilityId).displayName;
             },

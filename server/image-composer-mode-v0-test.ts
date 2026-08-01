@@ -320,7 +320,7 @@ sourceBlock.data = {
 };
 imageToImageSnapshot.blocks.push(sourceBlock);
 const imageToImageResult = createImageComposerDraft(imageToImageSnapshot, {
-  capabilityId: 'image.image_to_image',
+  capabilityId: imageGenerateCapabilityId,
   connectionId: 'codex-app-server',
   generationParams: {
     aspectRatioPreset: 'source',
@@ -377,7 +377,7 @@ autoReferenceBlock.data = {
 };
 autoExecuteSnapshot.blocks.push(autoReferenceBlock);
 const autoDraft = createImageComposerDraft(autoExecuteSnapshot, {
-  capabilityId: 'image.text_to_image',
+  capabilityId: imageGenerateCapabilityId,
   connectionId: 'codex-app-server',
   generationParams: defaultImageComposerGenerationParams(),
   instruction: '生成一张白天的家具图。',

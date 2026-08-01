@@ -5,6 +5,7 @@ import {
 } from '../core/creativeRequestCompiler';
 import { requestCreativeRequestCompilation } from '../core/creativeRequestCompilerClient';
 import type { ImageGenerationParams } from '../core/imageOperations';
+import { imageGenerateCapabilityId } from '../core/imageGenerateContracts';
 import {
   packageComposerMentionId,
   type PackageComposerMention,
@@ -38,7 +39,8 @@ export async function compileImageComposerSubmission(input: {
     references,
   });
   const effectiveGenerationParams = (
-    compiled.capabilityId === 'image.image_to_image'
+    compiled.capabilityId === imageGenerateCapabilityId
+    && compiled.references.some((reference) => reference.inputSlotId === 'source_image')
     && !input.generationParamsTouched
   )
     ? {

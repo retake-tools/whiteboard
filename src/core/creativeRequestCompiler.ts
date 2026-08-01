@@ -6,12 +6,12 @@ import type {
   ImageReferenceBindingKind,
   ReferenceIntentV1,
 } from './referenceIntent';
+import { imageGenerateCapabilityId } from './imageGenerateContracts';
 
 export type CreativeRequestMediaKind = 'image' | 'video';
 
 export type CreativeRequestCapabilityId =
-  | 'image.image_to_image'
-  | 'image.text_to_image'
+  | typeof imageGenerateCapabilityId
   | 'video.generate';
 
 export interface CreativeRequestExplicitBinding {
@@ -64,10 +64,7 @@ export interface CompiledCreativeRequest {
 }
 
 export interface CompiledImageComposerInput {
-  capabilityId: Extract<
-    CreativeRequestCapabilityId,
-    'image.image_to_image' | 'image.text_to_image'
-  >;
+  capabilityId: typeof imageGenerateCapabilityId;
   generationParams: ImageGenerationParams;
   instruction: string;
   references: Array<{
@@ -108,10 +105,7 @@ export function imageComposerInputFromCompiledRequest(
 ): CompiledImageComposerInput {
   if (
     compiled.mediaKind !== 'image'
-    || (
-      compiled.capabilityId !== 'image.text_to_image'
-      && compiled.capabilityId !== 'image.image_to_image'
-    )
+    || compiled.capabilityId !== imageGenerateCapabilityId
   ) {
     throw new Error('Compiled request is not an image request.');
   }
@@ -159,7 +153,7 @@ export function capabilitiesFor(
   mediaKind: CreativeRequestMediaKind,
 ): CreativeRequestCapabilityId[] {
   return mediaKind === 'image'
-    ? ['image.text_to_image', 'image.image_to_image']
+    ? [imageGenerateCapabilityId]
     : ['video.generate'];
 }
 

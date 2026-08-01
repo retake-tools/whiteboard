@@ -1,5 +1,8 @@
 import { operationReadinessFor } from './capabilities';
-import { projectAgentCallableCapability } from './agentCallableCapabilities';
+import {
+  projectAgentCallableCapability,
+  type AgentCallableCapabilityV1,
+} from './agentCallableCapabilities';
 import { capabilityDefinitionFor } from './capabilityRegistry';
 import {
   imageComposerGenerationParams,
@@ -130,12 +133,12 @@ function createAndValidateOperation(
     snapshot,
     request,
     sourceMessage,
-    callableCapability.authoringKind,
+    callableCapability,
   );
   const sourceImageBlockId = imageInputs.find(
     (input) => input.bindingKind === 'source',
   )?.blockId;
-  const draft = callableCapability.authoringKind === 'source_image_edit'
+  const draft = sourceImageBlockId
     ? createAgentImageToImageDraft(
         snapshot,
         request,
@@ -233,8 +236,7 @@ function bindAgentCapabilitySlots(
       && slot.dataTypes.includes('text'),
   );
   const sourceSlot = definition.inputSlots.find(
-    (slot) => slot.required
-      && slot.semanticRole === 'source'
+    (slot) => slot.semanticRole === 'source'
       && slot.dataTypes.includes('image'),
   );
   const referenceSlot = definition.inputSlots.find(
@@ -273,7 +275,7 @@ function validateAgentImageInputs(
   snapshot: BoardSnapshot,
   request: Extract<AgentOperationExecutionRequest, { kind: 'create_execute' }>,
   sourceMessage: NonNullable<BoardSnapshot['agentMessages']>[number],
-  authoringKind: 'image_generate' | 'source_image_edit',
+  callableCapability: AgentCallableCapabilityV1,
 ): AgentImageInputBinding[] {
   const inputs = request.decision.imageInputs?.length
     ? request.decision.imageInputs
@@ -288,11 +290,13 @@ function validateAgentImageInputs(
     throw new Error('Agent-created image inputs contain duplicate Blocks.');
   }
   const sourceCount = inputs.filter((input) => input.bindingKind === 'source').length;
-  if (
-    authoringKind === 'image_generate'
-      ? sourceCount > 0
-      : sourceCount !== 1
-  ) {
+  const sourceSlot = callableCapability.inputSlots.find(
+    (slot) => slot.semanticRole === 'source' && slot.dataTypes.includes('image'),
+  );
+  const sourceCountInvalid = sourceSlot
+    ? sourceSlot.required ? sourceCount !== 1 : sourceCount > 1
+    : sourceCount > 0;
+  if (sourceCountInvalid) {
     throw new Error('Agent-created image inputs do not match the Capability source contract.');
   }
   for (const input of inputs) {

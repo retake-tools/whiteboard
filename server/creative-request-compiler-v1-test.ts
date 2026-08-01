@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { compileCreativeRequest } from './creative-request-compiler-service';
 import type { AssetRecord, BoardSnapshot } from '../src/core/types';
 import { createBlockRecord } from '../src/core/blockFactory';
+import { imageGenerateCapabilityId } from '../src/core/imageGenerateContracts';
 
 const snapshot = fixtureSnapshot();
 const first = imageAsset(snapshot, 'asset_scene');
@@ -71,11 +72,20 @@ const compiled = await compileCreativeRequest({
       '/tmp/asset_style.png',
     ]);
     assert.equal(input.model, 'test-model');
+    const outputSchema = input.outputSchema as {
+      properties?: Record<string, unknown>;
+      required?: string[];
+    };
+    assert.equal('capabilityId' in (outputSchema.properties ?? {}), false);
+    assert.deepEqual(outputSchema.required, ['references']);
+    const compilerPrompt = JSON.parse(input.prompt) as {
+      capability?: { capabilityId?: string };
+    };
+    assert.equal(compilerPrompt.capability?.capabilityId, imageGenerateCapabilityId);
     return {
       threadId: 'thread_compiler',
       turnId: 'turn_compiler',
       text: JSON.stringify({
-        capabilityId: 'image.text_to_image',
         references: [
           {
             inputSlotId: 'references',
@@ -97,7 +107,7 @@ const compiled = await compileCreativeRequest({
 
 assert.equal(compiled.compiler.kind, 'ai');
 assert.equal(compiled.compiler.model, 'test-model');
-assert.equal(compiled.capabilityId, 'image.text_to_image');
+assert.equal(compiled.capabilityId, imageGenerateCapabilityId);
 assert.equal(compiled.prompt, '@客厅场景做场景参考，@水彩风格做风格参考，生成一张落地灯海报。');
 assert.deepEqual(
   compiled.references.map(({ mentionId, inputSlotId, referenceIntent }) => ({
@@ -155,7 +165,7 @@ const explicit = await compileCreativeRequest({
 });
 assert.equal(runCalled, false);
 assert.equal(explicit.compiler.kind, 'deterministic');
-assert.equal(explicit.capabilityId, 'image.image_to_image');
+assert.equal(explicit.capabilityId, imageGenerateCapabilityId);
 assert.equal(explicit.references[0]?.inputSlotId, 'source_image');
 assert.equal(explicit.references[0]?.referenceIntent, undefined);
 

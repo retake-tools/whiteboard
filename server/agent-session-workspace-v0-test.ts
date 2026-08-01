@@ -199,7 +199,7 @@ const operationContext = agentRuntimeTurnContext(
 );
 const operationDecision = parseAgentRuntimeDecision(JSON.stringify({
   aspectRatioPreset: '9:16',
-  capabilityId: 'image.text_to_image',
+  capabilityId: 'image.generate',
   kind: 'operation_create_execute',
   message: '正在为这个新任务创建文生图 Operation。',
   operationPrompt: '温馨现代客厅，落地灯为主体，海报文字：让一盏灯，点亮家的温度。',
@@ -387,6 +387,7 @@ assert.equal(
 const imageEditSnapshot = await emptySnapshot();
 const selectedSourceImage = addTestImageBlock(imageEditSnapshot, 'Selected source');
 const unrelatedImage = addTestImageBlock(imageEditSnapshot, 'Unrelated image');
+const selectedReferenceImage = addTestImageBlock(imageEditSnapshot, 'Selected lighting reference');
 const selectedSourceAsset = imageEditSnapshot.assets.find(
   (asset) => asset.assetId === selectedSourceImage.data.assetId,
 );
@@ -401,11 +402,18 @@ const selectedImageMessage = appendAgentUserMessage(
   imageEditSnapshot,
   imageEditSession.agentSessionId,
   {
-    content: '把选中图片里的“把温暖带回家”改为“把温暖带回你家”，其他不变。',
-    contextRefs: [{
-      imageBlockIds: [selectedSourceImage.blockId],
-      kind: 'canvas_image_selection',
-    }],
+    content: '把选中图片里的“把温暖带回家”改为“把温暖带回你家”，并参考附图的暖色灯光，其他不变。',
+    contextRefs: [
+      {
+        imageBlockIds: [selectedSourceImage.blockId],
+        kind: 'canvas_image_selection',
+      },
+      {
+        blockId: selectedReferenceImage.blockId,
+        kind: 'block',
+        slotId: 'agent_reference',
+      },
+    ],
   },
 );
 const selectedImageContext = agentRuntimeTurnContext(
@@ -421,7 +429,7 @@ assert.ok(
 );
 assert.throws(
   () => parseAgentRuntimeDecision(JSON.stringify({
-    capabilityId: 'image.image_to_image',
+    capabilityId: 'image.generate',
     kind: 'operation_create_execute',
     message: '错误选择了未绑定图片。',
     operationPrompt: 'Do not apply.',
@@ -430,7 +438,21 @@ assert.throws(
   /outside the typed message or Session binding/,
 );
 const selectedImageDecision = parseAgentRuntimeDecision(JSON.stringify({
-  capabilityId: 'image.image_to_image',
+  capabilityId: 'image.generate',
+  imageInputs: [
+    {
+      bindingKind: 'source',
+      blockId: selectedSourceImage.blockId,
+      intentInstruction: '',
+      intentLabel: '',
+    },
+    {
+      bindingKind: 'reference',
+      blockId: selectedReferenceImage.blockId,
+      intentInstruction: '只参考暖色灯光，不复制构图或文字。',
+      intentLabel: '暖色灯光',
+    },
+  ],
   kind: 'operation_create_execute',
   message: '正在从选中图片创建新的图片编辑 Operation。',
   operationPrompt: '仅把画面文字“把温暖带回家”改为“把温暖带回你家”，其他内容保持不变。',
@@ -463,7 +485,7 @@ const selectedImageApplication = stageAgentOperationExecution(
 const selectedEditOperation = selectedImageApplication.stagedSnapshot.blocks.find(
   (block) => block.blockId === selectedImageApplication.receipt.operationBlockId,
 );
-assert.equal(selectedEditOperation?.data.capabilityId, 'image.image_to_image');
+assert.equal(selectedEditOperation?.data.capabilityId, 'image.generate');
 assert.deepEqual(selectedEditOperation?.data.generationParams, {
   aspectRatioPreset: 'source',
   targetAspectRatio: 2 / 3,
@@ -479,6 +501,16 @@ assert.ok(
       && edge.targetBlockId === selectedEditOperation?.blockId,
   ),
 );
+assert.ok(
+  selectedImageApplication.stagedSnapshot.edges.some(
+    (edge) =>
+      edge.kind === 'execution_input'
+      && edge.inputSlotId === 'references'
+      && edge.sourceBlockId === selectedReferenceImage.blockId
+      && edge.targetBlockId === selectedEditOperation?.blockId
+      && edge.referenceIntent?.instruction === '只参考暖色灯光，不复制构图或文字。',
+  ),
+);
 
 const workingOutputImage = addTestImageBlock(
   selectedImageApplication.stagedSnapshot,
@@ -487,7 +519,7 @@ const workingOutputImage = addTestImageBlock(
 selectedImageApplication.stagedSnapshot.executions.push({
   adapter: 'codex_app_server',
   boardId: selectedImageApplication.stagedSnapshot.board.boardId,
-  capabilityId: 'image.image_to_image',
+  capabilityId: 'image.generate',
   completedAt: '2026-07-30T12:02:00.000Z',
   connectionId: 'codex-app-server',
   executionId: 'exec_agent_working_output',
@@ -532,7 +564,7 @@ assert.deepEqual(
   'Agent image context must not cross AgentSession boundaries',
 );
 const workingImageDecision = parseAgentRuntimeDecision(JSON.stringify({
-  capabilityId: 'image.image_to_image',
+  capabilityId: 'image.generate',
   kind: 'operation_create_execute',
   message: '正在从当前会话的图片结果创建新的编辑 Operation。',
   operationPrompt: '保持构图和文字不变，仅把整体色温调暖一点。',
@@ -932,7 +964,7 @@ assert.equal(attachmentContext.agentPreferences?.outputType, 'image');
 const attachmentDecision = parseAgentRuntimeDecision(JSON.stringify({
   kind: 'operation_create_execute',
   message: '创建一个基于附件的新版本。',
-  capabilityId: 'image.text_to_image',
+  capabilityId: 'image.generate',
   imageInputs: [{
     bindingKind: 'reference',
     blockId: attachmentImage.blockId,
@@ -952,7 +984,7 @@ assert.equal(
   attachmentDecision.kind === 'operation_create_execute'
     ? attachmentDecision.capabilityId
     : undefined,
-  'image.image_to_image',
+  'image.generate',
 );
 assert.equal(
   attachmentDecision.kind === 'operation_create_execute'
@@ -992,7 +1024,7 @@ assert.deepEqual(
   [compositionReference.blockId, environmentReference.blockId, styleReference.blockId],
 );
 const multiReferenceDecision = parseAgentRuntimeDecision(JSON.stringify({
-  capabilityId: 'image.text_to_image',
+  capabilityId: 'image.generate',
   imageInputs: [
     {
       bindingKind: 'reference',

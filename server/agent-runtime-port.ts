@@ -182,9 +182,9 @@ Return one JSON object matching the supplied schema.
   the conversation does not mean reusing that Operation's frozen source. Put every image used by the request in
   imageInputs with its exact Block id and bindingKind. Available Block ids are limited to
   retakeContext.selectedImageBlockIds, attachedImageBlockIds, mentionedImageBlockIds, and
-  workingOutputImageBlockIds. For an image_generate capability, imageInputs may contain any number of references
-  but must not contain source. For a source_image_edit capability, imageInputs must contain exactly one source and may
-  also contain multiple references. A request that combines several images into a new image has no source; mark every
+  workingOutputImageBlockIds. Follow the selected Capability's exact inputSlots: image.generate accepts zero or one
+  source_image plus any number of references; a Plugin Capability with a required source Slot must contain exactly one
+  source. A request that combines several images into a new image has no source; mark every
   image as reference. For every reference, write a short intentLabel and a precise intentInstruction in the user's
   language describing exactly what to borrow and what not to copy. Do not reduce open reference intent to a fixed
   style, scene, composition, or character category. A source has empty intent fields. Respect
@@ -195,7 +195,7 @@ Return one JSON object matching the supplied schema.
   guidance/mask input, reply and ask the user to use or bind the typed Plugin/Workflow interaction instead of pretending
   that input exists.
   Provide a concrete execution-ready operationPrompt and optional aspectRatioPreset, targetResolution, and
-  variationCount. For image.image_to_image, omit aspectRatioPreset unless the user explicitly asks to change the
+  variationCount. When imageInputs contains a source, omit aspectRatioPreset unless the user explicitly asks to change the
   output canvas ratio; an omitted ratio preserves the exact source image ratio. Retake will create a new Prompt and
   Operation; never reuse an old Operation merely because it is
   the only ready or semantically similar item on the Board, and never infer a source from the most recent Board image.
@@ -436,10 +436,9 @@ export function parseAgentRuntimeDecision(
     if (sourceCount > 1) {
       throw new Error('Agent Runtime returned invalid source/reference bindings for the selected Capability.');
     }
-    const callableCapability = compatibleCoreCapabilityForBindings(
+    const callableCapability = compatibleCapabilityForBindings(
       requestedCapability,
       sourceCount,
-      capabilityCatalog,
     );
     if (!callableCapability) {
       throw new Error('Agent Runtime returned invalid source/reference bindings for the selected Capability.');
@@ -617,31 +616,17 @@ export function parseAgentRuntimeDecision(
   throw new Error('Agent Runtime returned an unknown decision kind.');
 }
 
-function compatibleCoreCapabilityForBindings(
+function compatibleCapabilityForBindings(
   requestedCapability: AgentCallableCapabilityV1,
   sourceCount: number,
-  capabilityCatalog: readonly AgentCallableCapabilityV1[],
 ): AgentCallableCapabilityV1 | undefined {
-  const requiredAuthoringKind = sourceCount === 1
-    ? 'source_image_edit'
-    : 'image_generate';
-  if (requestedCapability.authoringKind === requiredAuthoringKind) {
-    return requestedCapability;
-  }
-  const coreCounterpartId = requiredAuthoringKind === 'source_image_edit'
-    ? 'image.image_to_image'
-    : 'image.text_to_image';
-  if (
-    requestedCapability.capabilityId !== 'image.text_to_image'
-    && requestedCapability.capabilityId !== 'image.image_to_image'
-  ) {
-    return undefined;
-  }
-  return capabilityCatalog.find(
-    (candidate) =>
-      candidate.capabilityId === coreCounterpartId
-      && candidate.authoringKind === requiredAuthoringKind,
+  const sourceSlot = requestedCapability.inputSlots.find(
+    (slot) => slot.semanticRole === 'source' && slot.dataTypes.includes('image'),
   );
+  if (sourceCount > 1) return undefined;
+  if (!sourceSlot && sourceCount > 0) return undefined;
+  if (sourceSlot?.required && sourceCount !== 1) return undefined;
+  return requestedCapability;
 }
 
 function parseAgentImageInputs(
