@@ -829,6 +829,27 @@ export type TranslationKey =
   | 'agentWorkspace.viewOnCanvas'
   | 'agentWorkspace.viewRun'
   | 'agentWorkspace.workflowDraftEffect'
+  | 'agentWorkspace.workflowArtifacts'
+  | 'agentWorkspace.workflowActive'
+  | 'agentWorkspace.workflowAttached'
+  | 'agentWorkspace.workflowAttention'
+  | 'agentWorkspace.workflowBoardRun'
+  | 'agentWorkspace.workflowBlocked'
+  | 'agentWorkspace.workflowCurrent'
+  | 'agentWorkspace.workflowExecutions'
+  | 'agentWorkspace.workflowGates'
+  | 'agentWorkspace.workflowGateWaiting'
+  | 'agentWorkspace.workflowHistory'
+  | 'agentWorkspace.workflowNext'
+  | 'agentWorkspace.workflowProgress'
+  | 'agentWorkspace.workflowRuns'
+  | 'agentWorkspace.workflowStepRole.blocked'
+  | 'agentWorkspace.workflowStepRole.current'
+  | 'agentWorkspace.workflowStepRole.done'
+  | 'agentWorkspace.workflowStepRole.next'
+  | 'agentWorkspace.workflowStepRole.pending'
+  | 'agentWorkspace.workflowUpdated'
+  | 'agentWorkspace.workflowViewing'
   | 'agentWorkspace.you'
   | 'agentWorkspace.chatEmptyTitle'
   | 'agentWorkspace.quickStartEdit'
@@ -1992,6 +2013,27 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.viewOnCanvas': 'View on canvas',
     'agentWorkspace.viewRun': 'View Run',
     'agentWorkspace.workflowDraftEffect': 'Create a Workflow Group and its locked Step Projection.',
+    'agentWorkspace.workflowArtifacts': 'Artifacts',
+    'agentWorkspace.workflowActive': 'Active',
+    'agentWorkspace.workflowAttached': 'Attached to current Agent Run',
+    'agentWorkspace.workflowAttention': 'Needs attention',
+    'agentWorkspace.workflowBoardRun': 'Board Workflow Run',
+    'agentWorkspace.workflowBlocked': 'Blocked',
+    'agentWorkspace.workflowCurrent': 'Current',
+    'agentWorkspace.workflowExecutions': 'Executions',
+    'agentWorkspace.workflowGates': 'Gates',
+    'agentWorkspace.workflowGateWaiting': 'Waiting Gates',
+    'agentWorkspace.workflowHistory': 'Viewing Workflow Run history',
+    'agentWorkspace.workflowNext': 'Next',
+    'agentWorkspace.workflowProgress': 'Workflow step progress',
+    'agentWorkspace.workflowRuns': 'Workflow Runs',
+    'agentWorkspace.workflowStepRole.blocked': 'Blocked',
+    'agentWorkspace.workflowStepRole.current': 'Current',
+    'agentWorkspace.workflowStepRole.done': 'Done',
+    'agentWorkspace.workflowStepRole.next': 'Next',
+    'agentWorkspace.workflowStepRole.pending': 'Pending',
+    'agentWorkspace.workflowUpdated': 'Updated',
+    'agentWorkspace.workflowViewing': 'Viewing Workflow Run',
     'agentWorkspace.you': 'You',
     'agentWorkspace.chatEmptyTitle': 'What would you like to create?',
     'agentWorkspace.quickStartEdit': 'Edit the selected image while preserving its composition',
@@ -3150,6 +3192,27 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.viewOnCanvas': '在画布中查看',
     'agentWorkspace.viewRun': '查看 Run',
     'agentWorkspace.workflowDraftEffect': '创建 Workflow Group 与锁定版本的 Step Projection。',
+    'agentWorkspace.workflowArtifacts': '产物',
+    'agentWorkspace.workflowActive': '活动',
+    'agentWorkspace.workflowAttached': '已关联当前 Agent Run',
+    'agentWorkspace.workflowAttention': '需处理',
+    'agentWorkspace.workflowBoardRun': '画板 Workflow Run',
+    'agentWorkspace.workflowBlocked': '阻塞',
+    'agentWorkspace.workflowCurrent': '当前',
+    'agentWorkspace.workflowExecutions': '执行',
+    'agentWorkspace.workflowGates': 'Gate',
+    'agentWorkspace.workflowGateWaiting': '待处理 Gate',
+    'agentWorkspace.workflowHistory': '正在查看 Workflow Run 历史',
+    'agentWorkspace.workflowNext': '下一步',
+    'agentWorkspace.workflowProgress': 'Workflow 步骤进度',
+    'agentWorkspace.workflowRuns': 'Workflow Runs',
+    'agentWorkspace.workflowStepRole.blocked': '阻塞',
+    'agentWorkspace.workflowStepRole.current': '当前',
+    'agentWorkspace.workflowStepRole.done': '完成',
+    'agentWorkspace.workflowStepRole.next': '下一步',
+    'agentWorkspace.workflowStepRole.pending': '等待',
+    'agentWorkspace.workflowUpdated': '更新时间',
+    'agentWorkspace.workflowViewing': '正在查看 Workflow Run',
     'agentWorkspace.you': '你',
     'agentWorkspace.chatEmptyTitle': '这次想创作什么？',
     'agentWorkspace.quickStartEdit': '修改选中的图片，并保持原有构图',

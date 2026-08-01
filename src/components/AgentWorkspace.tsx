@@ -44,6 +44,7 @@ import { AgentMessageCard } from './AgentMessageCard';
 import { AgentOperationRunCard } from './AgentOperationRunCard';
 import { AgentWorkspaceComposer } from './AgentWorkspaceComposer';
 import { AgentWorkspaceHeader } from './AgentWorkspaceHeader';
+import { AgentWorkflowRunNavigator } from './AgentWorkflowRunNavigator';
 import { WorkflowAgentTargetPicker } from './WorkflowAgentTargetPicker';
 import {
   currentInstalledRuntimeRegistryRevision,
@@ -218,6 +219,11 @@ export function AgentWorkspace({
           </div>
         ) : (
           <div className="agent-workspace-chat">
+            <AgentWorkflowRunNavigator
+              activeAgentRun={activeRun}
+              onLocateBlock={onLocateBlock}
+              snapshot={snapshot}
+            />
             <div
               className="agent-workspace-messages"
               role="log"
