@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   mkdir,
   readFile,
+  readdir,
   rename,
   rm,
   writeFile,
@@ -66,6 +67,7 @@ async function exportDefaultStudioArchives(): Promise<void> {
     });
     references.push(reference);
   }
+  await pruneUnreferencedBootstrapArchives(references);
   const profilePath = path.join(bootstrapRoot, 'retake.bootstrap.json');
   const temporaryProfilePath =
     `${profilePath}.${process.pid}.${randomUUID()}.tmp`;
@@ -85,6 +87,23 @@ async function exportDefaultStudioArchives(): Promise<void> {
     await rm(temporaryProfilePath, { force: true });
   }
   await validateBootstrapProfileArchives(profilePath, '0.1.3');
+}
+
+async function pruneUnreferencedBootstrapArchives(
+  references: readonly BootstrapPackageReference[],
+): Promise<void> {
+  const referencedArchives = new Set(
+    references.map((reference) => reference.archivePath),
+  );
+  const entries = await readdir(bootstrapRoot, { withFileTypes: true });
+  await Promise.all(entries.map(async (entry) => {
+    if (
+      !entry.isFile()
+      || !entry.name.endsWith('.retakepkg')
+      || referencedArchives.has(entry.name)
+    ) return;
+    await rm(path.join(bootstrapRoot, entry.name), { force: true });
+  }));
 }
 
 async function readManifest(

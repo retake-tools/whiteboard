@@ -25,8 +25,9 @@ import {
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const studioArchive = path.join(
   repositoryRoot,
-  'packages',
-  'bootstrap',
+  'server',
+  'test-fixtures',
+  'package-archives',
   'video-studio-0.1.2.retakepkg',
 );
 const temporaryRoot = await mkdtemp(path.join(tmpdir(), 'retake-local-package-manager-v0-'));

@@ -27,8 +27,9 @@ const repositoryRoot = path.resolve(
 );
 const archivePath = path.join(
   repositoryRoot,
-  'packages',
-  'bootstrap',
+  'server',
+  'test-fixtures',
+  'package-archives',
   'video-studio-0.1.2.retakepkg',
 );
 const materialized = await readMaterializedPackageArchive(archivePath);

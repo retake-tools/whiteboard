@@ -4,6 +4,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rename,
   rm,
   symlink,
@@ -58,6 +59,13 @@ const temporaryRoot = await mkdtemp(
   path.join(tmpdir(), 'retake-default-studios-v2-'),
 );
 const bundledRoot = path.join(repositoryRoot, 'packages', 'bootstrap');
+const videoStudioTestArchive = path.join(
+  repositoryRoot,
+  'server',
+  'test-fixtures',
+  'package-archives',
+  'video-studio-0.1.2.retakepkg',
+);
 const imagePackageId = 'design.retake.image-studio';
 const imagePluginModuleId = 'design.retake.image-studio.web';
 const videoPackageId = 'design.retake.video-studio';
@@ -79,6 +87,11 @@ try {
     [imagePackageId],
   );
   assert.deepEqual(
+    (await readdir(bundledRoot)).sort(),
+    ['image-studio-0.11.0.retakepkg', 'retake.bootstrap.json'],
+    'The published Whiteboard bootstrap must not ship a Video Studio archive.',
+  );
+  assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.version),
     ['0.11.0'],
   );
@@ -95,6 +108,10 @@ try {
 
   const bootstrapCopy = await copyBootstrapFixture('valid-bootstrap');
   const legacyProfilePath = path.join(bootstrapCopy, 'retake.bootstrap.json');
+  await cp(
+    videoStudioTestArchive,
+    path.join(bootstrapCopy, 'video-studio-0.1.2.retakepkg'),
+  );
   const legacyProfile = await readBootstrapProfile(legacyProfilePath);
   legacyProfile.packages.push({
     archiveDigest: 'sha256:a9972f561f1e19cda253302ee9a77afd0a6b5acbe542b4950ca8786762823120',
