@@ -13,6 +13,13 @@ import {
   imageGenerateCapabilityVersion,
   validateImageGenerateParametersV1,
 } from '../src/core/imageGenerateContracts';
+import { createBlockRecord } from '../src/core/blockFactory';
+import { operationReadinessFor } from '../src/core/capabilities';
+import { createDraftImageGenerateOperation } from '../src/core/imageOperations';
+import { createReferenceIntent } from '../src/core/referenceIntent';
+import { defaultSnapshot } from '../src/core/sampleBoard';
+import { migrateBoardSnapshot } from '../src/core/snapshotMigration';
+import type { BoardSnapshot } from '../src/core/types';
 
 assert.deepEqual(validateCapabilityDefinition(imageGenerateCapabilityDefinition), []);
 assert.equal(capabilityDefinitionFor(imageGenerateCapabilityId), imageGenerateCapabilityDefinition);
@@ -135,6 +142,84 @@ invalidReferenceValue.referenceIntent.schemaVersion = 2;
 assert.ok(validateCapabilityExecutionRequest(invalidReferenceIntent, imageGenerateCapabilityDefinition)
   .some((issue) => issue.code === 'reference_intent_invalid'));
 
+const textSnapshot = emptyBoardSnapshot();
+const textDraft = createDraftImageGenerateOperation(textSnapshot, {
+  operationTitle: 'Generate image',
+  textBlockBody: 'Create a cinematic portrait.',
+  textBlockTitle: 'Prompt',
+});
+assert.equal(textDraft.operationBlock.data.capabilityId, imageGenerateCapabilityId);
+assert.equal(textDraft.operationBlock.data.operationMode, 'text_to_image');
+assert.deepEqual(textDraft.operationBlock.data.generationParams, {
+  aspectRatioPreset: '9:16',
+  targetAspectRatio: 9 / 16,
+});
+assert.deepEqual(
+  textSnapshot.edges
+    .filter((edge) => edge.targetBlockId === textDraft.operationBlock.blockId)
+    .map((edge) => edge.inputSlotId),
+  ['prompt'],
+);
+assert.equal(operationReadinessFor(textSnapshot, textDraft.operationBlock).canRun, true);
+
+const sourceSnapshot = emptyBoardSnapshot();
+const sourceBlock = createBlockRecord(sourceSnapshot, 'image');
+sourceBlock.blockId = 'block_source_image';
+sourceBlock.data.assetId = 'asset_source_image';
+sourceSnapshot.blocks.push(sourceBlock);
+sourceSnapshot.assets.push({
+  assetId: 'asset_source_image',
+  createdAt: '2026-08-01T00:00:00.000Z',
+  height: 1200,
+  kind: 'image',
+  mimeType: 'image/png',
+  projectId: sourceSnapshot.project.projectId,
+  storageKey: 'asset_source_image.png',
+  storageProvider: 'local',
+  width: 1600,
+});
+const sourceDraft = createDraftImageGenerateOperation(sourceSnapshot, {
+  operationTitle: 'Generate image',
+  operationVariant: 'quick_edit',
+  sourceBlockId: sourceBlock.blockId,
+  textBlockBody: 'Turn the scene into moonlight.',
+  textBlockTitle: 'Prompt',
+});
+assert.equal(sourceDraft.operationBlock.data.capabilityId, imageGenerateCapabilityId);
+assert.equal(sourceDraft.operationBlock.data.operationMode, 'image_to_image');
+assert.deepEqual(sourceDraft.operationBlock.data.generationParams, {
+  aspectRatioPreset: 'source',
+  targetAspectRatio: 4 / 3,
+});
+assert.deepEqual(
+  sourceSnapshot.edges
+    .filter((edge) => edge.targetBlockId === sourceDraft.operationBlock.blockId)
+    .map((edge) => edge.inputSlotId),
+  ['source_image', 'prompt'],
+);
+assert.equal(operationReadinessFor(sourceSnapshot, sourceDraft.operationBlock).canRun, true);
+
+const duplicateSource = createBlockRecord(sourceSnapshot, 'image');
+duplicateSource.blockId = 'block_source_image_2';
+duplicateSource.data.assetId = 'asset_source_image';
+sourceSnapshot.blocks.push(duplicateSource);
+sourceSnapshot.edges.push({
+  edgeId: 'edge_duplicate_source',
+  inputSlotId: 'source_image',
+  kind: 'execution_input',
+  sourceBlockId: duplicateSource.blockId,
+  targetBlockId: sourceDraft.operationBlock.blockId,
+});
+assert.equal(operationReadinessFor(sourceSnapshot, sourceDraft.operationBlock).canRun, false);
+sourceSnapshot.edges.pop();
+const sourceEdge = sourceSnapshot.edges.find((edge) => (
+  edge.targetBlockId === sourceDraft.operationBlock.blockId
+  && edge.inputSlotId === 'source_image'
+));
+assert.ok(sourceEdge);
+sourceEdge.referenceIntent = createReferenceIntent('Invalid source metadata.', 'user');
+assert.equal(operationReadinessFor(sourceSnapshot, sourceDraft.operationBlock).canRun, false);
+
 console.log(JSON.stringify({
   capabilityId: imageGenerateCapabilityId,
   definitionHash: imageGenerateDefinitionHash,
@@ -177,4 +262,13 @@ function imageGenerateRequest(): CapabilityExecutionRequest {
     idempotencyKey: 'image_generate_001',
     createdAt: '2026-08-01T00:00:00.000Z',
   };
+}
+
+function emptyBoardSnapshot(): BoardSnapshot {
+  const snapshot = migrateBoardSnapshot(structuredClone(defaultSnapshot) as BoardSnapshot);
+  snapshot.blocks = [];
+  snapshot.edges = [];
+  snapshot.assets = [];
+  snapshot.executions = [];
+  return snapshot;
 }

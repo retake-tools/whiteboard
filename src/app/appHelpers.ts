@@ -7,6 +7,7 @@ import {
 } from '../core/imageOperations';
 import { nowIso } from '../core/id';
 import { capabilityDefinitionFor } from '../core/capabilityRegistry';
+import { imageGenerateCapabilityId } from '../core/imageGenerateContracts';
 
 export function absoluteFlowNodePositions(flowNodes: readonly RetakeNode[]): Map<string, { x: number; y: number }> {
   const nodeById = new Map(flowNodes.map((node) => [node.id, node]));
@@ -144,7 +145,8 @@ export function operationModeFromBlock(block: BlockRecord): SwitchableOperationM
 }
 
 export function capabilityIdForOperationMode(operation: SwitchableOperationMode): string {
-  return operation === 'text_to_image' ? 'image.text_to_image' : 'image.image_to_image';
+  void operation;
+  return imageGenerateCapabilityId;
 }
 
 export function operationAllowsInputType(

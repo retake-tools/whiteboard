@@ -573,6 +573,7 @@ export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
   routeKind: 'codex_app_server',
   provider: 'codex',
   supportedCapabilityIds: [
+    'image.generate',
     'image.text_to_image',
     'image.image_to_image',
     'image.annotation_edit',
@@ -842,7 +843,7 @@ export const volcengineArkSeedreamImageAdapterDefinition: AdapterDefinition = {
   routeKind: 'direct_api',
   provider: 'volcengine-ark',
   model: 'doubao-seedream-5-0-260128',
-  supportedCapabilityIds: ['image.text_to_image', 'image.image_to_image'],
+  supportedCapabilityIds: ['image.generate', 'image.text_to_image', 'image.image_to_image'],
   inputProfiles: [
     {
       profileId: 'seedream_text_to_image',

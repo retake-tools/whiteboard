@@ -96,6 +96,15 @@ assert.deepEqual(
   ['source_image', 'references'],
 );
 assert.equal(bindings[1]?.referenceIntent?.label, '冷暖对比');
+assert.deepEqual(
+  execution.execution.inputBindingsSnapshot?.map((binding) => binding.slotId),
+  ['prompt', 'source_image', 'references'],
+);
+assert.equal(
+  execution.execution.inputBindingsSnapshot?.find((binding) => binding.slotId === 'references')
+    ?.values[0]?.referenceIntent?.label,
+  '冷暖对比',
+);
 assert.equal(
   createFlowNodes(snapshot).find(
     (node) => node.id === draft.operationBlock.blockId,

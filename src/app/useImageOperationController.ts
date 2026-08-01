@@ -22,6 +22,7 @@ import {
   type ImageComposerReference,
 } from '../core/imageComposer';
 import { imageOperationDefaultPrompt, imageOperationTitle } from '../core/imageOperationText';
+import { imageGenerateCapabilityId } from '../core/imageGenerateContracts';
 import { nowIso } from '../core/id';
 import { createImageResultRetryPrompt } from '../core/prompts';
 import {
@@ -389,9 +390,9 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         textBlockTitle: t('operationToolbar.prompt'),
         textBlockBody: instruction?.trim() || '',
         textBlockPlaceholder: imageOperationDefaultPrompt(operation, t),
-        operationTitle: imageOperationTitle(operation, t),
+        operationTitle: imageOperationTitle('generate_image', t),
       });
-      result.operationBlock.data.connectionId = preferredImageConnection(current, 'image.image_to_image');
+      result.operationBlock.data.connectionId = preferredImageConnection(current, imageGenerateCapabilityId);
       selectedWorkflowIds = imageBranchDraftSelectionBlockIds(block, result.textBlock, result.operationBlock);
       if (draftOptions.centerWorkflow) {
         layoutImageComposerWorkflow(current, {
@@ -454,7 +455,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
       const connectionId = input.connectionId
         ?? preferredImageConnection(
           current,
-          input.capabilityId ?? 'image.text_to_image',
+          imageGenerateCapabilityId,
         );
       const composerOperation = input.capabilityId === 'image.image_to_image'
         ? 'quick_edit'
@@ -477,7 +478,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
             creativeRequest: input.creativeRequest,
             generationParams: input.generationParams,
             instruction: input.instruction,
-            operationTitle: imageOperationTitle(composerOperation, t),
+            operationTitle: imageOperationTitle('generate_image', t),
             references: input.references ?? [],
             slotBlockId: selectedSlot?.blockId,
             textBlockTitle: t('operationToolbar.prompt'),
@@ -865,8 +866,7 @@ function preferredReadyImageConnection(
 
 function capabilityIdForImmediateImageOperation(operation: ImageCodexOperation): string {
   if (operation === 'annotation_edit') return 'image.annotation_edit';
-  if (operation === 'generate_image') return 'image.text_to_image';
-  return 'image.image_to_image';
+  return imageGenerateCapabilityId;
 }
 
 function delay(milliseconds: number): Promise<void> {

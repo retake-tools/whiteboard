@@ -144,6 +144,7 @@ function createAndValidateOperation(
         sourceImageBlockId,
       )
     : createDraftTextToImageOperation(snapshot, {
+        capabilityId: request.decision.capabilityId,
         generationParams: imageComposerGenerationParams(
           request.decision.generationParams,
         ),

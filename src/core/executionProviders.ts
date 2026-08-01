@@ -2,6 +2,7 @@ import {
   codexTextDocumentCapabilityIds,
   textDocumentCapabilityIds,
 } from './capabilityRegistry';
+import { imageGenerateCapabilityId } from './imageGenerateContracts';
 
 export type ExecutionConnectionKind = 'model_provider' | 'agent_host' | 'provider_cli' | 'local';
 
@@ -110,6 +111,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     connectionMode: 'fixed',
     requiresCredential: false,
     supportedCapabilityIds: [
+      imageGenerateCapabilityId,
       'image.annotation_edit',
       'image.guided_edit',
       'image.image_to_image',
@@ -130,6 +132,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     requiresCredential: false,
     supportedCapabilityIds: [
       ...codexTextDocumentCapabilityIds,
+      imageGenerateCapabilityId,
       'image.annotation_edit',
       'image.guided_edit',
       'image.image_to_image',
@@ -216,7 +219,7 @@ const connectors: ExecutionConnectorDefinition[] = [
     installStatus: 'installed',
     connectionMode: 'multiple',
     requiresCredential: true,
-    supportedCapabilityIds: ['image.image_to_image', 'image.text_to_image'],
+    supportedCapabilityIds: [imageGenerateCapabilityId, 'image.image_to_image', 'image.text_to_image'],
     defaultUseCases: ['image'],
     defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
     defaultModelId: 'doubao-seedream-5-0-260128',

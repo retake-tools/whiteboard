@@ -45,6 +45,7 @@ import {
   schemaForCapability,
 } from './capabilities';
 import { outpaintCapabilityId } from './outpaintContracts';
+import { imageGenerateCapabilityId } from './imageGenerateContracts';
 
 export type ImageCodexOperation = 'generate_image' | 'create_similar' | 'quick_edit' | 'annotation_edit';
 export type SwitchableOperationMode = 'text_to_image' | 'image_to_image';
@@ -118,9 +119,22 @@ interface DraftImageToImageOperationInput {
 }
 
 interface DraftTextToImageOperationInput {
+  capabilityId?: string;
   generationParams?: ImageGenerationParams;
   operationTitle: string;
   slotBlockId?: string;
+  textBlockBody: string;
+  textBlockPlaceholder?: string;
+  textBlockTitle: string;
+}
+
+export interface DraftImageGenerateOperationInput {
+  capabilityId?: string;
+  generationParams?: ImageGenerationParams;
+  operationTitle: string;
+  operationVariant?: Exclude<ImageCodexOperation, 'annotation_edit' | 'generate_image'>;
+  slotBlockId?: string;
+  sourceBlockId?: string;
   textBlockBody: string;
   textBlockPlaceholder?: string;
   textBlockTitle: string;
@@ -191,7 +205,9 @@ export function addImageCodexOperation(
   const automated = directApi || codexAppServer;
   const adapter = directApi ? 'direct_api' : codexAppServer ? 'codex_app_server' : 'mcp_agent';
   const connectionId = input.connection?.connectionId ?? 'codex-managed';
-  const title = input.taskTitle ?? titleForOperation(input.operation);
+  const title = capabilityId === imageGenerateCapabilityId
+    ? titleForOperation('generate_image')
+    : input.taskTitle ?? titleForOperation(input.operation);
   const instruction = input.instruction?.trim();
   const sourceInputSlotId =
     input.operation === 'generate_image' ? undefined : 'source_image';
@@ -304,8 +320,12 @@ export function addImageCodexOperation(
       operationMode: operationModeForImageOperation(input.operation),
       operationVariant:
         input.operation !== 'generate_image' && input.operation !== 'annotation_edit' ? input.operation : undefined,
-      sourceBlockId: sourceBlock.blockId,
-      sourceAssetId: sourceBlock.data.assetId,
+      ...(sourceInputSlotId
+        ? {
+            sourceBlockId: sourceBlock.blockId,
+            sourceAssetId: sourceBlock.data.assetId,
+          }
+        : {}),
       annotationMode: input.operation === 'annotation_edit' ? 'composite_image' : undefined,
       annotationText: input.operation === 'annotation_edit' ? instruction : undefined,
       annotatedCompositeAssetId:
@@ -406,13 +426,15 @@ export function addImageCodexOperation(
   snapshot.blocks.push(operationBlock, ...resultBlocks);
   createExecutionResultGroup(snapshot, { executionId, operationBlock, resultBlocks });
   if (operationBlock.parentGroupId) expandGroupToContents(snapshot, operationBlock.parentGroupId);
-  snapshot.edges.push({
-    edgeId: createId('edge'),
-    sourceBlockId: sourceBlock.blockId,
-    targetBlockId: operationBlock.blockId,
-    kind: 'execution_input',
-    inputSlotId: sourceInputSlotId,
-  });
+  if (sourceInputSlotId) {
+    snapshot.edges.push({
+      edgeId: createId('edge'),
+      sourceBlockId: sourceBlock.blockId,
+      targetBlockId: operationBlock.blockId,
+      kind: 'execution_input',
+      inputSlotId: sourceInputSlotId,
+    });
+  }
   for (const { block, inputSlotId, referenceIntent } of additionalInputBlocks) {
     snapshot.edges.push({
       edgeId: createId('edge'),
@@ -518,23 +540,68 @@ export function createDraftImageToImageOperation(
   snapshot: BoardSnapshot,
   input: DraftImageToImageOperationInput,
 ): { operationBlock: BlockRecord; textBlock: BlockRecord } {
-  const sourceBlock = snapshot.blocks.find((block) => block.blockId === input.sourceBlockId);
-  if (!sourceBlock || sourceBlock.type !== 'image') {
+  return createDraftImageGenerateOperation(snapshot, {
+    capabilityId: input.capabilityId,
+    generationParams: input.generationParams,
+    operationTitle: input.operationTitle,
+    operationVariant: input.operation,
+    sourceBlockId: input.sourceBlockId,
+    textBlockBody: input.textBlockBody,
+    textBlockPlaceholder: input.textBlockPlaceholder,
+    textBlockTitle: input.textBlockTitle,
+  });
+}
+
+export function createDraftTextToImageOperation(
+  snapshot: BoardSnapshot,
+  input: DraftTextToImageOperationInput,
+): { operationBlock: BlockRecord; textBlock: BlockRecord } {
+  return createDraftImageGenerateOperation(snapshot, input);
+}
+
+export function createDraftImageGenerateOperation(
+  snapshot: BoardSnapshot,
+  input: DraftImageGenerateOperationInput,
+): { operationBlock: BlockRecord; textBlock: BlockRecord } {
+  if (input.sourceBlockId && input.slotBlockId) {
+    throw new Error('Image generation cannot reuse an output slot when a source image is bound.');
+  }
+  const sourceBlock = input.sourceBlockId
+    ? snapshot.blocks.find((block) => block.blockId === input.sourceBlockId)
+    : undefined;
+  if (input.sourceBlockId && sourceBlock?.type !== 'image') {
     throw new Error('Image operation requires a selected image block.');
+  }
+  const anchorBlock = input.slotBlockId
+    ? snapshot.blocks.find((block) => block.blockId === input.slotBlockId)
+    : undefined;
+  if (input.slotBlockId && (!anchorBlock || anchorBlock.type !== 'image' || anchorBlock.data.assetId)) {
+    throw new Error('Image generation output slot is invalid.');
   }
 
   const createdAt = nowIso();
   const nextZ = maxZIndex(snapshot.blocks) + 1;
   const textSize = { width: 280, height: 140 };
   const operationSize = { width: 320, height: 190 };
-  const layout = imageBranchDraftLayout(snapshot, sourceBlock, textSize, operationSize);
+  const sourceLayout = sourceBlock
+    ? imageBranchDraftLayout(snapshot, sourceBlock, textSize, operationSize)
+    : undefined;
+  const textPosition = sourceLayout?.textPosition ?? (anchorBlock
+    ? {
+        x: anchorBlock.position.x + anchorBlock.size.width + 80,
+        y: anchorBlock.position.y,
+      }
+    : {
+        x: rightEdge(snapshot.blocks) + 160,
+        y: 220,
+      });
   const textBlock: BlockRecord = {
     blockId: createId('block'),
     boardId: snapshot.board.boardId,
     type: 'text',
     layerId: 'layer_default',
-    parentGroupId: layout.parentGroupId,
-    position: layout.textPosition,
+    parentGroupId: sourceLayout?.parentGroupId ?? anchorBlock?.parentGroupId,
+    position: textPosition,
     size: textSize,
     zIndex: nextZ,
     data: {
@@ -551,8 +618,11 @@ export function createDraftImageToImageOperation(
     boardId: snapshot.board.boardId,
     type: 'operation',
     layerId: 'layer_default',
-    parentGroupId: layout.parentGroupId,
-    position: layout.operationPosition,
+    parentGroupId: sourceLayout?.parentGroupId ?? anchorBlock?.parentGroupId,
+    position: sourceLayout?.operationPosition ?? {
+      x: textBlock.position.x + textBlock.size.width + 80,
+      y: textBlock.position.y,
+    },
     size: operationSize,
     zIndex: nextZ + 1,
     data: {
@@ -561,102 +631,31 @@ export function createDraftImageToImageOperation(
       adapter: 'mcp_agent',
       agentHost: 'codex',
       triggerMode: 'manual_agent_session',
-      capabilityId: input.capabilityId ?? capabilityForOperation(input.operation),
-      operationMode: 'image_to_image',
-      operationVariant: input.operation,
-      workflowLayout: 'branch_lanes',
-      sourceBlockId: sourceBlock.blockId,
-      sourceAssetId: sourceBlock.data.assetId,
-      promptSourceBlockId: textBlock.blockId,
+      capabilityId: input.capabilityId ?? imageGenerateCapabilityId,
+      operationMode: sourceBlock ? 'image_to_image' : 'text_to_image',
+      ...(sourceBlock && input.operationVariant ? { operationVariant: input.operationVariant } : {}),
+      ...(sourceBlock ? { workflowLayout: 'branch_lanes' } : {}),
       connectionId: 'codex-managed',
-      generationProfileId: defaultGenerationProfileId,
-      generationParams: generationParamsForSourceImage(
-        snapshot,
-        sourceBlock,
-        input.generationParams,
-        true,
-      ),
-    },
-    createdAt,
-    updatedAt: createdAt,
-  };
-
-  snapshot.blocks.push(textBlock, operationBlock);
-  if (operationBlock.parentGroupId) expandGroupToContents(snapshot, operationBlock.parentGroupId);
-  ensureEdge(snapshot, sourceBlock.blockId, operationBlock.blockId, 'execution_input', 'source_image');
-  ensureEdge(snapshot, textBlock.blockId, operationBlock.blockId, 'execution_input', 'prompt');
-  touchBoard(snapshot);
-
-  return { operationBlock, textBlock };
-}
-
-export function createDraftTextToImageOperation(
-  snapshot: BoardSnapshot,
-  input: DraftTextToImageOperationInput,
-): { operationBlock: BlockRecord; textBlock: BlockRecord } {
-  const anchorBlock = input.slotBlockId
-    ? snapshot.blocks.find((block) => block.blockId === input.slotBlockId)
-    : undefined;
-
-  const createdAt = nowIso();
-  const nextZ = maxZIndex(snapshot.blocks) + 1;
-  const textPosition = anchorBlock
-    ? {
-        x: anchorBlock.position.x + anchorBlock.size.width + 80,
-        y: anchorBlock.position.y,
-      }
-    : {
-        x: rightEdge(snapshot.blocks) + 160,
-        y: 220,
-      };
-  const textBlock: BlockRecord = {
-    blockId: createId('block'),
-    boardId: snapshot.board.boardId,
-    type: 'text',
-    layerId: 'layer_default',
-    parentGroupId: anchorBlock?.parentGroupId,
-    position: textPosition,
-    size: { width: 280, height: 140 },
-    zIndex: nextZ,
-    data: {
-      title: input.textBlockTitle,
-      body: input.textBlockBody,
-      placeholder: input.textBlockPlaceholder,
-      promptRole: 'operation_prompt',
-    },
-    createdAt,
-    updatedAt: createdAt,
-  };
-  const operationBlock: BlockRecord = {
-    blockId: createId('block'),
-    boardId: snapshot.board.boardId,
-    type: 'operation',
-    layerId: 'layer_default',
-    parentGroupId: anchorBlock?.parentGroupId,
-    position: {
-      x: textBlock.position.x + textBlock.size.width + 80,
-      y: textBlock.position.y,
-    },
-    size: { width: 320, height: 190 },
-    zIndex: nextZ + 1,
-    data: {
-      title: input.operationTitle,
-      body: input.textBlockBody,
-      adapter: 'mcp_agent',
-      agentHost: 'codex',
-      triggerMode: 'manual_agent_session',
-      capabilityId: 'image.text_to_image',
-      operationMode: 'text_to_image',
-      connectionId: 'codex-managed',
-      generationParams: generationParamsForTextToImage(input.generationParams, true),
+      generationParams: sourceBlock
+        ? generationParamsForSourceImage(snapshot, sourceBlock, input.generationParams, true)
+        : generationParamsForTextToImage(input.generationParams, true),
       generationProfileId: defaultGenerationProfileId,
       promptSourceBlockId: textBlock.blockId,
+      ...(sourceBlock
+        ? {
+            sourceBlockId: sourceBlock.blockId,
+            sourceAssetId: sourceBlock.data.assetId,
+          }
+        : {}),
     },
     createdAt,
     updatedAt: createdAt,
   };
   snapshot.blocks.push(textBlock, operationBlock);
   if (operationBlock.parentGroupId) expandGroupToContents(snapshot, operationBlock.parentGroupId);
+  if (sourceBlock) {
+    ensureEdge(snapshot, sourceBlock.blockId, operationBlock.blockId, 'execution_input', 'source_image');
+  }
   ensureEdge(snapshot, textBlock.blockId, operationBlock.blockId, 'execution_input', 'prompt');
   touchBoard(snapshot);
 
@@ -915,10 +914,13 @@ export function executeExistingImageOperationBlock(
   if (!isAnnotationRepeat && !promptText) {
     throw new Error('Enter a prompt before running this operation.');
   }
-  const codexOperation: ImageCodexOperation = isAnnotationRepeat
+  const requestedCodexOperation: ImageCodexOperation = isAnnotationRepeat
     ? 'annotation_edit'
     : imageOperationForSwitchableMode(input.operation);
-  const capabilityId = input.capabilityId ?? capabilityForOperation(codexOperation);
+  const capabilityId = input.capabilityId
+    ?? (typeof operationBlock.data.capabilityId === 'string'
+      ? operationBlock.data.capabilityId
+      : capabilityForOperation(requestedCodexOperation));
   const annotationManifest = isAnnotationRepeat && isAnnotationManifest(operationBlock.data.annotationManifest)
     ? structuredClone(operationBlock.data.annotationManifest)
     : undefined;
@@ -945,7 +947,12 @@ export function executeExistingImageOperationBlock(
   const sourceBlock = imageInputBindings.find(
     (binding) => binding.inputSlotId === 'source_image',
   )?.block;
-  if (codexOperation !== 'generate_image' && (!sourceBlock || !sourceBlock.data.assetId)) {
+  const codexOperation: ImageCodexOperation = isAnnotationRepeat
+    ? 'annotation_edit'
+    : capabilityId === imageGenerateCapabilityId
+      ? sourceBlock ? 'quick_edit' : 'generate_image'
+      : requestedCodexOperation;
+  if (capabilityId !== imageGenerateCapabilityId && codexOperation !== 'generate_image' && (!sourceBlock || !sourceBlock.data.assetId)) {
     throw new Error('Image-to-image operations require a connected source Image Block with an asset.');
   }
   const promptFrameBlock = sourceBlock ?? reusableOutputSlot(snapshot, operationBlock);
@@ -1150,9 +1157,7 @@ export function executeExistingImageOperationBlock(
 }
 
 function capabilityForOperation(operation: ImageCodexOperation): string {
-  if (operation === 'generate_image') return capabilityForImageOperation(operation);
   if (operation === 'annotation_edit') return 'image.annotation_edit';
-  if (operation === 'quick_edit') return capabilityForImageOperation(operation);
   return capabilityForImageOperation(operation);
 }
 

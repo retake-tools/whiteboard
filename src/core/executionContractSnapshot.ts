@@ -6,6 +6,7 @@ import type {
 import { capabilityBindingValueForBlock } from './artifactLibrary';
 import { capabilityDefinitionFor } from './capabilityRegistry';
 import type { BlockRecord, BoardSnapshot, ExecutionRecord } from './types';
+import { normalizeReferenceIntent, type ReferenceIntentV1 } from './referenceIntent';
 
 export function recordExecutionContractSnapshot(
   snapshot: BoardSnapshot,
@@ -54,10 +55,10 @@ function executionInputBindings(
   const inputBlocks = execution.inputBlockIds
     .map((blockId) => snapshot.blocks.find((block) => block.blockId === blockId))
     .filter((block): block is BlockRecord => Boolean(block));
-  const slotByBlockId = new Map(
+  const edgeByBlockId = new Map(
     snapshot.edges
       .filter((edge) => edge.targetBlockId === operationBlock.blockId && edge.kind === 'execution_input')
-      .map((edge) => [edge.sourceBlockId, edge.inputSlotId]),
+      .map((edge) => [edge.sourceBlockId, edge]),
   );
   const parameterBindings = executionParameterImageBindings(execution);
 
@@ -66,7 +67,7 @@ function executionInputBindings(
       slot.slotId,
       slot.semanticRole,
       inputBlocks,
-      slotByBlockId,
+      edgeByBlockId,
       operationBlock,
       parameterBindings,
     );
@@ -78,9 +79,14 @@ function valuesForSlot(
   slotId: string,
   semanticRole: string,
   inputBlocks: BlockRecord[],
-  slotByBlockId: Map<string, string | undefined>,
+  edgeByBlockId: Map<string, BoardSnapshot['edges'][number]>,
   operationBlock: BlockRecord,
-  parameterBindings: Array<{ assetId: string; blockId?: string; inputSlotId: string }>,
+  parameterBindings: Array<{
+    assetId: string;
+    blockId?: string;
+    inputSlotId: string;
+    referenceIntent?: ReferenceIntentV1;
+  }>,
 ): CapabilityBindingValue[] {
   if (semanticRole === 'prompt') {
     const promptBlock = inputBlocks.find((block) => block.type === 'text');
@@ -99,9 +105,15 @@ function valuesForSlot(
   const matchingBlocks = inputBlocks.filter((block) => {
     if (block.type !== 'image' && block.type !== 'video') return false;
     if (typeof block.data.assetId !== 'string') return false;
-    return slotByBlockId.get(block.blockId) === slotId;
+    return edgeByBlockId.get(block.blockId)?.inputSlotId === slotId;
   });
-  const blockValues = matchingBlocks.map(bindingValueForBlock);
+  const blockValues = matchingBlocks.map((block): CapabilityBindingValue => {
+    const value = bindingValueForBlock(block);
+    const referenceIntent = edgeByBlockId.get(block.blockId)?.referenceIntent;
+    return referenceIntent && value.kind !== 'inline'
+      ? { ...value, referenceIntent: structuredClone(referenceIntent) }
+      : value;
+  });
   const blockAssetIds = new Set(
     matchingBlocks.flatMap((block) =>
       typeof block.data.assetId === 'string' ? [block.data.assetId] : [],
@@ -116,13 +128,21 @@ function valuesForSlot(
       kind: 'asset',
       assetId: binding.assetId,
       ...(binding.blockId ? { blockId: binding.blockId } : {}),
+      ...(binding.referenceIntent
+        ? { referenceIntent: structuredClone(binding.referenceIntent) }
+        : {}),
     }));
   return [...blockValues, ...parameterValues];
 }
 
 function executionParameterImageBindings(
   execution: ExecutionRecord,
-): Array<{ assetId: string; blockId?: string; inputSlotId: string }> {
+): Array<{
+  assetId: string;
+  blockId?: string;
+  inputSlotId: string;
+  referenceIntent?: ReferenceIntentV1;
+}> {
   const bindings = Array.isArray(execution.params?.inputBindings) ? execution.params.inputBindings : [];
   return bindings.flatMap((binding) => {
     if (!binding || typeof binding !== 'object') return [];
@@ -132,10 +152,12 @@ function executionParameterImageBindings(
       || typeof record.inputSlotId !== 'string'
       || !record.inputSlotId.trim()
     ) return [];
+    const referenceIntent = normalizeReferenceIntent(record.referenceIntent);
     return [{
       assetId: record.assetId,
       blockId: typeof record.blockId === 'string' ? record.blockId : undefined,
       inputSlotId: record.inputSlotId,
+      ...(referenceIntent ? { referenceIntent } : {}),
     }];
   });
 }

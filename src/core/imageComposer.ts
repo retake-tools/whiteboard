@@ -19,6 +19,7 @@ import type {
   ImageReferenceBindingKind,
   ReferenceIntentV1,
 } from './referenceIntent';
+import { imageGenerateCapabilityId } from './imageGenerateContracts';
 
 export type ComposerMode = 'agent' | 'image' | 'video';
 
@@ -164,16 +165,10 @@ export function createImageComposerDraft(
       throw new Error('Image Composer source image cannot have a reference intent.');
     }
   }
-  const capabilityId = input.capabilityId ?? 'image.text_to_image';
   const sourceReferences = input.references.filter(
     ({ bindingKind }) => bindingKind === 'source',
   );
-  if (
-    (capabilityId === 'image.image_to_image' && sourceReferences.length !== 1)
-    || (capabilityId === 'image.text_to_image' && sourceReferences.length !== 0)
-  ) {
-    throw new Error('Image Composer source role does not match the Capability.');
-  }
+  if (sourceReferences.length > 1) throw new Error('Image Composer accepts at most one source image.');
   const outputSlot = input.slotBlockId
     ? snapshot.blocks.find((block) => block.blockId === input.slotBlockId)
     : undefined;
@@ -183,7 +178,7 @@ export function createImageComposerDraft(
   ) {
     throw new Error('Image Composer output slot is invalid.');
   }
-  if (capabilityId === 'image.image_to_image' && outputSlot) {
+  if (sourceReferences.length === 1 && outputSlot) {
     throw new Error('Image-to-image Composer cannot reuse an empty output slot.');
   }
 
@@ -192,11 +187,11 @@ export function createImageComposerDraft(
     : undefined;
   const generationParams = imageComposerDraftGenerationParams(
     input.generationParams,
-    capabilityId,
+    sourceReferences.length > 0,
   );
-  const result = capabilityId === 'image.image_to_image' && sourceBlock
+  const result = sourceBlock
     ? createDraftImageToImageOperation(snapshot, {
-        capabilityId,
+        capabilityId: imageGenerateCapabilityId,
         generationParams,
         operation: 'quick_edit',
         operationTitle: input.operationTitle,
@@ -206,6 +201,7 @@ export function createImageComposerDraft(
         textBlockPlaceholder: input.textBlockPlaceholder,
       })
     : createDraftTextToImageOperation(snapshot, {
+        capabilityId: imageGenerateCapabilityId,
         generationParams,
         operationTitle: input.operationTitle,
         slotBlockId: input.slotBlockId,
@@ -247,10 +243,10 @@ export function createImageComposerDraft(
 
 function imageComposerDraftGenerationParams(
   input: ImageGenerationParams | undefined,
-  capabilityId: 'image.image_to_image' | 'image.text_to_image',
+  hasSourceImage: boolean,
 ): ImageGenerationParams {
   if (
-    capabilityId === 'image.image_to_image'
+    hasSourceImage
     && input?.aspectRatioPreset === 'source'
   ) {
     const normalized = imageComposerGenerationParams({
