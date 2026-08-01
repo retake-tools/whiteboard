@@ -2,21 +2,26 @@
 
 [English](./README.md)
 
-Retake Whiteboard 是面向 Retake 视频创作工作流的无限画布。当前 MVP
-聚焦图片阶段：图片 Block、标注驱动的图片编辑，以及通过 Codex/MCP
-执行和写回结果。
+Retake Whiteboard 是面向视觉生产的 local-first 无限画布。它把自由画板、Package / Plugin Host、
+Workflow Runtime、Agent Workspace，以及统一的 Asset / Execution / Artifact 历史放在同一产品中。
 
-## 当前范围
+## 当前版本
 
-图片阶段 MVP 已包括：
+Retake Whiteboard `0.1.3` 已包括：
 
-- 文生图和图生图 Operation 流程；
-- 带可视化标记和逐项说明的标注编辑；
-- 预先创建一到四个结果 Block，并支持逐张写回；
-- Project、Board、Asset、Execution、Group 和轻量 History 记录；
-- Codex/MCP 执行，并复用未来 Direct API Adapter 所需的同一套数据模型。
+- 基于自由无限画布的 Project / Board 管理；
+- 统一的 `image.generate` Operation，支持文字起图、原图派生、多参考图、一至四个结果与再次生成；
+- 官方 Image Studio Package，包括标注、调整、裁剪、缩放、扩图，以及 Guided Image Skill、
+  Workflow 和 AgentPreset；
+- GitHub Source 安装与更新、exact-version cache、回滚、隔离、分项权限和 Project / Board 启用；
+- 可持久化 Workflow Run、Gate、输出选择、Artifact、History，以及支持 Codex App Server 和
+  已配置 Direct API Runtime 的 Agent Workspace；
+- Codex Plugin 与 MCP 写回，并和其他执行通道共用 Project、Board、Asset、Execution 与
+  Artifact 模型。
 
-视频生成、在线协作、Direct Provider API 和动态插件发现目前还不是完整的产品流程。
+本版本的官方离线 bootstrap **只包含 Image Studio**。Video Studio 不会默认打包或启用；既有安装
+和可选的 GitHub Source 安装仍然可用。Provider 凭据与付费调用始终由用户自行配置，不随
+Whiteboard 分发。
 
 ## 环境要求
 
@@ -24,7 +29,7 @@ Retake Whiteboard 是面向 Retake 视频创作工作流的无限画布。当前
 - Node.js 22.12 或更高版本继续作为兼容运行时。Node.js 26 在进入 LTS 且 Package
   归档 codec 与运行时解耦前仅作实验性验证；
 - npm；
-- 已安装 Codex CLI，并可使用 Codex Plugin；
+- 使用 Codex/MCP 通道时，需要安装支持 Codex Plugin 的 Codex CLI；
 - Codex 环境中可用的真实图片生成或编辑能力。
 
 Retake 插件负责读取 Operation、组织执行上下文和写回结果，不会自行提供图片生成模型。
@@ -44,6 +49,14 @@ Retake 插件负责读取 Operation、组织执行上下文和写回结果，不
 codex:install 命令必须构建 Web App 并启动后台 production 服务。安装完成后请校验插件、
 Skill、MCP 工具和 production 服务，告诉我打开 http://127.0.0.1:18771，并说明是否需要
 开启一个新的 Codex 任务。不要复制或修改仓库中的 .retake/ 用户数据。
+```
+
+上面的提示会跟随持续移动的 `main` 发布通道。如果需要可复现的当前版本，请固定 clone
+`v0.1.3`：
+
+```bash
+git clone --branch v0.1.3 --depth 1 \
+  https://github.com/retake-tools/whiteboard.git ~/src/retake-whiteboard
 ```
 
 这会安装包含 Retake Skill 和 MCP 工具的完整插件。仅复制 Skill 不足以运行完整流程，
@@ -91,13 +104,16 @@ MCP bridge 仍从此 checkout 执行。安装 Plugin 后请新建一个 Codex �
 
 ## 如何使用
 
-Retake 会把提示词、原图、Operation 和生成结果保留在同一张无限画布上。在网页中搭好
-工作流，从 Operation Block 生成 Codex Prompt，再由 Retake 插件把完成的图片写回预先
-准备好的结果 Block。
+Retake 会把提示词、原图、Operation、生成结果、Workflow Run 与 Agent 活动保留在同一个 Board
+周围。可以通过 Composer 或画布模板创建 Operation，再交给 Codex App Server、已配置的 Direct
+API Runtime，或手动 Codex/MCP 通道执行。
 
 ### 文生图
 
 将 Text Block 连接到文生图 Operation，选择画幅比例和结果数量，再交给 Codex 执行。
+
+文生图和图生图只是同一个 `image.generate` Capability 的两种创建模板；是否存在
+`source_image` 输入决定具体执行形态。
 
 ![文生图工作流生成真实感海景客厅](./assets/readme/text-to-image.jpg)
 
@@ -145,20 +161,21 @@ npm run production
 
 ## Codex 使用流程
 
-1. 启动 Retake Whiteboard 网页，并创建或打开一个 Project 和 Board。
-2. 创建文生图、图生图或标注编辑 Operation。
-3. 第一次使用时，将当前 Codex workspace 绑定到对应的 Retake Project 和 Board。
-4. 在 Operation Block 中生成 Codex Prompt，并在一个新的 Codex 任务中执行。
-5. Codex 使用可用的真实图片能力生成或编辑图片，再通过 Retake MCP 工具写回 Asset、
-   Execution 和结果 Block。
+1. 启动 Retake Whiteboard，并创建或打开一个 Project 和 Board。
+2. 创建图片 Operation、选择 Skill / Workflow，或打开一个 Agent Session。
+3. 选择已配置的 Runtime；使用手动 Codex/MCP 时，把当前 Codex workspace 绑定到 exact Project
+   和 Board。
+4. 启动 Operation 或 Agent Task，并查看实时状态、输出和需要人工处理的 Gate。
+5. 无论使用哪种执行通道，Retake 都会把结果记录到同一套 Asset、Execution、Block、
+   Workflow Run 与 Artifact 血缘中。
 
-`Codex Managed` 是内置执行配置，不需要配置独立的模型 Provider 或 API Key；但当前
-Codex 环境仍必须具备真实图片生成或编辑能力。Direct API、ACP 和第三方模型配置属于
-可选的用户本地设置，不随项目默认值分发。
+`Codex Managed` 是内置的手动 Codex/MCP 配置，不需要在 Retake 中提供独立 Provider Key。
+也可以在本地配置 Codex App Server 和兼容的 Direct API Connection。Secret 和付费 Provider
+默认值不会随 Project 或官方 Package 分发。
 
-Codex 只是一个执行通道，不是 Retake 的产品后端。插件负责执行和打包，独立 Web App
-仍是主要产品界面，从而让未来 Direct API、Hosted Web 和商业版本可以复用同一套
-Project、Board、Asset 和 Execution 模型。
+Codex 只是一个执行通道，不是 Retake 的产品后端。独立 Web App 仍是主要产品界面；Codex App
+Server、Direct API 和手动 MCP 执行都会汇合到同一套 Project、Board、Asset、Execution、
+Workflow Run 与 Artifact 事实。
 
 ## 验证
 
@@ -184,7 +201,7 @@ npm run skill:validate
 - `Plugin` 定义能力，`Adapter` 执行能力，`Skill` 定义可兼容的创作或流程行为；
 - Canvas 协调工作流，但不持有 Provider 专属逻辑。
 
-MCP 写回和未来 Direct API 执行必须汇合到同一套 Asset 与 Execution 记录。
+MCP 写回、Codex App Server 和 Direct API 执行汇合到同一套 Asset 与 Execution 记录。
 
 ## 参与贡献
 

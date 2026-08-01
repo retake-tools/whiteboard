@@ -33,14 +33,28 @@ try {
   ].sort());
 
   const marker = JSON.parse(await readFile(path.join(pluginRoot, pluginSourceMarker), 'utf8'));
+  const packageManifest = JSON.parse(await readFile(
+    path.join(repositoryRoot, 'package.json'),
+    'utf8',
+  ));
+  const pluginManifest = JSON.parse(await readFile(
+    path.join(pluginRoot, '.codex-plugin', 'plugin.json'),
+    'utf8',
+  ));
   assert.equal(marker.repositoryRoot, repositoryRoot);
   assert.equal(marker.managedBy, '@retake-tools/whiteboard');
+  assert.equal(
+    pluginManifest.version,
+    packageManifest.version,
+    'The packaged Codex Plugin version must match the Whiteboard release.',
+  );
 
   console.log({
     checkoutCollisionRejected: true,
     entries,
     excludesWorkspaceData: true,
     managedReinstall: true,
+    releaseVersion: pluginManifest.version,
     repositoryRoot,
   });
 } finally {

@@ -2,23 +2,30 @@
 
 [简体中文](./README.zh-CN.md)
 
-Retake Whiteboard is an infinite-canvas workspace for Retake video creation
-workflows. The current MVP focuses on the image stage: image blocks,
-annotation-driven image edits, and Codex/MCP execution and writeback.
+Retake Whiteboard is a local-first infinite canvas for visual production. It
+combines a free-form Board with a Package and Plugin host, workflow runtime,
+Agent workspace, and a shared Asset / Execution / Artifact history.
 
-## Current Scope
+## Current Release
 
-The image-stage MVP includes:
+Retake Whiteboard `0.1.3` includes:
 
-- text-to-image and image-to-image Operation flows;
-- annotation-driven edits with visual marks and per-mark instructions;
-- one to four pre-created result Blocks with progressive writeback;
-- Project, Board, Asset, Execution, Group, and lightweight History records;
-- Codex/MCP execution through the same data model intended for future direct
-  API Adapters.
+- Project and Board management on a free-form infinite canvas;
+- a unified `image.generate` Operation for text-led and source-image-led
+  creation, multiple references, one to four results, and reruns;
+- the official Image Studio Package with annotation, adjust, crop, resize,
+  outpaint, Guided Image Skill, Workflow, and Agent preset;
+- Package installation and updates from GitHub source, exact-version caching,
+  rollback, isolation, scoped permissions, and Project / Board enablement;
+- persistent Workflow Runs, gates, output selection, Artifacts, History, and an
+  Agent workspace with Codex App Server and configured Direct API runtimes;
+- Codex Plugin and MCP writeback through the same Project, Board, Asset,
+  Execution, and Artifact model used by other execution routes.
 
-Video generation, hosted collaboration, direct provider APIs, and dynamic
-plugin discovery are not complete product flows yet.
+The official offline bootstrap contains **Image Studio only**. Video Studio is
+not bundled or enabled by default in this release; existing installations and
+optional GitHub-source installation remain supported. Provider credentials and
+paid calls are always user-configured and are not shipped with Whiteboard.
 
 ## Requirements
 
@@ -27,7 +34,7 @@ plugin discovery are not complete product flows yet.
   is experimental until it reaches LTS and the Package archive codec is
   runtime-independent;
 - npm;
-- Codex CLI with Codex Plugin support;
+- Codex CLI with Codex Plugin support when using the Codex/MCP route;
 - a real image generation or editing capability available to Codex.
 
 The Retake plugin reads Operations, assembles execution context, and writes
@@ -51,6 +58,14 @@ production server. After installation, validate the plugin, Skill, MCP tools,
 and production server; tell me to open http://127.0.0.1:18771 and whether I
 need to start a new Codex task. Do not copy or modify any user data under the
 repository's .retake/ directory.
+```
+
+This prompt follows the moving `main` release channel. For a reproducible
+checkout of this release, clone `v0.1.3` instead:
+
+```bash
+git clone --branch v0.1.3 --depth 1 \
+  https://github.com/retake-tools/whiteboard.git ~/src/retake-whiteboard
 ```
 
 This installs the complete plugin, including the Retake Skill and MCP tools.
@@ -106,15 +121,19 @@ after plugin installation to load the new Skill and MCP tools.
 
 ## How to Use It
 
-Retake keeps prompts, source images, Operations, and generated results visible
-on one canvas. Create a workflow in the web app, generate the Codex Prompt from
-the Operation Block, and let the Retake plugin write the finished image back to
-the prepared result Block.
+Retake keeps prompts, source images, Operations, generated results, Workflow
+Runs, and Agent activity visible around the same Board. Use the Composer or
+canvas templates to create an Operation, then run it through Codex App Server,
+a configured Direct API runtime, or the manual Codex/MCP route.
 
 ### Text to image
 
 Connect a Text Block to a text-to-image Operation, choose the aspect ratio and
 result count, then run it through Codex.
+
+Text-to-image and image-to-image are creation templates for the same
+`image.generate` capability; the presence of a `source_image` input determines
+the execution shape.
 
 ![Text-to-image workflow generating a photorealistic oceanfront living room](./assets/readme/text-to-image.jpg)
 
@@ -167,25 +186,25 @@ for previewing an existing `dist/` directory.
 
 ## Codex Workflow
 
-1. Start the Retake Whiteboard web app and create or open a Project and Board.
-2. Create a text-to-image, image-to-image, or annotation-edit Operation.
-3. On first use, bind the current Codex workspace to that Retake Project and
-   Board.
-4. Generate the Codex Prompt from the Operation Block and run it in a new Codex
-   task.
-5. Codex uses a real image capability to generate or edit the image, then
-   writes the Asset, Execution, and result Blocks back through Retake MCP tools.
+1. Start Retake Whiteboard and create or open a Project and Board.
+2. Create an image Operation, choose a Skill or Workflow, or open an Agent
+   session.
+3. Select a configured runtime. When using manual Codex/MCP, bind the current
+   Codex workspace to the exact Project and Board.
+4. Launch the Operation or Agent task and review its live status, outputs, and
+   any required human gate.
+5. Retake records the resulting Assets, Executions, Blocks, Workflow Runs, and
+   Artifacts in the same lineage regardless of execution route.
 
-`Codex Managed` is the built-in execution profile and does not require a
-separate model provider or API key. The current Codex environment must still
-provide a real image generation or editing capability. Direct API, ACP, and
-third-party model profiles are optional user-local settings and are not
-distributed with project defaults.
+`Codex Managed` is the built-in manual Codex/MCP profile and does not require a
+separate provider key inside Retake. Codex App Server and compatible Direct API
+connections can also be configured locally. Secrets and paid-provider defaults
+are never distributed with a Project or the official Package.
 
 Codex is one execution route, not the Retake backend. The plugin is an
-execution and packaging layer, while the standalone web app remains the main
-product surface. Future direct API, hosted web, and commercial versions can
-therefore share the same Project, Board, Asset, and Execution model.
+execution route, while the standalone web app remains the main product surface.
+Codex App Server, Direct API, and manual MCP execution all converge on the same
+Project, Board, Asset, Execution, Workflow Run, and Artifact facts.
 
 ## Verification
 
@@ -213,8 +232,8 @@ disposable Project and Board rather than an existing user Board.
   compatible creative or process behavior.
 - The canvas coordinates workflows but does not own provider-specific logic.
 
-MCP writeback and future direct API execution must converge on the same Asset
-and Execution records.
+MCP writeback, Codex App Server, and Direct API execution converge on the same
+Asset and Execution records.
 
 ## Contributing
 
