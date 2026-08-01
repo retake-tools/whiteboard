@@ -46,6 +46,15 @@ assert.match(
   /completedTapRef[\s\S]*?onPointerDownCapture[\s\S]*?matchesCompletedTap[\s\S]*?openDoubleTap/,
 );
 assert.match(
+  canvasImageDoubleTapSource,
+  /function handlePointerUp[\s\S]*?completedTapRef\.current = completedTap/,
+);
+assert.match(
+  canvasImageDoubleTapSource,
+  /window\.addEventListener\('pointermove', handlePointerMove, true\)[\s\S]*?window\.addEventListener\('pointerup', handlePointerUp, true\)/,
+);
+assert.match(canvasImageDoubleTapSource, /pointerCompletionRef[\s\S]*?mirroredClickSuppressionMs/);
+assert.match(
   executionInspectorSource,
   /className=\{`execution-inspector-backdrop[\s\S]*?onPointerDown=\{\(event\) => \{\s*if \(event\.target === event\.currentTarget\) onClose\(\);/,
 );
