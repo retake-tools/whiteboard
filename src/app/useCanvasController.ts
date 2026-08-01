@@ -112,7 +112,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
   const currentViewportRef = useRef<Viewport>(defaultBoardViewport);
   const boardViewportRestoreTokenRef = useRef(0);
   const focusRequestTokenRef = useRef(0);
-  const pendingViewportPersistRef = useRef<BoardViewState | undefined>(undefined);
+  const pendingViewportPersistRef = useRef<Viewport | undefined>(undefined);
   const viewportPersistTimerRef = useRef<number | undefined>(undefined);
   const reactFlowRef = useRef<ReactFlowInstance<RetakeNode, RetakeEdge> | null>(null);
   const selectedBlockIdsRef = useRef<string[]>([]);
@@ -143,6 +143,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
   const [activeCanvasTool, setActiveCanvasTool] = useState<CanvasTool>('pan');
   const [, setDropTargetGroupId] = useState<string | undefined>(undefined);
   const [canvasZoom, setCanvasZoom] = useState(() => currentViewportRef.current.zoom);
+  const canvasZoomRef = useRef(canvasZoom);
   const [projectionMode, setProjectionMode] = useState<CanvasProjectionMode>(
     projectionModeRef.current,
   );
@@ -498,6 +499,16 @@ export function useCanvasController(options: CanvasControllerOptions) {
   };
   const onNodeDoubleClick: NodeMouseHandler<RetakeNode> = (event, node) => {
     cancelTerminalImageStatusDismiss();
+    if (node.type === 'image') {
+      if (isImageDetailNodeEventTarget(event.target)) {
+        window.dispatchEvent(new CustomEvent('retake:open-execution-inspector', {
+          detail: { blockId: node.id },
+        }));
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+    }
     if (node.type !== 'text' && node.type !== 'operation' && event.target instanceof HTMLElement && isInteractiveNodeTarget(event.target)) return;
     selectConnectedWorkflow(node.id);
   };
@@ -737,8 +748,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
     restoreToken = boardViewportRestoreTokenRef.current,
     onApplied?: (viewport: Viewport) => void,
   ): void {
-    currentViewportRef.current = viewport;
-    setCanvasZoom(viewport.zoom);
+    syncCurrentViewport(viewport);
     window.requestAnimationFrame(() => {
       if (restoreToken !== boardViewportRestoreTokenRef.current) return;
       const reactFlow = reactFlowRef.current;
@@ -746,16 +756,14 @@ export function useCanvasController(options: CanvasControllerOptions) {
       void reactFlow.setViewport(viewport, { duration: 0 }).then(() => {
         if (restoreToken !== boardViewportRestoreTokenRef.current) return;
         const appliedViewport = reactFlow.getViewport();
-        currentViewportRef.current = appliedViewport;
-        setCanvasZoom(appliedViewport.zoom);
+        syncCurrentViewport(appliedViewport);
         onApplied?.(appliedViewport);
       });
     });
   }
 
   function persistViewport(viewport: Viewport): void {
-    currentViewportRef.current = viewport;
-    setCanvasZoom(viewport.zoom);
+    syncCurrentViewport(viewport);
     clearScheduledViewportPersist();
     persistBoardViewState(boardViewStateFor(
       snapshotRef.current,
@@ -765,13 +773,8 @@ export function useCanvasController(options: CanvasControllerOptions) {
   }
 
   function scheduleViewportPersist(viewport: Viewport): void {
-    currentViewportRef.current = viewport;
-    setCanvasZoom(viewport.zoom);
-    pendingViewportPersistRef.current = boardViewStateFor(
-      snapshotRef.current,
-      viewport,
-      viewportBasisFromElement(canvasAreaRef.current),
-    );
+    syncCurrentViewport(viewport);
+    pendingViewportPersistRef.current = viewport;
     if (viewportPersistTimerRef.current !== undefined) return;
     viewportPersistTimerRef.current = window.setTimeout(flushScheduledViewportPersist, 80);
   }
@@ -781,9 +784,22 @@ export function useCanvasController(options: CanvasControllerOptions) {
       window.clearTimeout(viewportPersistTimerRef.current);
       viewportPersistTimerRef.current = undefined;
     }
-    const pending = pendingViewportPersistRef.current;
+    const pendingViewport = pendingViewportPersistRef.current;
     pendingViewportPersistRef.current = undefined;
-    if (pending) persistBoardViewState(pending);
+    if (pendingViewport) {
+      persistBoardViewState(boardViewStateFor(
+        snapshotRef.current,
+        pendingViewport,
+        viewportBasisFromElement(canvasAreaRef.current),
+      ));
+    }
+  }
+
+  function syncCurrentViewport(viewport: Viewport): void {
+    currentViewportRef.current = viewport;
+    if (Math.abs(canvasZoomRef.current - viewport.zoom) < 0.0005) return;
+    canvasZoomRef.current = viewport.zoom;
+    setCanvasZoom(viewport.zoom);
   }
 
   function clearScheduledViewportPersist(): void {
@@ -931,6 +947,19 @@ export function useCanvasController(options: CanvasControllerOptions) {
     setSelectedBlocks,
     changeProjectionMode,
   };
+}
+
+function isImageDetailNodeEventTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return true;
+  return !target.closest([
+    '.block-heading',
+    '.react-flow__handle',
+    '.react-flow__resize-control',
+    'button',
+    'input',
+    'select',
+    'textarea',
+  ].join(','));
 }
 
 export function commandShortcutFromKeyboardEvent(

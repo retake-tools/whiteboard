@@ -21,10 +21,11 @@ assert.match(canvasSource, /nodeDragActiveRef\.current = true/);
 assert.match(canvasSource, /if \(!nodeDragActiveRef\.current\) setNodes\(createFlowNodesForSelection\(remoteSnapshot\)\)/);
 const canvasViewSource = await readFile('src/app/WhiteboardCanvas.tsx', 'utf8');
 const canvasCss = await readFile('src/styles/canvas.css', 'utf8');
+const canvasImageDoubleTapSource = await readFile('src/app/useCanvasImageDoubleTap.ts', 'utf8');
 const blockNodeSource = await readFile('src/nodes/BlockNode.tsx', 'utf8');
+const executionInspectorSource = await readFile('src/components/ExecutionInspector.tsx', 'utf8');
 const operationControlsSource = await readFile('src/nodes/OperationInlineControls.tsx', 'utf8');
 const operationReferenceInputsSource = await readFile('src/nodes/OperationReferenceInputs.tsx', 'utf8');
-const imagePreviewDoubleTapSource = await readFile('src/nodes/useImagePreviewDoubleTap.ts', 'utf8');
 const blockNodeCss = await readFile('src/nodes/block-node.css', 'utf8');
 assert.match(canvasViewSource, /zoomOnDoubleClick=\{false\}/);
 assert.match(canvasSource, /function selectConnectedWorkflow[\s\S]*?window\.requestAnimationFrame/);
@@ -33,22 +34,43 @@ assert.match(
   /const onNodeClick[\s\S]*?event\.detail > 1[\s\S]*?scheduleTerminalImageStatusDismiss/,
 );
 assert.match(
-  blockNodeSource,
-  /useImagePreviewDoubleTap\(\{[\s\S]*?gestureKey: blockId[\s\S]*?dispatchOpenExecutionInspector\(blockId\)[\s\S]*?className="image-preview"[\s\S]*?onClickCapture=\{imagePreviewDoubleTap\.onClickCapture\}[\s\S]*?onPointerDown=\{imagePreviewDoubleTap\.onPointerDown\}/,
+  canvasViewSource,
+  /useCanvasImageDoubleTap\(\{[\s\S]*?gestureKeyForTarget: imageBlockIdFromGestureTarget[\s\S]*?retake:open-execution-inspector[\s\S]*?onClickCapture=\{imageDoubleTap\.onClickCapture\}[\s\S]*?onPointerDownCapture=\{imageDoubleTap\.onPointerDownCapture\}/,
 );
-assert.match(imagePreviewDoubleTapSource, /window\.addEventListener\('pointerup', handlePointerUp, true\)/);
-assert.match(imagePreviewDoubleTapSource, /window\.addEventListener\('pointermove', handlePointerMove, true\)/);
-assert.match(imagePreviewDoubleTapSource, /completedTapsByGestureKey[\s\S]*?onClickCapture/);
+assert.match(
+  canvasViewSource,
+  /function imageBlockIdFromGestureTarget[\s\S]*?blockIdFromNodeTarget\(target\)[\s\S]*?block\?\.type === 'image'/,
+);
+assert.match(
+  canvasImageDoubleTapSource,
+  /completedTapRef[\s\S]*?onPointerDownCapture[\s\S]*?matchesCompletedTap[\s\S]*?openDoubleTap/,
+);
+assert.match(
+  canvasImageDoubleTapSource,
+  /function handlePointerUp[\s\S]*?completedTapRef\.current = completedTap/,
+);
+assert.match(
+  canvasImageDoubleTapSource,
+  /window\.addEventListener\('pointermove', handlePointerMove, true\)[\s\S]*?window\.addEventListener\('pointerup', handlePointerUp, true\)/,
+);
+assert.match(canvasImageDoubleTapSource, /pointerCompletionRef[\s\S]*?mirroredClickSuppressionMs/);
+assert.match(
+  executionInspectorSource,
+  /className=\{`execution-inspector-backdrop[\s\S]*?onPointerDown=\{\(event\) => \{\s*if \(event\.target === event\.currentTarget\) onClose\(\);/,
+);
+assert.doesNotMatch(
+  executionInspectorSource,
+  /className=\{`execution-inspector-backdrop[\s\S]*?role="presentation"\s*onClick=\{onClose\}/,
+);
 assert.match(
   canvasSource,
-  /const onNodeDoubleClick[\s\S]*?cancelTerminalImageStatusDismiss\(\)/,
+  /const onNodeDoubleClick[\s\S]*?cancelTerminalImageStatusDismiss\(\)[\s\S]*?node\.type === 'image'[\s\S]*?retake:open-execution-inspector/,
 );
 assert.match(canvasViewSource, /data-pointer-moving="false"[\s\S]*?onPointerMoveCapture=\{handleCanvasPointerMove\}/);
 assert.match(
   blockNodeSource,
-  /className="image-preview"[\s\S]*?onDoubleClick=\{\(event\) => \{[\s\S]*?dispatchOpenExecutionInspector\(blockId\)/,
+  /function isImageDetailGestureTarget[\s\S]*?\.block-heading[\s\S]*?\.react-flow__resize-control/,
 );
-assert.match(blockNodeSource, /enabled: type === 'image' && Boolean\(data\.previewUrl\)/);
 assert.doesNotMatch(
   blockNodeSource,
   /onDoubleClick=\{\(event\) => \{\s*if \(!hasExecutionDetails\(data\)\) return;/,

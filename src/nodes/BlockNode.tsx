@@ -15,7 +15,6 @@ import { PluginBlockRendererSlot } from '../components/PluginBlockRendererHost';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { DocumentBlockBody } from './DocumentBlockBody';
 import { OperationInlineControls } from './OperationInlineControls';
-import { useImagePreviewDoubleTap } from './useImagePreviewDoubleTap';
 import { VideoBlockBody } from './VideoBlockBody';
 
 const iconByType = {
@@ -126,12 +125,9 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
         .filter(Boolean)
         .join(' ')}
       onDoubleClick={(event) => {
-        const target = event.target instanceof HTMLElement ? event.target : undefined;
+        const target = event.target instanceof Element ? event.target : undefined;
         if (target && isInteractiveDoubleClickTarget(target)) return;
-        if (
-          blockType === 'image'
-          && target?.closest('.image-preview')
-        ) {
+        if (blockType === 'image' && isImageDetailGestureTarget(target)) {
           dispatchOpenExecutionInspector(id);
           event.preventDefault();
           event.stopPropagation();
@@ -297,7 +293,20 @@ function dispatchResizeGroup(blockId: string, params: ResizeParams): void {
   );
 }
 
-function isInteractiveDoubleClickTarget(target: HTMLElement): boolean {
+function isImageDetailGestureTarget(target: EventTarget | null | undefined): boolean {
+  if (!(target instanceof Element)) return false;
+  return !target.closest([
+    '.block-heading',
+    '.react-flow__handle',
+    '.react-flow__resize-control',
+    'button',
+    'input',
+    'select',
+    'textarea',
+  ].join(','));
+}
+
+function isInteractiveDoubleClickTarget(target: Element): boolean {
   return Boolean(
     target.closest(
       [
@@ -473,11 +482,6 @@ function BlockBody({
   type: BlockType;
 }): ReactElement {
   const { t } = useI18n();
-  const imagePreviewDoubleTap = useImagePreviewDoubleTap({
-    enabled: type === 'image' && Boolean(data.previewUrl),
-    gestureKey: blockId,
-    onDoubleTap: () => dispatchOpenExecutionInspector(blockId),
-  });
 
   if (type === 'image') {
     const status = visibleBlockStatus(data);
@@ -546,16 +550,7 @@ function BlockBody({
     }
 
     return (
-      <div
-        className="image-preview"
-        onClickCapture={imagePreviewDoubleTap.onClickCapture}
-        onPointerDown={imagePreviewDoubleTap.onPointerDown}
-        onDoubleClick={(event) => {
-          dispatchOpenExecutionInspector(blockId);
-          event.preventDefault();
-          event.stopPropagation();
-        }}
-      >
+      <div className="image-preview">
         <img src={data.previewUrl} alt={title} />
         <ResultBatchBadge data={data} />
         <ExecutionInfoButton
