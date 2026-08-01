@@ -1,4 +1,5 @@
 import type { AssetKind, BlockType, ExecutionRecord } from './types';
+import type { ReferenceIntentV1 } from './referenceIntent';
 
 export type CapabilityDataType = 'text' | 'document' | 'structured_data' | 'image' | 'video' | 'audio';
 
@@ -60,11 +61,15 @@ export interface SkillDefinitionLock extends DefinitionLock {
   skillId: string;
 }
 
+interface CapabilityReferenceBindingMetadata {
+  referenceIntent?: ReferenceIntentV1;
+}
+
 export type CapabilityBindingValue =
   | { kind: 'inline'; value: unknown }
-  | { kind: 'block'; blockId: string }
-  | { kind: 'asset'; assetId: string; blockId?: string }
-  | { kind: 'artifact_revision'; artifactRevisionId: string; blockId?: string };
+  | ({ kind: 'block'; blockId: string } & CapabilityReferenceBindingMetadata)
+  | ({ kind: 'asset'; assetId: string; blockId?: string } & CapabilityReferenceBindingMetadata)
+  | ({ kind: 'artifact_revision'; artifactRevisionId: string; blockId?: string } & CapabilityReferenceBindingMetadata);
 
 export interface CapabilityInputBinding {
   slotId: string;
@@ -454,6 +459,29 @@ function validateBindingValue(
   if (input.kind === 'artifact_revision' && !isNonEmptyString(input.artifactRevisionId)) {
     requireBindingField(path, 'artifactRevisionId', issues);
   }
+  if (input.referenceIntent !== undefined) {
+    if (slot.semanticRole !== 'reference') {
+      issues.push(issue(
+        'reference_intent_not_allowed',
+        `${path}.referenceIntent`,
+        'referenceIntent is only allowed on reference input slots.',
+      ));
+    } else if (!isReferenceIntentV1(input.referenceIntent)) {
+      issues.push(issue(
+        'reference_intent_invalid',
+        `${path}.referenceIntent`,
+        'referenceIntent must contain schemaVersion=1, label, instruction, and a supported origin.',
+      ));
+    }
+  }
+}
+
+function isReferenceIntentV1(input: unknown): input is ReferenceIntentV1 {
+  if (!isRecord(input)) return false;
+  return input.schemaVersion === 1
+    && isNonEmptyString(input.label)
+    && isNonEmptyString(input.instruction)
+    && (input.origin === 'ai' || input.origin === 'preset' || input.origin === 'user');
 }
 
 function validateBindingCardinality(

@@ -6,6 +6,9 @@ import { definitionForLegacyCapability } from './legacyCapabilityAdapter';
 import {
   pluginCapabilityDefinitionFor,
 } from './pluginCapabilityDefinitions';
+import { imageGenerateCapabilityDefinition } from './imageGenerateContracts';
+
+export { imageGenerateCapabilityDefinition } from './imageGenerateContracts';
 
 export const textGenerateCapabilityDefinition: CapabilityDefinition = definitionForLegacyCapability('text.generate');
 
@@ -481,6 +484,7 @@ export const domainVideoGenerationCapabilityDefinition: CapabilityDefinition = {
 
 const canonicalCapabilityDefinitions = [
   textGenerateCapabilityDefinition,
+  imageGenerateCapabilityDefinition,
   screenplayGenerateCapabilityDefinition,
   screenplayNormalizeCapabilityDefinition,
   characterBibleCapabilityDefinition,
