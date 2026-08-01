@@ -2,7 +2,7 @@
   "hostCompatibility": ">=0.1.3 <0.2.0",
   "packages": [
     {
-      "archiveDigest": "sha256:f18c4ca0cbd780b936182b15879f4844bccf868f20a07b1fc3d0d95c2c7aabaa",
+      "archiveDigest": "sha256:246d64f2853a0b0f30dabaf84a28954ccbf692ed7cbdbcdab4f06f7478493025",
       "archivePath": "image-studio-0.11.0.retakepkg",
       "digest": "sha256:adf9f1b100ea90701762667b301bd379c861ff47861da957d073beebfedb9659",
       "packageId": "design.retake.image-studio",

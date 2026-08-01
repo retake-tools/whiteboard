@@ -24,6 +24,7 @@ const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
 );
+const canonicalArchiveWriterNodeVersion = '24.18.0';
 const retakeRoot = path.dirname(repositoryRoot);
 const bootstrapRoot = path.join(repositoryRoot, 'packages', 'bootstrap');
 const packages = [
@@ -48,7 +49,16 @@ const packages = [
   },
 ] as const;
 
+assertCanonicalArchiveWriter();
 await exportDefaultStudioArchives();
+
+function assertCanonicalArchiveWriter(): void {
+  if (process.versions.node === canonicalArchiveWriterNodeVersion) return;
+  throw new Error(
+    `Official .retakepkg archives must be written with Node ${canonicalArchiveWriterNodeVersion}; `
+      + `current Node is ${process.versions.node}. Supported reader runtimes are not release writers.`,
+  );
+}
 
 async function exportDefaultStudioArchives(): Promise<void> {
   await mkdir(bootstrapRoot, { recursive: true });
