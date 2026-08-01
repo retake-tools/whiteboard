@@ -43,7 +43,7 @@ const connection: ExecutionConnectionSummary = {
   description: 'test',
   connectionKind: 'model_provider',
   implementationKind: 'native_api',
-  supportedCapabilityIds: ['image.image_to_image', 'image.text_to_image'],
+  supportedCapabilityIds: ['image.generate', 'image.image_to_image', 'image.text_to_image'],
   enabledUseCases: ['image'],
   configurable: true,
   deletable: true,

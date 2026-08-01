@@ -14,6 +14,7 @@ import {
   imageComposerWorkflowLayoutBlockIds,
 } from '../src/app/imageComposerWorkflowLayout';
 import { executeExistingImageOperationBlock } from '../src/core/imageOperations';
+import { imageGenerateCapabilityId } from '../src/core/imageGenerateContracts';
 import type { ExecutionConnectionSummary } from '../src/core/executionProviders';
 import type { AssetRecord, BoardSnapshot } from '../src/core/types';
 import { resetWorkspace } from './local-store/snapshot-store';
@@ -62,7 +63,7 @@ assert.match(canvasControllerSource, /block\?\.type === 'image'/);
 assert.match(appSource, /referenceBlockIds: \[sourceBlock\.blockId\]/);
 assert.match(appSource, /maxZoom: 0\.95/);
 assert.match(canvasControllerSource, /safeViewportForBounds/);
-assert.match(controlsSource, /image\.text_to_image/);
+assert.match(controlsSource, /imageGenerateCapabilityId/);
 assert.match(controlsSource, /connection\.connectorId !== 'codex-managed'/);
 assert.match(controlsSource, /currentExecutionProviderSettings/);
 assert.match(controlsSource, /resolveAgentExecutionConnection/);
@@ -159,7 +160,7 @@ const result = createImageComposerDraft(snapshot, {
   textBlockTitle: '提示词',
 });
 
-assert.equal(result.operationBlock.data.capabilityId, 'image.text_to_image');
+assert.equal(result.operationBlock.data.capabilityId, imageGenerateCapabilityId);
 assert.equal(result.operationBlock.data.connectionId, 'codex-managed');
 assert.equal(result.textBlock.data.body, '让角色站在雨夜霓虹街道中央，电影感构图。');
 assert.deepEqual(result.operationBlock.data.generationParams, {
@@ -343,7 +344,7 @@ const imageToImageResult = createImageComposerDraft(imageToImageSnapshot, {
   ],
   textBlockTitle: '修改要求',
 });
-assert.equal(imageToImageResult.operationBlock.data.capabilityId, 'image.image_to_image');
+assert.equal(imageToImageResult.operationBlock.data.capabilityId, imageGenerateCapabilityId);
 assert.equal(imageToImageResult.operationBlock.data.operationMode, 'image_to_image');
 assert.equal(imageToImageResult.operationBlock.data.connectionId, 'codex-app-server');
 assert.deepEqual(imageToImageResult.operationBlock.data.generationParams, {
@@ -398,7 +399,7 @@ const autoConnection: ExecutionConnectionSummary = {
   description: 'Automated image composer contract test.',
   connectionKind: 'agent_host',
   implementationKind: 'agent_bridge',
-  supportedCapabilityIds: ['image.text_to_image'],
+  supportedCapabilityIds: [imageGenerateCapabilityId],
   enabledUseCases: ['image'],
   configurable: true,
   deletable: false,
@@ -408,7 +409,7 @@ const autoConnection: ExecutionConnectionSummary = {
   modelId: 'gpt-test',
 };
 const autoRun = executeExistingImageOperationBlock(autoExecuteSnapshot, {
-  capabilityId: 'image.text_to_image',
+  capabilityId: imageGenerateCapabilityId,
   connection: autoConnection,
   generationParams: autoDraft.operationBlock.data.generationParams,
   instruction: '',
@@ -431,8 +432,18 @@ assert.ok(autoExecuteSnapshot.edges.some((edge) => (
   && edge.kind === 'execution_output'
 )));
 assert.equal(autoRun.execution.outputBlockIds[0], autoRun.resultBlocks[0]?.blockId);
+assert.equal(autoRun.execution.capabilityId, imageGenerateCapabilityId);
 assert.equal(autoRun.execution.inputBlockIds.includes(autoReferenceBlock.blockId), true);
 assert.equal(autoRun.execution.status, 'queued');
+assert.deepEqual(
+  autoRun.execution.inputBindingsSnapshot?.map((binding) => binding.slotId),
+  ['prompt', 'references'],
+);
+assert.equal(
+  autoRun.execution.inputBindingsSnapshot?.find((binding) => binding.slotId === 'references')
+    ?.values[0]?.referenceIntent?.instruction,
+  '参考家具摄影光线。',
+);
 
 console.log(JSON.stringify({
   ok: true,

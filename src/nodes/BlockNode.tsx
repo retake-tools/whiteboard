@@ -178,6 +178,7 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
           && !isGenerationPreparationOperation
           && !isPluginOwnedOperation
           && data.capabilityId !== 'text.generate'
+          && data.capabilityId !== 'image.generate'
           ? <OperationCapabilityControl blockId={id} data={data as BlockData} />
           : null}
         {operationDisplay?.executionBadge ? (

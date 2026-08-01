@@ -23,6 +23,7 @@ import type { ExecutionConnectionSummary } from '../core/executionProviders';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
 import { useUnifiedComposerDraft } from './UnifiedComposerProvider';
+import { imageGenerateCapabilityId } from '../core/imageGenerateContracts';
 
 export function ImageComposerControls({ projectId }: { projectId: string }): ReactElement {
   const { t } = useI18n();
@@ -47,7 +48,7 @@ export function ImageComposerControls({ projectId }: { projectId: string }): Rea
     [settings],
   );
   const preferredConnection = useMemo(() => resolveAgentExecutionConnection({
-    capabilityId: 'image.text_to_image',
+    capabilityId: imageGenerateCapabilityId,
     initialConnectionId: 'codex-app-server',
     projectId,
     settings,
@@ -238,8 +239,7 @@ function isReadyImageConnection(connection: ExecutionConnectionSummary): boolean
     && connection.enabled
     && connection.status === 'ready'
     && connection.enabledUseCases.includes('image')
-    && connection.supportedCapabilityIds.includes('image.text_to_image')
-    && connection.supportedCapabilityIds.includes('image.image_to_image');
+    && connection.supportedCapabilityIds.includes(imageGenerateCapabilityId);
 }
 
 function connectionLabel(connection: ExecutionConnectionSummary, ready: boolean): string {

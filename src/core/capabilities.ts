@@ -17,6 +17,10 @@ import type {
   CapabilityBindingValue,
   CapabilityDefinition,
 } from './capabilityContracts';
+import {
+  imageGenerateCapabilityDefinition,
+  imageGenerateCapabilityId,
+} from './imageGenerateContracts';
 
 export type CapabilityInputRole =
   | 'annotated_composite'
@@ -204,6 +208,35 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
     promptSource: 'block',
     supportedAdapters: ['mcp_agent', 'direct_api', 'cli_agent', 'manual_import', 'mock'],
   },
+  [imageGenerateCapabilityId]: {
+    capabilityId: imageGenerateCapabilityId,
+    defaultAdapter: 'mcp_agent',
+    displayNameKey: 'operation.generateImage.title',
+    inputContracts: [
+      { type: 'text', required: true, source: 'block', min: 1, max: 1 },
+      {
+        type: 'image',
+        required: false,
+        source: 'block',
+        min: 0,
+        max: 'many',
+        roles: [
+          'source',
+          'character_reference',
+          'style_reference',
+          'composition_reference',
+          'pose_reference',
+          'object_reference',
+          'environment_reference',
+          'general_reference',
+        ],
+      },
+    ],
+    outputContracts: [{ type: 'image' }],
+    paramsSchema: { aspectRatio: true, count: true, model: true, resolution: true },
+    promptSource: 'block',
+    supportedAdapters: ['mcp_agent', 'direct_api', 'cli_agent', 'manual_import', 'mock'],
+  },
   'image.image_to_image': {
     capabilityId: 'image.image_to_image',
     defaultAdapter: 'mcp_agent',
@@ -257,8 +290,8 @@ export function schemaForCapability(capabilityId: string): CapabilitySchema {
 export function capabilityForImageOperation(
   operation: 'create_similar' | 'generate_image' | 'image_to_image' | 'quick_edit' | 'text_to_image',
 ): string {
-  if (operation === 'generate_image' || operation === 'text_to_image') return 'image.text_to_image';
-  return 'image.image_to_image';
+  void operation;
+  return imageGenerateCapabilityId;
 }
 
 export function connectedInputBlocks(snapshot: BoardSnapshot, operationBlockId: string): BlockRecord[] {
@@ -400,6 +433,9 @@ export function operationReadinessFor(
     }
     return { canRun: issues.size === 0, issues: [...issues] };
   }
+  if (capabilityId === imageGenerateCapabilityId) {
+    return imageGenerateOperationReadiness(inputEdges, blockById);
+  }
   const pluginDefinition = pluginCapabilityDefinitionFor(capabilityId);
   if (pluginDefinition) {
     return pluginOperationReadiness(
@@ -452,6 +488,38 @@ export function operationReadinessFor(
     }
   }
 
+  return { canRun: issues.size === 0, issues: [...issues] };
+}
+
+function imageGenerateOperationReadiness(
+  inputEdges: BoardSnapshot['edges'],
+  blockById: Map<string, BlockRecord>,
+): OperationReadiness {
+  const issues = new Set<OperationReadinessIssue>();
+  const promptEdges = inputEdges.filter((edge) => edge.inputSlotId === 'prompt');
+  const promptBlocks = promptEdges
+    .map((edge) => blockById.get(edge.sourceBlockId))
+    .filter((block): block is BlockRecord => Boolean(block));
+  if (promptEdges.length !== 1 || promptBlocks[0]?.type !== 'text') {
+    issues.add('text_input_missing');
+  } else if (!promptTextFromInputs(promptBlocks)) {
+    issues.add('prompt_empty');
+  }
+
+  const sourceEdges = inputEdges.filter((edge) => edge.inputSlotId === 'source_image');
+  if (sourceEdges.length > 1) issues.add('image_binding_missing');
+  for (const edge of inputEdges) {
+    const block = blockById.get(edge.sourceBlockId);
+    if (block?.type !== 'image') continue;
+    if (edge.inputSlotId !== 'source_image' && edge.inputSlotId !== 'references') {
+      issues.add('image_binding_missing');
+      continue;
+    }
+    if (typeof block.data.assetId !== 'string') issues.add('image_asset_missing');
+    if (edge.inputSlotId === 'source_image' && edge.referenceIntent) {
+      issues.add('image_binding_missing');
+    }
+  }
   return { canRun: issues.size === 0, issues: [...issues] };
 }
 
@@ -657,6 +725,13 @@ export function compatibleInputSlotIdsFor(
       ))
       .map((slot) => slot.slotId);
   }
+  if (capabilityId === imageGenerateCapabilityId) {
+    if (sourceBlock.type !== 'text' && sourceBlock.type !== 'image') return [];
+    const sourceDataType = sourceBlock.type;
+    return imageGenerateCapabilityDefinition.inputSlots
+      .filter((slot) => slot.bindingKinds.includes('block') && slot.dataTypes.includes(sourceDataType))
+      .map((slot) => slot.slotId);
+  }
   const schema = schemaForCapability(capabilityId);
   const slotIds = schema.inputContracts
     .filter((contract) => contract.source === 'block' && contract.type === sourceBlock.type)
@@ -726,6 +801,9 @@ function inputSlotCardinality(
   const pluginDefinition = pluginCapabilityDefinitionFor(capabilityId);
   const pluginSlot = pluginDefinition?.inputSlots.find((slot) => slot.slotId === slotId);
   if (pluginSlot) return pluginSlot.cardinality;
+  if (capabilityId === imageGenerateCapabilityId) {
+    return imageGenerateCapabilityDefinition.inputSlots.find((slot) => slot.slotId === slotId)?.cardinality ?? 'one';
+  }
   if (slotId === 'references') return 'many';
   return 'one';
 }

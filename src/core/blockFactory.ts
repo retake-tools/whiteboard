@@ -3,6 +3,7 @@ import { defaultGenerationProfileId } from './generationProfiles';
 import { defaultBlockSize } from './blockSizing';
 import { resolveExecutionConnectionPreference } from './executionProviderPreferences';
 import type { BlockRecord, BlockType, BoardSnapshot } from './types';
+import { imageGenerateCapabilityId } from './imageGenerateContracts';
 
 export function createBlockRecord(
   snapshot: BoardSnapshot,
@@ -39,7 +40,7 @@ export function maxZIndex(blocks: BlockRecord[]): number {
 function dataForType(type: BlockType, projectId: string): BlockRecord['data'] {
   if (type === 'operation') {
     const imageSelection = resolveExecutionConnectionPreference({
-      capabilityId: 'image.text_to_image',
+      capabilityId: imageGenerateCapabilityId,
       initialConnectionId: 'codex-managed',
       projectId,
       useCase: 'image',
@@ -47,7 +48,7 @@ function dataForType(type: BlockType, projectId: string): BlockRecord['data'] {
     return {
       title: 'New operation',
       body: 'Choose capability, inputs, and execution adapter.',
-      capabilityId: 'image.text_to_image',
+      capabilityId: imageGenerateCapabilityId,
       connectionId: imageSelection.connectionId,
       generationProfileId: defaultGenerationProfileId,
     };

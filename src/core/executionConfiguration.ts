@@ -44,8 +44,14 @@ export function currentOperationConfiguration(
     operationBlock.data.localEditParams,
   );
   const sourceAspectRatio = sourceImageAspectRatio(snapshot, operationBlock.blockId);
+  const hasSourceImage = imageInputs.some((input) => input.inputSlotId === 'source_image');
   const sourceAwareGenerationParams =
-    (capabilityId === 'image.image_to_image' || capabilityId === 'image.edit' || capabilityId === 'image.generate.similar') &&
+    (
+      capabilityId === 'image.image_to_image'
+      || capabilityId === 'image.edit'
+      || capabilityId === 'image.generate.similar'
+      || (capabilityId === 'image.generate' && hasSourceImage)
+    ) &&
     sourceAspectRatio &&
     (
       storedGenerationParams.aspectRatioPreset === 'source' ||
@@ -62,7 +68,7 @@ export function currentOperationConfiguration(
         }
       : storedGenerationParams;
   const generationParams =
-    capabilityId === 'image.text_to_image' &&
+    (capabilityId === 'image.text_to_image' || (capabilityId === 'image.generate' && !hasSourceImage)) &&
     !sourceAwareGenerationParams.aspectRatioPreset &&
     typeof sourceAwareGenerationParams.targetAspectRatio !== 'number' &&
     !(typeof sourceAwareGenerationParams.targetWidth === 'number' && typeof sourceAwareGenerationParams.targetHeight === 'number')

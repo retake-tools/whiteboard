@@ -165,7 +165,13 @@ export function createProviderImagePrompt(
     return `${command}Expand ${source} into a ${parameters.targetWidth}x${parameters.targetHeight} output canvas according to this instruction: ${sentence(instruction)} Place the unscaled source exactly at pixel rectangle x,y,width,height=${sourceRect}. Use ${guide} as the authoritative layout guide and ${mask} as the spatial constraint: black is the protected source footprint and white is the area to generate. Generate coherent new scene content only beyond the original boundaries; do not crop, scale, rotate, redraw, or reposition the source, and do not reproduce the guide transparency or mask.${inputContract}${geometry}${variant} Generate exactly one clean expanded image.${toolRule}`;
   }
 
-  if (execution.capabilityId === 'image.image_to_image') {
+  if (
+    execution.capabilityId === 'image.image_to_image'
+    || (
+      execution.capabilityId === 'image.generate'
+      && inputAssignments.some((assignment) => assignment.inputSlotId === 'source_image')
+    )
+  ) {
     const sourceIndex = attachmentIndex(inputAssignments, 'source_image');
     const source = sourceIndex ? `attachment ${sourceIndex}` : 'the attached source image';
     return `${command}Edit ${source} according to this instruction: ${sentence(instruction)}${inputContract}${geometry} Preserve its subject, composition, and all unmentioned primary content unless the instruction, a reference intent, or the requested output canvas explicitly changes it.${variant} Generate exactly one clean revised image.${toolRule}`;

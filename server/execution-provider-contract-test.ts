@@ -320,7 +320,11 @@ assert.ok(claudeConnection && geminiConnection && seedreamConnection);
 assert.deepEqual(claudeConnection.supportedCapabilityIds, textDocumentCapabilityIds);
 assert.deepEqual(geminiConnection.supportedCapabilityIds, textDocumentCapabilityIds);
 assert.equal(seedreamConnection.status, 'untested');
-assert.deepEqual(seedreamConnection.supportedCapabilityIds, ['image.image_to_image', 'image.text_to_image']);
+assert.deepEqual(seedreamConnection.supportedCapabilityIds, [
+  'image.generate',
+  'image.image_to_image',
+  'image.text_to_image',
+]);
 settings = await checkExecutionConnection(claudeConnection.connectionId, undefined, {
   probeNativeText: async (providerId, config) => {
     assert.equal(providerId, 'anthropic-native');

@@ -1,6 +1,7 @@
 import type { ComposerMode } from './imageComposer';
 import { listInstalledPluginCapabilityDefinitions } from './pluginCapabilityDefinitions';
 import type { ExecutionProviderSettingsSnapshot } from './executionProviders';
+import { imageGenerateCapabilityId } from './imageGenerateContracts';
 
 export interface ComposerModeContributionV1 {
   capabilityId?: string;
@@ -11,8 +12,8 @@ export function listAvailableComposerModes(
   settings: ExecutionProviderSettingsSnapshot | undefined,
 ): ComposerModeContributionV1[] {
   const modes: ComposerModeContributionV1[] = [{ mode: 'agent' }];
-  if (hasReadyCapability(settings, 'image.text_to_image')) {
-    modes.push({ capabilityId: 'image.text_to_image', mode: 'image' });
+  if (hasReadyCapability(settings, imageGenerateCapabilityId)) {
+    modes.push({ capabilityId: imageGenerateCapabilityId, mode: 'image' });
   }
   const videoCapability = listInstalledPluginCapabilityDefinitions().find(
     (definition) =>
