@@ -180,34 +180,6 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
     requiredInputSlotIds: ['generation_package'],
     supportedAdapters: ['direct_api', 'cli_agent', 'mock'],
   },
-  'image.text_to_image': {
-    capabilityId: 'image.text_to_image',
-    defaultAdapter: 'mcp_agent',
-    displayNameKey: 'operation.generateImage.title',
-    inputContracts: [
-      { type: 'text', required: true, source: 'block' },
-      {
-        type: 'image',
-        required: false,
-        source: 'block',
-        min: 0,
-        max: 'many',
-        roles: [
-          'character_reference',
-          'style_reference',
-          'composition_reference',
-          'pose_reference',
-          'object_reference',
-          'environment_reference',
-          'general_reference',
-        ],
-      },
-    ],
-    outputContracts: [{ type: 'image' }],
-    paramsSchema: { aspectRatio: true, count: true, model: true, resolution: true },
-    promptSource: 'block',
-    supportedAdapters: ['mcp_agent', 'direct_api', 'cli_agent', 'manual_import', 'mock'],
-  },
   [imageGenerateCapabilityId]: {
     capabilityId: imageGenerateCapabilityId,
     defaultAdapter: 'mcp_agent',
@@ -237,36 +209,6 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
     promptSource: 'block',
     supportedAdapters: ['mcp_agent', 'direct_api', 'cli_agent', 'manual_import', 'mock'],
   },
-  'image.image_to_image': {
-    capabilityId: 'image.image_to_image',
-    defaultAdapter: 'mcp_agent',
-    displayNameKey: 'operation.quickEdit.title',
-    inputContracts: [
-      { type: 'text', required: true, source: 'block' },
-      {
-        type: 'image',
-        required: true,
-        source: 'block',
-        min: 1,
-        max: 'many',
-        roles: [
-          'source',
-          'character_reference',
-          'style_reference',
-          'composition_reference',
-          'pose_reference',
-          'object_reference',
-          'environment_reference',
-          'general_reference',
-        ],
-        requiredRoles: ['source'],
-      },
-    ],
-    outputContracts: [{ type: 'image' }],
-    paramsSchema: { aspectRatio: true, count: true, model: true, resolution: true },
-    promptSource: 'block',
-    supportedAdapters: ['mcp_agent', 'direct_api', 'cli_agent', 'manual_import', 'mock'],
-  },
   'video.first_last_frame_to_video': {
     capabilityId: 'video.first_last_frame_to_video',
     defaultAdapter: 'mcp_agent',
@@ -284,7 +226,7 @@ const capabilitySchemas: Record<string, CapabilitySchema> = {
 };
 
 export function schemaForCapability(capabilityId: string): CapabilitySchema {
-  return capabilitySchemas[capabilityId] ?? capabilitySchemas['image.text_to_image'];
+  return capabilitySchemas[capabilityId] ?? capabilitySchemas[imageGenerateCapabilityId];
 }
 
 export function capabilityForImageOperation(
@@ -323,7 +265,7 @@ export function operationReadinessFor(
   const capabilityId =
     typeof operationBlock.data.capabilityId === 'string'
       ? operationBlock.data.capabilityId
-      : 'image.text_to_image';
+      : imageGenerateCapabilityId;
   const schema = schemaForCapability(capabilityId);
   const inputEdges = snapshot.edges.filter(
     (edge) => edge.targetBlockId === operationBlock.blockId && edge.kind === 'execution_input',
@@ -434,6 +376,9 @@ export function operationReadinessFor(
     return { canRun: issues.size === 0, issues: [...issues] };
   }
   if (capabilityId === imageGenerateCapabilityId) {
+    if (operationBlock.data.operationContractMigrationIssue === 'legacy_image_generate_input_mismatch') {
+      return { canRun: false, issues: ['input_contract_migration_required'] };
+    }
     return imageGenerateOperationReadiness(inputEdges, blockById);
   }
   const pluginDefinition = pluginCapabilityDefinitionFor(capabilityId);
@@ -510,7 +455,14 @@ function imageGenerateOperationReadiness(
   if (sourceEdges.length > 1) issues.add('image_binding_missing');
   for (const edge of inputEdges) {
     const block = blockById.get(edge.sourceBlockId);
-    if (block?.type !== 'image') continue;
+    if (block?.type === 'text') {
+      if (edge.inputSlotId !== 'prompt') issues.add('image_binding_missing');
+      continue;
+    }
+    if (block?.type !== 'image') {
+      issues.add('image_binding_missing');
+      continue;
+    }
     if (edge.inputSlotId !== 'source_image' && edge.inputSlotId !== 'references') {
       issues.add('image_binding_missing');
       continue;
@@ -618,6 +570,7 @@ export function operationReadinessMessageKey(issue: OperationReadinessIssue) {
   if (issue === 'image_input_missing') return 'operationToolbar.imageInputMissing' as const;
   if (issue === 'image_asset_missing') return 'operationToolbar.imageAssetMissing' as const;
   if (issue === 'image_binding_missing') return 'operationReference.bindingRequired' as const;
+  if (issue === 'input_contract_migration_required') return 'operationToolbar.inputContractMigrationRequired' as const;
   return 'operationToolbar.sourceImageMissing' as const;
 }
 
@@ -651,7 +604,7 @@ export function nextRequiredInputSlotId(
 ): string | undefined {
   const capabilityId = typeof operationBlock.data.capabilityId === 'string'
     ? operationBlock.data.capabilityId
-    : 'image.text_to_image';
+    : imageGenerateCapabilityId;
   const requiredSlotIds = schemaForCapability(capabilityId).requiredInputSlotIds ?? [];
   const assignedSlotIds = new Set(snapshot.edges
     .filter((edge) => edge.kind === 'execution_input' && edge.targetBlockId === operationBlock.blockId)
@@ -715,7 +668,7 @@ export function compatibleInputSlotIdsFor(
   if (operationBlock.type !== 'operation') return [];
 
   const capabilityId =
-    typeof operationBlock.data.capabilityId === 'string' ? operationBlock.data.capabilityId : 'image.text_to_image';
+    typeof operationBlock.data.capabilityId === 'string' ? operationBlock.data.capabilityId : imageGenerateCapabilityId;
   if (capabilityId === storyboardSheetCapabilityId) return [];
   const pluginDefinition = pluginCapabilityDefinitionFor(capabilityId);
   if (pluginDefinition) {
@@ -797,7 +750,7 @@ function inputSlotCardinality(
   }
   const capabilityId = typeof operationBlock.data.capabilityId === 'string'
     ? operationBlock.data.capabilityId
-    : 'image.text_to_image';
+    : imageGenerateCapabilityId;
   const pluginDefinition = pluginCapabilityDefinitionFor(capabilityId);
   const pluginSlot = pluginDefinition?.inputSlots.find((slot) => slot.slotId === slotId);
   if (pluginSlot) return pluginSlot.cardinality;

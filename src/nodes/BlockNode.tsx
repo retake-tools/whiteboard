@@ -813,9 +813,7 @@ function displayBlockTitle(data: BlockData, type: BlockType, t: Translate): stri
     const capabilityId = typeof data.capabilityId === 'string' ? data.capabilityId : undefined;
     if (capabilityId === 'image.annotation_edit') return t('operation.annotationEdit.title');
     if (capabilityId === 'text.generate') return t('operation.generateText.title');
-    if (capabilityId === 'image.text_to_image' || capabilityId === 'image.generate') return t('operation.generateImage.title');
-    if (capabilityId === 'image.image_to_image' || capabilityId === 'image.edit') return data.title || t('operation.quickEdit.title');
-    if (capabilityId === 'image.generate.similar') return t('operation.quickEdit.title');
+    if (capabilityId === 'image.generate') return t('operation.generateImage.title');
     if (capabilityId) return data.title;
     if (operationMode === 'image_to_image') return t('operation.quickEdit.title');
     return data.title;
@@ -826,22 +824,21 @@ function displayBlockTitle(data: BlockData, type: BlockType, t: Translate): stri
 
   const capabilityId = typeof data.capabilityId === 'string' ? data.capabilityId : undefined;
   if (capabilityId === 'image.annotation_edit') return t('operation.annotationEdit.title');
-  if (capabilityId === 'image.text_to_image' || capabilityId === 'image.generate') return t('operation.generateImage.title');
+  if (capabilityId === 'image.generate') return t('operation.generateImage.title');
   if (data.operationMode === 'image_to_image' || data.operationMode === 'quick_edit' || data.operationMode === 'create_similar') {
     return t('operation.quickEdit.title');
   }
-  if (capabilityId === 'image.image_to_image' || capabilityId === 'image.edit') return data.title || t('operation.quickEdit.title');
-  if (capabilityId === 'image.generate.similar') return t('operation.quickEdit.title');
   return data.title;
 }
 
 function operationModeFromCapability(data: BlockData): OperationMode {
+  if (data.capabilityId === 'image.generate') {
+    return data.operationHasSourceImage === true ? 'image_to_image' : 'text_to_image';
+  }
   if (data.operationMode === 'text_to_image' || data.operationMode === 'generate_image') return 'text_to_image';
   if (data.operationMode === 'image_to_image' || data.operationMode === 'quick_edit' || data.operationMode === 'create_similar') {
     return 'image_to_image';
   }
-  if (data.capabilityId === 'image.image_to_image' || data.capabilityId === 'image.edit') return 'image_to_image';
-  if (data.capabilityId === 'image.generate.similar') return 'image_to_image';
   return 'text_to_image';
 }
 
@@ -858,13 +855,17 @@ function operationLabel(operation: OperationMode, t: Translate): string {
 function capabilityIdForOperationMode(operation: OperationMode, data: BlockData): string {
   const existingCapabilityId = typeof data.capabilityId === 'string' ? data.capabilityId : undefined;
   if (
+    !existingCapabilityId
+    || existingCapabilityId === 'image.generate'
+  ) {
+    return 'image.generate';
+  }
+  if (
     existingCapabilityId &&
     operation === operationModeFromCapability(data) &&
-    existingCapabilityId !== 'image.generate.similar' &&
     !existingCapabilityId.startsWith('image.local_')
   ) {
     return existingCapabilityId;
   }
-  if (operation === 'text_to_image') return 'image.text_to_image';
-  return 'image.image_to_image';
+  return 'image.generate';
 }

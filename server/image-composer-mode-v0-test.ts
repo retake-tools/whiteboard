@@ -345,7 +345,7 @@ const imageToImageResult = createImageComposerDraft(imageToImageSnapshot, {
   textBlockTitle: '修改要求',
 });
 assert.equal(imageToImageResult.operationBlock.data.capabilityId, imageGenerateCapabilityId);
-assert.equal(imageToImageResult.operationBlock.data.operationMode, 'image_to_image');
+assert.equal(imageToImageResult.operationBlock.data.operationMode, undefined);
 assert.equal(imageToImageResult.operationBlock.data.connectionId, 'codex-app-server');
 assert.deepEqual(imageToImageResult.operationBlock.data.generationParams, {
   aspectRatioPreset: 'source',

@@ -69,20 +69,11 @@ export function imageExecutionInputAssignments(execution: ExecutionRecord): Imag
       return [[value.assetId, value] as const];
     }),
   );
-  let sourceAssigned = assetIds.some(
-    (assetId) => (
-      explicitSlots.get(assetId) ?? snapshotSlots.get(assetId)
-    ) === 'source_image',
-  );
   const assignments = assetIds.map((assetId): ImageExecutionInputAssignment => {
     let inputSlotId = explicitSlots.get(assetId) ?? snapshotSlots.get(assetId);
     if (assetId === annotatedCompositeAssetId) inputSlotId = 'annotated_composite';
     if (!inputSlotId && referenceSet.has(assetId)) inputSlotId = 'references';
-    if (!inputSlotId && execution.capabilityId !== 'image.text_to_image' && !sourceAssigned) {
-      inputSlotId = 'source_image';
-    }
     inputSlotId ??= 'references';
-    if (inputSlotId === 'source_image') sourceAssigned = true;
     const storyboardReference = storyboardReferenceByAssetId.get(assetId);
     return {
       assetId,
@@ -166,11 +157,8 @@ export function createProviderImagePrompt(
   }
 
   if (
-    execution.capabilityId === 'image.image_to_image'
-    || (
-      execution.capabilityId === 'image.generate'
-      && inputAssignments.some((assignment) => assignment.inputSlotId === 'source_image')
-    )
+    execution.capabilityId === 'image.generate'
+    && inputAssignments.some((assignment) => assignment.inputSlotId === 'source_image')
   ) {
     const sourceIndex = attachmentIndex(inputAssignments, 'source_image');
     const source = sourceIndex ? `attachment ${sourceIndex}` : 'the attached source image';

@@ -616,8 +616,8 @@ const blockedPrompt = blockedOperationSnapshot.blocks.find(
 );
 assert.ok(blockedOperation);
 assert.ok(blockedPrompt);
-blockedOperation.data.capabilityId = 'image.image_to_image';
-blockedOperation.data.operationMode = 'image_to_image';
+blockedOperation.data.capabilityId = 'image.generate';
+blockedOperation.data.operationContractMigrationIssue = 'legacy_image_generate_input_mismatch';
 const promptBeforeBlockedRequest = blockedPrompt.data.body;
 setAgentSessionWorkingOperation(
   blockedOperationSnapshot,

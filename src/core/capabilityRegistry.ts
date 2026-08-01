@@ -567,15 +567,13 @@ export const codexAppServerTextAdapterDefinition: AdapterDefinition = {
 export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.image.codex-app-server',
-  version: '0.3.0',
-  definitionHash: 'sha256:retake-image-codex-app-server-profile-routing-v1',
+  version: '0.4.0',
+  definitionHash: 'sha256:retake-image-codex-app-server-canonical-generate-v1',
   adapterClass: 'agent_runtime.media',
   routeKind: 'codex_app_server',
   provider: 'codex',
   supportedCapabilityIds: [
     'image.generate',
-    'image.text_to_image',
-    'image.image_to_image',
     'image.annotation_edit',
     'image.guided_edit',
     'image.masked_edit',
@@ -584,13 +582,13 @@ export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
   ],
   inputProfiles: [
     {
-      capabilityIds: ['image.generate', 'image.text_to_image'],
+      capabilityIds: ['image.generate'],
       profileId: 'codex_image_generation',
       requiredSlots: ['prompt'],
       optionalSlots: ['references'],
     },
     {
-      capabilityIds: ['image.generate', 'image.image_to_image'],
+      capabilityIds: ['image.generate'],
       profileId: 'codex_image_edit',
       requiredSlots: ['prompt', 'source_image'],
       optionalSlots: ['references'],
@@ -844,22 +842,22 @@ export const dreaminaCliAdapterDefinition: AdapterDefinition = {
 export const volcengineArkSeedreamImageAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.image.volcengine-ark-seedream',
-  version: '0.2.0',
-  definitionHash: 'sha256:retake-image-volcengine-ark-seedream-profile-routing-v1',
+  version: '0.3.0',
+  definitionHash: 'sha256:retake-image-volcengine-ark-seedream-canonical-generate-v1',
   adapterClass: 'image.generate',
   routeKind: 'direct_api',
   provider: 'volcengine-ark',
   model: 'doubao-seedream-5-0-260128',
-  supportedCapabilityIds: ['image.generate', 'image.text_to_image', 'image.image_to_image'],
+  supportedCapabilityIds: ['image.generate'],
   inputProfiles: [
     {
-      capabilityIds: ['image.generate', 'image.text_to_image'],
+      capabilityIds: ['image.generate'],
       profileId: 'seedream_text_to_image',
       requiredSlots: ['prompt'],
       optionalSlots: ['references'],
     },
     {
-      capabilityIds: ['image.generate', 'image.image_to_image'],
+      capabilityIds: ['image.generate'],
       profileId: 'seedream_image_to_image',
       requiredSlots: ['prompt', 'source_image'],
       optionalSlots: ['references'],
@@ -877,6 +875,14 @@ export const volcengineArkSeedreamImageAdapterDefinition: AdapterDefinition = {
 };
 
 export function capabilityDefinitionFor(capabilityId: string): CapabilityDefinition {
+  if (
+    capabilityId === 'image.text_to_image'
+    || capabilityId === 'image.image_to_image'
+    || capabilityId === 'image.generate.similar'
+    || capabilityId === 'image.edit'
+  ) {
+    throw new Error(`Retired Capability ${capabilityId} must be migrated to image.generate.`);
+  }
   const pluginDefinition = pluginCapabilityDefinitionFor(capabilityId);
   if (pluginDefinition) return pluginDefinition;
   if (capabilityId === annotationReadCompatibilityCapabilityDefinition.capabilityId) {

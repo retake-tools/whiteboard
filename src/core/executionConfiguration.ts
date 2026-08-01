@@ -37,7 +37,7 @@ export function currentOperationConfiguration(
   const capabilityId =
     typeof operationBlock.data.capabilityId === 'string'
       ? operationBlock.data.capabilityId
-      : 'image.text_to_image';
+      : 'image.generate';
   const storedGenerationParams = firstRecord(
     operationBlock.data.pluginParameters,
     operationBlock.data.generationParams,
@@ -47,10 +47,7 @@ export function currentOperationConfiguration(
   const hasSourceImage = imageInputs.some((input) => input.inputSlotId === 'source_image');
   const sourceAwareGenerationParams =
     (
-      capabilityId === 'image.image_to_image'
-      || capabilityId === 'image.edit'
-      || capabilityId === 'image.generate.similar'
-      || (capabilityId === 'image.generate' && hasSourceImage)
+      capabilityId === 'image.generate' && hasSourceImage
     ) &&
     sourceAspectRatio &&
     (
@@ -68,7 +65,7 @@ export function currentOperationConfiguration(
         }
       : storedGenerationParams;
   const generationParams =
-    (capabilityId === 'image.text_to_image' || (capabilityId === 'image.generate' && !hasSourceImage)) &&
+    capabilityId === 'image.generate' && !hasSourceImage &&
     !sourceAwareGenerationParams.aspectRatioPreset &&
     typeof sourceAwareGenerationParams.targetAspectRatio !== 'number' &&
     !(typeof sourceAwareGenerationParams.targetWidth === 'number' && typeof sourceAwareGenerationParams.targetHeight === 'number')

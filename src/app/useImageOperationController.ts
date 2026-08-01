@@ -250,7 +250,10 @@ export function useImageOperationController(options: ImageOperationControllerOpt
       return current;
     }, { history: true });
     if (refreshedOperationBlock) {
-      await startExistingOperationBlock({ block: refreshedOperationBlock, operation: operationModeFromBlock(refreshedOperationBlock) });
+      await startExistingOperationBlock({
+        block: refreshedOperationBlock,
+        operation: operationModeFromBlock(refreshedOperationBlock, snapshotRef.current),
+      });
     }
   }
 
@@ -525,7 +528,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     if (!operationBlock) return;
     void startExistingOperationBlock({
       block: operationBlock,
-      operation: operationModeFromBlock(operationBlock),
+      operation: operationModeFromBlock(operationBlock, snapshotRef.current),
       revealOnStart: true,
     });
   }
@@ -777,7 +780,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         ...operationBlock.data,
         title: operation === 'text_to_image' ? imageOperationTitle('generate_image', t) : imageOperationTitle('quick_edit', t),
         capabilityId: capabilityIdForOperationMode(operation),
-        operationMode: operation,
+        operationMode: undefined,
         operationVariant: undefined,
       };
       operationBlock.updatedAt = nowIso();

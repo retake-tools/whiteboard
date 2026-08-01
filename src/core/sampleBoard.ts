@@ -1,5 +1,6 @@
 import { nowIso } from './id';
 import { defaultGenerationProfileId } from './generationProfiles';
+import { imageGenerateCapabilityId } from './imageGenerateContracts';
 import type { BoardSnapshot } from './types';
 
 const createdAt = nowIso();
@@ -57,9 +58,9 @@ export const defaultSnapshot: BoardSnapshot = {
       size: { width: 280, height: 160 },
       zIndex: 2,
       data: {
-        title: 'image.text_to_image',
-        body: 'Capability: image.text_to_image\nAdapter: mcp_agent.codex or direct_api in the future',
-        capabilityId: 'image.text_to_image',
+        title: 'Generate image',
+        body: 'Capability: image.generate\nAdapter: mcp_agent.codex or direct_api in the future',
+        capabilityId: imageGenerateCapabilityId,
         generationProfileId: defaultGenerationProfileId,
       },
       createdAt,
@@ -72,6 +73,7 @@ export const defaultSnapshot: BoardSnapshot = {
       sourceBlockId: 'block_brief',
       targetBlockId: 'block_operation',
       kind: 'execution_input',
+      inputSlotId: 'prompt',
     },
   ],
   assets: [],
@@ -84,4 +86,5 @@ export const defaultSnapshot: BoardSnapshot = {
   changeProposals: [],
   changeDecisions: [],
   historyEvents: [],
+  imageGenerateMigrationVersion: 1,
 };

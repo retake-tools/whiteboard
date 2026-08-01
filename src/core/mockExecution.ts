@@ -18,7 +18,7 @@ export function createMockExecution(
       executionId,
       projectId: snapshot.project.projectId,
       boardId: snapshot.board.boardId,
-      capabilityId: 'image.text_to_image',
+      capabilityId: 'image.generate',
       adapter: 'mock',
       status: 'running',
       inputBlockIds,
@@ -67,7 +67,7 @@ export function addMockExecutionResult(
     data: {
       title: 'Mock image operation',
       body: 'Local mock execution for development.',
-      capabilityId: 'image.text_to_image',
+      capabilityId: 'image.generate',
       status: 'succeeded',
       sourceExecutionId: executionId,
     },
@@ -105,6 +105,7 @@ export function addMockExecutionResult(
     sourceBlockId: inputBlockIds[0],
     targetBlockId: operationBlockId,
     kind: 'execution_input',
+    inputSlotId: 'prompt',
   });
   snapshot.edges.push({
     edgeId: createId('edge'),

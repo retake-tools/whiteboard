@@ -134,13 +134,24 @@ export function isEditableNodeTarget(target: HTMLElement): boolean {
   ));
 }
 
-export function operationModeFromBlock(block: BlockRecord): SwitchableOperationMode {
+export function operationModeFromBlock(
+  block: BlockRecord,
+  snapshot?: BoardSnapshot,
+): SwitchableOperationMode {
+  if (block.data.capabilityId === imageGenerateCapabilityId) {
+    const hasSourceImage = snapshot
+      ? snapshot.edges.some((edge) => (
+          edge.kind === 'execution_input'
+          && edge.targetBlockId === block.blockId
+          && edge.inputSlotId === 'source_image'
+        ))
+      : block.data.operationHasSourceImage === true;
+    return hasSourceImage ? 'image_to_image' : 'text_to_image';
+  }
   if (block.data.operationMode === 'text_to_image' || block.data.operationMode === 'generate_image') return 'text_to_image';
   if (block.data.operationMode === 'image_to_image' || block.data.operationMode === 'quick_edit' || block.data.operationMode === 'create_similar') {
     return 'image_to_image';
   }
-  if (block.data.capabilityId === 'image.image_to_image' || block.data.capabilityId === 'image.edit') return 'image_to_image';
-  if (block.data.capabilityId === 'image.generate.similar') return 'image_to_image';
   return 'text_to_image';
 }
 
@@ -154,7 +165,7 @@ export function operationAllowsInputType(
   type: Extract<BlockType, 'image' | 'text' | 'video'>,
 ): boolean {
   const capabilityId =
-    typeof operationBlock.data.capabilityId === 'string' ? operationBlock.data.capabilityId : 'image.text_to_image';
+    typeof operationBlock.data.capabilityId === 'string' ? operationBlock.data.capabilityId : imageGenerateCapabilityId;
   try {
     const definition = capabilityDefinitionFor(capabilityId);
     const dataType = type === 'text' ? 'text' : type;

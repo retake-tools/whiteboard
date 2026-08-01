@@ -38,8 +38,7 @@ const builtInGenerationProfiles: GenerationProfile[] = [
     isDefault: true,
     supportedCapabilities: [
       'image.annotation_edit',
-      'image.image_to_image',
-      'image.text_to_image',
+      'image.generate',
     ],
     parameterSupport: {
       aspectRatio: 'best_effort',

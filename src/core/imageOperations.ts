@@ -318,7 +318,9 @@ export function addImageCodexOperation(
       agentHost: directApi ? undefined : 'codex',
       triggerMode: directApi ? 'server_worker' : codexAppServer ? 'agent_bridge' : 'manual_agent_session',
       capabilityId,
-      operationMode: operationModeForImageOperation(input.operation),
+      ...(capabilityId === imageGenerateCapabilityId
+        ? {}
+        : { operationMode: operationModeForImageOperation(input.operation) }),
       operationVariant:
         input.operation !== 'generate_image' && input.operation !== 'annotation_edit' ? input.operation : undefined,
       ...(sourceInputSlotId
@@ -465,7 +467,7 @@ export function addImageCodexOperation(
       adapterId: volcengineArkSeedreamImageAdapterDefinition.adapterId,
       version: volcengineArkSeedreamImageAdapterDefinition.version,
       definitionHash: volcengineArkSeedreamImageAdapterDefinition.definitionHash,
-      adapterClass: capabilityId === 'image.image_to_image' ? 'image.edit' : 'image.generate',
+      adapterClass: 'image.generate',
       routeKind: volcengineArkSeedreamImageAdapterDefinition.routeKind,
       provider: volcengineArkSeedreamImageAdapterDefinition.provider,
       model: input.connection?.modelId ?? volcengineArkSeedreamImageAdapterDefinition.model,
@@ -641,7 +643,6 @@ export function createDraftImageGenerateOperation(
       agentHost: 'codex',
       triggerMode: 'manual_agent_session',
       capabilityId: input.capabilityId ?? imageGenerateCapabilityId,
-      operationMode: sourceBlock ? 'image_to_image' : 'text_to_image',
       ...(sourceBlock && input.operationVariant ? { operationVariant: input.operationVariant } : {}),
       ...(sourceBlock ? { workflowLayout: 'branch_lanes' } : {}),
       connectionId: 'codex-managed',
@@ -1006,10 +1007,10 @@ export function executeExistingImageOperationBlock(
     agentHost: directApi ? undefined : 'codex',
     triggerMode: directApi ? 'server_worker' : codexAppServer ? 'agent_bridge' : 'manual_agent_session',
     capabilityId,
-    operationMode: operationModeForImageOperation(codexOperation),
-    operationVariant: input.capabilityId && input.capabilityId !== 'image.image_to_image'
-      ? operationBlock.data.operationVariant
-      : undefined,
+    ...(capabilityId === imageGenerateCapabilityId
+      ? { operationMode: undefined }
+      : { operationMode: operationModeForImageOperation(codexOperation) }),
+    operationVariant: operationBlock.data.operationVariant,
     sourceBlockId: sourceBlock?.blockId,
     sourceAssetId: sourceBlock?.data.assetId,
     promptSourceBlockId: isAnnotationRepeat ? undefined : textBlock?.blockId,
@@ -1092,7 +1093,7 @@ export function executeExistingImageOperationBlock(
       adapterId: volcengineArkSeedreamImageAdapterDefinition.adapterId,
       version: volcengineArkSeedreamImageAdapterDefinition.version,
       definitionHash: volcengineArkSeedreamImageAdapterDefinition.definitionHash,
-      adapterClass: capabilityId === 'image.image_to_image' ? 'image.edit' : 'image.generate',
+      adapterClass: 'image.generate',
       routeKind: volcengineArkSeedreamImageAdapterDefinition.routeKind,
       provider: volcengineArkSeedreamImageAdapterDefinition.provider,
       model: input.connection?.modelId ?? volcengineArkSeedreamImageAdapterDefinition.model,

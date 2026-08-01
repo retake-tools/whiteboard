@@ -395,6 +395,7 @@ export type TranslationKey =
   | 'operationToolbar.generator'
   | 'operationToolbar.localProcessing'
   | 'operationToolbar.imageInputMissing'
+  | 'operationToolbar.inputContractMigrationRequired'
   | 'operationToolbar.imageAssetMissing'
   | 'operationToolbar.model'
   | 'operationToolbar.motion'
@@ -1540,6 +1541,7 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.generator': 'Generator',
     'operationToolbar.localProcessing': 'Local processing',
     'operationToolbar.imageInputMissing': 'Connect an Image Block to provide the source image.',
+    'operationToolbar.inputContractMigrationRequired': 'This legacy image operation has conflicting inputs. Reconnect its prompt and source image before running it.',
     'operationToolbar.imageAssetMissing': 'Import an image into the connected Image Block.',
     'operationToolbar.model': 'Model',
     'operationToolbar.motion': 'Motion',
@@ -2680,6 +2682,7 @@ const translations: Record<Locale, Translations> = {
     'operationToolbar.generator': '生成方式',
     'operationToolbar.localProcessing': '本地处理',
     'operationToolbar.imageInputMissing': '请连接一个图片块作为源图。',
+    'operationToolbar.inputContractMigrationRequired': '这个旧图片操作的输入合同存在冲突，请重新连接 Prompt 与源图后再执行。',
     'operationToolbar.imageAssetMissing': '请先向已连接的图片块导入图片。',
     'operationToolbar.model': '模型',
     'operationToolbar.motion': '运动',

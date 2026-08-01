@@ -320,7 +320,7 @@ const queuedOperationMarkup = renderToStaticMarkup(
       blockId="operation_queued"
       data={{
         title: 'Text to image',
-        capabilityId: 'image.text_to_image',
+        capabilityId: 'image.generate',
         generationProfileId: 'codex-managed',
         sourceExecutionId: 'exec_queued',
         status: 'queued',
@@ -337,7 +337,7 @@ const canceledOperationMarkup = renderToStaticMarkup(
       blockId="operation_canceled"
       data={{
         title: 'Text to image',
-        capabilityId: 'image.text_to_image',
+        capabilityId: 'image.generate',
         generationProfileId: 'codex-managed',
         operationCanRun: true,
         sourceExecutionId: 'exec_canceled',
@@ -417,7 +417,7 @@ const invalidOperationMarkup = renderToStaticMarkup(
       blockId="operation_invalid"
       data={{
         title: 'Text to image',
-        capabilityId: 'image.text_to_image',
+        capabilityId: 'image.generate',
         generationProfileId: 'codex-managed',
         operationCanRun: false,
         operationReadinessIssues: ['prompt_empty'],
@@ -435,9 +435,10 @@ const sourceAspectOperationMarkup = renderToStaticMarkup(
       blockId="operation_source_aspect"
       data={{
         title: 'Image to image',
-        capabilityId: 'image.image_to_image',
+        capabilityId: 'image.generate',
         generationProfileId: 'codex-managed',
         operationCanRun: true,
+        operationHasSourceImage: true,
         operationSourceAspectRatio: 3 / 2,
       }}
     />
@@ -521,7 +522,7 @@ const configurationDetailsMarkup = renderToStaticMarkup(
         execution: {
           adapter: 'mcp_agent',
           boardId: 'board_test',
-          capabilityId: 'image.text_to_image',
+          capabilityId: 'image.generate',
           executionId: 'exec_v2',
           inputBlockIds: [],
           outputAssetIds: [],
@@ -566,7 +567,7 @@ if (!historyOperation) throw new Error('Expected default operation block for his
 const baseExecution = {
   adapter: 'mcp_agent' as const,
   boardId: historySnapshot.board.boardId,
-  capabilityId: 'image.text_to_image',
+  capabilityId: 'image.generate',
   inputBlockIds: ['block_brief'],
   outputAssetIds: [],
   outputBlockIds: [],
@@ -582,7 +583,7 @@ historySnapshot.executions = [{
   params: { operationBlockId: historyOperation.blockId },
   startedAt: '2026-07-11T00:01:00.000Z',
   configuration: {
-    capabilityId: 'image.text_to_image',
+    capabilityId: 'image.generate',
     generationParams: { variationCount: 2 },
     imageInputs: [],
     prompt: 'Second prompt',
@@ -595,7 +596,7 @@ historySnapshot.executions = [{
   params: { operationBlockId: historyOperation.blockId },
   startedAt: '2026-07-11T00:00:00.000Z',
   configuration: {
-    capabilityId: 'image.text_to_image',
+    capabilityId: 'image.generate',
     generationParams: { variationCount: 1 },
     imageInputs: [],
     prompt: 'First prompt',

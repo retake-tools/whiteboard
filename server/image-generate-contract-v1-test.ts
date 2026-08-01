@@ -28,6 +28,16 @@ import type { BoardSnapshot } from '../src/core/types';
 
 assert.deepEqual(validateCapabilityDefinition(imageGenerateCapabilityDefinition), []);
 assert.equal(capabilityDefinitionFor(imageGenerateCapabilityId), imageGenerateCapabilityDefinition);
+assert.throws(() => capabilityDefinitionFor('image.text_to_image'), /Retired Capability/);
+assert.throws(() => capabilityDefinitionFor('image.image_to_image'), /Retired Capability/);
+assert.throws(
+  () => resolveAdapterInputProfile(
+    codexAppServerImageAdapterDefinition,
+    'image.text_to_image',
+    ['prompt'],
+  ),
+  /does not support Capability/,
+);
 assert.equal(imageGenerateCapabilityDefinition.version, imageGenerateCapabilityVersion);
 assert.equal(imageGenerateCapabilityDefinition.definitionHash, imageGenerateDefinitionHash);
 assert.equal(imageGenerateCapabilityDefinition.parametersSchemaRef, imageGenerateParametersSchemaRef);
@@ -53,7 +63,7 @@ assert.deepEqual(
   ]),
   [['images', 'generated_images', 'image', 'many']],
 );
-assert.equal(
+assert.deepEqual(
   resolveAdapterInputProfile(
     codexAppServerImageAdapterDefinition,
     imageGenerateCapabilityId,
@@ -186,7 +196,7 @@ const textDraft = createDraftImageGenerateOperation(textSnapshot, {
   textBlockTitle: 'Prompt',
 });
 assert.equal(textDraft.operationBlock.data.capabilityId, imageGenerateCapabilityId);
-assert.equal(textDraft.operationBlock.data.operationMode, 'text_to_image');
+assert.equal(textDraft.operationBlock.data.operationMode, undefined);
 assert.deepEqual(textDraft.operationBlock.data.generationParams, {
   aspectRatioPreset: '9:16',
   targetAspectRatio: 9 / 16,
@@ -223,7 +233,7 @@ const sourceDraft = createDraftImageGenerateOperation(sourceSnapshot, {
   textBlockTitle: 'Prompt',
 });
 assert.equal(sourceDraft.operationBlock.data.capabilityId, imageGenerateCapabilityId);
-assert.equal(sourceDraft.operationBlock.data.operationMode, 'image_to_image');
+assert.equal(sourceDraft.operationBlock.data.operationMode, undefined);
 assert.deepEqual(sourceDraft.operationBlock.data.generationParams, {
   aspectRatioPreset: 'source',
   targetAspectRatio: 4 / 3,
@@ -256,6 +266,72 @@ const sourceEdge = sourceSnapshot.edges.find((edge) => (
 assert.ok(sourceEdge);
 sourceEdge.referenceIntent = createReferenceIntent('Invalid source metadata.', 'user');
 assert.equal(operationReadinessFor(sourceSnapshot, sourceDraft.operationBlock).canRun, false);
+
+const legacyTextSnapshot = structuredClone(defaultSnapshot) as BoardSnapshot;
+delete legacyTextSnapshot.imageGenerateMigrationVersion;
+const legacyTextOperation = legacyTextSnapshot.blocks.find((block) => block.type === 'operation');
+assert.ok(legacyTextOperation);
+legacyTextOperation.data.capabilityId = 'image.text_to_image';
+legacyTextOperation.data.operationMode = 'text_to_image';
+const migratedLegacyText = migrateBoardSnapshot(legacyTextSnapshot);
+const migratedLegacyTextOperation = migratedLegacyText.blocks.find(
+  (block) => block.blockId === legacyTextOperation.blockId,
+);
+assert.equal(migratedLegacyText.imageGenerateMigrationVersion, 1);
+assert.equal(migratedLegacyTextOperation?.data.capabilityId, imageGenerateCapabilityId);
+assert.equal(migratedLegacyTextOperation?.data.operationMode, undefined);
+assert.equal(migratedLegacyTextOperation?.data.operationContractMigrationIssue, undefined);
+
+const legacySourceSnapshot = structuredClone(defaultSnapshot) as BoardSnapshot;
+delete legacySourceSnapshot.imageGenerateMigrationVersion;
+const legacySourceOperation = legacySourceSnapshot.blocks.find((block) => block.type === 'operation');
+assert.ok(legacySourceOperation);
+legacySourceOperation.data.capabilityId = 'image.image_to_image';
+legacySourceOperation.data.operationMode = 'image_to_image';
+const legacySourceBlock = createBlockRecord(legacySourceSnapshot, 'image');
+legacySourceBlock.blockId = 'block_legacy_source';
+legacySourceBlock.data.assetId = 'asset_legacy_source';
+legacySourceSnapshot.blocks.push(legacySourceBlock);
+legacySourceSnapshot.edges.push({
+  edgeId: 'edge_legacy_source',
+  kind: 'execution_input',
+  sourceBlockId: legacySourceBlock.blockId,
+  targetBlockId: legacySourceOperation.blockId,
+});
+const migratedLegacySource = migrateBoardSnapshot(legacySourceSnapshot);
+const migratedLegacySourceOperation = migratedLegacySource.blocks.find(
+  (block) => block.blockId === legacySourceOperation.blockId,
+);
+assert.equal(migratedLegacySourceOperation?.data.capabilityId, imageGenerateCapabilityId);
+assert.equal(migratedLegacySourceOperation?.data.operationMode, undefined);
+assert.equal(migratedLegacySourceOperation?.data.operationContractMigrationIssue, undefined);
+assert.equal(
+  migratedLegacySource.edges.find((edge) => edge.edgeId === 'edge_legacy_source')?.inputSlotId,
+  'source_image',
+);
+assert.equal(operationReadinessFor(migratedLegacySource, migratedLegacySourceOperation!).canRun, true);
+
+const conflictingLegacySourceSnapshot = structuredClone(defaultSnapshot) as BoardSnapshot;
+delete conflictingLegacySourceSnapshot.imageGenerateMigrationVersion;
+const conflictingLegacySourceOperation = conflictingLegacySourceSnapshot.blocks.find(
+  (block) => block.type === 'operation',
+);
+assert.ok(conflictingLegacySourceOperation);
+conflictingLegacySourceOperation.data.capabilityId = 'image.image_to_image';
+conflictingLegacySourceOperation.data.operationMode = 'image_to_image';
+const migratedConflict = migrateBoardSnapshot(conflictingLegacySourceSnapshot);
+const migratedConflictOperation = migratedConflict.blocks.find(
+  (block) => block.blockId === conflictingLegacySourceOperation.blockId,
+);
+assert.equal(migratedConflictOperation?.data.capabilityId, imageGenerateCapabilityId);
+assert.equal(
+  migratedConflictOperation?.data.operationContractMigrationIssue,
+  'legacy_image_generate_input_mismatch',
+);
+assert.deepEqual(
+  operationReadinessFor(migratedConflict, migratedConflictOperation!),
+  { canRun: false, issues: ['input_contract_migration_required'] },
+);
 
 console.log(JSON.stringify({
   capabilityId: imageGenerateCapabilityId,

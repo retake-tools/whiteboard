@@ -15,6 +15,7 @@ import {
   codexAppServerTextAdapterDefinition,
   dreaminaCliAdapterDefinition,
   generationPreparationCapabilityDefinition,
+  imageGenerateCapabilityDefinition,
   seedanceModelArkAdapterDefinition,
   screenplayGenerateCapabilityDefinition,
   screenplayNormalizeCapabilityDefinition,
@@ -31,14 +32,13 @@ import './studio-domain-test-fixtures';
 
 const legacyCapabilityIds = [
   'text.generate',
-  'image.text_to_image',
-  'image.image_to_image',
   'video.first_last_frame_to_video',
 ] as const;
 
 const definitions = new Map<string, CapabilityDefinition>();
 
 assertNoIssues(validateCapabilityDefinition(videoGenerateCapabilityDefinition), 'canonical video.generate definition');
+assertNoIssues(validateCapabilityDefinition(imageGenerateCapabilityDefinition), 'canonical image.generate definition');
 assertNoIssues(validateCapabilityDefinition(screenplayGenerateCapabilityDefinition), 'canonical screenplay generate definition');
 assertNoIssues(validateCapabilityDefinition(screenplayNormalizeCapabilityDefinition), 'canonical screenplay normalize definition');
 assertNoIssues(validateCapabilityDefinition(characterBibleCapabilityDefinition), 'canonical character bible definition');
@@ -110,11 +110,15 @@ for (const capabilityId of legacyCapabilityIds) {
   definitions.set(capabilityId, definition);
 }
 
-const textToImage = requiredDefinition('image.text_to_image');
-assert.deepEqual(textToImage.inputSlots.map((slot) => slot.slotId), ['prompt', 'references']);
-assert.equal(requiredSlot(textToImage, 'prompt').cardinality, 'one');
-assert.equal(requiredSlot(textToImage, 'references').cardinality, 'many');
-assert.equal(requiredOutputSlot(textToImage, 'images').cardinality, 'many');
+assert.deepEqual(imageGenerateCapabilityDefinition.inputSlots.map((slot) => slot.slotId), [
+  'prompt',
+  'source_image',
+  'references',
+]);
+assert.equal(requiredSlot(imageGenerateCapabilityDefinition, 'prompt').cardinality, 'one');
+assert.equal(requiredSlot(imageGenerateCapabilityDefinition, 'source_image').cardinality, 'optional');
+assert.equal(requiredSlot(imageGenerateCapabilityDefinition, 'references').cardinality, 'many');
+assert.equal(requiredOutputSlot(imageGenerateCapabilityDefinition, 'images').cardinality, 'many');
 
 const textGenerate = requiredDefinition('text.generate');
 assert.deepEqual(textGenerate.inputSlots.map((slot) => slot.slotId), ['prompt']);
@@ -124,11 +128,9 @@ assert.equal(requiredOutputSlot(textGenerate, 'documents').dataType, 'document')
 assert.deepEqual(requiredOutputSlot(textGenerate, 'documents').projectionBlockTypes, ['document']);
 assert.deepEqual(textGenerate.supportedAdapterClasses, ['text.generate', 'agent_runtime.text', 'manual.import']);
 
-const imageToImage = requiredDefinition('image.image_to_image');
-assert.deepEqual(imageToImage.inputSlots.map((slot) => slot.slotId), ['prompt', 'source_image', 'references']);
-assert.deepEqual(requiredSlot(imageToImage, 'source_image').bindingKinds, ['block', 'asset', 'artifact_revision']);
-assert.equal(requiredSlot(imageToImage, 'source_image').required, true);
-assert.equal(requiredSlot(imageToImage, 'references').required, false);
+assert.deepEqual(requiredSlot(imageGenerateCapabilityDefinition, 'source_image').bindingKinds, ['block', 'asset', 'artifact_revision']);
+assert.equal(requiredSlot(imageGenerateCapabilityDefinition, 'source_image').required, false);
+assert.equal(requiredSlot(imageGenerateCapabilityDefinition, 'references').required, false);
 
 const videoDefinition = requiredDefinition('video.first_last_frame_to_video');
 assert.deepEqual(videoDefinition.inputSlots.map((slot) => slot.slotId), ['prompt', 'first_frame', 'last_frame']);

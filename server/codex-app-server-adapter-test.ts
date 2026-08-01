@@ -420,7 +420,7 @@ assert.match(referencedTextToImagePrompt, /attachment 1 \[references\]/);
 assert.doesNotMatch(referencedTextToImagePrompt, /^\$imagegen Edit/);
 
 const roleAwareEditExecution = structuredClone(imageRun.execution);
-roleAwareEditExecution.capabilityId = 'image.image_to_image';
+roleAwareEditExecution.capabilityId = 'image.generate';
 roleAwareEditExecution.inputAssetIds = ['asset_source_prompt_test', 'asset_style_prompt_test'];
 roleAwareEditExecution.params = {
   ...roleAwareEditExecution.params,

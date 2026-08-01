@@ -42,7 +42,7 @@ export function createImageOperationPrompt(
   const hasSourceInput = inputBindings.some(
     (binding) => binding.inputSlotId === 'source_image',
   );
-  const isPromptGeneration = execution.capabilityId === 'image.text_to_image' && !hasSourceInput;
+  const isPromptGeneration = execution.capabilityId === 'image.generate' && !hasSourceInput;
   const targetWidth = Math.round(sourceBlock.size.width);
   const targetHeight = Math.round(sourceBlock.size.height);
   const targetAspectRatio = targetHeight > 0 ? (targetWidth / targetHeight).toFixed(3) : 'unknown';

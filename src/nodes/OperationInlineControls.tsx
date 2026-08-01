@@ -790,27 +790,32 @@ function connectionStatusText(
 }
 
 function operationModeFromCapability(data: BlockData): SwitchableOperationMode {
+  if (data.capabilityId === 'image.generate') {
+    return data.operationHasSourceImage === true ? 'image_to_image' : 'text_to_image';
+  }
   if (data.operationMode === 'text_to_image' || data.operationMode === 'generate_image') return 'text_to_image';
   if (data.operationMode === 'image_to_image' || data.operationMode === 'quick_edit' || data.operationMode === 'create_similar') {
     return 'image_to_image';
   }
-  if (data.capabilityId === 'image.image_to_image' || data.capabilityId === 'image.edit') return 'image_to_image';
-  if (data.capabilityId === 'image.generate.similar') return 'image_to_image';
   return 'text_to_image';
 }
 
 function capabilityIdForOperationMode(operation: SwitchableOperationMode, data: BlockData): string {
   const existingCapabilityId = typeof data.capabilityId === 'string' ? data.capabilityId : undefined;
   if (
+    !existingCapabilityId
+    || existingCapabilityId === 'image.generate'
+  ) {
+    return 'image.generate';
+  }
+  if (
     existingCapabilityId &&
     operation === operationModeFromCapability(data) &&
-    existingCapabilityId !== 'image.generate.similar' &&
     !existingCapabilityId.startsWith('image.local_')
   ) {
     return existingCapabilityId;
   }
-  if (operation === 'text_to_image') return 'image.text_to_image';
-  return 'image.image_to_image';
+  return 'image.generate';
 }
 
 const standardAspectOptions: Array<{ label: string; value: Exclude<AspectPreset, 'source'> }> =
