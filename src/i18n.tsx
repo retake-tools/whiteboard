@@ -842,6 +842,7 @@ export type TranslationKey =
   | 'agentWorkspace.workflowHistory'
   | 'agentWorkspace.workflowNext'
   | 'agentWorkspace.workflowProgress'
+  | 'agentWorkspace.workflowRevision'
   | 'agentWorkspace.workflowRuns'
   | 'agentWorkspace.workflowStepRole.blocked'
   | 'agentWorkspace.workflowStepRole.current'
@@ -849,6 +850,7 @@ export type TranslationKey =
   | 'agentWorkspace.workflowStepRole.next'
   | 'agentWorkspace.workflowStepRole.pending'
   | 'agentWorkspace.workflowUpdated'
+  | 'agentWorkspace.workflowUnavailable'
   | 'agentWorkspace.workflowViewing'
   | 'agentWorkspace.you'
   | 'agentWorkspace.chatEmptyTitle'
@@ -2026,6 +2028,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.workflowHistory': 'Viewing Workflow Run history',
     'agentWorkspace.workflowNext': 'Next',
     'agentWorkspace.workflowProgress': 'Workflow step progress',
+    'agentWorkspace.workflowRevision': 'Revision',
     'agentWorkspace.workflowRuns': 'Workflow Runs',
     'agentWorkspace.workflowStepRole.blocked': 'Blocked',
     'agentWorkspace.workflowStepRole.current': 'Current',
@@ -2033,6 +2036,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.workflowStepRole.next': 'Next',
     'agentWorkspace.workflowStepRole.pending': 'Pending',
     'agentWorkspace.workflowUpdated': 'Updated',
+    'agentWorkspace.workflowUnavailable': 'Record unavailable',
     'agentWorkspace.workflowViewing': 'Viewing Workflow Run',
     'agentWorkspace.you': 'You',
     'agentWorkspace.chatEmptyTitle': 'What would you like to create?',
@@ -3205,6 +3209,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.workflowHistory': '正在查看 Workflow Run 历史',
     'agentWorkspace.workflowNext': '下一步',
     'agentWorkspace.workflowProgress': 'Workflow 步骤进度',
+    'agentWorkspace.workflowRevision': '版本',
     'agentWorkspace.workflowRuns': 'Workflow Runs',
     'agentWorkspace.workflowStepRole.blocked': '阻塞',
     'agentWorkspace.workflowStepRole.current': '当前',
@@ -3212,6 +3217,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.workflowStepRole.next': '下一步',
     'agentWorkspace.workflowStepRole.pending': '等待',
     'agentWorkspace.workflowUpdated': '更新时间',
+    'agentWorkspace.workflowUnavailable': '记录不可用',
     'agentWorkspace.workflowViewing': '正在查看 Workflow Run',
     'agentWorkspace.you': '你',
     'agentWorkspace.chatEmptyTitle': '这次想创作什么？',

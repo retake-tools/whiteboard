@@ -91,7 +91,7 @@ snapshot.workflowRuns.push(workflowRun, historyRun);
 snapshot.workflowStepRuns.push(
   step('step_prepare', workflowRun.workflowRunId, 'prepare', operations[0].blockId, 'succeeded'),
   step('step_generate', workflowRun.workflowRunId, 'generate', operations[1].blockId, 'succeeded'),
-  step('step_review', workflowRun.workflowRunId, 'review', operations[2].blockId, 'waiting_selection'),
+  step('step_review', workflowRun.workflowRunId, 'review', operations[2].blockId, 'waiting_selection', true),
   step('step_publish', workflowRun.workflowRunId, 'publish', operations[3].blockId, 'blocked'),
   step('step_history', historyRun.workflowRunId, 'history', operations[0].blockId, 'succeeded'),
 );
@@ -163,6 +163,7 @@ function step(
   stepId: string,
   operationBlockId: string,
   status: WorkflowStepRunRecord['status'],
+  withArtifact = false,
 ): WorkflowStepRunRecord {
   return {
     acceptedOutputAssetIds: [],
@@ -173,7 +174,17 @@ function step(
     freshness: 'current',
     operationBlockId,
     outputAcceptancePolicy: status === 'waiting_selection' ? 'manual_selection' : 'automatic',
-    outputArtifactBindings: [],
+    outputArtifactBindings: withArtifact ? [{
+      artifactId: 'artifact_guided_image',
+      artifactRevisionId: 'artifact_revision_guided_image_v1',
+      artifactType: 'image',
+      assetIds: [],
+      boundAt: now,
+      executionIds: [],
+      outputSlotId: 'image',
+      primaryAssetId: 'asset_guided_image',
+      workflowOutputSlotId: 'final_image',
+    }] : [],
     outputAssetIds: [],
     outputBlockIds: [],
     outputSlotIds: [],

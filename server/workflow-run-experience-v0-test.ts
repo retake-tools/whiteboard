@@ -27,6 +27,22 @@ assert.equal(attention?.executionCount, 2);
 assert.equal(attention?.artifactRevisionCount, 1);
 assert.equal(attention?.gateCount, 1);
 assert.equal(attention?.gateWaitingCount, 1);
+assert.deepEqual(attention?.gates.map((gate) => [gate.label, gate.status, gate.subjectLabel]), [
+  ['Review', 'waiting_approval', 'Generate image · image'],
+]);
+assert.deepEqual(attention?.artifacts.map((artifact) => [
+  artifact.artifactRevisionId,
+  artifact.artifactType,
+  artifact.outputSlotId,
+]), [['revision_image', 'image', 'image']]);
+assert.deepEqual(attention?.executions.map((execution) => [
+  execution.executionId,
+  execution.status,
+  execution.providerLabel,
+]), [
+  ['execution_prepare', 'succeeded', 'fixture-provider · fixture-model'],
+  ['execution_generate', 'unavailable', undefined],
+]);
 assert.deepEqual(
   attention?.steps.map((step) => [step.label, step.role]),
   [
@@ -42,11 +58,43 @@ assert.equal(history?.label, 'workflow.removed-package');
 assert.equal(history?.steps[0]?.label, 'archived-step');
 assert.equal(JSON.stringify(snapshot), before, 'Run Experience projection must not mutate the Board Snapshot.');
 
+const emptySnapshot = structuredClone(snapshot);
+emptySnapshot.workflowRuns = [];
+emptySnapshot.workflowStepRuns = [];
+assert.deepEqual(workflowRunExperienceFor(emptySnapshot), {
+  activeCount: 0,
+  attentionCount: 0,
+  runs: [],
+});
+
+const manyRunsSnapshot = structuredClone(snapshot);
+const historyTemplate = manyRunsSnapshot.workflowRuns?.find(
+  (run) => run.workflowRunId === 'workflow_history',
+);
+assert.ok(historyTemplate);
+manyRunsSnapshot.workflowRuns?.push(...Array.from({ length: 40 }, (_, index) => ({
+  ...structuredClone(historyTemplate),
+  stepRunIds: [],
+  updatedAt: '2026-07-01T00:00:00.000Z',
+  workflowProjectionId: `projection_bulk_${String(index).padStart(2, '0')}`,
+  workflowRunId: `workflow_bulk_${String(index).padStart(2, '0')}`,
+})));
+const manyRunsExperience = workflowRunExperienceFor(manyRunsSnapshot);
+assert.equal(manyRunsExperience.runs.length, 42, 'Large Run lists must not silently drop historical runs.');
+assert.deepEqual(
+  manyRunsExperience.runs.slice(-40).map((run) => run.workflowRunId),
+  Array.from({ length: 40 }, (_, index) => `workflow_bulk_${String(index).padStart(2, '0')}`),
+  'Same-time terminal Runs must use stable workflowRunId ordering.',
+);
+
 console.log(JSON.stringify({
   ok: true,
   activeAgentTargetPriority: true,
   canonicalSummaryProjection: true,
+  canonicalDetailProjection: true,
+  emptyBoardStable: true,
   historicalDefinitionFallback: true,
+  largeRunListStable: true,
   snapshotImmutable: true,
 }));
 
@@ -86,7 +134,21 @@ function fixtureSnapshot(): BoardSnapshot {
     ],
     edges: [],
     assets: [],
-    executions: [],
+    executions: [{
+      adapter: 'direct_api' as const,
+      boardId: 'board_test',
+      capabilityId: 'capability.test',
+      completedAt: now,
+      executionId: 'execution_prepare',
+      inputBlockIds: [],
+      model: 'fixture-model',
+      outputAssetIds: [],
+      outputBlockIds: [],
+      projectId: 'project_test',
+      provider: 'fixture-provider',
+      startedAt: now,
+      status: 'succeeded' as const,
+    }],
     workflowRuns: [
       {
         boardId: 'board_test',

@@ -144,12 +144,101 @@ export function AgentWorkflowRunNavigator({
               </li>
             ))}
           </ol>
+          {selectedRun.gates.length > 0 ? (
+            <DetailSection title={t('agentWorkspace.workflowGates')}>
+              {selectedRun.gates.map((gate) => (
+                <DetailRow
+                  key={gate.gateId}
+                  label={gate.label}
+                  meta={`${t(workflowGateStatusKey(gate.status))} · ${t('workflowRuntime.gateSubject')}: ${gate.subjectLabel}${gate.freshness === 'outdated' ? ` · ${t('workflowRuntime.outdated')}` : ''}`}
+                  onLocate={gate.operationBlockId ? () => onLocateBlock(gate.operationBlockId!) : undefined}
+                  t={t}
+                />
+              ))}
+            </DetailSection>
+          ) : null}
+          {selectedRun.artifacts.length > 0 ? (
+            <DetailSection title={t('agentWorkspace.workflowArtifacts')}>
+              {selectedRun.artifacts.map((artifact) => (
+                <DetailRow
+                  key={artifact.artifactRevisionId}
+                  label={`${artifact.artifactType} · ${artifact.outputSlotId}`}
+                  meta={`${t('agentWorkspace.workflowRevision')} ${shortId(artifact.artifactRevisionId)}`}
+                  metaTitle={artifact.artifactRevisionId}
+                  onLocate={() => onLocateBlock(artifact.operationBlockId)}
+                  t={t}
+                />
+              ))}
+            </DetailSection>
+          ) : null}
+          {selectedRun.executions.length > 0 ? (
+            <DetailSection title={t('agentWorkspace.workflowExecutions')}>
+              {selectedRun.executions.map((execution) => (
+                <DetailRow
+                  key={`${execution.stepRunId}:${execution.executionId}`}
+                  label={execution.capabilityId}
+                  meta={`${executionStatusLabel(execution.status, t)}${execution.providerLabel ? ` · ${execution.providerLabel}` : ''} · ${shortId(execution.executionId)}`}
+                  metaTitle={execution.executionId}
+                  onLocate={() => onLocateBlock(execution.operationBlockId)}
+                  t={t}
+                />
+              ))}
+            </DetailSection>
+          ) : null}
           <small className="agent-workflow-run-updated">
             {t('agentWorkspace.workflowUpdated')} {formatUpdatedAt(selectedRun, locale)}
           </small>
         </div>
       ) : null}
     </section>
+  );
+}
+
+function DetailSection({
+  children,
+  title,
+}: {
+  children: ReactElement | ReactElement[];
+  title: string;
+}): ReactElement {
+  return (
+    <section className="agent-workflow-detail-section">
+      <h4>{title}</h4>
+      <div>{children}</div>
+    </section>
+  );
+}
+
+function DetailRow({
+  label,
+  meta,
+  metaTitle,
+  onLocate,
+  t,
+}: {
+  label: string;
+  meta: string;
+  metaTitle?: string;
+  onLocate?: () => void;
+  t: ReturnType<typeof useI18n>['t'];
+}): ReactElement {
+  return (
+    <div className="agent-workflow-detail-row">
+      <div>
+        <strong>{label}</strong>
+        <small title={metaTitle}>{meta}</small>
+      </div>
+      {onLocate ? (
+        <button
+          type="button"
+          title={t('agentWorkspace.locateIntervention')}
+          aria-label={`${t('agentWorkspace.locateIntervention')}: ${label}`}
+          onClick={onLocate}
+        >
+          <MapPin size={13} />
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -189,6 +278,23 @@ function workflowStepStatusKey(status: WorkflowRunExperienceItemView['steps'][nu
 
 function workflowStepRoleKey(role: WorkflowRunExperienceItemView['steps'][number]['role']) {
   return `agentWorkspace.workflowStepRole.${role}` as const;
+}
+
+function workflowGateStatusKey(status: WorkflowRunExperienceItemView['gates'][number]['status']) {
+  return `workflowRuntime.gateStatus.${status}` as const;
+}
+
+function executionStatusLabel(
+  status: WorkflowRunExperienceItemView['executions'][number]['status'],
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  return status === 'unavailable'
+    ? t('agentWorkspace.workflowUnavailable')
+    : t(`status.${status}` as const);
+}
+
+function shortId(value: string): string {
+  return value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value;
 }
 
 function isTerminalWorkflowRun(run: WorkflowRunExperienceItemView): boolean {
