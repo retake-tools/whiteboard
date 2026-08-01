@@ -620,6 +620,7 @@ const historyMarkup = renderToStaticMarkup(
     />
   </I18nProvider>,
 );
+assert.match(historyMarkup, /Generate image/);
 assert.match(historyMarkup, /V2 · Prompt \+ Params/);
 
 const annotationManifestMarkup = renderToStaticMarkup(
