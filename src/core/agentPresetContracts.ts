@@ -2,7 +2,7 @@ export type AgentPresetToolPermission =
   | 'retake.execute_capability'
   | 'retake.read';
 
-export type AgentPresetRuntimeKind = 'codex_app_server';
+export type AgentPresetRuntimeKind = 'codex_app_server' | 'direct_api';
 
 export type AgentPresetRuntimeFeature =
   | 'persistent_session'

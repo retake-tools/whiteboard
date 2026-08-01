@@ -136,6 +136,23 @@ export async function saveExecutionProviderDefault(input: {
   return snapshot;
 }
 
+export async function saveAgentRuntimeProviderDefault(input: {
+  connectionId?: string;
+  projectId?: string;
+  responseProjectId?: string;
+}): Promise<ExecutionProviderSettingsSnapshot> {
+  const snapshot = await readJsonResponse<ExecutionProviderSettingsSnapshot>(await fetch(
+    '/api/local/settings/execution/agent-runtime-default',
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  ));
+  cacheExecutionProviderSettings(input.responseProjectId ?? input.projectId, snapshot);
+  return snapshot;
+}
+
 async function readJsonResponse<T>(response: Response): Promise<T> {
   const body = await response.json().catch(() => undefined) as T & { error?: string } | undefined;
   if (!response.ok) throw new Error(body?.error ?? `Execution provider request failed (${response.status}).`);

@@ -443,6 +443,8 @@ export type TranslationKey =
   | 'skillComposer.imageAttachmentOnly'
   | 'skillComposer.auto'
   | 'skillComposer.autoPreferences'
+  | 'skillComposer.taskPreferences'
+  | 'skillComposer.agentDecides'
   | 'skillComposer.outputType'
   | 'skillComposer.selectedMentions'
   | 'skillComposer.removeMention'
@@ -464,6 +466,14 @@ export type TranslationKey =
   | 'skillComposer.generateImage'
   | 'skillComposer.imageParameters'
   | 'skillComposer.connection'
+  | 'skillComposer.imageExecutionConnection'
+  | 'skillComposer.videoExecutionConnection'
+  | 'skillComposer.followProjectDefault'
+  | 'skillComposer.followWorkspaceDefault'
+  | 'skillComposer.useInitialConnection'
+  | 'skillComposer.useModelDefault'
+  | 'skillComposer.useConnectionDefault'
+  | 'skillComposer.useDefaultValue'
   | 'skillComposer.noImageConnections'
   | 'skillComposer.resolution'
   | 'skillComposer.imageCount'
@@ -773,6 +783,8 @@ export type TranslationKey =
   | 'agentWorkspace.presetTools'
   | 'agentWorkspace.presetRuntime'
   | 'agentWorkspace.newSession'
+  | 'agentWorkspace.chooseRuntime'
+  | 'agentWorkspace.useDefaultRuntime'
   | 'agentWorkspace.messageCopied'
   | 'agentWorkspace.noMatchingSessions'
   | 'agentWorkspace.noRun'
@@ -1052,6 +1064,9 @@ export type TranslationKey =
   | 'settings.workspaceDefaults'
   | 'settings.projectDefaults'
   | 'settings.inheritWorkspace'
+  | 'settings.defaultAgentRuntime'
+  | 'settings.inheritWorkspaceAgentRuntime'
+  | 'settings.initialAgentRuntime'
   | 'settings.defaultText'
   | 'settings.defaultDocument'
   | 'settings.defaultImage'
@@ -1589,6 +1604,8 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.imageAttachmentOnly': 'Direct image and video creation only accepts image attachments.',
     'skillComposer.auto': 'Auto',
     'skillComposer.autoPreferences': 'Auto',
+    'skillComposer.taskPreferences': 'Task preferences',
+    'skillComposer.agentDecides': 'Let Agent decide',
     'skillComposer.outputType': 'Output type',
     'skillComposer.selectedMentions': 'Referenced inputs',
     'skillComposer.removeMention': 'Remove reference',
@@ -1610,6 +1627,14 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.generateImage': 'Generate image',
     'skillComposer.imageParameters': 'Image generation parameters',
     'skillComposer.connection': 'Connection',
+    'skillComposer.imageExecutionConnection': 'Image execution connection',
+    'skillComposer.videoExecutionConnection': 'Video execution connection',
+    'skillComposer.followProjectDefault': 'Follow project default',
+    'skillComposer.followWorkspaceDefault': 'Follow workspace default',
+    'skillComposer.useInitialConnection': 'Use initial connection',
+    'skillComposer.useModelDefault': 'Preserve source / use model default',
+    'skillComposer.useConnectionDefault': 'Use connection default',
+    'skillComposer.useDefaultValue': 'Use default value',
     'skillComposer.noImageConnections': 'No ready image Connection',
     'skillComposer.resolution': 'Resolution',
     'skillComposer.imageCount': 'Count',
@@ -1919,6 +1944,8 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.presetTools': 'Effective tools',
     'agentWorkspace.presetRuntime': 'Runtime requirements',
     'agentWorkspace.newSession': 'New session',
+    'agentWorkspace.chooseRuntime': 'Choose the Agent runtime for this new session',
+    'agentWorkspace.useDefaultRuntime': 'Use default runtime',
     'agentWorkspace.messageCopied': 'Message copied',
     'agentWorkspace.noMatchingSessions': 'No matching conversations.',
     'agentWorkspace.noRun': 'No Agent Run attached',
@@ -2198,6 +2225,9 @@ const translations: Record<Locale, Translations> = {
     'settings.workspaceDefaults': 'Workspace defaults',
     'settings.projectDefaults': 'Current project overrides',
     'settings.inheritWorkspace': 'Inherit workspace default',
+    'settings.defaultAgentRuntime': 'Agent Runtime',
+    'settings.inheritWorkspaceAgentRuntime': 'Inherit workspace Agent Runtime',
+    'settings.initialAgentRuntime': 'Use initial Agent Runtime (Codex App Server)',
     'settings.defaultText': 'Text',
     'settings.defaultDocument': 'Document',
     'settings.defaultImage': 'Image',
@@ -2730,6 +2760,8 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.imageAttachmentOnly': '图片和视频直接创作目前只接受图片附件。',
     'skillComposer.auto': '自动',
     'skillComposer.autoPreferences': '自动偏好',
+    'skillComposer.taskPreferences': '任务偏好',
+    'skillComposer.agentDecides': '由 Agent 判断',
     'skillComposer.outputType': '输出类型',
     'skillComposer.selectedMentions': '已引用输入',
     'skillComposer.removeMention': '移除引用',
@@ -2751,6 +2783,14 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.generateImage': '生成图片',
     'skillComposer.imageParameters': '图片生成参数',
     'skillComposer.connection': 'Connection',
+    'skillComposer.imageExecutionConnection': '图片执行连接',
+    'skillComposer.videoExecutionConnection': '视频执行连接',
+    'skillComposer.followProjectDefault': '跟随项目默认',
+    'skillComposer.followWorkspaceDefault': '跟随工作区默认',
+    'skillComposer.useInitialConnection': '使用系统初始连接',
+    'skillComposer.useModelDefault': '保持原图 / 使用模型默认',
+    'skillComposer.useConnectionDefault': '使用连接默认',
+    'skillComposer.useDefaultValue': '使用默认值',
     'skillComposer.noImageConnections': '没有可用的图片 Connection',
     'skillComposer.resolution': '分辨率',
     'skillComposer.imageCount': '数量',
@@ -3060,6 +3100,8 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.presetTools': '有效工具',
     'agentWorkspace.presetRuntime': 'Runtime 要求',
     'agentWorkspace.newSession': '新建会话',
+    'agentWorkspace.chooseRuntime': '为新会话选择 Agent 运行连接',
+    'agentWorkspace.useDefaultRuntime': '使用默认运行连接',
     'agentWorkspace.messageCopied': '消息已复制',
     'agentWorkspace.noMatchingSessions': '没有匹配的会话。',
     'agentWorkspace.noRun': '未绑定 Agent Run',
@@ -3339,6 +3381,9 @@ const translations: Record<Locale, Translations> = {
     'settings.workspaceDefaults': 'Workspace 默认值',
     'settings.projectDefaults': '当前 Project 覆盖',
     'settings.inheritWorkspace': '继承 Workspace 默认值',
+    'settings.defaultAgentRuntime': 'Agent Runtime',
+    'settings.inheritWorkspaceAgentRuntime': '继承 Workspace Agent Runtime',
+    'settings.initialAgentRuntime': '使用初始 Agent Runtime（Codex App Server）',
     'settings.defaultText': '文本',
     'settings.defaultDocument': '文档',
     'settings.defaultImage': '图片',

@@ -3,6 +3,7 @@ import type {
   ExecutionProviderSettingsSnapshot,
   ExecutionUseCase,
 } from './executionProviders';
+import { isAgentRuntimeConnection } from './executionProviders';
 import { tryCapabilityDefinitionFor } from './capabilityRegistry';
 
 export type ExecutionConnectionPreferenceSource =
@@ -17,6 +18,19 @@ export interface ExecutionConnectionPreference {
   connectionId?: string;
   isUsable: boolean;
   source: ExecutionConnectionPreferenceSource;
+}
+
+export type AgentRuntimeConnectionPreferenceSource =
+  | 'explicit'
+  | 'project_default'
+  | 'workspace_default'
+  | 'initial';
+
+export interface AgentRuntimeConnectionPreference {
+  connection?: ExecutionConnectionSummary;
+  connectionId: string;
+  isUsable: boolean;
+  source: AgentRuntimeConnectionPreferenceSource;
 }
 
 const snapshotsByProject = new Map<string, ExecutionProviderSettingsSnapshot>();
@@ -39,6 +53,40 @@ export function subscribeExecutionProviderSettings(listener: () => void): () => 
 
 export function currentExecutionProviderSettings(): ExecutionProviderSettingsSnapshot | undefined {
   return latestSnapshot;
+}
+
+export function readyAgentRuntimeConnections(
+  settings: ExecutionProviderSettingsSnapshot | undefined = latestSnapshot,
+): ExecutionConnectionSummary[] {
+  return (settings?.connections ?? [])
+    .filter(isAgentRuntimeConnection)
+    .map((connection) => ({ ...connection }));
+}
+
+export function resolveAgentRuntimeConnectionPreference(input: {
+  explicitConnectionId?: string;
+  projectId: string;
+  settings?: ExecutionProviderSettingsSnapshot;
+}): AgentRuntimeConnectionPreference {
+  const settings = input.settings
+    ?? snapshotsByProject.get(input.projectId)
+    ?? snapshotsByProject.get('');
+  const candidate = input.explicitConnectionId
+    ? { connectionId: input.explicitConnectionId, source: 'explicit' as const }
+    : settings?.projectAgentRuntimeConnectionId
+      ? { connectionId: settings.projectAgentRuntimeConnectionId, source: 'project_default' as const }
+      : settings?.workspaceAgentRuntimeConnectionId
+        ? { connectionId: settings.workspaceAgentRuntimeConnectionId, source: 'workspace_default' as const }
+        : { connectionId: 'codex-app-server', source: 'initial' as const };
+  const connection = settings?.connections.find(
+    (current) => current.connectionId === candidate.connectionId,
+  );
+  return {
+    connection: connection ? { ...connection } : undefined,
+    connectionId: candidate.connectionId,
+    isUsable: Boolean(connection && isAgentRuntimeConnection(connection)),
+    source: candidate.source,
+  };
 }
 
 export function resolveExecutionConnectionPreference(input: {

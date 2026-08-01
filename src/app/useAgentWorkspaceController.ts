@@ -22,6 +22,7 @@ import { loadBoardSnapshot } from '../core/boardStore';
 import { requestAgentRuntimeTurn } from '../core/agentRuntimeClient';
 import {
   currentExecutionProviderSettings,
+  resolveAgentRuntimeConnectionPreference,
   resolveAgentExecutionConnection,
 } from '../core/executionProviderPreferences';
 import { reconcileAgentArtifactTarget } from '../core/agentArtifactTargetClient';
@@ -108,14 +109,15 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     setError(undefined);
   }, [snapshot.board.boardId, snapshot.project.projectId]);
 
-  function newSession(agentRunId?: string): string {
+  function newSession(connectionId?: string, agentRunId?: string): string {
     let createdId = '';
-    const connection = currentAgentConnection();
+    const connection = currentAgentConnection(connectionId);
     updateSnapshot((current) => {
       const created = createAgentSession(current, {
         agentRunId,
-        connectionId: connection?.connectionId,
-        model: connection?.modelId,
+        connectionId: connection.connectionId,
+        model: connection.modelId,
+        runtimeKind: connection.runtimeKind,
       });
       createdId = created.session.agentSessionId;
       return current;
@@ -136,8 +138,9 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     const connection = currentAgentConnection();
     updateSnapshot((current) => {
       const resolved = ensureDefaultAgentSession(current, {
-        connectionId: connection?.connectionId,
-        model: connection?.modelId,
+        connectionId: connection.connectionId,
+        model: connection.modelId,
+        runtimeKind: connection.runtimeKind,
         title: t('agentWorkspace.defaultSession'),
       });
       resolvedId = resolved.session.agentSessionId;
@@ -181,8 +184,9 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     updateSnapshot((current) => {
       archiveAgentSession(current, selectedSessionId);
       const next = ensureDefaultAgentSession(current, {
-        connectionId: connection?.connectionId,
-        model: connection?.modelId,
+        connectionId: connection.connectionId,
+        model: connection.modelId,
+        runtimeKind: connection.runtimeKind,
         title: t('agentWorkspace.defaultSession'),
       });
       nextSelectedSessionId = next.session.agentSessionId;
@@ -516,11 +520,21 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     submitMessage,
   };
 
-  function currentAgentConnection() {
+  function currentAgentConnection(explicitConnectionId?: string) {
     const settings = currentExecutionProviderSettings();
-    return settings?.connections.find(
-      (candidate) => candidate.connectionId === 'codex-app-server',
-    );
+    const resolved = resolveAgentRuntimeConnectionPreference({
+      explicitConnectionId,
+      projectId: snapshot.project.projectId,
+      settings,
+    });
+    return {
+      connectionId: resolved.connectionId,
+      modelId: resolved.connection?.modelId
+        ?? (resolved.connectionId === 'codex-app-server' ? 'gpt-5.6-sol' : 'unavailable'),
+      runtimeKind: (resolved.connection?.connectorId ?? resolved.connectionId) === 'codex-app-server'
+        ? 'codex_app_server' as const
+        : 'direct_api' as const,
+    };
   }
 }
 

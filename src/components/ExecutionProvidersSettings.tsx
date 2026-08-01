@@ -20,6 +20,7 @@ import {
   duplicateExecutionProviderConnection,
   loadCodexAppServerModels,
   loadExecutionProviderSettings,
+  saveAgentRuntimeProviderDefault,
   saveExecutionProviderDefault,
   updateExecutionProviderConnection,
   type CodexAppServerModelCatalog,
@@ -32,6 +33,7 @@ import type {
   ExecutionProviderSettingsSnapshot,
   ExecutionUseCase,
 } from '../core/executionProviders';
+import { isAgentRuntimeConnection } from '../core/executionProviders';
 import { useI18n, type I18nContextValue } from '../i18n';
 import { TooltipIconButton } from './Tooltip';
 
@@ -246,6 +248,26 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
     }
   }
 
+  async function saveAgentRuntimeDefault(
+    connectionId: string,
+    scope: 'workspace' | 'project',
+  ): Promise<void> {
+    const busyKey = `${scope}:agent-runtime`;
+    setBusyId(busyKey);
+    setError(undefined);
+    try {
+      setSnapshot(await saveAgentRuntimeProviderDefault({
+        connectionId: connectionId || undefined,
+        projectId: scope === 'project' ? projectId : undefined,
+        responseProjectId: projectId,
+      }));
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusyId(undefined);
+    }
+  }
+
   return (
     <div className="execution-settings-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section className="execution-settings-dialog" role="dialog" aria-modal="true" aria-label={t('settings.executionProviders')}>
@@ -316,7 +338,10 @@ export function ExecutionProvidersSettings({ projectId, onClose }: ExecutionProv
               busyId={busyId}
               connections={snapshot.connections}
               projectDefaults={snapshot.projectDefaults}
+              projectAgentRuntimeConnectionId={snapshot.projectAgentRuntimeConnectionId}
               workspaceDefaults={snapshot.workspaceDefaults}
+              workspaceAgentRuntimeConnectionId={snapshot.workspaceAgentRuntimeConnectionId}
+              onSaveAgentRuntime={saveAgentRuntimeDefault}
               onSave={saveDefault}
               t={t}
             />
@@ -465,19 +490,69 @@ function ConnectionCard({ busy, codexModels, codexModelsError, codexModelsLoadin
   );
 }
 
-function DefaultsPanel({ busyId, connections, projectDefaults, workspaceDefaults, onSave, t }: {
+function DefaultsPanel({
+  busyId,
+  connections,
+  projectAgentRuntimeConnectionId,
+  projectDefaults,
+  workspaceAgentRuntimeConnectionId,
+  workspaceDefaults,
+  onSave,
+  onSaveAgentRuntime,
+  t,
+}: {
   busyId?: string;
   connections: ExecutionConnectionSummary[];
+  projectAgentRuntimeConnectionId?: string;
   projectDefaults: ExecutionDefaultSelection[];
+  workspaceAgentRuntimeConnectionId?: string;
   workspaceDefaults: ExecutionDefaultSelection[];
   onSave: (useCase: ExecutionUseCase, connectionId: string, scope: 'workspace' | 'project') => Promise<void>;
+  onSaveAgentRuntime: (connectionId: string, scope: 'workspace' | 'project') => Promise<void>;
   t: I18nContextValue['t'];
 }): ReactElement {
+  const agentRuntimeConnections = connections.filter(isAgentRuntimeConnection);
   return (
     <div className="execution-default-sections">
-      {(['workspace', 'project'] as const).map((scope) => (
+      {(['workspace', 'project'] as const).map((scope) => {
+        const selectedAgentRuntimeId = scope === 'workspace'
+          ? workspaceAgentRuntimeConnectionId
+          : projectAgentRuntimeConnectionId;
+        const selectedAgentRuntime = selectedAgentRuntimeId
+          ? connections.find((connection) => connection.connectionId === selectedAgentRuntimeId)
+          : undefined;
+        const selectedAgentRuntimeUnavailable = selectedAgentRuntime
+          ? !agentRuntimeConnections.some(
+            (connection) => connection.connectionId === selectedAgentRuntime.connectionId,
+          )
+          : false;
+        return (
         <section key={scope}>
           <h3>{t(scope === 'workspace' ? 'settings.workspaceDefaults' : 'settings.projectDefaults')}</h3>
+          <label>
+            <span>{t('settings.defaultAgentRuntime')}</span>
+            <select
+              value={selectedAgentRuntimeId ?? ''}
+              disabled={busyId === `${scope}:agent-runtime`}
+              onChange={(event) => void onSaveAgentRuntime(event.currentTarget.value, scope)}
+            >
+              <option value="">
+                {scope === 'project'
+                  ? t('settings.inheritWorkspaceAgentRuntime')
+                  : t('settings.initialAgentRuntime')}
+              </option>
+              {selectedAgentRuntime && selectedAgentRuntimeUnavailable ? (
+                <option value={selectedAgentRuntime.connectionId} disabled>
+                  {selectedAgentRuntime.displayName} · {statusLabel(selectedAgentRuntime.status, t)}
+                </option>
+              ) : null}
+              {agentRuntimeConnections.map((connection) => (
+                <option key={connection.connectionId} value={connection.connectionId}>
+                  {connection.displayName}{connection.modelId ? ` · ${connection.modelId}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
           {executionUseCases.map((useCase) => {
             const compatible = connections.filter((connection) => connection.status === 'ready' && connection.enabledUseCases.includes(useCase));
             const selected = (scope === 'workspace' ? workspaceDefaults : projectDefaults).find((value) => value.useCase === useCase);
@@ -505,7 +580,8 @@ function DefaultsPanel({ busyId, connections, projectDefaults, workspaceDefaults
             );
           })}
         </section>
-      ))}
+        );
+      })}
     </div>
   );
 }

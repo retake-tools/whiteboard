@@ -1083,7 +1083,7 @@ function ReadyApp({
           onAttachFiles={agentAttachmentController.attachFiles}
           onCancelAgentRun={agentRuntimeController.cancelAgentRun}
           onClose={closeAgentWorkspace}
-          onCreateSession={() => agentWorkspaceController.newSession()}
+          onCreateSession={(connectionId) => agentWorkspaceController.newSession(connectionId)}
           onDecideProposal={agentWorkspaceController.decideProposal}
           onLaunchProposal={(proposalId, expectedProposalVersion, target, agentPresetEntryPointId) =>
             void agentWorkspaceController.launchProposal(

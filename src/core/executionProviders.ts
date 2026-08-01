@@ -83,8 +83,24 @@ export interface ExecutionProviderSettingsSnapshot {
   connectors: ExecutionConnectorDefinition[];
   connectionTemplates: ExecutionConnectionTemplate[];
   connections: ExecutionConnectionSummary[];
+  projectAgentRuntimeConnectionId?: string;
   workspaceDefaults: ExecutionDefaultSelection[];
+  workspaceAgentRuntimeConnectionId?: string;
   projectDefaults: ExecutionDefaultSelection[];
+}
+
+export function isAgentRuntimeConnection(
+  connection: ExecutionConnectionSummary,
+): boolean {
+  return connection.enabled
+    && connection.status === 'ready'
+    && Boolean(connection.modelId)
+    && (
+      connection.connectorId === 'codex-app-server'
+      || connection.connectorId === 'openai-compatible'
+      || connection.connectorId === 'anthropic-native'
+      || connection.connectorId === 'google-native'
+    );
 }
 
 const connectors: ExecutionConnectorDefinition[] = [

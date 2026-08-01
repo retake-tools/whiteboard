@@ -5,6 +5,7 @@ import type {
   AgentMessageRecord,
   AgentRunControlAction,
   AgentRuntimeBindingRecord,
+  AgentRuntimeKind,
   AgentRuntimeEventRecord,
   AgentRuntimeTurnContext,
   AgentRuntimeTurnDecision,
@@ -36,6 +37,7 @@ export function createAgentSession(
     agentRunId?: string;
     connectionId?: string;
     model?: string;
+    runtimeKind?: AgentRuntimeKind;
     title?: string;
   } = {},
 ): { binding: AgentRuntimeBindingRecord; session: AgentSessionRecord } {
@@ -52,7 +54,7 @@ export function createAgentSession(
     createdAt: now,
     model: input.model ?? 'gpt-5.6-sol',
     recordVersion: 1,
-    runtimeKind: 'codex_app_server',
+    runtimeKind: input.runtimeKind ?? 'codex_app_server',
     status: 'active',
     updatedAt: now,
   };
@@ -82,6 +84,7 @@ export function ensureDefaultAgentSession(
   input: {
     connectionId?: string;
     model?: string;
+    runtimeKind?: AgentRuntimeKind;
     title?: string;
   } = {},
 ): { created: boolean; session: AgentSessionRecord } {

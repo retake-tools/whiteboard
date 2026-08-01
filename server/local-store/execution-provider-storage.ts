@@ -34,7 +34,11 @@ export interface StoredCredentialsFile {
 }
 
 export interface StoredDefaultsFile {
-  schemaVersion: 3;
+  schemaVersion: 4;
+  agentRuntime: {
+    projects: Record<string, string>;
+    workspace?: string;
+  };
   workspace: ExecutionDefaultSelection[];
   projects: Record<string, ExecutionDefaultSelection[]>;
 }
@@ -89,11 +93,26 @@ export async function writeExecutionCredentials(credentials: StoredCredentialsFi
 
 export async function readExecutionDefaults(): Promise<StoredDefaultsFile> {
   const parsed = await readOptionalJson<{
+    agentRuntime?: {
+      projects?: Record<string, unknown>;
+      workspace?: unknown;
+    };
     workspace?: Array<Record<string, unknown>>;
     projects?: Record<string, Array<Record<string, unknown>>>;
   }>(defaultsPath, { workspace: [], projects: {} });
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
+    agentRuntime: {
+      projects: Object.fromEntries(Object.entries(parsed.agentRuntime?.projects ?? {}).flatMap(
+        ([projectId, connectionId]) => {
+          const normalized = cleanString(connectionId);
+          return normalized ? [[projectId, normalized]] : [];
+        },
+      )),
+      ...(cleanString(parsed.agentRuntime?.workspace)
+        ? { workspace: cleanString(parsed.agentRuntime?.workspace) }
+        : {}),
+    },
     workspace: normalizeDefaults(parsed.workspace ?? []),
     projects: Object.fromEntries(Object.entries(parsed.projects ?? {}).map(
       ([projectId, defaults]) => [projectId, normalizeDefaults(defaults)],

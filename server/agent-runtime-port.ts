@@ -17,8 +17,15 @@ import { createReferenceIntent } from '../src/core/referenceIntent';
 import { createId, nowIso } from '../src/core/id';
 import type { AgentCallableCapabilityV1 } from '../src/core/agentCallableCapabilities';
 import { getBoardSnapshot } from './local-store';
-import { listExecutionProviderSettings } from './local-store/execution-provider-store';
+import {
+  listExecutionProviderSettings,
+  resolveExecutionConnection,
+} from './local-store/execution-provider-store';
 import { runCodexAppServerTurn } from './codex-app-server-client';
+import {
+  generateDirectAgentDecision,
+  isDirectAgentRuntimeConnector,
+} from './direct-agent-runtime-client';
 import { resolveAssetStoragePath } from './local-store/asset-files';
 import {
   coreAgentCallableCapabilities,
@@ -158,6 +165,7 @@ export const agentRuntimeDecisionSchema = agentRuntimeDecisionSchemaFor();
 const baseInstructions = `You are Retake's bounded video-workflow assistant.
 Use only the Board and AgentRun facts supplied in each user turn. Do not call tools, inspect files, use the shell, browse, or modify the environment.
 Return one JSON object matching the supplied schema.
+- The user-facing text field is always named message. Never rename it to reply, response, content, or answer.
 - Set fields that do not apply to the selected kind to null, and set limitations to [] when no limitations apply.
 - Set suggestions to at most three short, useful next messages grounded in the result. Use [] when no follow-up is useful.
 - reply: answer questions that do not change product state.
@@ -321,6 +329,97 @@ class CodexAppServerAgentRuntimePort implements AgentRuntimePort {
 
 const codexRuntimePort = new CodexAppServerAgentRuntimePort();
 
+class DirectApiAgentRuntimePort implements AgentRuntimePort {
+  private events = new Map<string, AgentRuntimeEvent[]>();
+
+  async getCapabilities() {
+    return { approvals: false, persistentSessions: false, structuredDecisions: true };
+  }
+
+  async startSession(input: Parameters<AgentRuntimePort['startSession']>[0]): Promise<AgentRuntimeTurnResult> {
+    return this.runTurn(input);
+  }
+
+  async resumeSession(input: Parameters<AgentRuntimePort['resumeSession']>[0]): Promise<AgentRuntimeTurnResult> {
+    return this.runTurn(input);
+  }
+
+  async *streamEvents(agentSessionId: string): AsyncIterable<AgentRuntimeEvent> {
+    const events = this.events.get(agentSessionId) ?? [];
+    this.events.delete(agentSessionId);
+    for (const event of events) yield event;
+  }
+
+  async respondToApproval(): Promise<void> {
+    throw new Error('Retake Agent Runtime V1 does not expose Runtime approval requests.');
+  }
+
+  async cancel(): Promise<void> {
+    throw new Error('Retake Agent Runtime V1 cancels an active turn through its request AbortSignal.');
+  }
+
+  private async runTurn(
+    input: Parameters<AgentRuntimePort['startSession']>[0],
+  ): Promise<AgentRuntimeTurnResult> {
+    this.publishEvent(input, runtimeEvent(input.agentSessionId, { kind: 'turn_started' }));
+    try {
+      const resolved = await resolveExecutionConnection(input.binding.connectionId);
+      if (!resolved || !isDirectAgentRuntimeConnector(resolved.connectorId)) {
+        throw new Error('Direct Agent Runtime credentials are unavailable. Test or reconfigure this connection.');
+      }
+      const capabilityCatalog = await loadAgentCallableCapabilities();
+      const attachments = await resolveAgentAttachments(input.context);
+      const result = await generateDirectAgentDecision(
+        resolved.connectorId,
+        {
+          apiKey: resolved.apiKey,
+          baseUrl: resolved.baseUrl,
+          model: input.binding.model,
+        },
+        {
+          instructions: baseInstructions,
+          outputSchema: agentRuntimeDecisionSchemaFor(capabilityCatalog),
+          prompt: runtimePrompt(input.context, capabilityCatalog, attachments.summaries),
+        },
+      );
+      const runtimeTurnId = createId('agturn');
+      const decision = parseAgentRuntimeDecision(
+        JSON.stringify(result.object),
+        input.context,
+        capabilityCatalog,
+      );
+      this.publishEvent(input, runtimeEvent(input.agentSessionId, {
+        kind: 'turn_completed',
+        runtimeTurnId,
+      }));
+      return {
+        decision,
+        externalThreadId: input.binding.externalThreadId ?? `direct:${input.agentSessionId}`,
+        model: input.binding.model,
+        runtimeTurnId,
+      };
+    } catch (error) {
+      this.publishEvent(input, runtimeEvent(input.agentSessionId, {
+        error: error instanceof Error ? error.message : String(error),
+        kind: 'turn_failed',
+      }));
+      throw error;
+    }
+  }
+
+  private publishEvent(
+    input: Parameters<AgentRuntimePort['startSession']>[0],
+    event: AgentRuntimeEvent,
+  ): void {
+    const events = this.events.get(input.agentSessionId) ?? [];
+    events.push(event);
+    this.events.set(input.agentSessionId, events.slice(-20));
+    input.onEvent?.(event);
+  }
+}
+
+const directApiRuntimePort = new DirectApiAgentRuntimePort();
+
 export async function runAgentRuntimeTurn(input: {
   agentSessionId: string;
   boardId: string;
@@ -332,18 +431,26 @@ export async function runAgentRuntimeTurn(input: {
   if (!binding) throw new Error('Agent Session runtime binding was not found.');
   const settings = await listExecutionProviderSettings(input.projectId);
   const connection = settings.connections.find((candidate) => candidate.connectionId === binding.connectionId);
-  if (!connection || connection.connectorId !== 'codex-app-server' || !connection.enabled) {
-    throw new Error('Codex App Server connection is not enabled for this Agent Session.');
+  if (!connection || !connection.enabled) {
+    throw new Error('The Agent Runtime connection is not enabled for this Agent Session.');
   }
   if (connection.status !== 'ready' || !connection.modelId) {
-    throw new Error(connection.lastError || 'Test the Codex App Server connection and choose a model first.');
+    throw new Error(connection.lastError || 'Test the Agent Runtime connection and choose a model first.');
+  }
+  const isCodexRuntime = binding.runtimeKind === 'codex_app_server';
+  if (isCodexRuntime && connection.connectorId !== 'codex-app-server') {
+    throw new Error('The frozen Agent Runtime kind no longer matches its connection.');
+  }
+  if (!isCodexRuntime && !isDirectAgentRuntimeConnector(connection.connectorId)) {
+    throw new Error('The frozen Direct API Agent Runtime no longer matches its connection.');
   }
   const context = agentRuntimeTurnContext(snapshot, input.agentSessionId, input.sourceMessageId);
-  const runtimeBinding = { ...binding, model: connection.modelId };
+  const runtimeBinding = { ...binding };
   const request = { agentSessionId: input.agentSessionId, binding: runtimeBinding, context, ...(onEvent ? { onEvent } : {}) };
+  const runtimePort = isCodexRuntime ? codexRuntimePort : directApiRuntimePort;
   return binding.externalThreadId
-    ? codexRuntimePort.resumeSession(request)
-    : codexRuntimePort.startSession(request);
+    ? runtimePort.resumeSession(request)
+    : runtimePort.startSession(request);
 }
 
 function runtimePrompt(

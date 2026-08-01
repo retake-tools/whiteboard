@@ -87,6 +87,7 @@ export interface AgentMessageRecord {
 }
 
 export type AgentRuntimeBindingStatus = 'active' | 'failed' | 'stale';
+export type AgentRuntimeKind = 'codex_app_server' | 'direct_api';
 
 export interface AgentRuntimeBindingRecord {
   agentRuntimeBindingId: string;
@@ -98,7 +99,7 @@ export interface AgentRuntimeBindingRecord {
   lastError?: string;
   model: string;
   recordVersion: number;
-  runtimeKind: 'codex_app_server';
+  runtimeKind: AgentRuntimeKind;
   status: AgentRuntimeBindingStatus;
   updatedAt: string;
 }

@@ -31,6 +31,7 @@ const runtimeFeatures: Record<
     'streaming_events',
     'structured_output',
   ],
+  direct_api: ['structured_output'],
 };
 
 export function resolveAgentPresetSelection(

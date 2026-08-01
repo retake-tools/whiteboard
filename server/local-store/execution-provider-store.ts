@@ -1,6 +1,7 @@
 import {
   executionConnectionTemplate,
   executionConnectorDefinition,
+  isAgentRuntimeConnection,
   listExecutionConnectionTemplates,
   listExecutionConnectorDefinitions,
   type ExecutionConnectionStatus,
@@ -173,6 +174,12 @@ export async function listExecutionProviderSettings(
     connectionTemplates: listExecutionConnectionTemplates().filter((template) =>
       executionConnectorDefinition(template.connectorId)?.installStatus === 'installed'),
     connections: connections.filter((connection) => connection !== undefined),
+    ...(defaultsFile.agentRuntime.workspace
+      ? { workspaceAgentRuntimeConnectionId: defaultsFile.agentRuntime.workspace }
+      : {}),
+    ...(projectId && defaultsFile.agentRuntime.projects[projectId]
+      ? { projectAgentRuntimeConnectionId: defaultsFile.agentRuntime.projects[projectId] }
+      : {}),
     workspaceDefaults: cloneDefaults(defaultsFile.workspace),
     projectDefaults: projectId ? cloneDefaults(defaultsFile.projects[projectId] ?? []) : [],
   };
@@ -318,8 +325,12 @@ export async function deleteExecutionConnection(
   connectionsFile.connections = connectionsFile.connections.filter((connection) => connection.connectionId !== connectionId);
   delete credentials.credentials[connectionId];
   defaults.workspace = defaults.workspace.filter((selection) => selection.connectionId !== connectionId);
+  if (defaults.agentRuntime.workspace === connectionId) delete defaults.agentRuntime.workspace;
   Object.keys(defaults.projects).forEach((key) => {
     defaults.projects[key] = defaults.projects[key].filter((selection) => selection.connectionId !== connectionId);
+  });
+  Object.keys(defaults.agentRuntime.projects).forEach((key) => {
+    if (defaults.agentRuntime.projects[key] === connectionId) delete defaults.agentRuntime.projects[key];
   });
   await Promise.all([
     writeExecutionConnections(connectionsFile),
@@ -464,6 +475,31 @@ export async function saveExecutionDefault(input: {
   } else {
     defaults.workspace = replaceDefault(defaults.workspace, selection);
   }
+  await writeExecutionDefaults(defaults);
+  return listExecutionProviderSettings(input.responseProjectId ?? input.projectId);
+}
+
+export async function saveAgentRuntimeDefault(input: {
+  connectionId?: string;
+  projectId?: string;
+  responseProjectId?: string;
+}): Promise<ExecutionProviderSettingsSnapshot> {
+  const defaults = await readExecutionDefaults();
+  if (!input.connectionId) {
+    if (input.projectId) delete defaults.agentRuntime.projects[input.projectId];
+    else delete defaults.agentRuntime.workspace;
+    await writeExecutionDefaults(defaults);
+    return listExecutionProviderSettings(input.responseProjectId ?? input.projectId);
+  }
+  const settings = await listExecutionProviderSettings(input.responseProjectId ?? input.projectId);
+  const connection = settings.connections.find(
+    (candidate) => candidate.connectionId === input.connectionId,
+  );
+  if (!connection || !isAgentRuntimeConnection(connection)) {
+    throw new Error(`${input.connectionId} is not ready for Agent Runtime.`);
+  }
+  if (input.projectId) defaults.agentRuntime.projects[input.projectId] = input.connectionId;
+  else defaults.agentRuntime.workspace = input.connectionId;
   await writeExecutionDefaults(defaults);
   return listExecutionProviderSettings(input.responseProjectId ?? input.projectId);
 }

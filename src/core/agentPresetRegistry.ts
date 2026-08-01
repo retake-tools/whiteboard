@@ -12,7 +12,7 @@ export interface AgentPresetRegistry {
   definitions: AgentPresetDefinition[];
 }
 
-const runtimeKinds = new Set<AgentPresetRuntimeKind>(['codex_app_server']);
+const runtimeKinds = new Set<AgentPresetRuntimeKind>(['codex_app_server', 'direct_api']);
 const runtimeFeatures = new Set<AgentPresetRuntimeFeature>([
   'persistent_session',
   'streaming_events',

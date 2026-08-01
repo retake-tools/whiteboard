@@ -48,6 +48,7 @@ import {
   deleteExecutionConnection,
   duplicateExecutionConnection,
   listExecutionProviderSettings,
+  saveAgentRuntimeDefault,
   saveExecutionDefault,
   updateExecutionConnection,
 } from './local-store/execution-provider-store';
@@ -603,6 +604,16 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               projectId: body.projectId,
               responseProjectId: body.responseProjectId,
             }));
+            return;
+          }
+
+          if (method === 'PUT' && url.pathname === '/settings/execution/agent-runtime-default') {
+            const body = (await readJson(req)) as {
+              connectionId?: string;
+              projectId?: string;
+              responseProjectId?: string;
+            };
+            sendJson(res, await saveAgentRuntimeDefault(body));
             return;
           }
 

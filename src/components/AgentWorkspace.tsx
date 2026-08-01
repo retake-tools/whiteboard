@@ -1,4 +1,4 @@
-import { Activity, Bot, CircleAlert, CircleStop, MapPin, Pause, Play, Plus, X } from 'lucide-react';
+import { Activity, Bot, CircleAlert, CircleStop, MapPin, Pause, Play, X } from 'lucide-react';
 import {
   useEffect,
   useRef,
@@ -44,6 +44,7 @@ import { AgentMessageCard } from './AgentMessageCard';
 import { AgentOperationRunCard } from './AgentOperationRunCard';
 import { AgentWorkspaceComposer } from './AgentWorkspaceComposer';
 import { AgentSessionHistoryMenu } from './AgentSessionHistoryMenu';
+import { AgentRuntimeNewSessionMenu } from './AgentRuntimeNewSessionMenu';
 import { TooltipIconButton } from './Tooltip';
 import { WorkflowAgentTargetPicker } from './WorkflowAgentTargetPicker';
 import {
@@ -92,7 +93,7 @@ export function AgentWorkspace({
   onAttachFiles?: Parameters<typeof AgentWorkspaceComposer>[0]['onAttachFiles'];
   onCancelAgentRun: (agentRunId: string) => void;
   onClose: () => void;
-  onCreateSession: () => void;
+  onCreateSession: (connectionId?: string) => void;
   onPauseAgentRun: (agentRunId: string) => void;
   onDecideProposal: (
     proposalId: string,
@@ -127,6 +128,11 @@ export function AgentWorkspace({
     currentInstalledRuntimeRegistryRevision,
     currentInstalledRuntimeRegistryRevision,
   );
+  useSyncExternalStore(
+    subscribeExecutionProviderSettings,
+    () => currentExecutionProviderSettings(),
+    () => currentExecutionProviderSettings(),
+  );
   const runCardRef = useRef<HTMLElement>(null);
   const timelineEndRef = useRef<HTMLDivElement>(null);
   const messages = selectedSession ? messagesForSession(snapshot, selectedSession.agentSessionId) : [];
@@ -148,6 +154,9 @@ export function AgentWorkspace({
   );
   const orphanProposals = proposals.filter(
     (proposal) => !sourceMessageIdsWithReply.has(proposal.sourceMessageId),
+  );
+  const runtimeConnection = currentExecutionProviderSettings()?.connections.find(
+    (connection) => connection.connectionId === binding?.connectionId,
   );
 
   useEffect(() => {
@@ -174,6 +183,11 @@ export function AgentWorkspace({
         <div className="agent-workspace-heading">
           <span><Bot size={15} />{t('agentWorkspace.eyebrow')}</span>
           <strong>{selectedSession?.title ?? t('agentWorkspace.defaultSession')}</strong>
+          {binding ? (
+            <small className="agent-workspace-runtime-label">
+              {runtimeConnection?.displayName ?? binding.connectionId} · {binding.model}
+            </small>
+          ) : null}
         </div>
         <div className="agent-workspace-header-actions">
           <AgentSessionHistoryMenu
@@ -182,7 +196,10 @@ export function AgentWorkspace({
             onArchiveSession={onArchiveSession}
             onSelectSession={onSelectSession}
           />
-          <TooltipIconButton className="icon-button" label={t('agentWorkspace.newSession')} onClick={onCreateSession}><Plus size={15} /></TooltipIconButton>
+          <AgentRuntimeNewSessionMenu
+            onCreateSession={onCreateSession}
+            projectId={snapshot.project.projectId}
+          />
           <TooltipIconButton className="icon-button" label={t('context.close')} onClick={onClose}><X size={15} /></TooltipIconButton>
         </div>
       </header>
