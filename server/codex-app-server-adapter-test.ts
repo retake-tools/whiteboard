@@ -89,7 +89,6 @@ assert.deepEqual(connection?.supportedCapabilityIds, [
   ...codexTextDocumentCapabilityIds,
   'image.generate',
   'image.annotation_edit',
-  'image.guided_edit',
   'image.masked_edit',
   'image.outpaint',
   'previs.storyboard_sheet.generate',
