@@ -5,6 +5,7 @@ import {
   cancelAgentRun,
   createAgentRunForOperation,
   createAgentRunForWorkflowRun,
+  markAgentRunNeedsAttention,
   nextAgentRunExecutionAction,
   pauseAgentRun,
   reconcileAgentRuntime,
@@ -12,7 +13,12 @@ import {
 } from '../src/core/agentRuntime';
 import { textDocumentCapabilityIds } from '../src/core/capabilityRegistry';
 import type { ExecutionConnectionSummary } from '../src/core/executionProviders';
-import { createDraftSkillOperation, executeExistingTextGenerationOperation, type TextGenerationLabels } from '../src/core/textOperations';
+import {
+  createDraftSkillOperation,
+  createDraftTextGenerationOperation,
+  executeExistingTextGenerationOperation,
+  type TextGenerationLabels,
+} from '../src/core/textOperations';
 import type { AssetRecord, BlockRecord, BoardSnapshot, ExecutionRecord } from '../src/core/types';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import { storyToStoryboardWorkflow } from './studio-domain-test-fixtures';
@@ -47,6 +53,14 @@ assert.doesNotMatch(agentRuntimeSource, /createBlockRecord|projectWorkflowDraft/
 assert.match(controllerSource, /nextAgentRunExecutionAction/);
 assert.match(controllerSource, /runOperationRef\.current\(action\.operationBlockId\)/);
 assert.match(controllerSource, /attachAgentRunExecution\(current, action\.agentRunId, execution\.executionId\)/);
+assert.match(controllerSource, /if \(!action \|\| inFlightActionRef\.current\) return;/);
+const operationInputControllerSource = await readFile(
+  new URL('../src/app/useOperationInputController.ts', import.meta.url),
+  'utf8',
+);
+assert.match(operationInputControllerSource, /inFlightOperationBlockIdsRef\.current\.has\(blockId\)/);
+assert.match(operationInputControllerSource, /inFlightOperationBlockIdsRef\.current\.add\(blockId\)/);
+assert.match(operationInputControllerSource, /inFlightOperationBlockIdsRef\.current\.delete\(blockId\)/);
 assert.match(groupInspectorSource, /agentRuntime\.startSelectedTarget/);
 assert.match(groupInspectorSource, /latestAgentRunForWorkflowRun/);
 
@@ -89,16 +103,19 @@ action = nextAgentRunExecutionAction(snapshot);
 assert.equal(action?.stepRunId, stepFor(snapshot, workflowRun.workflowRunId, 'character_define').stepRunId);
 
 execution = queueStep(snapshot, blockFor(snapshot, action!.operationBlockId));
+attachAgentRunExecution(snapshot, agent.record.agentRunId, execution.executionId);
 completeStep(snapshot, execution, '# Character Bible\n\nOrange courier cat.');
 reconcileAgentRuntime(snapshot);
 action = nextAgentRunExecutionAction(snapshot);
 assert.equal(action?.stepRunId, stepFor(snapshot, workflowRun.workflowRunId, 'scene_define').stepRunId);
 execution = queueStep(snapshot, blockFor(snapshot, action!.operationBlockId));
+attachAgentRunExecution(snapshot, agent.record.agentRunId, execution.executionId);
 completeStep(snapshot, execution, '# Scene Bible\n\nA cinema and a sunrise bridge.');
 reconcileAgentRuntime(snapshot);
 action = nextAgentRunExecutionAction(snapshot);
 assert.equal(action?.stepRunId, stepFor(snapshot, workflowRun.workflowRunId, 'storyboard_plan').stepRunId);
 execution = queueStep(snapshot, blockFor(snapshot, action!.operationBlockId));
+attachAgentRunExecution(snapshot, agent.record.agentRunId, execution.executionId);
 completeStep(snapshot, execution, '# Storyboard Plan\n\nShot 01: the courier enters frame.');
 reconcileAgentRuntime(snapshot);
 assert.equal(agent.record.status, 'succeeded');
@@ -138,6 +155,61 @@ assert.ok(nextAgentRunExecutionAction(waitingSnapshot));
 cancelAgentRun(waitingSnapshot, waitingAgent.record.agentRunId);
 assert.equal(waitingAgent.record.stopReason, 'user_canceled');
 assert.equal(nextAgentRunExecutionAction(waitingSnapshot), undefined);
+
+const needsAttentionSnapshot = await workflowSnapshot('A valid brief.');
+const needsAttentionWorkflow = (needsAttentionSnapshot.workflowRuns ?? [])[0];
+assert.ok(needsAttentionWorkflow);
+const needsAttentionAgent = createAgentRunForWorkflowRun(
+  needsAttentionSnapshot,
+  needsAttentionWorkflow.workflowRunId,
+);
+startAgentRun(needsAttentionSnapshot, needsAttentionAgent.record.agentRunId);
+markAgentRunNeedsAttention(
+  needsAttentionSnapshot,
+  needsAttentionAgent.record.agentRunId,
+  'Operation returned without creating an Execution.',
+);
+assert.equal(needsAttentionAgent.record.status, 'needs_attention');
+cancelAgentRun(needsAttentionSnapshot, needsAttentionAgent.record.agentRunId);
+await saveSnapshot(needsAttentionSnapshot);
+const recoveredCancellation = await loadSnapshot(
+  needsAttentionSnapshot.project.projectId,
+  needsAttentionSnapshot.board.boardId,
+);
+assert.equal(
+  (recoveredCancellation.agentRuns ?? [])[0]?.status,
+  'canceled',
+  'Stopping a needs_attention AgentRun must persist its canonical canceled state.',
+);
+
+const missingExecutionSnapshot = await emptySnapshot();
+const missingExecutionDraft = createDraftTextGenerationOperation(
+  missingExecutionSnapshot,
+  generationLabels('Generate test document', 'Test brief'),
+);
+missingExecutionDraft.promptBlock.data.body = 'A valid brief.';
+const missingExecutionAgent = createAgentRunForOperation(
+  missingExecutionSnapshot,
+  missingExecutionDraft.operationBlock.blockId,
+);
+startAgentRun(missingExecutionSnapshot, missingExecutionAgent.record.agentRunId);
+markAgentRunNeedsAttention(
+  missingExecutionSnapshot,
+  missingExecutionAgent.record.agentRunId,
+  'Operation returned without creating an Execution.',
+);
+reconcileAgentRuntime(missingExecutionSnapshot);
+assert.equal(
+  missingExecutionAgent.record.status,
+  'needs_attention',
+  'A missing Execution must stay needs_attention until an explicit user action.',
+);
+assert.equal(missingExecutionAgent.record.stopReason, 'operation_execution_missing');
+assert.equal(
+  nextAgentRunExecutionAction(missingExecutionSnapshot),
+  undefined,
+  'A needs_attention AgentRun must not redispatch the same Operation automatically.',
+);
 
 const invalidScopeSnapshot = await workflowSnapshot('A valid brief.');
 const invalidWorkflow = (invalidScopeSnapshot.workflowRuns ?? [])[0];

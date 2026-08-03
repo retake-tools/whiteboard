@@ -24,7 +24,7 @@ interface WorkflowRuntimeControllerOptions {
 export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerOptions) {
   const { persistSnapshot, setOperationToast, t, updateSnapshot } = options;
 
-  function createWorkflowRun(groupId: string): void {
+  function createWorkflowRun(groupId: string): string | undefined {
     try {
       let workflowRunId = '';
       updateSnapshot((current) => {
@@ -38,6 +38,7 @@ export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerO
         body: t('workflowRuntime.createdBody'),
         tone: 'success',
       });
+      return workflowRunId;
     } catch (error) {
       setOperationToast({
         id: `workflow-run:${groupId}`,
@@ -45,6 +46,7 @@ export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerO
         body: error instanceof Error ? error.message : undefined,
         tone: 'error',
       });
+      return undefined;
     }
   }
 

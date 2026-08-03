@@ -393,6 +393,27 @@ await reconcilePluginWebModules({
   snapshot,
 });
 const activationRejectedDigest = `sha256:${'3'.repeat(64)}`;
+await reconcilePluginWebModules({
+  activate: atomicActivate,
+  createHost: () => host,
+  snapshot: {
+    ...snapshot,
+    modules: [{
+      ...record,
+      packageLock: {
+        ...record.packageLock,
+        digest: activationRejectedDigest,
+      },
+      status: 'disabled',
+      trust: null,
+    }],
+  },
+});
+assert.equal(
+  atomicDisposals.length,
+  0,
+  'An untrusted replacement must retain the previous exact-digest session.',
+);
 const activationFallback = await reconcilePluginWebModules({
   activate: async () => {
     throw new Error('candidate import failed');

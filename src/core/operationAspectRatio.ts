@@ -1,4 +1,5 @@
 import type { BlockRecord, BoardSnapshot } from './types';
+import { resolveWorkflowInputBlock } from './workflowInputResolution';
 
 export function sourceImageBlockForOperation(
   snapshot: BoardSnapshot,
@@ -10,9 +11,12 @@ export function sourceImageBlockForOperation(
       edge.kind === 'execution_input' &&
       edge.inputSlotId === 'source_image',
   );
-  return snapshot.blocks.find(
+  const block = snapshot.blocks.find(
     (block) => block.blockId === sourceEdge?.sourceBlockId && block.type === 'image',
   );
+  return block
+    ? resolveWorkflowInputBlock(snapshot, operationBlockId, sourceEdge?.inputSlotId, block)
+    : undefined;
 }
 
 export function imageBlockAspectRatio(snapshot: BoardSnapshot, block: BlockRecord): number | undefined {

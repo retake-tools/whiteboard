@@ -20,6 +20,7 @@ import {
 import { imageGenerateCapabilityId } from '../src/core/imageGenerateContracts';
 import { volcengineArkSeedreamImageAdapterDefinition } from '../src/core/capabilityRegistry';
 import { resolveExecutionAdapterInputProfile } from '../src/core/adapterInputProfiles';
+import { resolveImageExecutionPrompt } from './image-skill-prompt-resolver';
 
 interface ArkImageServiceDependencies {
   config?: VolcengineArkImageConfig;
@@ -74,6 +75,8 @@ async function executeArkImageRun(
   resultBlockIds: string[],
 ): Promise<void> {
   const initial = await loadSnapshot(execution.projectId, execution.boardId);
+  const resolvedPrompt = await resolveImageExecutionPrompt(execution, initial);
+  const promptExecution = { ...execution, prompt: resolvedPrompt };
   const inputAssignments = imageExecutionInputAssignments(execution);
   if (execution.capabilityId === imageGenerateCapabilityId) {
     resolveExecutionAdapterInputProfile(volcengineArkSeedreamImageAdapterDefinition, execution);
@@ -83,7 +86,7 @@ async function executeArkImageRun(
   const requests = resultBlockIds.map((outputBlockId) => ({
     index: execution.outputBlockIds.indexOf(outputBlockId),
     outputBlockId,
-    prompt: createProviderImagePrompt(execution, inputAssignments, {
+    prompt: createProviderImagePrompt(promptExecution, inputAssignments, {
       dialect: 'provider_api',
       variantIndex: execution.outputBlockIds.indexOf(outputBlockId),
       variantCount: execution.outputBlockIds.length,

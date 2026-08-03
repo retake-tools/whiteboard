@@ -65,7 +65,11 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
     if (changed) {
       updateSnapshot(() => runtimeSnapshot, { history: false, persist: true });
     }
-    if (!action || inFlightActionRef.current?.actionKey === action.actionKey) return;
+    // An Execution can change the Step's actionKey before its AgentRun lineage
+    // has been attached. Keep the controller single-flight across that window,
+    // otherwise a fast failure or persistence refresh can dispatch the same
+    // Step more than once.
+    if (!action || inFlightActionRef.current) return;
     const boardId = runtimeSnapshot.board.boardId;
     const knownExecutionIds = new Set(runtimeSnapshot.executions.map((execution) => execution.executionId));
     inFlightActionRef.current = { actionKey: action.actionKey, boardId };
@@ -83,11 +87,13 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
             attachedExecution = true;
           }
         }
-        if (error && !attachedExecution) {
+        if (!attachedExecution) {
           markAgentRunNeedsAttention(
             current,
             action.agentRunId,
-            error instanceof Error ? error.message : String(error),
+            error
+              ? error instanceof Error ? error.message : String(error)
+              : 'Operation returned without creating an Execution.',
           );
         }
         reconcileAgentRuntime(current);
@@ -100,16 +106,19 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
     );
   }, [runtimeRevision]);
 
-  function createWorkflowAgentRun(workflowRunId: string): void {
-    mutateAgentRun('create', (current) => {
+  function createWorkflowAgentRun(workflowRunId: string): string | undefined {
+    return mutateAgentRun('create', (current) => {
       const created = createAgentRunForWorkflowRun(current, workflowRunId);
       startAgentRun(current, created.record.agentRunId);
       return created.record.agentRunId;
     });
   }
 
-  function createWorkflowSliceAgentRun(workflowRunId: string, stepRunId: string): void {
-    mutateAgentRun('create', (current) => {
+  function createWorkflowSliceAgentRun(
+    workflowRunId: string,
+    stepRunId: string,
+  ): string | undefined {
+    return mutateAgentRun('create', (current) => {
       const created = createAgentRunForWorkflowSlice(current, workflowRunId, stepRunId);
       startAgentRun(current, created.record.agentRunId);
       return created.record.agentRunId;
@@ -233,21 +242,57 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
   }
 
   function pause(agentRunId: string): void {
-    mutateAgentRun('pause', (current) => pauseAgentRun(current, agentRunId).record.agentRunId);
+    void persistAgentRunControl(
+      'pause',
+      (current) => pauseAgentRun(current, agentRunId).record.agentRunId,
+    );
   }
 
   function resume(agentRunId: string): void {
-    mutateAgentRun('resume', (current) => startAgentRun(current, agentRunId).record.agentRunId);
+    void persistAgentRunControl(
+      'resume',
+      (current) => startAgentRun(current, agentRunId).record.agentRunId,
+    );
   }
 
   function cancel(agentRunId: string): void {
-    mutateAgentRun('cancel', (current) => cancelAgentRun(current, agentRunId).record.agentRunId);
+    void persistAgentRunControl(
+      'cancel',
+      (current) => cancelAgentRun(current, agentRunId).record.agentRunId,
+    );
+  }
+
+  async function persistAgentRunControl(
+    action: 'cancel' | 'pause' | 'resume',
+    mutate: (snapshot: BoardSnapshot) => string,
+  ): Promise<void> {
+    let agentRunId = '';
+    try {
+      const nextSnapshot = updateSnapshot((current) => {
+        agentRunId = mutate(current);
+        return current;
+      }, { history: true });
+      await persistSnapshot(nextSnapshot, { requireLocalApi: true });
+      setOperationToast({
+        id: agentRunId || `agent-run:${action}`,
+        title: t(agentActionSuccessKey(action)),
+        body: action === 'cancel' ? t('agentRuntime.cancelCurrentExecutionContinues') : undefined,
+        tone: 'success',
+      });
+    } catch (error) {
+      setOperationToast({
+        id: agentRunId || `agent-run:${action}`,
+        title: t('agentRuntime.actionFailed'),
+        body: error instanceof Error ? error.message : undefined,
+        tone: 'error',
+      });
+    }
   }
 
   function mutateAgentRun(
-    action: 'cancel' | 'create' | 'pause' | 'resume',
+    action: 'create',
     mutate: (snapshot: BoardSnapshot) => string,
-  ): void {
+  ): string | undefined {
     try {
       let agentRunId = '';
       updateSnapshot((current) => {
@@ -257,9 +302,9 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
       setOperationToast({
         id: agentRunId || `agent-run:${action}`,
         title: t(agentActionSuccessKey(action)),
-        body: action === 'cancel' ? t('agentRuntime.cancelCurrentExecutionContinues') : undefined,
         tone: 'success',
       });
+      return agentRunId;
     } catch (error) {
       setOperationToast({
         id: `agent-run:${action}`,
@@ -267,6 +312,7 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
         body: error instanceof Error ? error.message : undefined,
         tone: 'error',
       });
+      return undefined;
     }
   }
 

@@ -52,6 +52,7 @@ export interface WorkflowCapabilityStepDefinition {
 }
 
 export interface WorkflowOutputSlotDefinition {
+  artifactType?: string;
   exposedAsIntermediate: boolean;
   slotId: string;
   source: Extract<WorkflowBindingSource, { kind: 'step_output' }>;
@@ -114,6 +115,10 @@ export interface ResolvedWorkflowUiDefinition {
 }
 
 let activeWorkflows: WorkflowDefinition[] = [];
+let activeProjectWorkflowScope: {
+  definitions: WorkflowDefinition[];
+  projectId: string;
+} | undefined;
 
 export function listWorkflows(): WorkflowDefinition[] {
   return structuredClone(activeWorkflows);
@@ -134,8 +139,61 @@ export function configureWorkflowRegistry(
   activeWorkflows = structuredClone(definitions);
 }
 
-export function workflowDefinitionFor(workflowId: string): WorkflowDefinition {
-  const definition = activeWorkflows.find((candidate) => candidate.workflowId === workflowId);
+export function configureProjectWorkflowRegistry(
+  projectId: string,
+  definitions: WorkflowDefinition[],
+): void {
+  const installedIds = new Set(activeWorkflows.map((definition) => definition.workflowId));
+  const identities = new Set<string>();
+  for (const definition of definitions) {
+    if (installedIds.has(definition.workflowId)) {
+      throw new Error(`Project Workflow cannot override Installed Workflow: ${definition.workflowId}`);
+    }
+    const identity = `${definition.workflowId}\u0000${definition.version}\u0000${definition.definitionHash}`;
+    if (identities.has(identity)) {
+      throw new Error(`Duplicate Project Workflow definition: ${definition.workflowId}@${definition.version}`);
+    }
+    identities.add(identity);
+    const issues = validateWorkflowDefinition(definition);
+    if (issues.length > 0) throw new Error(issues.join('\n'));
+  }
+  activeProjectWorkflowScope = {
+    definitions: structuredClone(definitions),
+    projectId,
+  };
+}
+
+export function upsertProjectWorkflowDefinition(
+  projectId: string,
+  definition: WorkflowDefinition,
+): void {
+  const current = activeProjectWorkflowScope?.projectId === projectId
+    ? activeProjectWorkflowScope.definitions
+    : [];
+  configureProjectWorkflowRegistry(projectId, [
+    ...current.filter((candidate) => !(
+      candidate.workflowId === definition.workflowId
+      && candidate.version === definition.version
+      && candidate.definitionHash === definition.definitionHash
+    )),
+    definition,
+  ]);
+}
+
+export function workflowDefinitionFor(
+  workflowId: string,
+  lock?: { definitionHash?: string; version?: string },
+): WorkflowDefinition {
+  const matches = [
+    ...activeWorkflows,
+    ...(activeProjectWorkflowScope?.definitions ?? []),
+  ].filter((candidate) => (
+    candidate.workflowId === workflowId
+    && (!lock?.version || candidate.version === lock.version)
+    && (!lock?.definitionHash || candidate.definitionHash === lock.definitionHash)
+  ));
+  if (matches.length > 1) throw new Error(`Workflow definition is ambiguous: ${workflowId}`);
+  const definition = matches[0];
   if (!definition) throw new Error(`Workflow definition not found: ${workflowId}`);
   return structuredClone(definition);
 }
@@ -258,6 +316,7 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
         }
         if (
           targetSlot.artifactTypes.length > 0
+          && sourceSlot.artifactTypes.length > 0
           && !sourceSlot.artifactTypes.some((artifactType) => targetSlot.artifactTypes.includes(artifactType))
         ) {
           issues.push(`Workflow input artifact type mismatch: ${step.stepId}.${binding.inputSlotId}`);
@@ -322,6 +381,9 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
     const step = stepById.get(output.source.stepId);
     if (!step?.outputSlots.includes(output.source.outputSlotId)) {
       issues.push(`Workflow output uses unknown step output: ${output.slotId}`);
+    }
+    if (output.artifactType !== undefined && !output.artifactType.trim()) {
+      issues.push(`Workflow output artifactType is empty: ${output.slotId}`);
     }
   }
   return issues;

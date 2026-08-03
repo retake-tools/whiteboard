@@ -31,6 +31,7 @@ import type {
   WorkflowStepRunRecord,
   WorkflowStepRunStatus,
 } from './workflowRuntimeContracts';
+import { resolveWorkflowInputBlock } from './workflowInputResolution';
 
 export interface WorkflowStepRuntimeView {
   canStart: boolean;
@@ -74,8 +75,12 @@ export function createWorkflowRunForGroup(
   const workflowVersion = stringMetadata(group, 'workflowDefinitionVersion');
   const workflowHash = stringMetadata(group, 'workflowDefinitionHash');
   const projectionId = stringMetadata(group, 'workflowProjectionId');
+  const projectRevisionId = optionalStringMetadata(group, 'workflowRevisionId');
   const packageContext = packageContextFromGroup(group);
-  const definition = workflowDefinitionFor(workflowId);
+  const definition = workflowDefinitionFor(workflowId, {
+    definitionHash: workflowHash,
+    version: workflowVersion,
+  });
   if (definition.version !== workflowVersion || definition.definitionHash !== workflowHash) {
     throw new Error(`Workflow Definition lock mismatch: ${workflowId}@${workflowVersion}`);
   }
@@ -188,11 +193,12 @@ export function createWorkflowRunForGroup(
     const slot = capability?.outputSlots.find(
       (candidate) => candidate.slotId === output.source.outputSlotId,
     );
-    if (!step || !slot?.artifactType) {
+    const artifactType = output.artifactType ?? slot?.artifactType;
+    if (!step || !artifactType) {
       throw new Error(`Workflow output Artifact lock is incomplete: ${output.slotId}`);
     }
     return {
-      artifactType: slot.artifactType,
+      artifactType,
       outputSlotId: output.source.outputSlotId,
       stepId: output.source.stepId,
       workflowOutputSlotId: output.slotId,
@@ -265,6 +271,7 @@ export function createWorkflowRunForGroup(
       entrypointId: packageContext.entrypointId,
       sourcePackageLock: packageContext.packageLock,
     } : {}),
+    ...(projectRevisionId ? { sourceWorkflowRevisionId: projectRevisionId } : {}),
     inputBindings,
     gateDefinitionLocks,
     gateEvaluationIds: [],
@@ -719,6 +726,11 @@ function stringMetadata(block: BlockRecord, key: string): string {
   return value;
 }
 
+function optionalStringMetadata(block: BlockRecord, key: string): string | undefined {
+  const value = block.data[key];
+  return typeof value === 'string' && value ? value : undefined;
+}
+
 function packageContextFromGroup(group: BlockRecord): {
   entrypointId: string;
   packageLock: { digest: string; packageId: string; version: string };
@@ -752,7 +764,15 @@ function workflowStepInputFingerprint(snapshot: BoardSnapshot, step: WorkflowSte
       values: binding.values.map((bindingValue) => {
         if (bindingValue.kind === 'inline') return { kind: 'inline', value: bindingValue.value };
         const blockId = bindingValue.blockId;
-        const block = blockId ? blockById.get(blockId) : undefined;
+        const projectedBlock = blockId ? blockById.get(blockId) : undefined;
+        const block = projectedBlock
+          ? resolveWorkflowInputBlock(
+            snapshot,
+            step.operationBlockId,
+            binding.inputSlotId,
+            projectedBlock,
+          )
+          : undefined;
         return {
           ...bindingValue,
           type: block?.type,

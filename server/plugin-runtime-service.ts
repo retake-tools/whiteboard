@@ -17,6 +17,7 @@ import {
   OfficialPackagePreferenceStore,
   officialDefaultPluginModuleIds,
 } from './official-package-preference-store';
+import { readActiveInstalledPackageFile } from './installed-package-file-service';
 
 export type PluginRuntimeManagementActionV1 =
   | 'disable'
@@ -118,6 +119,97 @@ export class PluginRuntimeService {
     message: string,
   ): Promise<PluginModuleRuntimeRecordV1> {
     return this.mutate((host) => host.fail(pluginModuleId, message));
+  }
+
+  async failActivation(input: {
+    message: string;
+    pluginModuleId: string;
+    rejectedDigest?: string;
+    retainedModules?: PluginModuleRuntimeRecordV1[];
+    retainedDigest?: string;
+  }): Promise<{
+    record: PluginModuleRuntimeRecordV1;
+    rolledBack: boolean;
+  }> {
+    const record = await this.fail(input.pluginModuleId, input.message);
+    if (!input.rejectedDigest || !input.retainedDigest) {
+      return { record, rolledBack: false };
+    }
+    if (
+      !isExactDigest(input.rejectedDigest)
+      || !isExactDigest(input.retainedDigest)
+      || input.rejectedDigest !== record.packageLock.digest
+      || input.rejectedDigest === input.retainedDigest
+    ) {
+      throw new Error('Plugin activation rollback digests are invalid.');
+    }
+    const lockfile = await this.manager.list();
+    const active = lockfile.resolvedPackages.find(
+      (entry) => entry.packageId === record.packageLock.packageId,
+    );
+    const retained = lockfile.installations.find((entry) => (
+      entry.packageId === record.packageLock.packageId
+      && entry.digest === input.retainedDigest
+    ));
+    if (
+      active?.digest !== input.rejectedDigest
+      || active.installationId !== record.packageLock.installationId
+      || !retained
+    ) {
+      throw new Error('Plugin activation rollback target is stale.');
+    }
+    await this.manager.rollback(
+      record.packageLock.packageId,
+      input.retainedDigest,
+    );
+    if (input.retainedModules) {
+      await this.restorePackageRuntime({
+        digest: input.retainedDigest,
+        installationId: retained.installationId,
+        modules: input.retainedModules,
+        packageId: retained.packageId,
+      });
+    }
+    return { record, rolledBack: true };
+  }
+
+  async restorePackageRuntime(input: {
+    digest: string;
+    installationId: string;
+    modules: PluginModuleRuntimeRecordV1[];
+    packageId: string;
+  }): Promise<void> {
+    const modules = structuredClone(input.modules);
+    for (const record of modules) {
+      if (
+        record.packageLock.packageId !== input.packageId
+        || record.packageLock.digest !== input.digest
+        || record.packageLock.installationId !== input.installationId
+      ) {
+        throw new Error('Retained Plugin Runtime authority is invalid.');
+      }
+    }
+    await this.stateStore.withMutationLock(async () => {
+      const current = await this.stateStore.readTolerant();
+      if (!current) return;
+      const restoredModuleIds = new Set(
+        modules.map((record) => record.pluginModuleId),
+      );
+      await this.stateStore.write({
+        ...current,
+        modules: [
+          ...current.modules.filter((record) => (
+            record.packageLock.packageId !== input.packageId
+            && !restoredModuleIds.has(record.pluginModuleId)
+          )),
+          ...modules,
+        ].sort((left, right) => compareText(
+          left.pluginModuleId,
+          right.pluginModuleId,
+        )),
+        updatedAt: new Date().toISOString(),
+      });
+    });
   }
 
   async setSafeMode(enabled: boolean): Promise<PluginRuntimeSnapshotV1> {
@@ -263,15 +355,14 @@ export class PluginRuntimeService {
     if (record.packageLock.digest !== input.packageDigest) {
       throw new Error('Plugin Web Module Package digest is stale.');
     }
-    const installedPackages = await this.manager.sdkManager.loadInstalledPackages();
-    const installed = installedPackages.find((entry) => (
-      entry.manifest.packageId === record.packageLock.packageId
-      && entry.digest === input.packageDigest
-    ));
-    const bytes = installed?.files.get(input.path);
-    if (!bytes) throw new Error('Plugin Web Module file is not installed.');
+    const bytes = await readActiveInstalledPackageFile(this.manager, {
+      digest: record.packageLock.digest,
+      installationId: record.packageLock.installationId,
+      packageId: record.packageLock.packageId,
+      path: input.path,
+    });
     return {
-      bytes: Buffer.from(bytes),
+      bytes,
       mediaType: pluginModuleMediaType(input.path),
     };
   }
@@ -424,6 +515,10 @@ function samePermissionSet(
 
 function compareText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function isExactDigest(value: string): boolean {
+  return /^sha256:[a-f0-9]{64}$/.test(value);
 }
 
 function pluginModuleMediaType(filePath: string): string {

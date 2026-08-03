@@ -9,8 +9,9 @@ import {
 } from '../src/core/boardViewStateStore';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import { migrateBoardSnapshot } from '../src/core/snapshotMigration';
-import type { BoardSnapshot } from '../src/core/types';
+import type { BlockRecord, BoardSnapshot, RetakeNode } from '../src/core/types';
 import { safeViewportForBounds } from '../src/app/canvasFocus';
+import { absoluteFlowNodeBounds } from '../src/app/appHelpers';
 import { createBlankSnapshot } from './local-store/snapshot-store';
 
 class MemoryStorage {
@@ -105,6 +106,34 @@ assert.equal(safeViewportForBounds({
   minZoom: 0.1,
 }), undefined, 'invalid node bounds must not overwrite the current viewport');
 
+const nestedGroupBlock = {
+  blockId: 'group_nested',
+  position: { x: 800, y: 250 },
+  size: { height: 460, width: 3416 },
+} as BlockRecord;
+const nestedOperationBlock = {
+  blockId: 'operation_nested',
+  position: { x: 1208, y: 322 },
+  size: { height: 190, width: 320 },
+} as BlockRecord;
+const nestedFlowNodes = [
+  {
+    id: nestedGroupBlock.blockId,
+    position: { x: 800, y: 250 },
+  },
+  {
+    id: nestedOperationBlock.blockId,
+    measured: { height: 190, width: 320 },
+    parentId: nestedGroupBlock.blockId,
+    position: { x: 408, y: 72 },
+  },
+] as RetakeNode[];
+assert.deepEqual(
+  absoluteFlowNodeBounds(nestedFlowNodes, nestedOperationBlock),
+  { height: 190, width: 320, x: 1208, y: 322 },
+  'locating a grouped Step must center its absolute canvas bounds, not its parent-relative position',
+);
+
 const canvasSource = await readFile('src/app/useCanvasController.ts', 'utf8');
 assert.match(canvasSource, /saveBoardViewState\(/, 'canvas viewport changes must use BoardViewStateStore');
 assert.match(canvasSource, /scheduleViewportPersist/, 'in-progress pan and zoom gestures must schedule durable view-state writes');
@@ -128,5 +157,6 @@ console.log({
   inProgressGestureFlushed: true,
   legacyViewportRemoved: true,
   responsiveCenterRestore: true,
+  groupedStepFocusUsesAbsoluteBounds: true,
   transientFocusGuarded: true,
 });

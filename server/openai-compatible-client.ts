@@ -5,6 +5,7 @@ export interface OpenAICompatibleConnectionConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
+  templateId?: string;
 }
 
 export interface OpenAICompatibleTextResult {
@@ -27,6 +28,14 @@ export async function generateOpenAICompatibleText(
     name: 'retake-openai-compatible',
     apiKey: config.apiKey,
     baseURL: config.baseUrl.replace(/\/$/, ''),
+    ...(config.templateId === 'deepseek'
+      ? {
+          transformRequestBody: (body) => ({
+            ...body,
+            thinking: { type: 'disabled' },
+          }),
+        }
+      : {}),
     ...(fetchImpl ? { fetch: fetchImpl } : {}),
   });
   const result = await generateText({

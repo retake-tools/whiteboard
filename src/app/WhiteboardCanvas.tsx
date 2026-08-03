@@ -69,6 +69,7 @@ interface WhiteboardCanvasProps {
   groups: ReturnType<typeof useGroupController>;
   imageOperations: ReturnType<typeof useImageOperationController>;
   isMiniMapVisible: boolean;
+  onOpenWorkflowRun: (workflowRunId: string) => void;
   onPluginContributionFatalFailure?: (
     pluginModuleId: string,
     message: string,
@@ -98,6 +99,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
     groups,
     imageOperations,
     isMiniMapVisible,
+    onOpenWorkflowRun,
     onPluginContributionFatalFailure,
     pendingDirectImageImportBlockIdRef,
     pluginContributionRegistry,
@@ -540,9 +542,12 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
               onUngroup={() => groups.ungroupSelectedGroup(selectedBlock.blockId)}
               onUpdate={(updates) => groups.updateGroup(selectedBlock.blockId, updates)}
               onWorkflowRun={() => {
-                if (workflowRunViewForGroup(snapshot, selectedBlock.blockId)) {
-                  setHistoryOpen(false);
-                  setInspectorBlockId(selectedBlock.blockId);
+                const currentRun = workflowRunViewForGroup(
+                  snapshot,
+                  selectedBlock.blockId,
+                );
+                if (currentRun) {
+                  onOpenWorkflowRun(currentRun.record.workflowRunId);
                 } else {
                   workflowRuntime.createWorkflowRun(selectedBlock.blockId);
                 }

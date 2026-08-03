@@ -1,10 +1,10 @@
 {
-  "hostCompatibility": ">=0.1.3 <0.2.0",
+  "hostCompatibility": ">=0.1.4 <0.2.0",
   "packages": [
     {
-      "archiveDigest": "sha256:246d64f2853a0b0f30dabaf84a28954ccbf692ed7cbdbcdab4f06f7478493025",
-      "archivePath": "image-studio-0.11.0.retakepkg",
-      "digest": "sha256:adf9f1b100ea90701762667b301bd379c861ff47861da957d073beebfedb9659",
+      "archiveDigest": "sha256:1b7cadfc8364a90378421cac94f2a2a29e6f55f7948265fd35dae0946a80e4e1",
+      "archivePath": "image-studio-0.12.0.retakepkg",
+      "digest": "sha256:da193f8f90222e453bdf07aba6b6bd9f2401f417ce1a119de1e864ee693f6e0f",
       "packageId": "design.retake.image-studio",
       "pluginModules": [
         {
@@ -19,7 +19,7 @@
         }
       ],
       "updateSource": "github:retake-tools/image-studio@main#subdirectory=plugin",
-      "version": "0.11.0"
+      "version": "0.12.0"
     }
   ],
   "profileId": "retake.default-studios",

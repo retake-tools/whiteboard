@@ -148,7 +148,8 @@ export function nextWorkflowAgentExecutionAction(
   const allowedStepRunIds = new Set(record.scope.allowedStepRunIds);
   const scopedSteps = workflow.steps.filter((step) => allowedStepRunIds.has(step.record.stepRunId));
   if (scopedSteps.some((step) => step.status === 'queued' || step.status === 'running')) return undefined;
-  const step = scopedSteps.find((candidate) => candidate.status === 'ready');
+  const step = scopedSteps.find((candidate) => candidate.status === 'ready')
+    ?? historicalFailureRetryStep(snapshot, scopedSteps, record);
   if (!step || !record.scope.allowedOperationBlockIds.includes(step.record.operationBlockId)) return undefined;
   if (requiresExplicitProviderAuthorization(step)) return undefined;
   return {
@@ -167,20 +168,24 @@ export function projectWorkflowAgentRun(
   const workflow = workflowRunViewForId(snapshot, record.target.workflowRunId);
   if (!workflow) throw new Error(`Workflow Run not found: ${record.target.workflowRunId}`);
   if (record.target.kind === 'workflow_run') {
-    return projectWholeWorkflowAgentRun(workflow, 'workflow_terminal');
+    return projectWholeWorkflowAgentRun(snapshot, workflow, record, 'workflow_terminal');
   }
   if (record.target.kind === 'goal') {
-    return projectWholeWorkflowAgentRun(workflow, 'goal_plan_terminal');
+    return projectWholeWorkflowAgentRun(snapshot, workflow, record, 'goal_plan_terminal');
   }
   return projectWorkflowSliceAgentRun(snapshot, workflow, record);
 }
 
 function projectWholeWorkflowAgentRun(
+  snapshot: BoardSnapshot,
   workflow: WorkflowRunRuntimeView,
+  record: AgentRunRecord,
   terminalReason: 'goal_plan_terminal' | 'workflow_terminal',
 ): AgentRunProjection {
-  const executionIds = workflow.steps.flatMap((step) => step.record.executionIds);
-  const current = currentWorkflowStep(workflow.steps);
+  const executionIds = agentExecutionIds(snapshot, workflow.steps, record.agentRunId);
+  const retryStep = historicalFailureRetryStep(snapshot, workflow.steps, record);
+  const ownedActiveStep = agentOwnedActiveExecutionStep(snapshot, workflow.steps, record.agentRunId);
+  const current = ownedActiveStep ?? currentWorkflowStep(workflow.steps) ?? retryStep;
   const base = {
     executionIds,
     currentOperationBlockId: current?.record.operationBlockId,
@@ -195,6 +200,21 @@ function projectWholeWorkflowAgentRun(
   if (workflow.status === 'waiting_selection') return { ...base, status: 'waiting_selection', stopReason: undefined };
   if (workflow.status === 'waiting_approval') {
     return { ...base, status: 'waiting_approval', stopReason: undefined };
+  }
+  if (ownedActiveStep) {
+    return { ...base, error: undefined, status: 'running', stopReason: undefined };
+  }
+  if (retryStep) {
+    if (requiresExplicitProviderAuthorization(retryStep)) {
+      return {
+        ...base,
+        currentOperationBlockId: retryStep.record.operationBlockId,
+        status: 'waiting_input',
+        stopReason: 'provider_execution_authorization_required',
+        error: 'Explicit user Provider authorization is required before this Workflow Step can execute.',
+      };
+    }
+    return { ...base, error: undefined, status: 'running', stopReason: undefined };
   }
   if (workflow.status === 'needs_attention' || workflow.status === 'failed') {
     return { ...base, status: 'needs_attention', stopReason: undefined };
@@ -270,14 +290,18 @@ function projectWorkflowSliceAgentRun(
   if (targets.length !== targetStepRunIds.length) {
     throw new Error('Workflow Slice target StepRun is outside its frozen scope.');
   }
-  const current = currentWorkflowStep(steps);
-  const executionIds = steps.flatMap((step) => step.record.executionIds);
-  const failedStep = steps.find((step) =>
-    step.freshness === 'outdated'
-    || step.status === 'failed'
-    || step.status === 'canceled'
-    || step.status === 'blocked',
-  );
+  const retryStep = historicalFailureRetryStep(snapshot, steps, record);
+  const ownedActiveStep = agentOwnedActiveExecutionStep(snapshot, steps, record.agentRunId);
+  const current = ownedActiveStep ?? currentWorkflowStep(steps) ?? retryStep;
+  const executionIds = agentExecutionIds(snapshot, steps, record.agentRunId);
+  const failedStep = retryStep
+    ? undefined
+    : steps.find((step) =>
+        step.freshness === 'outdated'
+        || step.status === 'failed'
+        || step.status === 'canceled'
+        || step.status === 'blocked',
+      );
   const base = {
     executionIds,
     currentOperationBlockId: current?.record.operationBlockId,
@@ -289,6 +313,7 @@ function projectWorkflowSliceAgentRun(
 
   if (workflow.status === 'canceled') return { ...base, status: 'canceled', stopReason: 'target_canceled' };
   if (workflow.status === 'paused') return { ...base, status: 'paused', stopReason: 'target_paused' };
+  if (ownedActiveStep) return { ...base, error: undefined, status: 'running', stopReason: undefined };
   if (failedStep) return { ...base, status: 'needs_attention', stopReason: undefined };
   if (steps.some((step) => step.status === 'queued' || step.status === 'running')) {
     return { ...base, status: 'running', stopReason: undefined };
@@ -311,6 +336,18 @@ function projectWorkflowSliceAgentRun(
   }
   if (steps.some((step) => step.status === 'waiting_input')) {
     return { ...base, status: 'waiting_input', stopReason: undefined };
+  }
+  if (retryStep) {
+    if (requiresExplicitProviderAuthorization(retryStep)) {
+      return {
+        ...base,
+        currentOperationBlockId: retryStep.record.operationBlockId,
+        status: 'waiting_input',
+        stopReason: 'provider_execution_authorization_required',
+        error: 'Explicit user Provider authorization is required before this Workflow Step can execute.',
+      };
+    }
+    return { ...base, error: undefined, status: 'running', stopReason: undefined };
   }
   const authorizationStep = steps.find((step) =>
     step.status === 'ready' && requiresExplicitProviderAuthorization(step),
@@ -625,6 +662,63 @@ function currentWorkflowStep(steps: WorkflowStepRuntimeView[]): WorkflowStepRunt
     || step.status === 'waiting_input'
     || step.status === 'waiting_selection',
   );
+}
+
+function historicalFailureRetryStep(
+  snapshot: BoardSnapshot,
+  steps: WorkflowStepRuntimeView[],
+  record: AgentRunRecord,
+): WorkflowStepRuntimeView | undefined {
+  return steps.find((step) => {
+    if ((step.status !== 'failed' && step.status !== 'canceled') || !step.canStart) return false;
+    if (snapshot.executions.some(
+      (execution) =>
+        execution.agentRunId === record.agentRunId
+        && execution.stepRunId === step.record.stepRunId,
+    )) return false;
+    const latestExecutionId = step.record.executionIds.at(-1);
+    const latestExecution = snapshot.executions.find(
+      (execution) => execution.executionId === latestExecutionId,
+    );
+    return Boolean(latestExecution && latestExecution.agentRunId !== record.agentRunId);
+  });
+}
+
+function agentOwnedActiveExecutionStep(
+  snapshot: BoardSnapshot,
+  steps: WorkflowStepRuntimeView[],
+  agentRunId: string,
+): WorkflowStepRuntimeView | undefined {
+  return steps.find((step) => snapshot.executions.some(
+    (execution) =>
+      execution.agentRunId === agentRunId
+      && execution.stepRunId === step.record.stepRunId
+      && (execution.status === 'queued' || execution.status === 'running'),
+  ));
+}
+
+function agentExecutionIds(
+  snapshot: BoardSnapshot,
+  steps: WorkflowStepRuntimeView[],
+  agentRunId: string,
+): string[] {
+  const executionById = new Map(
+    snapshot.executions.map((execution) => [execution.executionId, execution]),
+  );
+  return steps.flatMap((step) => {
+    const recorded = step.record.executionIds.filter(
+      (executionId) => executionById.get(executionId)?.agentRunId === agentRunId,
+    );
+    const recordedSet = new Set(recorded);
+    const recoverable = snapshot.executions.flatMap((execution) =>
+      execution.agentRunId === agentRunId
+      && execution.stepRunId === step.record.stepRunId
+      && !recordedSet.has(execution.executionId)
+        ? [execution.executionId]
+        : [],
+    );
+    return [...recorded, ...recoverable];
+  });
 }
 
 function scopedGateState(

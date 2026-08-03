@@ -409,7 +409,10 @@ function materializationCandidates(
 
 function workflowOutputLocks(workflowRun: WorkflowRunRecord): WorkflowOutputSlotLock[] {
   if (workflowRun.outputSlotLocks.length > 0) return workflowRun.outputSlotLocks;
-  const workflow = workflowDefinitionFor(workflowRun.workflowDefinitionLock.workflowId);
+  const workflow = workflowDefinitionFor(workflowRun.workflowDefinitionLock.workflowId, {
+    definitionHash: workflowRun.workflowDefinitionLock.definitionHash,
+    version: workflowRun.workflowDefinitionLock.version,
+  });
   if (
     workflow.version !== workflowRun.workflowDefinitionLock.version
     || workflow.definitionHash !== workflowRun.workflowDefinitionLock.definitionHash

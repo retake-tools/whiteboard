@@ -21,6 +21,7 @@ import {
   imageGenerateCapabilityDefinition,
   imageGenerateCapabilityId,
 } from './imageGenerateContracts';
+import { resolveWorkflowInputBlock } from './workflowInputResolution';
 
 export type CapabilityInputRole =
   | 'annotated_composite'
@@ -237,12 +238,14 @@ export function capabilityForImageOperation(
 }
 
 export function connectedInputBlocks(snapshot: BoardSnapshot, operationBlockId: string): BlockRecord[] {
-  const sourceBlockIds = snapshot.edges
+  const inputEdges = snapshot.edges
     .filter((edge) => edge.targetBlockId === operationBlockId && edge.kind === 'execution_input')
-    .map((edge) => edge.sourceBlockId);
-  return sourceBlockIds
-    .map((blockId) => snapshot.blocks.find((block) => block.blockId === blockId))
-    .filter((block): block is BlockRecord => Boolean(block));
+  return inputEdges.flatMap((edge) => {
+    const block = snapshot.blocks.find((candidate) => candidate.blockId === edge.sourceBlockId);
+    return block
+      ? [resolveWorkflowInputBlock(snapshot, operationBlockId, edge.inputSlotId, block)]
+      : [];
+  });
 }
 
 export interface OperationInputState {
@@ -270,10 +273,15 @@ export function operationReadinessFor(
   const inputEdges = snapshot.edges.filter(
     (edge) => edge.targetBlockId === operationBlock.blockId && edge.kind === 'execution_input',
   );
-  const blockById = new Map(snapshot.blocks.map((block) => [block.blockId, block]));
   const inputBlocks = inputEdges
-    .map((edge) => blockById.get(edge.sourceBlockId))
-    .filter((block): block is BlockRecord => Boolean(block));
+    .flatMap((edge) => {
+      const block = snapshot.blocks.find((candidate) => candidate.blockId === edge.sourceBlockId);
+      return block
+        ? [resolveWorkflowInputBlock(snapshot, operationBlock.blockId, edge.inputSlotId, block)]
+        : [];
+    });
+  const blockById = new Map(snapshot.blocks.map((block) => [block.blockId, block]));
+  for (const block of inputBlocks) blockById.set(block.blockId, block);
   const issues = new Set<OperationReadinessIssue>();
 
   if (capabilityId === storyboardSheetCapabilityId) {
@@ -445,9 +453,16 @@ function imageGenerateOperationReadiness(
   const promptBlocks = promptEdges
     .map((edge) => blockById.get(edge.sourceBlockId))
     .filter((block): block is BlockRecord => Boolean(block));
-  if (promptEdges.length !== 1 || promptBlocks[0]?.type !== 'text') {
+  if (
+    promptEdges.length !== 1
+    || (promptBlocks[0]?.type !== 'text' && promptBlocks[0]?.type !== 'document')
+  ) {
     issues.add('text_input_missing');
-  } else if (!promptTextFromInputs(promptBlocks)) {
+  } else if (
+    promptBlocks[0]?.type === 'text'
+      ? !promptTextFromInputs(promptBlocks)
+      : typeof promptBlocks[0]?.data.assetId !== 'string'
+  ) {
     issues.add('prompt_empty');
   }
 
@@ -455,7 +470,7 @@ function imageGenerateOperationReadiness(
   if (sourceEdges.length > 1) issues.add('image_binding_missing');
   for (const edge of inputEdges) {
     const block = blockById.get(edge.sourceBlockId);
-    if (block?.type === 'text') {
+    if (block?.type === 'text' || block?.type === 'document') {
       if (edge.inputSlotId !== 'prompt') issues.add('image_binding_missing');
       continue;
     }

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type {
   PackageInstallationRecord,
+  PluginRuntimeSnapshotV1,
   WorkspacePackageLock,
 } from '@retake-tools/package-sdk';
 import type {
@@ -23,9 +24,11 @@ import {
   officialDefaultPackageIds,
 } from './official-package-preference-store';
 import { PackageUpdateService } from './package-update-service';
+import { PackageActivationGuardStore } from './package-activation-guard-store';
 
 export class PackageLifecycleService {
   private readonly hostVersion: string;
+  private readonly activationGuards: PackageActivationGuardStore;
   private readonly manager: LocalPackageManagerService;
   private readonly officialPreferences: OfficialPackagePreferenceStore;
   private readonly updates: PackageUpdateService;
@@ -38,6 +41,9 @@ export class PackageLifecycleService {
     this.hostVersion = input.hostVersion;
     this.workspaceRoot = input.workspaceRoot;
     this.manager = new LocalPackageManagerService(input);
+    this.activationGuards = new PackageActivationGuardStore(
+      this.manager.packagesRoot,
+    );
     this.officialPreferences = new OfficialPackagePreferenceStore(
       this.manager.packagesRoot,
     );
@@ -78,8 +84,20 @@ export class PackageLifecycleService {
     mutation: PackageLifecycleMutationV1,
   ): Promise<PackageLifecycleSnapshotV1> {
     if (mutation.action === 'install') {
+      const [previousLockfile, previousRuntime] = await Promise.all([
+        this.manager.list(),
+        new PluginRuntimeService({
+          hostVersion: this.hostVersion,
+          workspaceRoot: this.workspaceRoot,
+        }).reconcile(),
+      ]);
       const result = await this.manager.install(
         requiredSource(mutation.source),
+      );
+      await this.stageExecutableActivationGuard(
+        result.root.packageId,
+        previousLockfile,
+        previousRuntime,
       );
       if (isOfficialPackageId(result.root.packageId)) {
         await this.officialPreferences.setPackageRemoved(
@@ -94,7 +112,19 @@ export class PackageLifecycleService {
     } else {
       const packageId = requiredPackageId(mutation.packageId);
       if (mutation.action === 'update') {
+        const [previousLockfile, previousRuntime] = await Promise.all([
+          this.manager.list(),
+          new PluginRuntimeService({
+            hostVersion: this.hostVersion,
+            workspaceRoot: this.workspaceRoot,
+          }).reconcile(),
+        ]);
         await this.updates.update(packageId);
+        await this.stageExecutableActivationGuard(
+          packageId,
+          previousLockfile,
+          previousRuntime,
+        );
       } else if (mutation.action === 'repair') {
         await this.repair(packageId);
       } else if (mutation.action === 'rollback') {
@@ -102,8 +132,10 @@ export class PackageLifecycleService {
           packageId,
           mutation.target ? requiredTarget(mutation.target) : undefined,
         );
+        await this.activationGuards.clear(packageId);
       } else {
         await this.manager.remove(packageId);
+        await this.activationGuards.clear(packageId);
         if (isOfficialPackageId(packageId)) {
           await this.officialPreferences.setPackageRemoved(packageId, true);
         }
@@ -111,6 +143,47 @@ export class PackageLifecycleService {
     }
     invalidateDefaultDeclarativePackageBootstrap();
     return this.read();
+  }
+
+  private async stageExecutableActivationGuard(
+    packageId: string,
+    previousLockfile: WorkspacePackageLock,
+    previousRuntime: PluginRuntimeSnapshotV1,
+  ): Promise<void> {
+    const previous = previousLockfile.resolvedPackages.find(
+      (entry) => entry.packageId === packageId,
+    );
+    if (!previous) return;
+    const [currentLockfile, installed] = await Promise.all([
+      this.manager.list(),
+      this.manager.loadRegistryTolerant(),
+    ]);
+    const candidate = currentLockfile.resolvedPackages.find(
+      (entry) => entry.packageId === packageId,
+    );
+    if (!candidate || candidate.installationId === previous.installationId) {
+      return;
+    }
+    const pendingPluginModuleIds = [...installed.registry.pluginModules.values()]
+      .filter((entry) => entry.packageLock.packageId === packageId)
+      .map((entry) => entry.definition.pluginModuleId)
+      .sort(compareText);
+    if (pendingPluginModuleIds.length === 0) return;
+    await this.activationGuards.stage({
+      candidateDigest: candidate.digest,
+      candidateInstallationId: candidate.installationId,
+      confirmedPluginModuleIds: [],
+      createdAt: new Date().toISOString(),
+      packageId,
+      pendingPluginModuleIds,
+      previousDigest: previous.digest,
+      previousInstallationId: previous.installationId,
+      previousPluginModules: previousRuntime.modules.filter((record) => (
+        record.packageLock.packageId === previous.packageId
+        && record.packageLock.digest === previous.digest
+        && record.packageLock.installationId === previous.installationId
+      )),
+    });
   }
 
   private async repair(packageId: string): Promise<void> {

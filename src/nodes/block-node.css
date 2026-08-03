@@ -346,6 +346,39 @@
   color: #c2410c;
 }
 
+.workflow-step-status {
+  max-width: 116px;
+  overflow: hidden;
+  background: var(--retake-surface-subtle);
+  color: var(--retake-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-step-status.status-ready,
+.workflow-step-status.status-queued,
+.workflow-step-status.status-running {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.workflow-step-status.status-waiting_input,
+.workflow-step-status.status-waiting_selection {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.workflow-step-status.status-succeeded {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.workflow-step-status.status-blocked,
+.workflow-step-status.status-failed {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
 .operation-capability-control {
   position: relative;
   flex: 0 0 auto;

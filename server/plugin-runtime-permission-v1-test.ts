@@ -16,6 +16,12 @@ import { LocalPackageManagerService } from './local-package-manager-service';
 import { handlePluginRuntimeManagementRequest } from './plugin-runtime-management-api';
 import { PluginRuntimeService } from './plugin-runtime-service';
 import { pluginRuntimeStateFile } from './plugin-runtime-state-store';
+import {
+  PackageActivationGuardStore,
+} from './package-activation-guard-store';
+import {
+  bootstrapDeclarativePackages,
+} from './declarative-package-bootstrap-service';
 
 const temporaryRoot = await mkdtemp(
   path.join(tmpdir(), 'retake-plugin-runtime-v1-'),
@@ -85,6 +91,7 @@ try {
     'enable',
   );
   const enabled = enabledSnapshot.modules[0]!;
+  const v1PackageLock = structuredClone(enabled.packageLock);
   assert.equal(enabled.status, 'enabled');
   const moduleFile = await service.readEnabledModuleFile({
     packageDigest: enabled.packageLock.digest,
@@ -92,6 +99,32 @@ try {
     pluginModuleId: enabled.pluginModuleId,
   });
   assert.equal(moduleFile.mediaType, 'text/javascript; charset=utf-8');
+  const corruptSiblingSource = path.join(temporaryRoot, 'corrupt-sibling');
+  await writeCorruptSiblingSource(corruptSiblingSource);
+  const corruptSiblingInstall = await manager.install(corruptSiblingSource);
+  const corruptSibling = corruptSiblingInstall.lockfile.resolvedPackages.find(
+    (entry) => entry.packageId === 'retake.package.corrupt-sibling',
+  )!;
+  const corruptSiblingCachePath = path.join(
+    manager.packagesRoot,
+    'cache',
+    'sha256',
+    `${corruptSibling.digest.slice('sha256:'.length)}.retakepkg`,
+  );
+  const corruptSiblingArchive = Buffer.from(
+    await readFile(corruptSiblingCachePath),
+  );
+  const damagedSiblingArchive = Buffer.from(corruptSiblingArchive);
+  damagedSiblingArchive[Math.floor(damagedSiblingArchive.byteLength / 2)]! ^= 0xff;
+  await writeFile(corruptSiblingCachePath, damagedSiblingArchive);
+  const moduleFileWithCorruptSibling = await service.readEnabledModuleFile({
+    packageDigest: enabled.packageLock.digest,
+    path: enabled.manifest.runtime.entrypoint,
+    pluginModuleId: enabled.pluginModuleId,
+  });
+  assert.deepEqual(moduleFileWithCorruptSibling.bytes, moduleFile.bytes);
+  await writeFile(corruptSiblingCachePath, corruptSiblingArchive);
+  await manager.remove(corruptSibling.packageId);
   const moduleNamespace = await import(
     `data:text/javascript;base64,${moduleFile.bytes.toString('base64')}`
   );
@@ -336,14 +369,94 @@ try {
   };
   assert.equal(persisted.schemaVersion, 1);
   assert.equal(persisted.modules[0]!.status, 'failed');
+  const activationFallback = await service.failActivation({
+    message: 'fixture candidate activation failed',
+    pluginModuleId: 'retake.plugin.whiteboard-runtime-fixture',
+    rejectedDigest: failedAgain.packageLock.digest,
+    retainedModules: [enabled],
+    retainedDigest: v1PackageLock.digest,
+  });
+  assert.equal(activationFallback.rolledBack, true);
+  const rolledBackLock = await manager.list();
+  assert.equal(
+    rolledBackLock.roots.find(
+      (entry) => entry.packageId === v1PackageLock.packageId,
+    )?.installationId,
+    v1PackageLock.installationId,
+  );
+  const rolledBackRuntime = await service.reconcile();
+  assert.equal(rolledBackRuntime.modules[0]!.manifest.version, '0.1.0');
+  assert.equal(rolledBackRuntime.modules[0]!.status, 'enabled');
+  assert.equal(
+    rolledBackRuntime.modules[0]!.trust?.packageDigest,
+    v1PackageLock.digest,
+  );
+  await manager.install(sourceV2);
+  const guardedCandidateLock = await manager.list();
+  const guardedCandidate = guardedCandidateLock.resolvedPackages.find(
+    (entry) => entry.packageId === v1PackageLock.packageId,
+  )!;
+  const activationGuards = new PackageActivationGuardStore(
+    manager.packagesRoot,
+  );
+  await activationGuards.stage({
+    candidateDigest: guardedCandidate.digest,
+    candidateInstallationId: guardedCandidate.installationId,
+    confirmedPluginModuleIds: [],
+    createdAt: new Date().toISOString(),
+    packageId: guardedCandidate.packageId,
+    pendingPluginModuleIds: ['retake.plugin.whiteboard-runtime-fixture'],
+    previousDigest: v1PackageLock.digest,
+    previousInstallationId: v1PackageLock.installationId,
+    previousPluginModules: [enabled],
+  });
+  await bootstrapDeclarativePackages({
+    activateRuntime: false,
+    hostVersion: '0.1.2',
+    profilePath: path.join(temporaryRoot, 'missing-bootstrap.json'),
+    recoverPendingActivations: false,
+    workspaceRoot,
+  });
+  const guardedLockBeforeRestart = await manager.list();
+  assert.equal(
+    guardedLockBeforeRestart.roots.find(
+      (entry) => entry.packageId === v1PackageLock.packageId,
+    )?.installationId,
+    guardedCandidate.installationId,
+  );
+  assert.equal((await activationGuards.list()).length, 1);
+  await bootstrapDeclarativePackages({
+    activateRuntime: false,
+    hostVersion: '0.1.2',
+    profilePath: path.join(temporaryRoot, 'missing-bootstrap.json'),
+    workspaceRoot,
+  });
+  const crashRecoveredLock = await manager.list();
+  assert.equal(
+    crashRecoveredLock.roots.find(
+      (entry) => entry.packageId === v1PackageLock.packageId,
+    )?.installationId,
+    v1PackageLock.installationId,
+  );
+  assert.deepEqual(await activationGuards.list(), []);
+  const crashRecoveredRuntime = await service.reconcile();
+  assert.equal(crashRecoveredRuntime.modules[0]!.status, 'enabled');
+  assert.equal(
+    crashRecoveredRuntime.modules[0]!.trust?.packageDigest,
+    v1PackageLock.digest,
+  );
 
   process.stdout.write(`${JSON.stringify({
     codeTrustSeparatedFromGrant: true,
     exactModuleFileAuthority: true,
     explicitGrantTrustAndEnable: true,
     fatalFailureExplicit: true,
+    failedCandidateRollsBackToRetainedDigest: true,
+    unconfirmedCandidateRollsBackOnBootstrap: true,
+    unconfirmedCandidateSurvivesInProcessReconcile: true,
     installDoesNotEnable: true,
     nativeModuleActivation: true,
+    unrelatedCorruptPackageDoesNotBlockModuleRead: true,
     partialPermissionApiValidated: true,
     runtimeManagementReturnsSnapshot: true,
     serverRuntimeMutationsSerialized: true,
@@ -485,6 +598,40 @@ async function writePluginSource(
       '}',
       '',
     ].join('\n'),
+  );
+}
+
+async function writeCorruptSiblingSource(sourceRoot: string): Promise<void> {
+  await mkdir(sourceRoot, { recursive: true });
+  await writeJson(path.join(sourceRoot, 'retake.package.json'), {
+    components: {
+      agentPresets: [],
+      pluginModules: [],
+      skills: [],
+      workflows: [],
+    },
+    dependencies: [],
+    description: 'Corrupt sibling isolation fixture.',
+    entrypoints: [],
+    files: ['README.md'],
+    integrity: 'sha256:auto',
+    license: 'Apache-2.0',
+    name: 'Corrupt sibling isolation fixture',
+    optionalDependencies: [],
+    packageId: 'retake.package.corrupt-sibling',
+    permissions: [],
+    publisher: {
+      name: 'Retake',
+      publisherId: 'retake.publisher.official',
+    },
+    retakeHostCompatibility: '^0.1.0',
+    schemaVersion: 1,
+    signature: null,
+    version: '0.1.0',
+  });
+  await writeFile(
+    path.join(sourceRoot, 'README.md'),
+    'Disposable corrupt sibling Package.\n',
   );
 }
 

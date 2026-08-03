@@ -89,7 +89,7 @@ export function imageExecutionInputAssignments(execution: ExecutionRecord): Imag
     };
   });
 
-  return assignments.sort((left, right) => (
+  return assignments.filter((assignment) => assignment.inputSlotId !== 'prompt').sort((left, right) => (
     inputSlotOrder(left.inputSlotId) - inputSlotOrder(right.inputSlotId)
   ));
 }

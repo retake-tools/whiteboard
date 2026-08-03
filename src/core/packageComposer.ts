@@ -51,6 +51,17 @@ export interface PackageComposerParametersValue {
   value: Record<string, unknown>;
 }
 
+export function packageComposerParametersWithAgentPreferences(
+  parameters: Record<string, unknown> | undefined,
+  preferences: { variationCount?: 1 | 2 | 3 | 4 },
+): Record<string, unknown> {
+  const resolved = structuredClone(parameters ?? {});
+  if (resolved.variationCount === undefined && preferences.variationCount !== undefined) {
+    resolved.variationCount = preferences.variationCount;
+  }
+  return resolved;
+}
+
 export type PackageComposerMentionOption = PackageComposerMention & {
   artifactType?: string;
   dataType: Extract<CapabilityDataType, 'document' | 'image' | 'text'>;

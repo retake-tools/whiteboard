@@ -28,6 +28,7 @@ export type AgentRunStopReason =
   | 'target_canceled'
   | 'target_invalid'
   | 'provider_execution_authorization_required'
+  | 'operation_execution_missing'
   | 'user_paused'
   | 'user_canceled';
 

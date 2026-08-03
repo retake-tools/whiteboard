@@ -318,18 +318,24 @@ export function PluginManager({
                         )}
                         onRuntimeAction={(pluginModuleId, action) => void run(
                           `module:${pluginModuleId}:${action}`,
-                          () => pluginController.manageModule(
-                            pluginModuleId,
-                            action,
-                          ),
+                          async () => {
+                            await pluginController.manageModule(
+                              pluginModuleId,
+                              action,
+                            );
+                            await packageController.refresh();
+                          },
                         )}
                         onPermissionChange={(pluginModuleId, permissions) => (
                           void run(
                             `module:${pluginModuleId}:permissions`,
-                            () => pluginController.setPermissions(
-                              pluginModuleId,
-                              permissions,
-                            ),
+                            async () => {
+                              await pluginController.setPermissions(
+                                pluginModuleId,
+                                permissions,
+                              );
+                              await packageController.refresh();
+                            },
                           )
                         )}
                       />
@@ -347,17 +353,23 @@ export function PluginManager({
                             t={t}
                             onAction={(action) => void run(
                               `module:${record.pluginModuleId}:${action}`,
-                              () => pluginController.manageModule(
-                                record.pluginModuleId,
-                                action,
-                              ),
+                              async () => {
+                                await pluginController.manageModule(
+                                  record.pluginModuleId,
+                                  action,
+                                );
+                                await packageController.refresh();
+                              },
                             )}
                             onPermissionChange={(permissions) => void run(
                               `module:${record.pluginModuleId}:permissions`,
-                              () => pluginController.setPermissions(
-                                record.pluginModuleId,
-                                permissions,
-                              ),
+                              async () => {
+                                await pluginController.setPermissions(
+                                  record.pluginModuleId,
+                                  permissions,
+                                );
+                                await packageController.refresh();
+                              },
                             )}
                           />
                         ))}

@@ -35,6 +35,7 @@ import {
   packageComposerMentionId,
   packageComposerMentionBindingIdentity,
   packageComposerDependencyIssue,
+  packageComposerParametersWithAgentPreferences,
   resolvePackageComposerInvocation,
   type PackageComposerInvocation,
   type PackageComposerInlineValue,
@@ -280,6 +281,8 @@ export function SkillQuickInputComposer({
       parameters: { ...storyboardSheetParameters(storyboardPanelCount, storyboardOutputCount) },
     } : usesGenerationPreparation ? {
       parameters: { ...generationParameters },
+    } : selectedEntryPoint?.entrypoint.kind === 'workflow' ? {
+      parameters: packageComposerParametersWithAgentPreferences(undefined, agentPreferences),
     } : {}),
   }) : undefined, [
     entrypointId,
@@ -287,6 +290,8 @@ export function SkillQuickInputComposer({
     inlineValuesBySlot,
     instruction,
     mentions,
+    agentPreferences.variationCount,
+    selectedEntryPoint?.entrypoint.kind,
     storyboardOutputCount,
     storyboardPanelCount,
     generationParameters,
@@ -831,7 +836,11 @@ export function SkillQuickInputComposer({
             <ImageComposerControls projectId={snapshot.project.projectId} />
           ) : null}
           {composerMode === 'video' ? <VideoComposerControls /> : null}
-          {composerMode === 'agent' ? <AgentComposerPreferencesControls /> : null}
+          {composerMode === 'agent' ? (
+            <AgentComposerPreferencesControls
+              workflowSelected={selectedEntryPoint?.entrypoint.kind === 'workflow'}
+            />
+          ) : null}
           {composerMode === 'agent' && selectedEntryPoint ? (
             <div className="skill-composer-entrypoint is-selected">
               <button

@@ -6,7 +6,10 @@ import { GroupToolbar } from '../src/components/GroupToolbar';
 import { GroupDrawOverlay } from '../src/components/GroupDrawOverlay';
 import { FloatingToolbar } from '../src/components/FloatingToolbar';
 import { UnifiedComposerProvider } from '../src/components/UnifiedComposerProvider';
-import { OperationInlineControls } from '../src/nodes/OperationInlineControls';
+import {
+  OperationInlineControls,
+  operationSkillSelectionAvailable,
+} from '../src/nodes/OperationInlineControls';
 import { operationDisplayState } from '../src/core/operationDisplay';
 import { ExecutionDetailContent } from '../src/components/ExecutionDetailContent';
 import { BoardHistoryPanel } from '../src/components/BoardHistoryPanel';
@@ -445,6 +448,17 @@ const sourceAspectOperationMarkup = renderToStaticMarkup(
   </I18nProvider>,
 );
 assert.match(sourceAspectOperationMarkup, /Source ratio \/ 1x/);
+
+assert.equal(operationSkillSelectionAvailable({
+  capabilityId: 'image.generate',
+  skillId: 'retake.image.guided-edit',
+}), true);
+assert.equal(operationSkillSelectionAvailable({
+  capabilityId: 'image.generate',
+  skillId: 'retake.image.guided-edit',
+  workflowProjectionId: 'projection_guided_image',
+  workflowStepId: 'guided_image_edit',
+}), false, 'Workflow Definition locks the Step Skill and the Operation must not offer a selector');
 
 const localAdjustOperationMarkup = renderToStaticMarkup(
   <I18nProvider>

@@ -180,6 +180,17 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     }, { persist: true, syncFlow: false });
   }
 
+  function focusAgentRun(agentRunId: string): void {
+    const agentSessionId = selectedSessionId ?? ensureDefaultSession();
+    updateSnapshot((current) => {
+      setAgentSessionRun(current, agentSessionId, agentRunId);
+      return current;
+    }, { persist: true, syncFlow: false });
+    setSelectedSessionId(agentSessionId);
+    setFocusedAgentRunId(agentRunId);
+    setError(undefined);
+  }
+
   function bindWorkingOperation(operationBlockId: string): void {
     const agentSessionId = selectedSessionId ?? ensureDefaultSession();
     updateSnapshot((current) => {
@@ -520,6 +531,7 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     decideProposal,
     error,
     focusedAgentRunId,
+    focusAgentRun,
     focusProposalEffect,
     focusProposalRun,
     ensureDefaultSession,

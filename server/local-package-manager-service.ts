@@ -165,6 +165,7 @@ export class LocalPackageManagerService {
       registry: buildInstalledRegistry(lockfile, installedPackages),
     };
   }
+
 }
 
 function buildInstalledRegistry(

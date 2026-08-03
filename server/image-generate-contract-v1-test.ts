@@ -22,6 +22,7 @@ import { createBlockRecord } from '../src/core/blockFactory';
 import { operationReadinessFor } from '../src/core/capabilities';
 import { createDraftImageGenerateOperation } from '../src/core/imageOperations';
 import { createReferenceIntent } from '../src/core/referenceIntent';
+import { suggestedExecutionInputSlotId } from '../src/core/operationInputSlots';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import { migrateBoardSnapshot } from '../src/core/snapshotMigration';
 import type { BoardSnapshot } from '../src/core/types';
@@ -208,6 +209,30 @@ assert.deepEqual(
   ['prompt'],
 );
 assert.equal(operationReadinessFor(textSnapshot, textDraft.operationBlock).canRun, true);
+
+const connectedTextSnapshot = emptyBoardSnapshot();
+const connectedTextBlock = createBlockRecord(connectedTextSnapshot, 'text');
+connectedTextBlock.data.body = 'Create a warm residential interior.';
+connectedTextSnapshot.blocks.push(connectedTextBlock);
+const connectedImageOperation = createBlockRecord(connectedTextSnapshot, 'operation');
+connectedTextSnapshot.blocks.push(connectedImageOperation);
+assert.equal(
+  suggestedExecutionInputSlotId(
+    connectedTextSnapshot,
+    connectedTextBlock,
+    connectedImageOperation,
+  ),
+  'prompt',
+  'a live Text connection to image.generate receives the prompt slot',
+);
+connectedTextSnapshot.edges.push({
+  edgeId: 'edge_live_prompt',
+  inputSlotId: 'prompt',
+  kind: 'execution_input',
+  sourceBlockId: connectedTextBlock.blockId,
+  targetBlockId: connectedImageOperation.blockId,
+});
+assert.equal(operationReadinessFor(connectedTextSnapshot, connectedImageOperation).canRun, true);
 
 const sourceSnapshot = emptyBoardSnapshot();
 const sourceBlock = createBlockRecord(sourceSnapshot, 'image');

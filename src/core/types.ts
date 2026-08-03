@@ -386,6 +386,7 @@ export interface BlockData {
   workflowInputSlotId?: string;
   workflowOutputSlotId?: string;
   workflowProjectionId?: string;
+  workflowRevisionId?: string;
   workflowStepId?: string;
   workflowStepRunFreshness?: WorkflowStepRunFreshness;
   workflowStepRunStatus?: WorkflowStepRunStatus;

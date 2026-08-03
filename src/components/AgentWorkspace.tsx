@@ -71,6 +71,7 @@ export function AgentWorkspace({
   onDecideProposal,
   onLaunchProposal,
   onLocateBlock,
+  onOpenWorkflowRun,
   onResumeAgentRun,
   onRequestCanvasMode,
   onRenameSession,
@@ -107,6 +108,7 @@ export function AgentWorkspace({
     agentPresetEntryPointId?: string,
   ) => void;
   onLocateBlock: (blockId: string) => void;
+  onOpenWorkflowRun: (workflowRunId: string) => void;
   onResumeAgentRun: (agentRunId: string) => void;
   onRequestCanvasMode: () => void;
   onRenameSession: (title: string) => boolean;
@@ -221,7 +223,7 @@ export function AgentWorkspace({
           <div className="agent-workspace-chat">
             <AgentWorkflowRunNavigator
               activeAgentRun={activeRun}
-              onLocateBlock={onLocateBlock}
+              onOpenWorkflowRun={onOpenWorkflowRun}
               snapshot={snapshot}
             />
             <div
@@ -406,7 +408,7 @@ const AgentRunSummaryCard = function AgentRunSummaryCard({
       </header>
       {activeRun ? (
         <>
-          <p>{agentRunTargetLabel(activeRun)}</p>
+          <p>{agentRunTargetLabel(activeRun, snapshot)}</p>
           {intervention ? (
             <section className="agent-workspace-run-intervention" aria-label={t('agentWorkspace.intervention')}>
               <strong>{t(agentRunInterventionTitleKey(intervention.kind))}</strong>
@@ -447,7 +449,7 @@ const AgentRunSummaryCard = function AgentRunSummaryCard({
             <option value="">{t('agentWorkspace.noRun')}</option>
             {agentRuns.map((run) => (
               <option key={run.agentRunId} value={run.agentRunId}>
-                {agentRunTargetLabel(run)} · {t(agentRunStatusKey(run.status))}
+                {agentRunTargetLabel(run, snapshot)} · {t(agentRunStatusKey(run.status))}
               </option>
             ))}
           </select>
@@ -498,11 +500,41 @@ function trapNarrowWorkspaceFocus(event: ReactKeyboardEvent<HTMLElement>): void 
   }
 }
 
-function agentRunTargetLabel(run: AgentRunRecord): string {
+function agentRunTargetLabel(run: AgentRunRecord, snapshot: BoardSnapshot): string {
   if (run.target.kind === 'goal') return run.target.goalPlanSnapshot.goal;
-  if (run.target.kind === 'capability') return 'Capability';
-  if (run.target.kind === 'workflow_run') return 'Workflow';
+  if (run.target.kind === 'capability') {
+    return operationBlockLabel(snapshot, run.target.operationBlockId) ?? 'Capability';
+  }
+  const currentStepLabel = run.currentOperationBlockId
+    ? operationBlockLabel(snapshot, run.currentOperationBlockId)
+    : undefined;
+  if (run.target.kind === 'workflow_run') {
+    return currentStepLabel ? `Workflow · ${currentStepLabel}` : 'Workflow';
+  }
+  const targetStepRunId = run.target.until.kind === 'step'
+    ? run.target.until.stepRunId
+    : run.target.until.kind === 'artifact'
+      ? run.target.until.stepRunId
+      : run.target.until.kind === 'gate'
+        ? run.target.until.subjectStepRunId
+        : undefined;
+  const targetStep = targetStepRunId
+    ? snapshot.workflowStepRuns?.find((step) => step.stepRunId === targetStepRunId)
+    : undefined;
+  const targetStepLabel = targetStep
+    ? operationBlockLabel(snapshot, targetStep.operationBlockId)
+    : undefined;
+  if (currentStepLabel || targetStepLabel) {
+    return `Workflow · ${currentStepLabel ?? targetStepLabel}`;
+  }
   return `Workflow · ${run.target.until.kind}`;
+}
+
+function operationBlockLabel(snapshot: BoardSnapshot, blockId: string): string | undefined {
+  const block = snapshot.blocks.find((candidate) => candidate.blockId === blockId);
+  return typeof block?.data.title === 'string' && block.data.title.trim()
+    ? block.data.title.trim()
+    : undefined;
 }
 
 function ProposalCard({

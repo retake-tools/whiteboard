@@ -197,6 +197,8 @@ assert.match(workspaceSource, /aria-relevant="additions text"/);
 assert.match(workspaceSource, /role="status"/);
 assert.match(workspaceSource, /trapNarrowWorkspaceFocus/);
 assert.match(workspaceSource, /proposalStatusKey/);
+assert.match(workspaceSource, /agentRunTargetLabel\(activeRun, snapshot\)/);
+assert.match(workspaceSource, /run\.target\.until\.stepRunId/);
 assert.match(workspaceSource, /<AgentMessageCard message=\{message\}/);
 assert.match(messageSource, /navigator\.clipboard\.writeText/);
 assert.match(messageSource, /agent-workspace-message-copy/);

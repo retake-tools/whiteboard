@@ -692,6 +692,108 @@ export type TranslationKey =
   | 'workflowRuntime.stepStatus.succeeded'
   | 'workflowRuntime.stepStatus.waiting_input'
   | 'workflowRuntime.stepStatus.waiting_selection'
+  | 'workflowWorkspace.advanceToStep'
+  | 'workflowWorkspace.advanceWorkflow'
+  | 'workflowWorkspace.attentionChecklist'
+  | 'workflowWorkspace.capability'
+  | 'workflowWorkspace.close'
+  | 'workflowWorkspace.dependencies'
+  | 'workflowWorkspace.designMode'
+  | 'workflowWorkspace.designUnavailable'
+  | 'workflowWorkspace.graphNodeDescription'
+  | 'workflowWorkspace.inspector'
+  | 'workflowWorkspace.locateOnBoard'
+  | 'workflowWorkspace.locateStep'
+  | 'workflowWorkspace.noDependencies'
+  | 'workflowWorkspace.noRuns'
+  | 'workflowWorkspace.open'
+  | 'workflowWorkspace.openActiveAgent'
+  | 'workflowWorkspace.outputs'
+  | 'workflowWorkspace.readOnly'
+  | 'workflowWorkspace.readyStepUnavailable'
+  | 'workflowWorkspace.replayUnavailable'
+  | 'workflowWorkspace.rerunLastInputs'
+  | 'workflowWorkspace.runEntireWorkflow'
+  | 'workflowWorkspace.runReadyStep'
+  | 'workflowWorkspace.runToStep'
+  | 'workflowWorkspace.runToStepHint'
+  | 'workflowWorkspace.runView'
+  | 'workflowWorkspace.selectStep'
+  | 'workflowWorkspace.skill'
+  | 'workflowWorkspace.title'
+  | 'workflowInspector.actions'
+  | 'workflowInspector.attention'
+  | 'workflowInspector.behavior'
+  | 'workflowInspector.capabilityLock'
+  | 'workflowInspector.current'
+  | 'workflowInspector.duration'
+  | 'workflowInspector.error'
+  | 'workflowInspector.freshness'
+  | 'workflowInspector.inputs'
+  | 'workflowInspector.lastRun'
+  | 'workflowInspector.needsConfiguration'
+  | 'workflowInspector.noExecution'
+  | 'workflowInspector.noInputs'
+  | 'workflowInspector.noIssues'
+  | 'workflowInspector.noOutputs'
+  | 'workflowInspector.outputs'
+  | 'workflowInspector.overview'
+  | 'workflowInspector.providerModel'
+  | 'workflowInspector.skillLock'
+  | 'workflowInspector.source'
+  | 'workflowInspector.stage'
+  | 'workflowInspector.status'
+  | 'workflowInspector.step'
+  | 'workflowInspector.stepId'
+  | 'workflowInspector.validation'
+  | 'workflowInspector.values'
+  | 'workflowInspector.workflowMetadata'
+  | 'workflowAuthoring.bindings'
+  | 'workflowAuthoring.addFirstStep'
+  | 'workflowAuthoring.addStep'
+  | 'workflowAuthoring.capabilityInputs'
+  | 'workflowAuthoring.captureSelection'
+  | 'workflowAuthoring.chooseCapability'
+  | 'workflowAuthoring.closeStepCreator'
+  | 'workflowAuthoring.compatibleSkills'
+  | 'workflowAuthoring.createCopy'
+  | 'workflowAuthoring.createFromSelection'
+  | 'workflowAuthoring.dependencies'
+  | 'workflowAuthoring.description'
+  | 'workflowAuthoring.drafts'
+  | 'workflowAuthoring.graphNodeDescription'
+  | 'workflowAuthoring.issues'
+  | 'workflowAuthoring.insertAfterStep'
+  | 'workflowAuthoring.insertOnEdge'
+  | 'workflowAuthoring.loading'
+  | 'workflowAuthoring.metadata'
+  | 'workflowAuthoring.name'
+  | 'workflowAuthoring.noCompatibleSkills'
+  | 'workflowAuthoring.noCapabilities'
+  | 'workflowAuthoring.noDraft'
+  | 'workflowAuthoring.noValidationIssues'
+  | 'workflowAuthoring.optional'
+  | 'workflowAuthoring.previewCapture'
+  | 'workflowAuthoring.projectionDoesNotRun'
+  | 'workflowAuthoring.projectionReady'
+  | 'workflowAuthoring.projectDraft'
+  | 'workflowAuthoring.projectToBoard'
+  | 'workflowAuthoring.publish'
+  | 'workflowAuthoring.published'
+  | 'workflowAuthoring.publishedRevision'
+  | 'workflowAuthoring.save'
+  | 'workflowAuthoring.searchCapabilities'
+  | 'workflowAuthoring.selectDraft'
+  | 'workflowAuthoring.selectedBlocks'
+  | 'workflowAuthoring.skill'
+  | 'workflowAuthoring.source'
+  | 'workflowAuthoring.removeStep'
+  | 'workflowAuthoring.removeStepConfirm'
+  | 'workflowAuthoring.unsaved'
+  | 'workflowAuthoring.valid'
+  | 'workflowAuthoring.validationChecklist'
+  | 'workflowAuthoring.version'
+  | 'workflowAuthoring.workflowScope'
   | 'agentRuntime.actionFailed'
   | 'agentRuntime.cancel'
   | 'agentRuntime.canceled'
@@ -1038,6 +1140,8 @@ export type TranslationKey =
   | 'packageLibrary.update'
   | 'packageLibrary.checkUpdates'
   | 'packageLibrary.dismissUpdates'
+  | 'packageLibrary.dismissFailures'
+  | 'packageLibrary.failuresIsolatedBanner'
   | 'packageLibrary.reviewUpdates'
   | 'packageLibrary.updateAvailable'
   | 'packageLibrary.updateCheckError'
@@ -2039,6 +2143,108 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.workflowUnavailable': 'Record unavailable',
     'agentWorkspace.workflowViewing': 'Viewing Workflow Run',
     'agentWorkspace.you': 'You',
+    'workflowWorkspace.advanceToStep': 'Run to this Step',
+    'workflowWorkspace.advanceWorkflow': 'Run Workflow with Agent',
+    'workflowWorkspace.attentionChecklist': 'Needs attention',
+    'workflowWorkspace.capability': 'Capability',
+    'workflowWorkspace.close': 'Close Workflow Workspace',
+    'workflowWorkspace.dependencies': 'Dependencies',
+    'workflowWorkspace.designMode': 'Design',
+    'workflowWorkspace.designUnavailable': 'Design Mode will be enabled in Workflow Authoring V0.',
+    'workflowWorkspace.graphNodeDescription': 'Select this workflow step to inspect its run details. This graph is read-only.',
+    'workflowWorkspace.inspector': 'Step inspector',
+    'workflowWorkspace.locateOnBoard': 'Locate on board',
+    'workflowWorkspace.locateStep': 'Locate Step',
+    'workflowWorkspace.noDependencies': 'No upstream dependencies',
+    'workflowWorkspace.noRuns': 'No Workflow Runs are available on this board.',
+    'workflowWorkspace.open': 'Open Workflow',
+    'workflowWorkspace.openActiveAgent': 'Return to active Agent',
+    'workflowWorkspace.outputs': 'Outputs',
+    'workflowWorkspace.readOnly': 'Read-only',
+    'workflowWorkspace.readyStepUnavailable': 'Single-Step execution is not available yet. It will only run an already Ready Step without changing its dependencies.',
+    'workflowWorkspace.replayUnavailable': 'Debug Replay is not available yet. It will create a new Execution that references the previous Execution as its debug source.',
+    'workflowWorkspace.rerunLastInputs': 'Rerun with last inputs',
+    'workflowWorkspace.runEntireWorkflow': 'Run entire Workflow',
+    'workflowWorkspace.runReadyStep': 'Run current Ready Step',
+    'workflowWorkspace.runToStep': 'Run to this Step',
+    'workflowWorkspace.runToStepHint': 'Runs the frozen dependency path and stops after this Step completes.',
+    'workflowWorkspace.runView': 'Run view',
+    'workflowWorkspace.selectStep': 'Select a step in the graph to inspect its frozen run facts.',
+    'workflowWorkspace.skill': 'Skill',
+    'workflowWorkspace.title': 'Workflow Workspace',
+    'workflowInspector.actions': 'Actions',
+    'workflowInspector.attention': 'attention',
+    'workflowInspector.behavior': 'Behavior',
+    'workflowInspector.capabilityLock': 'Capability lock',
+    'workflowInspector.current': 'Current',
+    'workflowInspector.duration': 'Duration',
+    'workflowInspector.error': 'Error',
+    'workflowInspector.freshness': 'Freshness',
+    'workflowInspector.inputs': 'Inputs',
+    'workflowInspector.lastRun': 'Last Run',
+    'workflowInspector.needsConfiguration': 'Needs configuration',
+    'workflowInspector.noExecution': 'No Execution has been recorded for this Step.',
+    'workflowInspector.noInputs': 'No inputs',
+    'workflowInspector.noIssues': 'No validation issues for this Step.',
+    'workflowInspector.noOutputs': 'No outputs',
+    'workflowInspector.outputs': 'Outputs',
+    'workflowInspector.overview': 'Overview',
+    'workflowInspector.providerModel': 'Provider / model',
+    'workflowInspector.skillLock': 'Skill lock',
+    'workflowInspector.source': 'Source',
+    'workflowInspector.stage': 'Stage',
+    'workflowInspector.status': 'Status',
+    'workflowInspector.step': 'Step',
+    'workflowInspector.stepId': 'Step ID',
+    'workflowInspector.validation': 'Validation',
+    'workflowInspector.values': 'values',
+    'workflowInspector.workflowMetadata': 'Workflow metadata',
+    'workflowAuthoring.bindings': 'Typed bindings',
+    'workflowAuthoring.addFirstStep': 'Add the first Step',
+    'workflowAuthoring.addStep': 'Add Step',
+    'workflowAuthoring.capabilityInputs': 'inputs',
+    'workflowAuthoring.captureSelection': 'Capture canvas selection',
+    'workflowAuthoring.chooseCapability': 'Choose a Capability',
+    'workflowAuthoring.closeStepCreator': 'Close Step Creator',
+    'workflowAuthoring.compatibleSkills': 'Skills',
+    'workflowAuthoring.createCopy': 'Create editable copy',
+    'workflowAuthoring.createFromSelection': 'Create draft',
+    'workflowAuthoring.dependencies': 'Dependencies',
+    'workflowAuthoring.description': 'Description',
+    'workflowAuthoring.drafts': 'Project drafts',
+    'workflowAuthoring.graphNodeDescription': 'Select a Workflow Step to inspect it. Use arrow keys or drag to reposition it in this Project draft.',
+    'workflowAuthoring.issues': 'Validation issues',
+    'workflowAuthoring.insertAfterStep': 'Add after Step',
+    'workflowAuthoring.insertOnEdge': 'Insert on dependency',
+    'workflowAuthoring.loading': 'Loading Project workflows…',
+    'workflowAuthoring.metadata': 'Workflow metadata',
+    'workflowAuthoring.name': 'Name',
+    'workflowAuthoring.noCompatibleSkills': 'No compatible installed Skill',
+    'workflowAuthoring.noCapabilities': 'No matching installed Capability',
+    'workflowAuthoring.noDraft': 'Fork this immutable source Workflow before editing.',
+    'workflowAuthoring.noValidationIssues': 'No validation issues.',
+    'workflowAuthoring.optional': 'Optional step',
+    'workflowAuthoring.previewCapture': 'Review selection',
+    'workflowAuthoring.projectionDoesNotRun': 'The revision is on this board, but no WorkflowRun exists until you create one explicitly.',
+    'workflowAuthoring.projectionReady': 'Revision projected to board',
+    'workflowAuthoring.projectDraft': 'Project draft',
+    'workflowAuthoring.projectToBoard': 'Project to board',
+    'workflowAuthoring.publish': 'Publish revision',
+    'workflowAuthoring.published': 'Published revisions',
+    'workflowAuthoring.publishedRevision': 'Published',
+    'workflowAuthoring.save': 'Save draft',
+    'workflowAuthoring.searchCapabilities': 'Search Capabilities, inputs, or outputs',
+    'workflowAuthoring.selectDraft': 'Select a Project draft to edit.',
+    'workflowAuthoring.selectedBlocks': 'selected Blocks',
+    'workflowAuthoring.skill': 'Compatible Skill',
+    'workflowAuthoring.source': 'Immutable source',
+    'workflowAuthoring.removeStep': 'Remove Step',
+    'workflowAuthoring.removeStepConfirm': 'Remove this unreferenced Step from the draft?',
+    'workflowAuthoring.unsaved': 'Unsaved changes',
+    'workflowAuthoring.valid': 'Valid draft',
+    'workflowAuthoring.validationChecklist': 'Workflow checklist',
+    'workflowAuthoring.version': 'Version',
+    'workflowAuthoring.workflowScope': 'Workflow',
     'agentWorkspace.chatEmptyTitle': 'What would you like to create?',
     'agentWorkspace.quickStartEdit': 'Edit the selected image while preserving its composition',
     'agentWorkspace.quickStartPlan': 'Plan a visual workflow for this Board',
@@ -2224,6 +2430,8 @@ const translations: Record<Locale, Translations> = {
     'packageLibrary.update': 'Update',
     'packageLibrary.checkUpdates': 'Check for updates',
     'packageLibrary.dismissUpdates': 'Dismiss update notification',
+    'packageLibrary.dismissFailures': 'Dismiss Package failure notification',
+    'packageLibrary.failuresIsolatedBanner': 'Package failures isolated; Whiteboard remains available',
     'packageLibrary.reviewUpdates': 'Review updates',
     'packageLibrary.updateAvailable': 'Update available',
     'packageLibrary.updateCheckError': 'Update check failed',
@@ -3220,6 +3428,108 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.workflowUnavailable': '记录不可用',
     'agentWorkspace.workflowViewing': '正在查看 Workflow Run',
     'agentWorkspace.you': '你',
+    'workflowWorkspace.advanceToStep': '推进到此 Step',
+    'workflowWorkspace.advanceWorkflow': '交给 Agent 推进整个 Workflow',
+    'workflowWorkspace.attentionChecklist': '需处理的步骤',
+    'workflowWorkspace.capability': 'Capability',
+    'workflowWorkspace.close': '关闭 Workflow 工作区',
+    'workflowWorkspace.dependencies': '前置依赖',
+    'workflowWorkspace.designMode': '设计',
+    'workflowWorkspace.designUnavailable': 'Design Mode 将在 Workflow Authoring V0 中开放。',
+    'workflowWorkspace.graphNodeDescription': '选择此 Workflow 步骤以查看运行详情。当前图为只读。',
+    'workflowWorkspace.inspector': '步骤检查器',
+    'workflowWorkspace.locateOnBoard': '在画布中定位',
+    'workflowWorkspace.locateStep': '定位 Step',
+    'workflowWorkspace.noDependencies': '没有前置依赖',
+    'workflowWorkspace.noRuns': '当前画板没有可查看的 Workflow Run。',
+    'workflowWorkspace.open': '打开 Workflow',
+    'workflowWorkspace.openActiveAgent': '返回当前 Agent',
+    'workflowWorkspace.outputs': '输出',
+    'workflowWorkspace.readOnly': '只读',
+    'workflowWorkspace.readyStepUnavailable': '单 Step 执行尚未开放。开放后只会运行依赖已满足的 Ready Step，不会改写依赖。',
+    'workflowWorkspace.replayUnavailable': 'Debug Replay 尚未开放。开放后会创建一个新的 Execution，并把上一次 Execution 记录为调试来源。',
+    'workflowWorkspace.rerunLastInputs': '使用上次输入重新运行',
+    'workflowWorkspace.runEntireWorkflow': '运行整个 Workflow',
+    'workflowWorkspace.runReadyStep': '运行当前 Ready Step',
+    'workflowWorkspace.runToStep': '运行到此 Step（包含前置依赖）',
+    'workflowWorkspace.runToStepHint': '执行冻结的前置依赖路径，并在这个 Step 完成后停止。',
+    'workflowWorkspace.runView': '运行视图',
+    'workflowWorkspace.selectStep': '在 Graph 中选择一个步骤，查看它冻结的运行事实。',
+    'workflowWorkspace.skill': 'Skill',
+    'workflowWorkspace.title': 'Workflow 工作区',
+    'workflowInspector.actions': '操作',
+    'workflowInspector.attention': '项需关注',
+    'workflowInspector.behavior': '行为',
+    'workflowInspector.capabilityLock': 'Capability 锁定',
+    'workflowInspector.current': '当前',
+    'workflowInspector.duration': '耗时',
+    'workflowInspector.error': '错误',
+    'workflowInspector.freshness': '新鲜度',
+    'workflowInspector.inputs': '输入',
+    'workflowInspector.lastRun': '上次运行',
+    'workflowInspector.needsConfiguration': '需要配置',
+    'workflowInspector.noExecution': '这个 Step 尚无 Execution 记录。',
+    'workflowInspector.noInputs': '没有输入',
+    'workflowInspector.noIssues': '这个 Step 当前没有校验问题。',
+    'workflowInspector.noOutputs': '没有输出',
+    'workflowInspector.outputs': '输出',
+    'workflowInspector.overview': '概览',
+    'workflowInspector.providerModel': 'Provider / 模型',
+    'workflowInspector.skillLock': 'Skill 锁定',
+    'workflowInspector.source': '来源',
+    'workflowInspector.stage': '阶段',
+    'workflowInspector.status': '状态',
+    'workflowInspector.step': '步骤',
+    'workflowInspector.stepId': 'Step ID',
+    'workflowInspector.validation': '校验',
+    'workflowInspector.values': '个值',
+    'workflowInspector.workflowMetadata': 'Workflow 元数据',
+    'workflowAuthoring.bindings': 'Typed Bindings',
+    'workflowAuthoring.addFirstStep': '添加第一个 Step',
+    'workflowAuthoring.addStep': '新增 Step',
+    'workflowAuthoring.capabilityInputs': '个输入',
+    'workflowAuthoring.captureSelection': '从画布选择捕获',
+    'workflowAuthoring.chooseCapability': '选择 Capability',
+    'workflowAuthoring.closeStepCreator': '关闭 Step 创建器',
+    'workflowAuthoring.compatibleSkills': '个 Skill',
+    'workflowAuthoring.createCopy': '创建可编辑副本',
+    'workflowAuthoring.createFromSelection': '创建草稿',
+    'workflowAuthoring.dependencies': '依赖',
+    'workflowAuthoring.description': '描述',
+    'workflowAuthoring.drafts': 'Project 草稿',
+    'workflowAuthoring.graphNodeDescription': '选择 Workflow Step 查看详情；可用方向键或拖拽调整它在 Project 草稿中的位置。',
+    'workflowAuthoring.issues': '校验问题',
+    'workflowAuthoring.insertAfterStep': '在 Step 后新增',
+    'workflowAuthoring.insertOnEdge': '插入依赖链',
+    'workflowAuthoring.loading': '正在加载 Project Workflow…',
+    'workflowAuthoring.metadata': 'Workflow 元数据',
+    'workflowAuthoring.name': '名称',
+    'workflowAuthoring.noCompatibleSkills': '没有兼容的已安装 Skill',
+    'workflowAuthoring.noCapabilities': '没有匹配的已安装 Capability',
+    'workflowAuthoring.noDraft': '这个来源不可变，请先创建可编辑副本。',
+    'workflowAuthoring.noValidationIssues': '当前没有校验问题。',
+    'workflowAuthoring.optional': '可选步骤',
+    'workflowAuthoring.previewCapture': '检查选择',
+    'workflowAuthoring.projectionDoesNotRun': 'Revision 已进入当前画布；只有显式创建后才会产生 WorkflowRun。',
+    'workflowAuthoring.projectionReady': 'Revision 已投影到画布',
+    'workflowAuthoring.projectDraft': 'Project 草稿',
+    'workflowAuthoring.projectToBoard': '投影到画布',
+    'workflowAuthoring.publish': '发布 Revision',
+    'workflowAuthoring.published': '已发布 Revisions',
+    'workflowAuthoring.publishedRevision': '已发布',
+    'workflowAuthoring.save': '保存草稿',
+    'workflowAuthoring.searchCapabilities': '搜索 Capability、输入或输出',
+    'workflowAuthoring.selectDraft': '选择一个 Project 草稿进行编辑。',
+    'workflowAuthoring.selectedBlocks': '个已选 Block',
+    'workflowAuthoring.skill': '兼容 Skill',
+    'workflowAuthoring.source': '不可变来源',
+    'workflowAuthoring.removeStep': '移除 Step',
+    'workflowAuthoring.removeStepConfirm': '确认从草稿移除这个未被引用的 Step？',
+    'workflowAuthoring.unsaved': '有未保存更改',
+    'workflowAuthoring.valid': '草稿有效',
+    'workflowAuthoring.validationChecklist': 'Workflow 检查清单',
+    'workflowAuthoring.version': '版本',
+    'workflowAuthoring.workflowScope': 'Workflow 全局',
     'agentWorkspace.chatEmptyTitle': '这次想创作什么？',
     'agentWorkspace.quickStartEdit': '修改选中的图片，并保持原有构图',
     'agentWorkspace.quickStartPlan': '为当前画板规划一套视觉工作流',
@@ -3405,6 +3715,8 @@ const translations: Record<Locale, Translations> = {
     'packageLibrary.update': '更新',
     'packageLibrary.checkUpdates': '检查更新',
     'packageLibrary.dismissUpdates': '关闭更新通知',
+    'packageLibrary.dismissFailures': '关闭 Package 故障通知',
+    'packageLibrary.failuresIsolatedBanner': '个 Package 加载失败并已隔离，画布仍可使用',
     'packageLibrary.reviewUpdates': '查看更新',
     'packageLibrary.updateAvailable': '有可用更新',
     'packageLibrary.updateCheckError': '更新检查失败',

@@ -88,12 +88,12 @@ try {
   );
   assert.deepEqual(
     (await readdir(bundledRoot)).sort(),
-    ['image-studio-0.11.0.retakepkg', 'retake.bootstrap.json'],
+    ['image-studio-0.12.0.retakepkg', 'retake.bootstrap.json'],
     'The published Whiteboard bootstrap must not ship a Video Studio archive.',
   );
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.version),
-    ['0.11.0'],
+    ['0.12.0'],
   );
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.updateSource),
@@ -103,7 +103,15 @@ try {
   );
   await validateBootstrapProfileArchives(
     defaultBootstrapProfilePath,
-    '0.1.3',
+    '0.1.4',
+  );
+  await assert.rejects(
+    validateBootstrapProfileArchives(
+      defaultBootstrapProfilePath,
+      '0.1.3',
+    ),
+    /incompatible/,
+    'Whiteboard 0.1.3 must reject the Image Studio 0.12 schema before installation.',
   );
 
   const bootstrapCopy = await copyBootstrapFixture('valid-bootstrap');
@@ -133,15 +141,15 @@ try {
   await writeFile(sentinelPath, 'board-data-must-remain\n', 'utf8');
 
   const first = await bootstrapDeclarativePackages({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot,
   });
   assert.equal(first.installed, true);
   assert.equal(first.snapshot.lockRevision, 2);
   assert.equal(first.snapshot.packages.length, 2);
-  assert.equal(first.snapshot.skills.length, 9);
-  assert.equal(first.snapshot.workflows.length, 5);
+  assert.equal(first.snapshot.skills.length, 13);
+  assert.equal(first.snapshot.workflows.length, 6);
   assert.equal(first.snapshot.agentPresets.length, 2);
   assert.equal(
     first.snapshot.capabilities.some(
@@ -185,14 +193,14 @@ try {
 
   configureInstalledRuntimeRegistry(first.snapshot);
   assert.equal(listPackages().length, 2);
-  assert.equal(listSkills().length, 9);
-  assert.equal(listWorkflows().length, 5);
+  assert.equal(listSkills().length, 13);
+  assert.equal(listWorkflows().length, 6);
   assert.equal(listAgentPresets().length, 2);
   assert.equal(
     capabilityDefinitionFor('image.generate').definitionHash,
-    'sha256:retake-image-generate-v1',
+    'sha256:retake-image-generate-document-prompt-v2',
   );
-  assert.equal(listPackageEntryPoints().length, 15);
+  assert.equal(listPackageEntryPoints().length, 16);
   assert.equal(
     resolvedSkillUiDefinitionFor('retake.screenplay.from-brief', 'zh-CN').name,
     '生成剧本',
@@ -212,7 +220,7 @@ try {
   );
   const lockBeforeSecondBootstrap = await readFile(lockPath);
   const second = await bootstrapDeclarativePackages({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot,
   });
@@ -222,7 +230,7 @@ try {
 
   const pinnedWorkspace = path.join(temporaryRoot, 'version-pinned-workspace');
   await bootstrapDeclarativePackages({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot: pinnedWorkspace,
   });
@@ -243,7 +251,7 @@ try {
   assert.equal(pinnedImageBeforeBootstrap?.version, '0.9.9');
 
   const afterPinnedBootstrap = await bootstrapDeclarativePackages({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot: pinnedWorkspace,
   });
@@ -320,16 +328,16 @@ try {
     'partial-grant-workspace',
   );
   await bootstrapDeclarativePackages({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot: partialGrantWorkspace,
   });
   await new PluginRuntimeService({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     workspaceRoot: partialGrantWorkspace,
   }).setPermissions(imagePluginModuleId, ['retake.asset.read.bound']);
   const partialGrantBootstrap = await bootstrapDeclarativePackages({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot: partialGrantWorkspace,
   });
@@ -350,13 +358,13 @@ try {
   }]);
 
   const runtime = new PluginRuntimeService({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     workspaceRoot,
   });
   await runtime.manageModule(imagePluginModuleId, 'revoke');
   await runtime.manageModule(videoPluginModuleId, 'disable');
   const afterOverrides = await bootstrapDeclarativePackages({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot,
   });
@@ -390,7 +398,7 @@ try {
 
   const removedWorkspace = path.join(temporaryRoot, 'removed-workspace');
   await bootstrapDeclarativePackages({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot: removedWorkspace,
   });
@@ -400,7 +408,7 @@ try {
     removedManager.packagesRoot,
   ).setPackageRemoved(imagePackageId, true);
   const removedBootstrap = await bootstrapDeclarativePackages({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot: removedWorkspace,
   });
@@ -413,7 +421,7 @@ try {
 
   const safeWorkspace = path.join(temporaryRoot, 'safe-mode-workspace');
   const safeBootstrap = await bootstrapDeclarativePackages({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     pluginSafeMode: true,
     profilePath: path.join(bootstrapCopy, 'retake.bootstrap.json'),
     workspaceRoot: safeWorkspace,
@@ -432,26 +440,28 @@ try {
   );
   const cachedOnly = await bootstrapDeclarativePackages({
     activateRuntime: false,
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     profilePath: missingBundlePath,
     workspaceRoot,
   });
   assert.equal(cachedOnly.installed, false);
   assert.equal(cachedOnly.snapshot.snapshotDigest, first.snapshot.snapshotDigest);
+  assert.equal(cachedOnly.distributionFailures.length, 1);
+  assert.equal(cachedOnly.distributionFailures[0]?.stage, 'profile');
 
-  await verifyProfileFailure('profile-digest-tamper', (profile) => {
+  await verifyProfileIsolation('profile-digest-tamper', (profile) => {
     profile.packages[0]!.digest = `sha256:${'0'.repeat(64)}`;
   }, /does not match its profile lock/);
-  await verifyProfileFailure('profile-host-tamper', (profile) => {
+  await verifyProfileIsolation('profile-host-tamper', (profile) => {
     profile.hostCompatibility = '>=2.0.0';
   }, /incompatible/);
-  await verifyProfileFailure('profile-path-tamper', (profile) => {
+  await verifyProfileIsolation('profile-path-tamper', (profile) => {
     profile.packages[0]!.archivePath = '../escape.retakepkg';
   }, /portable filename/);
-  await verifyProfileFailure('profile-permission-tamper', (profile) => {
+  await verifyProfileIsolation('profile-permission-tamper', (profile) => {
     profile.packages[0]!.pluginModules[0]!.permissions = [];
   }, /allowlist does not match archive/);
-  await verifyProfileFailure('profile-update-source-tamper', (profile) => {
+  await verifyProfileIsolation('profile-update-source-tamper', (profile) => {
     profile.packages[0]!.updateSource =
       'github:attacker/image-studio@main#subdirectory=plugin';
   }, /official GitHub main source/);
@@ -471,13 +481,15 @@ try {
     path.join(symlinkArchiveRoot, symlinkTargetName),
   );
   await symlink(symlinkTargetName, symlinkArchivePath);
-  await assert.rejects(
-    bootstrapDeclarativePackages({
-      activateRuntime: false,
-      hostVersion: '0.1.3',
-      profilePath: path.join(symlinkArchiveRoot, 'retake.bootstrap.json'),
-      workspaceRoot: path.join(temporaryRoot, 'archive-symlink-workspace'),
-    }),
+  const symlinkBootstrap = await bootstrapDeclarativePackages({
+    activateRuntime: false,
+    hostVersion: '0.1.4',
+    profilePath: path.join(symlinkArchiveRoot, 'retake.bootstrap.json'),
+    workspaceRoot: path.join(temporaryRoot, 'archive-symlink-workspace'),
+  });
+  assert.equal(symlinkBootstrap.snapshot.packages.length, 0);
+  assert.match(
+    symlinkBootstrap.distributionFailures[0]?.error ?? '',
     /must be a regular file/,
   );
 
@@ -492,19 +504,109 @@ try {
   const archiveBytes = Buffer.from(await readFile(archivePath));
   archiveBytes[Math.floor(archiveBytes.byteLength / 2)]! ^= 0xff;
   await writeFile(archivePath, archiveBytes);
-  await assert.rejects(
-    bootstrapDeclarativePackages({
-      activateRuntime: false,
-      hostVersion: '0.1.3',
-      profilePath: path.join(archiveTamperRoot, 'retake.bootstrap.json'),
-      workspaceRoot: path.join(temporaryRoot, 'archive-tamper-workspace'),
-    }),
+  const tamperedBootstrap = await bootstrapDeclarativePackages({
+    activateRuntime: false,
+    hostVersion: '0.1.4',
+    profilePath: path.join(archiveTamperRoot, 'retake.bootstrap.json'),
+    workspaceRoot: path.join(temporaryRoot, 'archive-tamper-workspace'),
+  });
+  assert.equal(tamperedBootstrap.snapshot.packages.length, 0);
+  assert.match(
+    tamperedBootstrap.distributionFailures[0]?.error ?? '',
     /invalid|checksum|integrity|canonical/i,
   );
 
+  const lastGoodRoot = await copyBootstrapFixture('last-good-candidate');
+  const lastGoodProfilePath = path.join(lastGoodRoot, 'retake.bootstrap.json');
+  const lastGoodProfile = await readBootstrapProfile(lastGoodProfilePath);
+  const lastGoodWorkspace = path.join(temporaryRoot, 'last-good-workspace');
+  const lastGoodFirst = await bootstrapDeclarativePackages({
+    activateRuntime: false,
+    hostVersion: '0.1.4',
+    profilePath: lastGoodProfilePath,
+    workspaceRoot: lastGoodWorkspace,
+  });
+  const lastGoodManager = manager(lastGoodWorkspace);
+  const lastGoodLock = await lastGoodManager.list();
+  const lastGoodRootLock = lastGoodLock.roots.find(
+    (entry) => entry.packageId === imagePackageId,
+  )!;
+  const lastGoodArchivePath = path.join(
+    lastGoodRoot,
+    lastGoodProfile.packages[0]!.archivePath,
+  );
+  const lastGoodArchiveBytes = Buffer.from(await readFile(lastGoodArchivePath));
+  lastGoodArchiveBytes[Math.floor(lastGoodArchiveBytes.byteLength / 2)]! ^= 0xff;
+  await writeFile(lastGoodArchivePath, lastGoodArchiveBytes);
+  const lastGoodSecond = await bootstrapDeclarativePackages({
+    activateRuntime: false,
+    hostVersion: '0.1.4',
+    profilePath: lastGoodProfilePath,
+    workspaceRoot: lastGoodWorkspace,
+  });
+  const lastGoodAfterLock = await lastGoodManager.list();
+  assert.equal(lastGoodFirst.snapshot.packages.length, 1);
+  assert.equal(lastGoodSecond.snapshot.packages.length, 1);
+  assert.equal(lastGoodSecond.distributionFailures.length, 1);
+  assert.deepEqual(lastGoodAfterLock.roots, lastGoodLock.roots);
+  assert.equal(
+    lastGoodAfterLock.roots.find(
+      (entry) => entry.packageId === imagePackageId,
+    )?.installationId,
+    lastGoodRootLock.installationId,
+  );
+
+  const isolatedMultiRoot = await copyBootstrapFixture('isolated-multi-package');
+  const isolatedMultiProfilePath = path.join(
+    isolatedMultiRoot,
+    'retake.bootstrap.json',
+  );
+  await cp(
+    videoStudioTestArchive,
+    path.join(isolatedMultiRoot, 'video-studio-0.1.2.retakepkg'),
+  );
+  const isolatedMultiProfile = await readBootstrapProfile(
+    isolatedMultiProfilePath,
+  );
+  isolatedMultiProfile.packages.push({
+    archiveDigest: 'sha256:a9972f561f1e19cda253302ee9a77afd0a6b5acbe542b4950ca8786762823120',
+    archivePath: 'video-studio-0.1.2.retakepkg',
+    digest: 'sha256:1a377bd022b27ae5bbd029c286ac5785b60977ef51709948f15c552cdfdd8b1e',
+    packageId: videoPackageId,
+    pluginModules: [{ permissions: [], pluginModuleId: videoPluginModuleId }],
+    updateSource: 'github:retake-tools/video-studio@main#subdirectory=package',
+    version: '0.1.2',
+  });
+  await writeFile(
+    isolatedMultiProfilePath,
+    `${JSON.stringify(isolatedMultiProfile, null, 2)}\n`,
+    'utf8',
+  );
+  const isolatedImageArchive = path.join(
+    isolatedMultiRoot,
+    isolatedMultiProfile.packages[0]!.archivePath,
+  );
+  const isolatedImageBytes = Buffer.from(await readFile(isolatedImageArchive));
+  isolatedImageBytes[Math.floor(isolatedImageBytes.byteLength / 2)]! ^= 0xff;
+  await writeFile(isolatedImageArchive, isolatedImageBytes);
+  const isolatedMulti = await bootstrapDeclarativePackages({
+    activateRuntime: false,
+    hostVersion: '0.1.4',
+    profilePath: isolatedMultiProfilePath,
+    workspaceRoot: path.join(temporaryRoot, 'isolated-multi-workspace'),
+  });
+  assert.deepEqual(
+    isolatedMulti.snapshot.packages.map((entry) => entry.packageId),
+    [videoPackageId],
+  );
+  assert.equal(isolatedMulti.distributionFailures[0]?.packageId, imagePackageId);
+
   console.log(JSON.stringify({
     cachedStartupWithoutBundle: true,
+    corruptDefaultStartsCoreOnly: true,
     installedPluginCapabilities: true,
+    invalidCandidateKeepsLastGood: true,
+    invalidPackageDoesNotBlockValidSibling: true,
     freshOfficialDefaults: true,
     officialTrustAndGrant: true,
     partialPermissionOverridePersists: true,
@@ -521,7 +623,7 @@ try {
 
 function manager(workspaceRoot: string): LocalPackageManagerService {
   return new LocalPackageManagerService({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     workspaceRoot,
   });
 }
@@ -587,7 +689,7 @@ interface MutableProfile {
   }>;
 }
 
-async function verifyProfileFailure(
+async function verifyProfileIsolation(
   name: string,
   mutate: (profile: MutableProfile) => void,
   expected: RegExp,
@@ -605,14 +707,14 @@ async function verifyProfileFailure(
   );
   const workspaceRoot = path.join(temporaryRoot, `${name}-workspace`);
   const failureManager = manager(workspaceRoot);
-  await assert.rejects(
-    bootstrapDeclarativePackages({
-      activateRuntime: false,
-      hostVersion: '0.1.3',
-      profilePath,
-      workspaceRoot,
-    }),
-    expected,
-  );
+  const result = await bootstrapDeclarativePackages({
+    activateRuntime: false,
+    hostVersion: '0.1.4',
+    profilePath,
+    workspaceRoot,
+  });
+  assert.equal(result.snapshot.packages.length, 0);
+  assert.equal(result.distributionFailures.length, 1);
+  assert.match(result.distributionFailures[0]?.error ?? '', expected);
   assert.equal(await failureManager.hasLockfile(), false);
 }

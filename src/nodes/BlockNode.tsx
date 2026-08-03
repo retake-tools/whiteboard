@@ -188,6 +188,15 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
             {t(operationDisplay.executionBadge.labelKey)}
           </span>
         ) : null}
+        {blockType === 'operation' && data.workflowStepRunStatus ? (
+          <span
+            className={`block-heading-status workflow-step-status status-${data.workflowStepRunStatus}`}
+            title={t('workflowRuntime.step')}
+          >
+            {t(workflowStepStatusKey(data.workflowStepRunStatus))}
+            {data.workflowStepRunFreshness === 'outdated' ? ` · ${t('workflowRuntime.outdated')}` : ''}
+          </span>
+        ) : null}
         {blockType === 'operation' && !isLocalCanvasOperation && data.operationQueuedConfigurationStale ? (
           <span className="block-heading-status operation-dirty-status">
             {t('operationStatus.executionContentUpdated')}
@@ -323,6 +332,10 @@ function isInteractiveDoubleClickTarget(target: Element): boolean {
       ].join(','),
     ),
   );
+}
+
+function workflowStepStatusKey(status: NonNullable<BlockData['workflowStepRunStatus']>) {
+  return `workflowRuntime.stepStatus.${status}` as const;
 }
 
 function OperationCapabilityControl({

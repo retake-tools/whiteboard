@@ -505,6 +505,7 @@ export function markAgentRunNeedsAttention(
   updateAgentRun(record, {
     error,
     status: 'needs_attention',
+    stopReason: 'operation_execution_missing',
   });
   touchBoard(snapshot);
   return agentRunView(record);
@@ -514,7 +515,16 @@ export function reconcileAgentRuntime(snapshot: BoardSnapshot): boolean {
   reconcileWorkflowRuntime(snapshot);
   let changed = false;
   for (const record of snapshot.agentRuns ?? []) {
-    if (record.status === 'queued' || record.status === 'paused' || record.status === 'canceled' || record.status === 'succeeded') {
+    if (
+      record.status === 'queued'
+      || record.status === 'paused'
+      || (
+        record.status === 'needs_attention'
+        && record.stopReason === 'operation_execution_missing'
+      )
+      || record.status === 'canceled'
+      || record.status === 'succeeded'
+    ) {
       continue;
     }
     const projection = projectAgentRun(snapshot, record);

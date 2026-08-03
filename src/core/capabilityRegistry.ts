@@ -4,6 +4,7 @@ import type {
 } from './capabilityContracts';
 import { definitionForLegacyCapability } from './legacyCapabilityAdapter';
 import {
+  listInstalledPluginCapabilityDefinitions,
   pluginCapabilityDefinitionFor,
 } from './pluginCapabilityDefinitions';
 import { imageGenerateCapabilityDefinition } from './imageGenerateContracts';
@@ -567,8 +568,8 @@ export const codexAppServerTextAdapterDefinition: AdapterDefinition = {
 export const codexAppServerImageAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.image.codex-app-server',
-  version: '0.5.0',
-  definitionHash: 'sha256:retake-image-codex-app-server-guided-package-cutover-v1',
+  version: '0.6.0',
+  definitionHash: 'sha256:retake-image-codex-app-server-document-prompt-v2',
   adapterClass: 'agent_runtime.media',
   routeKind: 'codex_app_server',
   provider: 'codex',
@@ -835,8 +836,8 @@ export const dreaminaCliAdapterDefinition: AdapterDefinition = {
 export const volcengineArkSeedreamImageAdapterDefinition: AdapterDefinition = {
   schemaVersion: 1,
   adapterId: 'retake.image.volcengine-ark-seedream',
-  version: '0.3.0',
-  definitionHash: 'sha256:retake-image-volcengine-ark-seedream-canonical-generate-v1',
+  version: '0.4.0',
+  definitionHash: 'sha256:retake-image-volcengine-ark-seedream-document-prompt-v2',
   adapterClass: 'image.generate',
   routeKind: 'direct_api',
   provider: 'volcengine-ark',
@@ -897,6 +898,19 @@ export function tryCapabilityDefinitionFor(
   } catch {
     return undefined;
   }
+}
+
+export function listAuthorableCapabilityDefinitions(): CapabilityDefinition[] {
+  const definitions = [
+    ...canonicalCapabilityDefinitions,
+    videoGenerateCapabilityDefinition,
+    annotationReadCompatibilityCapabilityDefinition,
+    ...listInstalledPluginCapabilityDefinitions(),
+  ];
+  return [...new Map(definitions.map((definition) => [
+    definition.capabilityId,
+    structuredClone(definition),
+  ])).values()].sort((left, right) => left.capabilityId.localeCompare(right.capabilityId));
 }
 
 export function isTextDocumentCapability(capabilityId: string): boolean {

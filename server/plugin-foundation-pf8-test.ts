@@ -53,7 +53,7 @@ const packageArchive = path.join(
   repositoryRoot,
   'packages',
   'bootstrap',
-  'image-studio-0.11.0.retakepkg',
+  'image-studio-0.12.0.retakepkg',
 );
 const entrypointId = 'workflow:retake.workflow.guided-image-review';
 const original = {
@@ -69,8 +69,8 @@ try {
   assert.deepEqual(inspected.components, {
     agentPresets: 1,
     pluginModules: 1,
-    skills: 1,
-    workflows: 1,
+    skills: 5,
+    workflows: 2,
   });
   assert.deepEqual(inspected.manifest.dependencies, []);
 
@@ -84,6 +84,10 @@ try {
     'retake.agent.guided-image-operator',
   );
   assert.ok(skill && workflow && agent);
+  const packageSkills = [...materialized.definitions.skills.values()]
+    .map((definition) => definition as unknown as RetakeSkillDefinition);
+  const packageWorkflows = [...materialized.definitions.workflows.values()]
+    .map((definition) => definition as unknown as WorkflowDefinition);
   assert.equal(materialized.files.has('definitions/image.guided_edit.json'), false);
   const capability = imageGenerateCapabilityDefinition;
   const manifest = inspected.manifest;
@@ -116,19 +120,19 @@ try {
     schemaVersion: 1,
     source: {
       archiveDigest: inspected.archiveDigest,
-      installationId: 'test-fixture-image-studio-0.11.0',
+      installationId: 'test-fixture-image-studio-0.12.0',
       kind: 'installed',
     },
     version: manifest.version,
   };
 
-  configureSkillRegistry([skill as unknown as RetakeSkillDefinition]);
-  configureWorkflowRegistry([workflow as unknown as WorkflowDefinition]);
+  configureSkillRegistry(packageSkills);
+  configureWorkflowRegistry(packageWorkflows);
   configureAgentPresetRegistry([agent as unknown as AgentPresetDefinition]);
   configurePackageRegistry([runtimePackage]);
 
   assert.equal(packageComposerDependencyIssue(entrypointId), undefined);
-  assert.equal(capability.version, '0.1.0');
+  assert.equal(capability.version, '0.2.0');
   assert.equal(
     capability.outputSlots.find((slot) => slot.slotId === 'images')
       ?.artifactType,

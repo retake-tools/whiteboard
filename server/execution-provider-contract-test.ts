@@ -106,9 +106,11 @@ await rm(retakeRoot, { recursive: true, force: true });
 
 let capturedUrl = '';
 let capturedAuthorization = '';
+let capturedBody: Record<string, unknown> = {};
 const fakeFetch: typeof fetch = async (input, init) => {
   capturedUrl = String(input);
   capturedAuthorization = new Headers(init?.headers).get('authorization') ?? '';
+  capturedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
   return new Response(JSON.stringify({
     id: 'chatcmpl_retake_test',
     object: 'chat.completion',
@@ -132,6 +134,15 @@ assert.equal(generated.text, 'OK');
 assert.equal(generated.finishReason, 'stop');
 assert.equal(capturedUrl, 'https://provider.example/v1/chat/completions');
 assert.equal(capturedAuthorization, 'Bearer test-secret-key');
+assert.equal(capturedBody.thinking, undefined);
+
+await generateOpenAICompatibleText({
+  apiKey: 'deepseek-test-key',
+  baseUrl: 'https://api.deepseek.example',
+  model: 'deepseek-test-model',
+  templateId: 'deepseek',
+}, { prompt: 'Return Markdown', maxOutputTokens: 4 }, fakeFetch);
+assert.deepEqual(capturedBody.thinking, { type: 'disabled' });
 
 const anthropicGenerated = await generateNativeText('anthropic-native', {
   apiKey: 'anthropic-test-key',

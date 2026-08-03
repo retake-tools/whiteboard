@@ -32,6 +32,7 @@ const [
   workspaceHeaderSource,
   composerSource,
   sharedComposerSource,
+  agentRuntimeControllerSource,
   controllerSource,
   appServerSource,
   apiSource,
@@ -49,6 +50,7 @@ const [
   readFile(new URL('../src/components/AgentWorkspaceHeader.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentWorkspaceComposer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/SkillQuickInputComposer.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/app/useAgentRuntimeController.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/useAgentWorkspaceController.ts', import.meta.url), 'utf8'),
   readFile(new URL('./codex-app-server-client.ts', import.meta.url), 'utf8'),
   readFile(new URL('./vite-local-api.ts', import.meta.url), 'utf8'),
@@ -103,6 +105,9 @@ assert.match(composerSource, /mode="agent"/);
 assert.match(sharedComposerSource, /skill-composer-attachment-trigger/);
 assert.match(sharedComposerSource, /insideSelector: '\.skill-composer-picker/);
 assert.match(sharedComposerSource, /AgentComposerPreferencesControls/);
+assert.match(sharedComposerSource, /workflowSelected=\{selectedEntryPoint\?\.entrypoint\.kind === 'workflow'\}/);
+assert.match(sharedComposerSource, /packageComposerParametersWithAgentPreferences/);
+assert.match(sharedComposerSource, /selectedEntryPoint\?\.entrypoint\.kind === 'workflow'/);
 assert.match(controllerSource, /kind: 'agent_preferences'/);
 assert.match(portSource, /attachedImageBlockIds/);
 assert.match(portSource, /localImagePaths/);
@@ -111,6 +116,15 @@ assert.match(blockNodeSource, /operation-compact-node/);
 assert.doesNotMatch(composerSource, /onInvokeEntryPoint/);
 assert.match(sharedComposerSource, /listPackageEntryPoints/);
 assert.match(sharedComposerSource, /listPackageComposerMentionOptions/);
+assert.match(agentRuntimeControllerSource, /async function persistAgentRunControl/);
+assert.match(
+  agentRuntimeControllerSource,
+  /await persistSnapshot\(nextSnapshot, \{ requireLocalApi: true \}\)/,
+);
+assert.match(
+  agentRuntimeControllerSource,
+  /async function persistAgentRunControl[\s\S]*?\}, \{ history: true \}\);\n\s+await persistSnapshot\(nextSnapshot/,
+);
 assert.match(controllerSource, /persistSnapshot\(withUserMessage, \{ requireLocalApi: true \}\)/);
 assert.match(controllerSource, /applyAgentRuntimeTurn/);
 assert.match(controllerSource, /stageAgentOperationExecution/);

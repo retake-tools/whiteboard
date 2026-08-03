@@ -7,6 +7,7 @@ import { capabilityBindingValueForBlock } from './artifactLibrary';
 import { capabilityDefinitionFor } from './capabilityRegistry';
 import type { BlockRecord, BoardSnapshot, ExecutionRecord } from './types';
 import { normalizeReferenceIntent, type ReferenceIntentV1 } from './referenceIntent';
+import { resolveWorkflowInputBlock } from './workflowInputResolution';
 
 export function recordExecutionContractSnapshot(
   snapshot: BoardSnapshot,
@@ -53,7 +54,17 @@ function executionInputBindings(
   definition: CapabilityDefinition,
 ): CapabilityInputBinding[] {
   const inputBlocks = execution.inputBlockIds
-    .map((blockId) => snapshot.blocks.find((block) => block.blockId === blockId))
+    .map((blockId) => {
+      const block = snapshot.blocks.find((candidate) => candidate.blockId === blockId);
+      const inputSlotId = snapshot.edges.find((edge) => (
+        edge.kind === 'execution_input'
+        && edge.sourceBlockId === blockId
+        && edge.targetBlockId === operationBlock.blockId
+      ))?.inputSlotId;
+      return block
+        ? resolveWorkflowInputBlock(snapshot, operationBlock.blockId, inputSlotId, block)
+        : undefined;
+    })
     .filter((block): block is BlockRecord => Boolean(block));
   const edgeByBlockId = new Map(
     snapshot.edges
@@ -89,8 +100,10 @@ function valuesForSlot(
   }>,
 ): CapabilityBindingValue[] {
   if (semanticRole === 'prompt') {
-    const promptBlock = inputBlocks.find((block) => block.type === 'text');
-    if (promptBlock) return [{ kind: 'block', blockId: promptBlock.blockId }];
+    const promptBlock = inputBlocks.find(
+      (block) => block.type === 'text' || block.type === 'document',
+    );
+    if (promptBlock) return [bindingValueForBlock(promptBlock)];
     const inlinePrompt = typeof operationBlock.data.body === 'string' ? operationBlock.data.body.trim() : '';
     return inlinePrompt ? [{ kind: 'inline', value: inlinePrompt }] : [];
   }

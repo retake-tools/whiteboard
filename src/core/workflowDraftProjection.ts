@@ -17,6 +17,7 @@ import {
   workflowDefinitionFor,
   type WorkflowDefinition,
 } from './workflowRegistry';
+import type { WorkflowProjectionTemplateV1 } from './workflowAuthoringContracts';
 import {
   createDraftGenerationPreparationOperation,
 } from './generationPreparationOperations';
@@ -25,6 +26,11 @@ import {
   domainVideoGenerationCapabilityId,
 } from './domainVideoGenerationContracts';
 import { createDraftDomainVideoGenerationOperation } from './domainVideoGenerationOperations';
+import {
+  imageGenerateCapabilityId,
+  validateImageGenerateParametersV1,
+  type ImageGenerateParametersV1,
+} from './imageGenerateContracts';
 
 export interface WorkflowDraftProjectionLabels {
   labelsForSkill: (skillId: string) => TextGenerationLabels;
@@ -52,14 +58,28 @@ export function projectWorkflowDraft(
       parameters?: Record<string, unknown>;
     };
     packageContext?: PackageInvocationContext;
+    projectionTemplate?: WorkflowProjectionTemplateV1;
+    projectRevisionId?: string;
+    workflowDefinition?: WorkflowDefinition;
     workflowId: string;
   },
 ): WorkflowDraftProjection {
-  const workflow = workflowDefinitionFor(input.workflowId);
+  const workflow = input.workflowDefinition
+    ? structuredClone(input.workflowDefinition)
+    : workflowDefinitionFor(input.workflowId);
+  if (workflow.workflowId !== input.workflowId) {
+    throw new Error(`Workflow Definition ID does not match projection input: ${input.workflowId}`);
+  }
+  if (input.projectionTemplate) {
+    assertProjectionTemplateMatchesWorkflow(input.projectionTemplate, workflow);
+  }
   const validationIssues = validateWorkflowDefinition(workflow);
   if (validationIssues.length > 0) throw new Error(validationIssues.join('\n'));
   const projectionId = createId('workflow_projection');
-  const metadata = workflowMetadata(workflow, projectionId, input.packageContext);
+  const metadata = {
+    ...workflowMetadata(workflow, projectionId, input.packageContext),
+    ...(input.projectRevisionId ? { workflowRevisionId: input.projectRevisionId } : {}),
+  };
   const workflowInputs = new Map<string, BlockRecord[]>();
   const workflowInputBindings = new Map<string, CapabilityBindingValue[]>();
   const stepOutputs = new Map<string, BlockRecord>();
@@ -199,6 +219,7 @@ export function projectWorkflowDraft(
             connectionId: input.connectionIdForCapability(step.capabilityLock.capabilityId),
             explicitInputBindings: explicitGenerationInputs,
             labels,
+            parameters: input.composerInput?.parameters,
             skillId: step.skillLock.skillId,
           })
       : createDraftSkillOperation(snapshot, {
@@ -224,7 +245,7 @@ export function projectWorkflowDraft(
               }].filter((value): value is Extract<CapabilityBindingValue, { kind: 'block' }> => Boolean(value.blockId)),
         })),
       ),
-      workflowParameters: structuredClone(input.composerInput?.parameters ?? {}),
+      workflowParameters: workflowParametersFromOperation(draft.operationBlock),
       workflowStepId: step.stepId,
     };
     operationBlocks.set(step.stepId, draft.operationBlock);
@@ -268,7 +289,13 @@ export function projectWorkflowDraft(
     }
   }
 
-  layoutWorkflowProjection(workflow, workflowInputs, operationBlocks, stepOutputs);
+  layoutWorkflowProjection(
+    workflow,
+    workflowInputs,
+    operationBlocks,
+    stepOutputs,
+    input.projectionTemplate,
+  );
   const groupBlock = createGroupAroundBlocks(snapshot, createdBlocks.map((block) => block.blockId), {
     color: 'blue',
     kind: 'workflow',
@@ -306,6 +333,7 @@ function createDraftMediaCapabilityOperation(
       kind: 'block';
     }>;
     labels: TextGenerationLabels;
+    parameters?: Record<string, unknown>;
     skillId: string;
   },
 ): { operationBlock: BlockRecord; inputBlocks: BlockRecord[] } {
@@ -315,6 +343,9 @@ function createDraftMediaCapabilityOperation(
     return block;
   });
   const usesCodexAppServer = input.connectionId === 'codex-app-server';
+  const generationParams = input.capabilityId === imageGenerateCapabilityId
+    ? imageGenerateParametersFromInvocation(input.parameters)
+    : undefined;
   const operationBlock = createBlockRecord(snapshot, 'operation');
   operationBlock.data = {
     ...operationBlock.data,
@@ -326,6 +357,8 @@ function createDraftMediaCapabilityOperation(
     ...(usesCodexAppServer ? { agentHost: 'codex' as const } : {}),
     triggerMode: usesCodexAppServer ? 'agent_bridge' : 'server_worker',
     ...(input.connectionId ? { connectionId: input.connectionId } : {}),
+    ...(generationParams ? { generationParams } : {}),
+    workflowParameters: structuredClone(generationParams ?? {}),
   };
   snapshot.blocks.push(operationBlock);
   for (const binding of input.explicitInputBindings) {
@@ -339,6 +372,36 @@ function createDraftMediaCapabilityOperation(
   }
   touchBoard(snapshot);
   return { operationBlock, inputBlocks };
+}
+
+function imageGenerateParametersFromInvocation(
+  parameters: Record<string, unknown> | undefined,
+): ImageGenerateParametersV1 | undefined {
+  if (!parameters) return undefined;
+  const portableKeys = [
+    'aspectRatioPreset',
+    'targetAspectRatio',
+    'targetHeight',
+    'targetResolution',
+    'targetWidth',
+    'variationCount',
+  ] as const;
+  const resolved = Object.fromEntries(portableKeys.flatMap((key) => (
+    parameters[key] === undefined ? [] : [[key, structuredClone(parameters[key])]]
+  ))) as ImageGenerateParametersV1;
+  if (Object.keys(resolved).length === 0) return undefined;
+  const issues = validateImageGenerateParametersV1(resolved);
+  if (issues.length > 0) {
+    throw new Error(`Workflow image generation parameters are invalid: ${issues.join('; ')}`);
+  }
+  return resolved;
+}
+
+function workflowParametersFromOperation(operationBlock: BlockRecord): Record<string, unknown> {
+  const value = operationBlock.data.workflowParameters;
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? structuredClone(value as Record<string, unknown>)
+    : {};
 }
 
 function createWorkflowInputBlock(
@@ -460,7 +523,35 @@ function layoutWorkflowProjection(
   workflowInputs: Map<string, BlockRecord[]>,
   operationBlocks: Map<string, BlockRecord>,
   stepOutputs: Map<string, BlockRecord>,
+  projectionTemplate?: WorkflowProjectionTemplateV1,
 ): void {
+  if (projectionTemplate) {
+    const positions = new Map(
+      projectionTemplate.positions.map((position) => [position.stepId, position]),
+    );
+    const minX = Math.min(...projectionTemplate.positions.map((position) => position.x));
+    const minY = Math.min(...projectionTemplate.positions.map((position) => position.y));
+    for (const step of workflow.steps) {
+      const hint = positions.get(step.stepId);
+      const operation = operationBlocks.get(step.stepId);
+      if (!hint || !operation) continue;
+      operation.position = {
+        x: 420 + (hint.x - minX) * (760 / 340),
+        y: 80 + (hint.y - minY) * 2,
+      };
+      for (const outputSlotId of step.outputSlots) {
+        const output = stepOutputs.get(stepOutputKey(step.stepId, outputSlotId));
+        if (output) output.position = {
+          x: operation.position.x + operation.size.width + 80,
+          y: operation.position.y - 24,
+        };
+      }
+    }
+    [...workflowInputs.values()].flat().forEach((block, index) => {
+      block.position = { x: 40, y: 270 + index * (block.size.height + 36) };
+    });
+    return;
+  }
   const depthByStepId = new Map<string, number>();
   for (const step of topologicalSteps(workflow)) {
     const depth = step.dependsOn.length === 0
@@ -489,4 +580,24 @@ function layoutWorkflowProjection(
   [...workflowInputs.values()].flat().forEach((block, index) => {
     block.position = { x: 40, y: 270 + index * (block.size.height + 36) };
   });
+}
+
+function assertProjectionTemplateMatchesWorkflow(
+  template: WorkflowProjectionTemplateV1,
+  workflow: WorkflowDefinition,
+): void {
+  const stepIds = new Set(workflow.steps.map((step) => step.stepId));
+  const positioned = new Set<string>();
+  for (const position of template.positions) {
+    if (
+      !stepIds.has(position.stepId)
+      || positioned.has(position.stepId)
+      || !Number.isFinite(position.x)
+      || !Number.isFinite(position.y)
+    ) throw new Error(`Workflow Projection Template is invalid: ${position.stepId}.`);
+    positioned.add(position.stepId);
+  }
+  if (positioned.size !== stepIds.size) {
+    throw new Error('Workflow Projection Template must position every Step exactly once.');
+  }
 }
