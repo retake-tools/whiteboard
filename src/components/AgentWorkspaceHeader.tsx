@@ -7,6 +7,7 @@ import {
   type ReactElement,
 } from 'react';
 import type { AgentSessionRecord } from '../core/agentSessionContracts';
+import type { BoardSnapshot } from '../core/types';
 import { useI18n } from '../i18n';
 import { AgentRuntimeNewSessionMenu } from './AgentRuntimeNewSessionMenu';
 import { AgentSessionHistoryMenu } from './AgentSessionHistoryMenu';
@@ -22,6 +23,7 @@ export function AgentWorkspaceHeader({
   runtimeLabel,
   selectedSession,
   sessions,
+  snapshot,
 }: {
   onArchiveSession: () => void;
   onClose: () => void;
@@ -32,6 +34,7 @@ export function AgentWorkspaceHeader({
   runtimeLabel?: string;
   selectedSession?: AgentSessionRecord;
   sessions: AgentSessionRecord[];
+  snapshot: BoardSnapshot;
 }): ReactElement {
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
@@ -133,6 +136,7 @@ export function AgentWorkspaceHeader({
         <AgentSessionHistoryMenu
           selectedSession={selectedSession}
           sessions={sessions}
+          snapshot={snapshot}
           onArchiveSession={onArchiveSession}
           onSelectSession={onSelectSession}
         />

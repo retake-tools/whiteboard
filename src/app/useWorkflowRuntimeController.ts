@@ -1,4 +1,5 @@
 import type { OperationToast } from '../components/OperationFeedback';
+import { supersedeResolvedAgentRunBlockerProposals } from '../core/agentChangeApplication';
 import { reconcileAgentRuntime } from '../core/agentRuntime';
 import type { BoardSnapshot } from '../core/types';
 import type { WorkflowApprovalDecisionValue } from '../core/workflowGateContracts';
@@ -63,6 +64,7 @@ export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerO
           stepRunId,
         });
         reconcileAgentRuntime(current);
+        supersedeResolvedAgentRunBlockerProposals(current);
         return current;
       }, { history: true });
       await persistSnapshot(acceptedSnapshot, { requireLocalApi: true });
@@ -105,6 +107,7 @@ export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerO
           expectedApprovalRequestVersion,
         });
         reconcileAgentRuntime(current);
+        supersedeResolvedAgentRunBlockerProposals(current);
         return current;
       }, { history: true });
       await persistSnapshot(decidedSnapshot, { requireLocalApi: true });
@@ -134,5 +137,33 @@ export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerO
     }
   }
 
-  return { acceptWorkflowOutput, createWorkflowRun, decideWorkflowGate };
+  async function prepareWorkflowReview(input: {
+    boardId: string;
+    projectId: string;
+    stepRunId: string;
+  }): Promise<void> {
+    try {
+      const reconciled = await materializeAcceptedWorkflowOutput({
+        boardId: input.boardId,
+        projectId: input.projectId,
+        stepRunId: input.stepRunId,
+      });
+      updateSnapshot(() => reconciled, { history: false, persist: false });
+    } catch (error) {
+      setOperationToast({
+        id: `workflow-review:${input.stepRunId}`,
+        title: t('agentWorkspace.workflowAttentionPrepareReviewFailed'),
+        body: t('agentWorkspace.workflowAttentionPrepareReviewFailedBody'),
+        tone: 'error',
+      });
+      throw error;
+    }
+  }
+
+  return {
+    acceptWorkflowOutput,
+    createWorkflowRun,
+    decideWorkflowGate,
+    prepareWorkflowReview,
+  };
 }

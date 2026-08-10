@@ -7,7 +7,13 @@ export function moveBlockGroupToNearestFreeArea(
 ): void {
   if (blocks.length === 0) return;
   const blockIds = new Set(blocks.map((block) => block.blockId));
-  const parentGroupId = blocks[0]?.parentGroupId;
+  const topLevelBlocks = blocks.filter(
+    (block) => !block.parentGroupId || !blockIds.has(block.parentGroupId),
+  );
+  const parentGroupIds = new Set(topLevelBlocks.map((block) => block.parentGroupId));
+  const parentGroupId = parentGroupIds.size === 1
+    ? topLevelBlocks[0]?.parentGroupId
+    : undefined;
   const occupied = snapshot.blocks.filter(
     (block) => !blockIds.has(block.blockId) && block.parentGroupId === parentGroupId,
   );
@@ -16,8 +22,7 @@ export function moveBlockGroupToNearestFreeArea(
     x: desiredCenter.x - bounds.width / 2,
     y: desiredCenter.y - bounds.height / 2,
   };
-  const availableOrigin = nearestGridOffsets(76, 24)
-    .map((offset) => ({ x: desiredOrigin.x + offset.x, y: desiredOrigin.y + offset.y }))
+  const availableOrigin = collisionCandidateOrigins(desiredOrigin, bounds, occupied, 32)
     .find((origin) => occupied.every((block) => !rectanglesOverlap(
       origin,
       bounds,
@@ -42,19 +47,33 @@ export function blockGroupBounds(
   return { x, y, width: right - x, height: bottom - y };
 }
 
-function nearestGridOffsets(step: number, rings: number): Array<{ x: number; y: number }> {
-  const offsets = [{ x: 0, y: 0 }];
-  for (let ring = 1; ring <= rings; ring += 1) {
-    for (let column = -ring; column <= ring; column += 1) {
-      offsets.push({ x: column * step, y: -ring * step });
-      offsets.push({ x: column * step, y: ring * step });
-    }
-    for (let row = -ring + 1; row < ring; row += 1) {
-      offsets.push({ x: -ring * step, y: row * step });
-      offsets.push({ x: ring * step, y: row * step });
-    }
+function collisionCandidateOrigins(
+  desiredOrigin: { x: number; y: number },
+  movingBounds: { width: number; height: number },
+  occupied: readonly BlockRecord[],
+  gap: number,
+): Array<{ x: number; y: number }> {
+  const xCandidates = new Set([desiredOrigin.x]);
+  const yCandidates = new Set([desiredOrigin.y]);
+  for (const block of occupied) {
+    xCandidates.add(block.position.x - movingBounds.width - gap);
+    xCandidates.add(block.position.x + block.size.width + gap);
+    yCandidates.add(block.position.y - movingBounds.height - gap);
+    yCandidates.add(block.position.y + block.size.height + gap);
   }
-  return offsets;
+  return [...xCandidates].flatMap((x) => [...yCandidates].map((y) => ({ x, y })))
+    .sort((left, right) => (
+      squaredDistance(left, desiredOrigin) - squaredDistance(right, desiredOrigin)
+      || left.y - right.y
+      || left.x - right.x
+    ));
+}
+
+function squaredDistance(
+  left: { x: number; y: number },
+  right: { x: number; y: number },
+): number {
+  return (left.x - right.x) ** 2 + (left.y - right.y) ** 2;
 }
 
 function rectanglesOverlap(

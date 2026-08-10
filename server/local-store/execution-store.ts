@@ -14,6 +14,8 @@ import { readAssetMetadata } from './asset-files';
 import { summarizeMarkdown } from '../../src/core/markdownDocument';
 import { listProjectBoards, loadSnapshot, saveSnapshot } from './snapshot-store';
 import { materializeWorkflowOutputArtifacts } from '../workflow-output-artifact-service';
+import { fitImageBlockSize } from '../../src/core/blockSizing';
+import { refreshWorkflowGroupLayoutForBlock } from '../../src/core/workflowGroupLayout';
 
 export async function createExecution(input: {
   projectId: string;
@@ -114,7 +116,8 @@ export async function markExecutionAdapterRetryRunning(input: {
   projectId: string;
   boardId: string;
   executionId: string;
-  resultBlockId: string;
+  resultBlockId?: string;
+  resultBlockIds?: string[];
   adapter: Extract<ExecutionRecord['adapter'], 'codex_app_server' | 'direct_api'>;
 }): Promise<{ snapshot: BoardSnapshot; execution: ExecutionRecord }> {
   const snapshot = await loadSnapshot(input.projectId, input.boardId);
@@ -122,12 +125,21 @@ export async function markExecutionAdapterRetryRunning(input: {
   if (execution.status !== 'failed' || execution.adapter !== input.adapter) {
     throw new Error(`Failed ${input.adapter} execution not found for retry: ${input.executionId}`);
   }
-  if (!execution.outputBlockIds.includes(input.resultBlockId)) {
-    throw new Error(`Result block is not assigned to execution ${input.executionId}: ${input.resultBlockId}`);
+  const resultBlockIds = [...new Set([
+    ...(input.resultBlockIds ?? []),
+    ...(input.resultBlockId ? [input.resultBlockId] : []),
+  ])];
+  if (resultBlockIds.length === 0) {
+    throw new Error(`Image execution retry has no failed results: ${input.executionId}`);
   }
-  const resultBlock = snapshot.blocks.find((block) => block.blockId === input.resultBlockId);
-  if (resultBlock?.type !== 'image' || typeof resultBlock.data.assetId === 'string') {
-    throw new Error(`Image result is not available for retry: ${input.resultBlockId}`);
+  for (const resultBlockId of resultBlockIds) {
+    if (!execution.outputBlockIds.includes(resultBlockId)) {
+      throw new Error(`Result block is not assigned to execution ${input.executionId}: ${resultBlockId}`);
+    }
+    const resultBlock = snapshot.blocks.find((block) => block.blockId === resultBlockId);
+    if (resultBlock?.type !== 'image' || typeof resultBlock.data.assetId === 'string') {
+      throw new Error(`Image result is not available for retry: ${resultBlockId}`);
+    }
   }
 
   execution.status = 'running';
@@ -139,8 +151,8 @@ export async function markExecutionAdapterRetryRunning(input: {
     type: 'execution_started',
     actor: 'codex',
     execution,
-    summary: `Execution result retried: ${execution.capabilityId}`,
-    detail: { resumedFromStatus: 'failed', retriedResultBlockIds: [input.resultBlockId] },
+    summary: `Execution results retried: ${execution.capabilityId}`,
+    detail: { resumedFromStatus: 'failed', retriedResultBlockIds: resultBlockIds },
   });
   touchSnapshot(snapshot);
   await saveSnapshot(snapshot);
@@ -310,6 +322,10 @@ async function updateMediaResultBlock(input: {
     sourceExecutionId: input.executionId,
     ...input.data,
   };
+  if (block.type === 'image') {
+    block.size = fitImageBlockSize(asset.width, asset.height);
+    refreshWorkflowGroupLayoutForBlock(snapshot, block);
+  }
   block.updatedAt = now;
   const wasSucceeded = execution.status === 'succeeded';
   execution.outputAssetIds = mergeUnique(execution.outputAssetIds, [input.assetId]);

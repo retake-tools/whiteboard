@@ -1,6 +1,16 @@
 import { Trash2 } from 'lucide-react';
-import type { ReactElement, ReactNode } from 'react';
+import { useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 import { capabilityDefinitionFor } from '../core/capabilityRegistry';
+import {
+  currentExecutionProviderSettings,
+  readyAutomatedExecutionConnections,
+  subscribeExecutionProviderSettings,
+} from '../core/executionProviderPreferences';
+import {
+  imageGenerateAspectRatioPresets,
+  imageGenerateCapabilityId,
+  imageGenerateResolutionPresets,
+} from '../core/imageGenerateContracts';
 import {
   compatibleSkillsForWorkflowStep,
   removeWorkflowAuthoringStep,
@@ -30,6 +40,11 @@ export function WorkflowDesignStepInspector({
   stepId: string;
 }): ReactElement | null {
   const { t } = useI18n();
+  const providerSettings = useSyncExternalStore(
+    subscribeExecutionProviderSettings,
+    currentExecutionProviderSettings,
+    currentExecutionProviderSettings,
+  );
   const step = definition.steps.find((candidate) => candidate.stepId === stepId);
   if (!step) return null;
   const currentStep: WorkflowCapabilityStepDefinition = step;
@@ -40,6 +55,12 @@ export function WorkflowDesignStepInspector({
   );
   const stepIssues = workflowAuthoringIssuesForStep(issues, stepId);
   const removalIssues = workflowStepRemovalIssues(definition, stepId);
+  const imageConnections = currentStep.capabilityLock.capabilityId === imageGenerateCapabilityId
+    ? readyAutomatedExecutionConnections({
+        capabilityId: imageGenerateCapabilityId,
+        settings: providerSettings,
+      })
+    : [];
   const updateStep = (
     update: (current: WorkflowCapabilityStepDefinition) => WorkflowCapabilityStepDefinition,
   ) => onChange({
@@ -53,6 +74,28 @@ export function WorkflowDesignStepInspector({
     if (!window.confirm(t('workflowAuthoring.removeStepConfirm'))) return;
     onChange(removeWorkflowAuthoringStep(definition, stepId));
     onRemove(stepId);
+  };
+  const updateImageParameter = (key: string, value: unknown): void => {
+    updateStep((current) => {
+      const parameters = { ...(current.parameters ?? {}) };
+      if (value === undefined || value === '') delete parameters[key];
+      else parameters[key] = value;
+      const { parameters: _parameters, ...withoutParameters } = current;
+      return Object.keys(parameters).length > 0
+        ? { ...withoutParameters, parameters }
+        : withoutParameters;
+    });
+  };
+  const updateImageDefaultParameter = (key: string, value: unknown): void => {
+    updateStep((current) => {
+      const defaultParameters = { ...(current.defaultParameters ?? {}) };
+      if (value === undefined || value === '') delete defaultParameters[key];
+      else defaultParameters[key] = value;
+      const { defaultParameters: _defaultParameters, ...withoutDefaultParameters } = current;
+      return Object.keys(defaultParameters).length > 0
+        ? { ...withoutDefaultParameters, defaultParameters }
+        : withoutDefaultParameters;
+    });
   };
 
   return (
@@ -184,6 +227,102 @@ export function WorkflowDesignStepInspector({
           value={`${currentSkill?.description ?? currentStep.skillLock.skillId}\n${currentStep.skillLock.skillId} · ${currentStep.skillLock.version}\n${currentStep.skillLock.definitionHash}`}
         />
       </InspectorSection>
+
+      {currentStep.capabilityLock.capabilityId === imageGenerateCapabilityId ? (
+        <InspectorSection title={t('workflowAuthoring.imageStepParameters')}>
+          <label>
+            <span>{t('skillComposer.imageExecutionConnection')}</span>
+            <select
+              name={`workflow-step-${stepId}-connection`}
+              value={typeof currentStep.parameters?.connectionId === 'string'
+                ? currentStep.parameters.connectionId
+                : ''}
+              onChange={(event) => updateImageParameter('connectionId', event.target.value)}
+            >
+              <option value="">{t('workflowAuthoring.inheritWorkflowDefault')}</option>
+              {imageConnections.map((connection) => (
+                <option key={connection.connectionId} value={connection.connectionId}>
+                  {connection.displayName}{connection.modelId ? ` · ${connection.modelId}` : ''}
+                </option>
+              ))}
+              {typeof currentStep.parameters?.connectionId === 'string'
+                && !imageConnections.some(
+                  (connection) => connection.connectionId === currentStep.parameters?.connectionId,
+                ) ? (
+                  <option value={currentStep.parameters.connectionId}>
+                    {currentStep.parameters.connectionId}
+                  </option>
+                ) : null}
+            </select>
+          </label>
+          <label>
+            <span>{t('skillComposer.aspectRatio')}</span>
+            <select
+              name={`workflow-step-${stepId}-aspect-ratio`}
+              value={typeof currentStep.parameters?.aspectRatioPreset === 'string'
+                ? currentStep.parameters.aspectRatioPreset
+                : ''}
+              onChange={(event) => updateImageParameter('aspectRatioPreset', event.target.value)}
+            >
+              <option value="">{t('workflowAuthoring.inheritWorkflowDefault')}</option>
+              {imageGenerateAspectRatioPresets.map((value) => (
+                <option key={value} value={value}>{value}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>{t('skillComposer.resolution')}</span>
+            <select
+              name={`workflow-step-${stepId}-resolution`}
+              value={typeof currentStep.parameters?.targetResolution === 'string'
+                ? currentStep.parameters.targetResolution
+                : ''}
+              onChange={(event) => updateImageParameter('targetResolution', event.target.value)}
+            >
+              <option value="">{t('workflowAuthoring.inheritWorkflowDefault')}</option>
+              {imageGenerateResolutionPresets.map((value) => (
+                <option key={value} value={value}>{value}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>{t('workflowAuthoring.defaultCandidateCount')}</span>
+            <select
+              name={`workflow-step-${stepId}-default-variation-count`}
+              value={typeof currentStep.defaultParameters?.variationCount === 'number'
+                ? String(currentStep.defaultParameters.variationCount)
+                : ''}
+              onChange={(event) => updateImageDefaultParameter(
+                'variationCount',
+                event.target.value ? Number(event.target.value) : undefined,
+              )}
+            >
+              <option value="">{t('workflowAuthoring.useSystemDefault')}</option>
+              {[1, 2, 3, 4].map((value) => (
+                <option key={value} value={value}>{value}x</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>{t('workflowAuthoring.fixedCandidateCount')}</span>
+            <select
+              name={`workflow-step-${stepId}-variation-count`}
+              value={typeof currentStep.parameters?.variationCount === 'number'
+                ? String(currentStep.parameters.variationCount)
+                : ''}
+              onChange={(event) => updateImageParameter(
+                'variationCount',
+                event.target.value ? Number(event.target.value) : undefined,
+              )}
+            >
+              <option value="">{t('workflowAuthoring.inheritWorkflowDefault')}</option>
+              {[1, 2, 3, 4].map((value) => (
+                <option key={value} value={value}>{value}x</option>
+              ))}
+            </select>
+          </label>
+        </InspectorSection>
+      ) : null}
 
       <InspectorSection title={t('workflowInspector.outputs')}>
         {currentStep.outputSlots.length > 0 ? (

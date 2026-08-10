@@ -6,7 +6,6 @@
   place-items: center;
   padding: 24px;
   background: rgb(15 23 42 / 52%);
-  backdrop-filter: blur(4px);
 }
 
 .document-review-workspace {

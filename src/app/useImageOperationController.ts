@@ -238,6 +238,63 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     }
   }
 
+  async function retryFailedImageExecution(executionId: string): Promise<void> {
+    const current = snapshotRef.current;
+    const execution = current.executions.find((candidate) => candidate.executionId === executionId);
+    const resultBlockIds = execution?.outputBlockIds.filter((blockId) => {
+      const block = current.blocks.find((candidate) => candidate.blockId === blockId);
+      return block?.type === 'image' && typeof block.data.assetId !== 'string';
+    }) ?? [];
+    if (
+      !execution
+      || execution.status !== 'failed'
+      || !execution.connectionId
+      || resultBlockIds.length === 0
+    ) return;
+    const connection = executionConnection(execution.connectionId, current.project.projectId);
+    const usesCodexAppServer = execution.adapter === 'codex_app_server'
+      && connection?.connectorId === 'codex-app-server';
+    const usesVolcengineArk = execution.adapter === 'direct_api'
+      && connection?.connectorId === 'volcengine-ark';
+    if (
+      !connection
+      || connection.status !== 'ready'
+      || !connection.enabledUseCases.includes('image')
+      || (!usesCodexAppServer && !usesVolcengineArk)
+    ) {
+      throw new Error(t('feedback.connectionUnavailable'));
+    }
+    await persistSnapshot(current, { requireLocalApi: true });
+    const started = usesCodexAppServer
+      ? await startCodexAppServerImage({
+          projectId: current.project.projectId,
+          boardId: current.board.boardId,
+          executionId,
+          connectionId: connection.connectionId,
+          resultBlockIds,
+        })
+      : await startVolcengineArkImage({
+          projectId: current.project.projectId,
+          boardId: current.board.boardId,
+          executionId,
+          connectionId: connection.connectionId,
+          resultBlockIds,
+        });
+    const runningSnapshot = updateSnapshot(() => started.snapshot, { persist: false, history: true });
+    setSelectedBlocks(runningSnapshot, resultBlockIds);
+    setOperationToast({
+      id: `retry-execution:${executionId}`,
+      title: t('result.retryPromptTitle'),
+      body: t(usesCodexAppServer ? 'feedback.codexImageCostNotice' : 'feedback.seedreamCostNotice'),
+      tone: 'success',
+    });
+    void pollDirectImageExecution(
+      executionId,
+      runningSnapshot,
+      usesCodexAppServer ? 'codex' : 'seedream',
+    );
+  }
+
   async function refreshQueuedOperationPrompt(block: BlockRecord): Promise<void> {
     let refreshedOperationBlock: BlockRecord | undefined;
     updateSnapshot((current) => {
@@ -710,7 +767,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
             : provider === 'codex' ? 'feedback.codexImageFailed' : 'feedback.seedreamFailed'),
         body: execution.status === 'succeeded'
           ? t(provider === 'codex' ? 'feedback.codexImageCompletedNotice' : 'feedback.seedreamCompletedNotice')
-          : execution.errorMessage ?? t(provider === 'codex' ? 'feedback.codexImageFailed' : 'feedback.seedreamFailed'),
+          : t(provider === 'codex' ? 'feedback.codexImageFailed' : 'feedback.seedreamFailed'),
         tone: execution.status === 'succeeded' ? 'success' : execution.status === 'canceled' ? undefined : 'error',
       });
       return;
@@ -824,6 +881,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     operationToast,
     promptPreview,
     refreshQueuedOperationPrompt,
+    retryFailedImageExecution,
     retryFailedImageResult,
     setCopiedPromptKey,
     setOperationToast,
@@ -838,12 +896,23 @@ export function useImageOperationController(options: ImageOperationControllerOpt
 }
 
 function preferredImageConnection(snapshot: BoardSnapshot, capabilityId: string): string {
-  return resolveExecutionConnectionPreference({
+  const settings = currentExecutionProviderSettings();
+  const preference = resolveExecutionConnectionPreference({
     capabilityId,
-    initialConnectionId: 'codex-managed',
+    initialConnectionId: 'codex-app-server',
     projectId: snapshot.project.projectId,
+    settings,
     useCase: 'image',
-  }).connectionId ?? 'codex-managed';
+  });
+  if (preference.isUsable || !settings) {
+    return preference.connectionId ?? 'codex-app-server';
+  }
+  return settings.connections.find((connection) => (
+    connection.enabled
+    && connection.status === 'ready'
+    && connection.enabledUseCases.includes('image')
+    && connection.supportedCapabilityIds.includes(capabilityId)
+  ))?.connectionId ?? 'codex-app-server';
 }
 
 function preferredReadyImageConnection(
@@ -862,12 +931,18 @@ function preferredReadyImageConnection(
   }
   const preference = resolveExecutionConnectionPreference({
     capabilityId,
-    initialConnectionId: 'codex-managed',
+    initialConnectionId: 'codex-app-server',
     projectId: snapshot.project.projectId,
     settings,
     useCase: 'image',
   });
-  return preference.isUsable ? preference.connection : undefined;
+  if (preference.isUsable) return preference.connection;
+  return settings?.connections.find((connection) => (
+    connection.enabled
+    && connection.status === 'ready'
+    && connection.enabledUseCases.includes('image')
+    && connection.supportedCapabilityIds.includes(capabilityId)
+  ));
 }
 
 function capabilityIdForImmediateImageOperation(operation: ImageCodexOperation): string {

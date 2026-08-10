@@ -8,6 +8,7 @@ import {
   createGroupFromBounds,
   createGroupAroundBlocks,
   blockLockedByGroup,
+  blockManagedByWorkflowGroup,
   dissolveGroup,
   findGroupDropTarget,
   groupMediaItems,
@@ -15,6 +16,8 @@ import {
   repairGroupRelationships,
 } from '../src/core/grouping';
 import { connectedWorkflowBlockIds } from '../src/core/workflowSelection';
+import { migrateBoardSnapshot } from '../src/core/snapshotMigration';
+import { refreshWorkflowGroupLayoutForBlock } from '../src/core/workflowGroupLayout';
 
 const canvasSource = await readFile('src/app/useCanvasController.ts', 'utf8');
 assert.match(canvasSource, /nodeDragActiveRef\.current = true/);
@@ -87,6 +90,7 @@ assert.match(blockNodeCss, /\.block-node-text \{[\s\S]*?cursor: text;/);
 assert.match(blockNodeCss, /\.block-node-text \.block-heading,[\s\S]*?\.block-node-operation \.block-heading \{[\s\S]*?cursor: grab;/);
 assert.match(blockNodeCss, /\.react-flow__node\.draggable \{[\s\S]*?cursor: grab;/);
 assert.match(blockNodeCss, /\.react-flow__node\.dragging \*[\s\S]*?cursor: grabbing !important;/);
+assert.match(blockNodeSource, /workflowFlowDirection === 'reverse'[\s\S]*?Position\.Right[\s\S]*?Position\.Left/);
 import type { BlockRecord, BoardSnapshot } from '../src/core/types';
 
 const createdAt = '2026-07-10T00:00:00.000Z';
@@ -238,7 +242,48 @@ assert.deepEqual(firstNode.position, {
   x: first.position.x - innerGroup.position.x,
   y: first.position.y - innerGroup.position.y,
 });
-assert.equal(firstNode.extent, undefined);
+assert.equal(firstNode.extent, 'parent');
+assert.equal(innerNode.extent, 'parent');
+assert.equal(blockManagedByWorkflowGroup(nestedSnapshot, innerGroup.blockId), true);
+assert.equal(
+  findGroupDropTarget(
+    nestedSnapshot,
+    first.blockId,
+    { x: 1_300, y: 1_300, width: first.size.width, height: first.size.height },
+  ),
+  innerGroup.blockId,
+  'Nested Workflow descendants retain their direct parent and cannot escape the Workflow topology.',
+);
+assert.equal(groupStructureLocked(nestedSnapshot, outerGroup.blockId), true);
+assert.equal(
+  createFlowNodes(nestedSnapshot).find((node) => node.id === outerGroup.blockId)?.data.groupStructureLocked,
+  true,
+);
+assert.equal(
+  findGroupDropTarget(
+    nestedSnapshot,
+    note.blockId,
+    { x: 1_200, y: 1_200, width: note.size.width, height: note.size.height },
+  ),
+  outerGroup.blockId,
+  'Workflow children remain members even when dragged beyond the visual bounds.',
+);
+const externalWorkflowCandidate = block('external_workflow_candidate', 'text', 1_400, 0);
+nestedSnapshot.blocks.push(externalWorkflowCandidate);
+assert.equal(
+  findGroupDropTarget(
+    nestedSnapshot,
+    externalWorkflowCandidate.blockId,
+    {
+      x: outerGroup.position.x + 40,
+      y: outerGroup.position.y + 60,
+      width: externalWorkflowCandidate.size.width,
+      height: externalWorkflowCandidate.size.height,
+    },
+  ),
+  undefined,
+  'External Blocks cannot become Workflow members through geometric drag-and-drop.',
+);
 
 nestedSnapshot.edges.push({
   edgeId: 'edge_group_scope',
@@ -251,7 +296,10 @@ assert.equal(scopedFlowNodes.find((node) => node.id === outerGroup.blockId)?.dat
 assert.equal(scopedFlowNodes.find((node) => node.id === innerGroup.blockId)?.data.groupScopeSelected, true);
 assert.equal(scopedFlowNodes.find((node) => node.id === first.blockId)?.data.groupScopeSelected, true);
 assert.equal(scopedFlowNodes.find((node) => node.id === note.blockId)?.data.groupScopeSelected, true);
-assert.equal(createFlowEdges(nestedSnapshot, { selectedBlockIds: [outerGroup.blockId] })[0]?.className, 'is-connected-to-selection');
+assert.match(
+  createFlowEdges(nestedSnapshot, { selectedBlockIds: [outerGroup.blockId] })[0]?.className ?? '',
+  /is-connected-to-selection[\s\S]*is-workflow-edge[\s\S]*is-visual-note/,
+);
 const outerFlowNode = scopedFlowNodes.find((node) => node.id === outerGroup.blockId);
 assert.ok(outerFlowNode);
 assert.equal(nodeColor(outerFlowNode), '#fda4af');
@@ -360,10 +408,9 @@ assert.deepEqual(groupMediaItems(batchSnapshot, workflowGroup.blockId).map((item
   workflowVideo.blockId,
 ]);
 const resultOneBeforeGrid = { ...resultOne.position };
-assert.ok(arrangeGroupChildren(batchSnapshot, workflowGroup.blockId, 'grid'));
-assert.equal(workflowGroup.data.groupLayoutMode, 'grid');
-assert.ok(batchGroup.position.y > operation.position.y);
-assert.notDeepEqual(resultOne.position, resultOneBeforeGrid);
+assert.equal(arrangeGroupChildren(batchSnapshot, workflowGroup.blockId, 'grid'), undefined);
+assert.notEqual(workflowGroup.data.groupLayoutMode, 'grid');
+assert.deepEqual(resultOne.position, resultOneBeforeGrid);
 
 const unrelatedGroup = block('unrelated_group', 'group', 1200, 0, 300, 300);
 const unrelatedChild = block('unrelated_child', 'image', 1240, 60);
@@ -456,6 +503,107 @@ cycleTwo.parentGroupId = cycleOne.blockId;
 const invalidSnapshot = snapshot([cycleOne, cycleTwo]);
 repairGroupRelationships(invalidSnapshot);
 assert.ok(!cycleOne.parentGroupId || !cycleTwo.parentGroupId);
+
+const legacyWorkflowGroup = block('legacy_workflow_group', 'group', 20, 20, 2600, 360);
+legacyWorkflowGroup.data.groupKind = 'workflow';
+const workflowInput = block('workflow_input', 'text', 60, 90, 260, 170);
+workflowInput.data.workflowInputSlotId = 'brief';
+const workflowOperationOne = block('workflow_operation_one', 'operation', 400, 80, 320, 190);
+workflowOperationOne.data.workflowStepId = 'step_one';
+const workflowOutputOne = block('workflow_output_one', 'document', 800, 56, 320, 240);
+workflowOutputOne.data.workflowStepId = 'step_one';
+workflowOutputOne.data.operationBlockId = workflowOperationOne.blockId;
+const workflowOperationTwo = block('workflow_operation_two', 'operation', 1560, 80, 320, 190);
+workflowOperationTwo.data.workflowStepId = 'step_two';
+const workflowOutputTwo = block('workflow_output_two', 'image', 1960, 56, 300, 380);
+workflowOutputTwo.data.workflowStepId = 'step_two';
+workflowOutputTwo.data.operationBlockId = workflowOperationTwo.blockId;
+for (const child of [workflowInput, workflowOperationOne, workflowOutputOne, workflowOperationTwo, workflowOutputTwo]) {
+  child.parentGroupId = legacyWorkflowGroup.blockId;
+}
+const legacyWorkflowSnapshot = snapshot([
+  legacyWorkflowGroup,
+  workflowInput,
+  workflowOperationOne,
+  workflowOutputOne,
+  workflowOperationTwo,
+  workflowOutputTwo,
+]);
+legacyWorkflowSnapshot.edges.push(
+  {
+    edgeId: 'workflow_input_edge',
+    sourceBlockId: workflowInput.blockId,
+    targetBlockId: workflowOperationOne.blockId,
+    kind: 'execution_input',
+  },
+  {
+    edgeId: 'workflow_output_one_edge',
+    sourceBlockId: workflowOperationOne.blockId,
+    targetBlockId: workflowOutputOne.blockId,
+    kind: 'execution_output',
+  },
+  {
+    edgeId: 'workflow_dependency_edge',
+    sourceBlockId: workflowOutputOne.blockId,
+    targetBlockId: workflowOperationTwo.blockId,
+    kind: 'execution_input',
+  },
+  {
+    edgeId: 'workflow_output_two_edge',
+    sourceBlockId: workflowOperationTwo.blockId,
+    targetBlockId: workflowOutputTwo.blockId,
+    kind: 'execution_output',
+  },
+);
+const migratedWorkflowSnapshot = migrateBoardSnapshot(legacyWorkflowSnapshot);
+const migratedWorkflowGroup = migratedWorkflowSnapshot.blocks.find(
+  (candidate) => candidate.blockId === legacyWorkflowGroup.blockId,
+);
+assert.equal(migratedWorkflowSnapshot.workflowLayoutMigrationVersion, 2);
+assert.ok(migratedWorkflowGroup && migratedWorkflowGroup.size.width < 1400);
+assert.ok(migratedWorkflowGroup.size.height > 600);
+assert.deepEqual(
+  [workflowOperationOne, workflowOperationTwo].map((operation) => (
+    migratedWorkflowSnapshot.blocks.find((candidate) => candidate.blockId === operation.blockId)
+      ?.data.workflowFlowDirection
+  )),
+  ['forward', 'forward'],
+);
+const resizedWorkflowOutput = migratedWorkflowSnapshot.blocks.find(
+  (candidate) => candidate.blockId === workflowOutputOne.blockId,
+);
+const downstreamWorkflowOperation = migratedWorkflowSnapshot.blocks.find(
+  (candidate) => candidate.blockId === workflowOperationTwo.blockId,
+);
+assert.ok(resizedWorkflowOutput && downstreamWorkflowOperation);
+const anchoredWorkflowGroupPosition = { ...migratedWorkflowGroup.position };
+resizedWorkflowOutput.position = { x: -5_000, y: -5_000 };
+resizedWorkflowOutput.size.height = 500;
+assert.equal(refreshWorkflowGroupLayoutForBlock(migratedWorkflowSnapshot, resizedWorkflowOutput), true);
+assert.deepEqual(
+  migratedWorkflowGroup.position,
+  anchoredWorkflowGroupPosition,
+  'Runtime output adoption must preserve the user-positioned Workflow Group anchor.',
+);
+assert.ok(
+  downstreamWorkflowOperation.position.y
+    > resizedWorkflowOutput.position.y + resizedWorkflowOutput.size.height,
+  'A completed result that grows must push later Workflow rows down instead of overlapping them.',
+);
+const migratedPositions = migratedWorkflowSnapshot.blocks.map((candidate) => [
+  candidate.blockId,
+  candidate.position.x,
+  candidate.position.y,
+]);
+assert.deepEqual(
+  migrateBoardSnapshot(structuredClone(migratedWorkflowSnapshot)).blocks.map((candidate) => [
+    candidate.blockId,
+    candidate.position.x,
+    candidate.position.y,
+  ]),
+  migratedPositions,
+  'Workflow layout migration must not overwrite later in-group positioning.',
+);
 
 console.log({
   batchGroup: batchGroup.blockId,

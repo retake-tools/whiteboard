@@ -1,8 +1,9 @@
+import type { ExecutionProgressEvent } from './executionEventContracts';
 import type { BoardSnapshot } from './types';
 
 export type ExecutionClientEvent =
   | { type: 'execution.started' }
-  | { type: 'execution.progress'; message: string }
+  | ExecutionProgressEvent
   | { type: 'text.delta'; delta: string; resultBlockId: string }
   | { type: 'execution.snapshot'; snapshot: BoardSnapshot }
   | { type: 'execution.failed'; errorMessage: string; snapshot?: BoardSnapshot };

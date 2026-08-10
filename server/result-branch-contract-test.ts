@@ -264,22 +264,15 @@ const creativeNodeIds = new Set(creativeNodes.map((node) => node.id));
 assert.equal(
   creativeNodes.find((node) => node.id === firstBranch.operationBlock.blockId)
     ?.data.operationCompact,
-  true,
+  false,
 );
-const compactCreativeOperation = creativeNodes.find(
+const completedCreativeOperation = creativeNodes.find(
   (node) => node.id === firstBranch.operationBlock.blockId,
 );
-assert.equal(compactCreativeOperation?.style?.width, 36);
-assert.equal(compactCreativeOperation?.style?.height, 36);
-assert.equal(
-  compactCreativeOperation?.position.x,
-  firstRun.resultBlocks[0].position.x - 56,
-);
-assert.equal(
-  compactCreativeOperation?.position.y,
-  firstRun.resultBlocks[0].position.y + firstRun.resultBlocks[0].size.height / 2 - 18,
-);
-assert.equal(creativeNodeIds.has(firstBranch.textBlock.blockId), false);
+assert.notEqual(completedCreativeOperation?.style?.width, 36);
+assert.notEqual(completedCreativeOperation?.style?.height, 36);
+assert.deepEqual(completedCreativeOperation?.position, firstBranch.operationBlock.position);
+assert.equal(creativeNodeIds.has(firstBranch.textBlock.blockId), true);
 assert.equal(creativeNodeIds.has(source.blockId), true);
 assert.equal(creativeNodeIds.has(firstRun.resultBlocks[0].blockId), true);
 const creativeLineageEdges = createFlowEdges(
@@ -326,7 +319,7 @@ assert.equal(
   createFlowNodes(changedCreativeProjectionSnapshot, { projectionMode: 'creative' })
     .find((node) => node.id === firstBranch.operationBlock.blockId)
     ?.data.operationCompact,
-  true,
+  false,
 );
 
 const retrySnapshot = structuredClone(snapshot);

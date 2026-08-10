@@ -33,6 +33,7 @@ export async function startVolcengineArkImageGeneration(input: {
   executionId: string;
   connectionId: string;
   resultBlockId?: string;
+  resultBlockIds?: string[];
 }, dependencies: ArkImageServiceDependencies = {}): Promise<{
   snapshot: BoardSnapshot;
   execution: ExecutionRecord;
@@ -42,18 +43,21 @@ export async function startVolcengineArkImageGeneration(input: {
   if (!config) throw new Error('Volcengine Ark Seedream is unavailable. Configure and test the connection in Retake Settings.');
   const current = await loadSnapshot(input.projectId, input.boardId);
   const execution = current.executions.find((candidate) => candidate.executionId === input.executionId);
-  const expectedStatus = input.resultBlockId ? 'failed' : 'queued';
+  const retryResultBlockIds = requestedRetryResultBlockIds(input);
+  const expectedStatus = retryResultBlockIds.length > 0 ? 'failed' : 'queued';
   if (!execution || execution.status !== expectedStatus || execution.adapter !== 'direct_api') {
     throw new Error(`${expectedStatus === 'failed' ? 'Failed' : 'Queued'} Direct API image execution not found: ${input.executionId}`);
   }
   if (execution.connectionId !== input.connectionId) {
     throw new Error(`Image execution connection mismatch: ${input.connectionId}`);
   }
-  const started = input.resultBlockId
-    ? await markExecutionAdapterRetryRunning({ ...input, resultBlockId: input.resultBlockId, adapter: 'direct_api' })
+  const started = retryResultBlockIds.length > 0
+    ? await markExecutionAdapterRetryRunning({ ...input, resultBlockIds: retryResultBlockIds, adapter: 'direct_api' })
     : await markExecutionRunning(input);
   const client = new VolcengineArkImageClient(config, dependencies.fetchImpl);
-  const resultBlockIds = input.resultBlockId ? [input.resultBlockId] : started.execution.outputBlockIds;
+  const resultBlockIds = retryResultBlockIds.length > 0
+    ? retryResultBlockIds
+    : started.execution.outputBlockIds;
   const completion = executeArkImageRun(started.execution, client, resultBlockIds)
     .then(async () => settleIncompleteRetry(input))
     .catch(async (error) => {
@@ -145,8 +149,9 @@ async function settleIncompleteRetry(input: {
   boardId: string;
   executionId: string;
   resultBlockId?: string;
+  resultBlockIds?: string[];
 }): Promise<void> {
-  if (!input.resultBlockId) return;
+  if (requestedRetryResultBlockIds(input).length === 0) return;
   const snapshot = await loadSnapshot(input.projectId, input.boardId);
   const execution = snapshot.executions.find((candidate) => candidate.executionId === input.executionId);
   if (execution?.status !== 'running') return;
@@ -156,6 +161,16 @@ async function settleIncompleteRetry(input: {
     executionId: input.executionId,
     errorMessage: 'One or more image candidates are still incomplete. Retry the remaining failed results.',
   });
+}
+
+function requestedRetryResultBlockIds(input: {
+  resultBlockId?: string;
+  resultBlockIds?: string[];
+}): string[] {
+  return [...new Set([
+    ...(input.resultBlockIds ?? []),
+    ...(input.resultBlockId ? [input.resultBlockId] : []),
+  ])];
 }
 
 async function executionInputImages(snapshot: BoardSnapshot, assetIds: readonly string[]): Promise<string[]> {

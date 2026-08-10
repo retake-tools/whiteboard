@@ -1,7 +1,7 @@
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { generateObject } from 'ai';
+import { generateObject, NoObjectGeneratedError } from 'ai';
 import { jsonSchema } from '@ai-sdk/provider-utils';
 
 export type DirectAgentRuntimeConnector =
@@ -13,6 +13,7 @@ export interface DirectAgentRuntimeConfig {
   apiKey: string;
   baseUrl: string;
   model: string;
+  templateId?: string;
 }
 
 export interface DirectAgentRuntimeResult {
@@ -28,6 +29,7 @@ export async function generateDirectAgentDecision(
   input: {
     abortSignal?: AbortSignal;
     instructions: string;
+    outputExample?: Record<string, unknown>;
     outputSchema: Record<string, unknown>;
     prompt: string;
   },
@@ -49,18 +51,44 @@ export async function generateDirectAgentDecision(
         name: 'retake-agent-runtime',
         apiKey: config.apiKey,
         baseURL: config.baseUrl.replace(/\/$/, ''),
+        ...(config.templateId === 'deepseek'
+          ? {
+              transformRequestBody: (body) => ({
+                ...body,
+                thinking: { type: 'disabled' },
+              }),
+            }
+          : {}),
         ...(fetchImpl ? { fetch: fetchImpl } : {}),
       }).chatModel(config.model);
-  const result = await generateObject({
+  const system = connectorId === 'openai-compatible'
+    ? openAiCompatibleStructuredInstructions(input)
+    : input.instructions;
+  const generateDecision = () => generateObject({
     model,
     schema: jsonSchema<Record<string, unknown>>(input.outputSchema),
     schemaName: 'retake_agent_runtime_decision',
     schemaDescription: 'One bounded Retake Agent Runtime decision.',
-    system: input.instructions,
+    system,
     prompt: input.prompt,
     abortSignal: input.abortSignal,
     maxOutputTokens: 4_096,
   });
+  let result: Awaited<ReturnType<typeof generateDecision>>;
+  try {
+    result = await generateDecision();
+  } catch (error) {
+    if (config.templateId !== 'deepseek' || !isRetryableDeepSeekObjectError(error)) throw error;
+    try {
+      result = await generateDecision();
+    } catch (retryError) {
+      if (!isRetryableDeepSeekObjectError(retryError)) throw retryError;
+      throw new Error(
+        'DeepSeek returned an empty or invalid JSON response after one retry.',
+        { cause: retryError },
+      );
+    }
+  }
   if (!result.object || typeof result.object !== 'object' || Array.isArray(result.object)) {
     throw new Error('Direct Agent Runtime returned a non-object decision.');
   }
@@ -74,6 +102,28 @@ export async function generateDirectAgentDecision(
       ? { providerMetadata: jsonRecord(result.providerMetadata) }
       : {}),
   };
+}
+
+function openAiCompatibleStructuredInstructions(input: {
+  instructions: string;
+  outputExample?: Record<string, unknown>;
+  outputSchema: Record<string, unknown>;
+}): string {
+  return `${input.instructions}
+
+Return raw JSON only, without Markdown fences or explanatory text.
+The JSON object must match this JSON Schema exactly:
+${JSON.stringify(input.outputSchema)}
+${input.outputExample
+    ? `Example JSON output:\n${JSON.stringify(input.outputExample)}`
+    : ''}`;
+}
+
+function isRetryableDeepSeekObjectError(error: unknown): boolean {
+  if (!NoObjectGeneratedError.isInstance(error)) return false;
+  return error.text == null
+    || error.text.trim().length === 0
+    || error.message === 'No object generated: could not parse the response.';
 }
 
 export function normalizeDirectAgentDecisionObject(

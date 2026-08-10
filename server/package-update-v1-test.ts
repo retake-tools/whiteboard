@@ -114,11 +114,14 @@ try {
   );
 
   let dismissalValue: string | null = null;
+  let localeValue = 'en';
   const localStorageFixture = {
     getItem: (key: string) => (
       key === 'retake.package-update-dismissals.v1'
         ? dismissalValue
-        : 'en'
+        : key === 'retake.locale'
+          ? localeValue
+          : null
     ),
     setItem: (_key: string, value: string) => {
       dismissalValue = value;
@@ -138,23 +141,40 @@ try {
   });
   const controller = updateController(available);
   assert.match(renderUpdateBanner(controller), /Plugin updates available/);
+  const candidateFailureBanner = renderFailureBanner([{
+    error: 'Unknown Workflow semantic key.',
+    packageId: 'design.retake.image-studio',
+    source: 'distribution',
+    stage: 'candidate',
+    version: '0.13.0',
+  }]);
   assert.match(
-    renderToStaticMarkup(
-      createElement(
-        I18nProvider,
-        null,
-        createElement(PackageFailureBanner, {
-          failures: [{
-            error: 'Unknown Workflow semantic key.',
-            packageId: 'design.retake.image-studio',
-            source: 'distribution',
-            stage: 'candidate',
-            version: '0.13.0',
-          }],
-        }),
-      ),
-    ),
-    /Package failures isolated; Whiteboard remains available/,
+    candidateFailureBanner,
+    /1 Package update\(s\) not enabled; the current version remains available/,
+  );
+  assert.doesNotMatch(candidateFailureBanner, /were isolated/);
+  assert.match(candidateFailureBanner, /View reason/);
+  localeValue = 'zh';
+  assert.match(
+    renderFailureBanner([{
+      error: 'Workflow 参数不受支持。',
+      packageId: 'design.retake.image-studio',
+      source: 'distribution',
+      stage: 'candidate',
+      version: '0.13.0',
+    }]),
+    /1个 Package 更新暂未启用，当前版本仍可使用/,
+  );
+  localeValue = 'en';
+  assert.match(
+    renderFailureBanner([{
+      error: 'Installed Package cannot be loaded.',
+      packageId: 'design.retake.image-studio',
+      source: 'active',
+      stage: 'load',
+      version: '0.12.3',
+    }]),
+    /1 Package\(s\) failed to load and were isolated; Whiteboard remains available/,
   );
   const imageCandidate = available.checks[0]!.candidate!;
   dismissalValue = JSON.stringify([
@@ -188,6 +208,18 @@ function renderUpdateBanner(
         controller,
         onOpen: () => {},
       }),
+    ),
+  );
+}
+
+function renderFailureBanner(
+  failures: Parameters<typeof PackageFailureBanner>[0]['failures'],
+): string {
+  return renderToStaticMarkup(
+    createElement(
+      I18nProvider,
+      null,
+      createElement(PackageFailureBanner, { failures }),
     ),
   );
 }

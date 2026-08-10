@@ -72,6 +72,7 @@ import { ImageComposerControls } from './ImageComposerControls';
 import { ImageComposerReferenceTray } from './ImageComposerReferenceTray';
 import { AgentComposerPreferencesControls } from './AgentComposerPreferencesControls';
 import { VideoComposerControls } from './VideoComposerControls';
+import { WorkflowExecutionModeControl } from './WorkflowExecutionModeControl';
 import {
   currentInstalledRuntimeRegistryRevision,
   subscribeInstalledRuntimeRegistry,
@@ -155,6 +156,7 @@ export function SkillQuickInputComposer({
     storyboardPanelCount,
     videoConnectionId,
     videoParameters,
+    workflowExecutionMode,
   } = useUnifiedComposerDraft();
   const [picker, setPicker] = useState<PickerState>();
   const [isImportingAttachments, setIsImportingAttachments] = useState(false);
@@ -291,6 +293,9 @@ export function SkillQuickInputComposer({
     instruction,
     mentions,
     agentPreferences.variationCount,
+    agentPreferences.aspectRatioPreset,
+    agentPreferences.connectionId,
+    agentPreferences.targetResolution,
     selectedEntryPoint?.entrypoint.kind,
     storyboardOutputCount,
     storyboardPanelCount,
@@ -488,16 +493,21 @@ export function SkillQuickInputComposer({
       }
       return;
     }
-    if (mode === 'agent') {
+    if (mode === 'agent' || selectedEntryPoint?.entrypoint.kind === 'workflow') {
       if (!canSubmit) return;
       onSubmitAgentMessage({
-        agentPreferences,
+        agentPreferences: selectedEntryPoint?.entrypoint.kind === 'workflow'
+          ? { ...agentPreferences, outputType: 'auto' }
+          : agentPreferences,
         content: instruction.trim(),
         ...(entrypointId ? { entrypointId } : {}),
         imageReferenceSettings,
         inlineValues: invocation?.inlineValues ?? [],
         mentions,
         parameters: invocation?.parameters ?? {},
+        ...(selectedEntryPoint?.entrypoint.kind === 'workflow'
+          ? { workflowExecutionMode }
+          : {}),
       });
       reset();
       setPicker(undefined);
@@ -532,7 +542,12 @@ export function SkillQuickInputComposer({
   }
 
   function handleInputKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
-    if (event.key === 'Enter' && !event.shiftKey && canSubmit) {
+    if (
+      event.key === 'Enter'
+      && !event.shiftKey
+      && !event.nativeEvent.isComposing
+      && canSubmit
+    ) {
       event.preventDefault();
       event.currentTarget.form?.requestSubmit();
     }
@@ -838,8 +853,14 @@ export function SkillQuickInputComposer({
           {composerMode === 'video' ? <VideoComposerControls /> : null}
           {composerMode === 'agent' ? (
             <AgentComposerPreferencesControls
+              compact={mode === 'agent'}
               workflowSelected={selectedEntryPoint?.entrypoint.kind === 'workflow'}
             />
+          ) : null}
+          {mode === 'canvas'
+          && composerMode === 'agent'
+          && selectedEntryPoint?.entrypoint.kind === 'workflow' ? (
+            <WorkflowExecutionModeControl />
           ) : null}
           {composerMode === 'agent' && selectedEntryPoint ? (
             <div className="skill-composer-entrypoint is-selected">

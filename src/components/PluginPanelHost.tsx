@@ -37,9 +37,68 @@ export function PluginPanelHost({
     left: number;
     top: number;
   } | null>(null);
+  const [hasVisibleAnchoredPanel, setHasVisibleAnchoredPanel] = useState(false);
 
   useLayoutEffect(() => {
     if (!anchorBlockId) {
+      setHasVisibleAnchoredPanel(false);
+      return;
+    }
+    const panelHost = hostRef.current;
+    if (!panelHost) return;
+    let frame = 0;
+    const observedPanels = new Set<Element>();
+    const resizeObserver = new ResizeObserver(() => scheduleMeasurement());
+
+    function observePanels(): void {
+      const currentPanels = new Set(
+        panelHost!.querySelectorAll('.plugin-panel-host__panel'),
+      );
+      for (const panel of observedPanels) {
+        if (currentPanels.has(panel)) continue;
+        resizeObserver.unobserve(panel);
+        observedPanels.delete(panel);
+      }
+      for (const panel of currentPanels) {
+        if (observedPanels.has(panel)) continue;
+        observedPanels.add(panel);
+        resizeObserver.observe(panel);
+      }
+    }
+
+    function scheduleMeasurement(): void {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        observePanels();
+        const next = [...observedPanels].some((panel) => {
+          const bounds = panel.getBoundingClientRect();
+          return bounds.width > 0.5 && bounds.height > 0.5;
+        });
+        setHasVisibleAnchoredPanel((current) => (
+          current === next ? current : next
+        ));
+      });
+    }
+
+    observePanels();
+    resizeObserver.observe(panelHost);
+    const mutationObserver = new MutationObserver((records) => {
+      if (records.some((record) => (
+        record.target instanceof HTMLElement
+        && record.target.classList.contains('plugin-panel-host__panel')
+      ))) scheduleMeasurement();
+    });
+    mutationObserver.observe(panelHost, { childList: true, subtree: true });
+    scheduleMeasurement();
+    return () => {
+      window.cancelAnimationFrame(frame);
+      mutationObserver.disconnect();
+      resizeObserver.disconnect();
+    };
+  }, [anchorBlockId]);
+
+  useLayoutEffect(() => {
+    if (!anchorBlockId || !hasVisibleAnchoredPanel) {
       setAnchorPosition(null);
       return;
     }
@@ -95,7 +154,7 @@ export function PluginPanelHost({
       document.removeEventListener('wheel', update, true);
       window.removeEventListener('resize', update);
     };
-  }, [anchorBlockId, panels]);
+  }, [anchorBlockId, hasVisibleAnchoredPanel]);
 
   if (panels.length === 0) return null;
   const anchorStyle = anchorPosition

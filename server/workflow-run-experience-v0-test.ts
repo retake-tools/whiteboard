@@ -1,5 +1,15 @@
 import assert from 'node:assert/strict';
+import {
+  agentConversationTimeline,
+  workflowTaskSummary,
+} from '../src/core/agentConversationTimeline';
 import type { AgentRunRecord } from '../src/core/agentRuntimeContracts';
+import {
+  agentRuntimeTurnContext,
+  appendAgentUserMessage,
+  createAgentSession,
+  workflowRunIdsForAgentSession,
+} from '../src/core/agentSession';
 import type { BoardSnapshot } from '../src/core/types';
 import { workflowRunExperienceFor } from '../src/core/workflowRunExperience';
 
@@ -16,9 +26,55 @@ const activeAgentRun = fixtureAgentRun('workflow_history');
 const experience = workflowRunExperienceFor(snapshot, activeAgentRun);
 assert.equal(experience.defaultWorkflowRunId, 'workflow_history');
 assert.equal(experience.runs[0]?.isActiveAgentRunTarget, true);
+assert.deepEqual(
+  workflowRunExperienceFor(snapshot, activeAgentRun, {
+    workflowRunIds: ['workflow_history'],
+  }).runs.map((run) => run.workflowRunId),
+  ['workflow_history'],
+  'An Agent Session must be able to project only its bound Workflow Run.',
+);
+assert.deepEqual(
+  workflowRunExperienceFor(snapshot, undefined, { workflowRunIds: [] }),
+  { activeCount: 0, attentionCount: 0, runs: [] },
+  'An unbound Agent Session must not fall back to Board-global Workflow Runs.',
+);
+
+const sessionHistorySnapshot = structuredClone(snapshot);
+const sessionHistory = createAgentSession(sessionHistorySnapshot, { model: 'test-model' }).session;
+const historicalAgentRun = {
+  ...fixtureAgentRun('workflow_history'),
+  agentRunId: 'agent_run_history',
+};
+const currentAgentRun = {
+  ...fixtureAgentRun('workflow_attention'),
+  agentRunId: 'agent_run_current',
+};
+sessionHistorySnapshot.agentRuns = [historicalAgentRun, currentAgentRun];
+sessionHistory.activeAgentRunId = currentAgentRun.agentRunId;
+sessionHistorySnapshot.agentMessages = [{
+  agentMessageId: 'message_historical_run',
+  agentSessionId: sessionHistory.agentSessionId,
+  boardId: sessionHistorySnapshot.board.boardId,
+  content: 'Earlier Workflow completed.',
+  contextRefs: [{ kind: 'agent_run', agentRunId: historicalAgentRun.agentRunId }],
+  createdAt: now,
+  projectId: sessionHistorySnapshot.project.projectId,
+  recordVersion: 1,
+  role: 'assistant',
+}];
+assert.deepEqual(
+  new Set(workflowRunIdsForAgentSession(sessionHistorySnapshot, sessionHistory.agentSessionId)),
+  new Set(['workflow_history', 'workflow_attention']),
+  'The Agent overview must retain current and historical Workflow Runs from the same Session.',
+);
+assert.deepEqual(
+  workflowRunIdsForAgentSession(sessionHistorySnapshot, 'another_session'),
+  [],
+  'Workflow history must not leak across Agent Sessions.',
+);
 
 const attention = experience.runs.find((run) => run.workflowRunId === 'workflow_attention');
-assert.equal(attention?.label, 'Guided image workflow');
+assert.equal(attention?.label, 'Fixture image workflow');
 assert.equal(attention?.completedStepCount, 1);
 assert.equal(attention?.currentStepCount, 1);
 assert.equal(attention?.nextStepCount, 1);
@@ -52,11 +108,149 @@ assert.deepEqual(
     ['publish', 'blocked'],
   ],
 );
+assert.deepEqual(
+  attention?.timelineEvents.map((event) => [event.kind, event.label, event.status]),
+  [
+    ['gate', 'Review', 'waiting_approval'],
+    ['run', 'workflow.fixture-image', 'waiting_input'],
+    ['artifact', 'image', 'ready'],
+    ['execution', 'Prepare prompt', 'succeeded'],
+    ['run', 'workflow.fixture-image', 'created'],
+    ['step', 'Generate image', 'waiting_input'],
+    ['step', 'Prepare prompt', 'succeeded'],
+    ['step', 'publish', 'blocked'],
+    ['step', 'Review result', 'ready'],
+  ],
+  'The Agent timeline must be a curated projection of canonical Run records.',
+);
+assert.equal(
+  attention?.timelineEvents.some((event) => event.eventId.includes('gate_outdated')),
+  false,
+  'Outdated Gate evaluations must not reappear as current Agent timeline events.',
+);
+
+const conversationMessages = [{
+  agentMessageId: 'message_launch',
+  agentSessionId: 'session_workflow',
+  boardId: 'board_test',
+  content: '为蛋炒饭设计一套亲切、容易记住的 IP 形象。',
+  contextRefs: [{ kind: 'entrypoint' as const, entrypointId: 'workflow:ip-design' }],
+  createdAt: '2026-08-01T07:00:00.000Z',
+  projectId: 'project_test',
+  recordVersion: 1,
+  role: 'user' as const,
+}, {
+  agentMessageId: 'message_feedback',
+  agentSessionId: 'session_workflow',
+  boardId: 'board_test',
+  content: '饭粒太密了，减少一些。',
+  contextRefs: [],
+  createdAt: '2026-08-01T08:45:00.000Z',
+  projectId: 'project_test',
+  recordVersion: 1,
+  role: 'user' as const,
+}];
+assert.ok(attention);
+assert.deepEqual(
+  agentConversationTimeline({
+    messages: conversationMessages,
+    run: attention,
+    stepRuns: snapshot.workflowStepRuns ?? [],
+  }).map((item) => [item.kind, item.kind === 'message' ? item.messageId : item.stepRunId]),
+  [
+    ['message', 'message_launch'],
+    ['message', 'message_feedback'],
+    ['workflow_step', 'step_generate'],
+    ['workflow_step', 'step_prepare'],
+    ['workflow_step', 'step_review'],
+  ],
+  'Reached Workflow steps must be interleaved with messages by canonical timestamps.',
+);
+assert.deepEqual(
+  agentConversationTimeline({
+    intervention: {
+      agentRunId: 'agent_attention',
+      kind: 'attention',
+      occurredAt: '2026-08-01T08:30:00.000Z',
+    },
+    messages: conversationMessages,
+    stepRuns: [],
+  }).map((item) => (
+    item.kind === 'message'
+      ? [item.kind, item.messageId]
+      : item.kind === 'intervention'
+        ? [item.kind, item.agentRunId]
+        : [item.kind, item.stepRunId]
+  )),
+  [
+    ['message', 'message_launch'],
+    ['intervention', 'agent_attention'],
+    ['message', 'message_feedback'],
+  ],
+  'A current intervention must stay at its canonical time instead of being pinned below later Agent replies.',
+);
+assert.equal(
+  workflowTaskSummary(conversationMessages, fixtureAgentRun('workflow_attention')),
+  '为蛋炒饭设计一套亲切、容易记住的 IP 形象。',
+);
+const repeatedWorkflowMessages = [
+  ...conversationMessages,
+  {
+    ...conversationMessages[0]!,
+    agentMessageId: 'message_latest_same_workflow',
+    content: '为雨燕快递设计一套新的 IP 形象。',
+    createdAt: '2026-08-01T09:00:00.000Z',
+  },
+];
+assert.equal(
+  workflowTaskSummary(repeatedWorkflowMessages, fixtureAgentRun('workflow_attention')),
+  '为雨燕快递设计一套新的 IP 形象。',
+  'Repeated launches of the same Workflow must show the latest task brief.',
+);
 
 const history = experience.runs.find((run) => run.workflowRunId === 'workflow_history');
 assert.equal(history?.label, 'workflow.removed-package');
 assert.equal(history?.steps[0]?.label, 'archived-step');
 assert.equal(JSON.stringify(snapshot), before, 'Run Experience projection must not mutate the Board Snapshot.');
+
+const runtimeContextSnapshot = structuredClone(snapshot);
+const runtimeWorkflowAgent = fixtureAgentRun('workflow_attention');
+runtimeWorkflowAgent.status = 'waiting_input';
+runtimeWorkflowAgent.entrypointId = 'workflow:ip-design';
+runtimeWorkflowAgent.scope.allowedOperationBlockIds = [
+  'operation_prepare',
+  'operation_generate',
+  'operation_review',
+  'operation_publish',
+];
+runtimeContextSnapshot.agentRuns = [runtimeWorkflowAgent];
+const runtimeSession = createAgentSession(runtimeContextSnapshot, {
+  agentRunId: runtimeWorkflowAgent.agentRunId,
+}).session;
+const runtimeUserMessage = appendAgentUserMessage(
+  runtimeContextSnapshot,
+  runtimeSession.agentSessionId,
+  { content: '饭粒太密了，减少一些。' },
+);
+const workflowRuntimeContext = agentRuntimeTurnContext(
+  runtimeContextSnapshot,
+  runtimeSession.agentSessionId,
+  runtimeUserMessage.agentMessageId,
+);
+assert.deepEqual(
+  workflowRuntimeContext.agentRun?.workflowSteps?.map((step) => [
+    step.label,
+    step.operationBlockId,
+    step.status,
+  ]),
+  [
+    ['Prepare prompt', 'operation_prepare', 'succeeded'],
+    ['Generate image', 'operation_generate', 'waiting_input'],
+    ['Review result', 'operation_review', 'ready'],
+    ['publish', 'operation_publish', 'blocked'],
+  ],
+  'The Runtime must receive exact user-facing Workflow step scope for natural-language corrections.',
+);
 
 const emptySnapshot = structuredClone(snapshot);
 emptySnapshot.workflowRuns = [];
@@ -92,6 +286,7 @@ console.log(JSON.stringify({
   activeAgentTargetPriority: true,
   canonicalSummaryProjection: true,
   canonicalDetailProjection: true,
+  canonicalTimelineProjection: true,
   emptyBoardStable: true,
   historicalDefinitionFallback: true,
   largeRunListStable: true,
@@ -125,7 +320,7 @@ function fixtureSnapshot(): BoardSnapshot {
     },
     layers: [],
     blocks: [
-      fixtureBlock('group_attention', 'group', 'Guided image workflow', { workflowProjectionId: 'projection_attention' }),
+      fixtureBlock('group_attention', 'group', 'Fixture image workflow', { workflowProjectionId: 'projection_attention' }),
       fixtureBlock('operation_prepare', 'operation', 'Prepare prompt'),
       fixtureBlock('operation_generate', 'operation', 'Generate image'),
       fixtureBlock('operation_review', 'operation', 'Review result'),
@@ -167,7 +362,7 @@ function fixtureSnapshot(): BoardSnapshot {
         workflowDefinitionLock: {
           definitionHash: 'sha256:workflow-attention',
           version: '0.11.0',
-          workflowId: 'workflow.guided-image',
+          workflowId: 'workflow.fixture-image',
         },
         workflowProjectionId: 'projection_attention',
         workflowRunId: 'workflow_attention',

@@ -86,5 +86,6 @@ export const defaultSnapshot: BoardSnapshot = {
   changeProposals: [],
   changeDecisions: [],
   historyEvents: [],
+  agentSessionRunMigrationVersion: 1,
   imageGenerateMigrationVersion: 1,
 };

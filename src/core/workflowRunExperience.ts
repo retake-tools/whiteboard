@@ -46,6 +46,17 @@ export interface WorkflowRunExperienceGateView {
   subjectLabel: string;
 }
 
+export interface WorkflowRunTimelineEventView {
+  detail?: string;
+  eventId: string;
+  kind: 'run' | 'step' | 'execution' | 'artifact' | 'gate';
+  label: string;
+  occurredAt: string;
+  operationBlockId?: string;
+  status: string;
+  tone: 'neutral' | 'active' | 'success' | 'attention';
+}
+
 export interface WorkflowRunExperienceItemView {
   artifactRevisionCount: number;
   artifacts: WorkflowRunExperienceArtifactView[];
@@ -62,6 +73,7 @@ export interface WorkflowRunExperienceItemView {
   nextStepCount: number;
   status: WorkflowRunStatus;
   steps: WorkflowRunExperienceStepView[];
+  timelineEvents: WorkflowRunTimelineEventView[];
   totalStepCount: number;
   updatedAt: string;
   workflowRunId: string;
@@ -96,8 +108,12 @@ const activeStatuses = new Set<WorkflowRunStatus>([
 export function workflowRunExperienceFor(
   snapshot: BoardSnapshot,
   activeAgentRun?: AgentRunRecord,
+  options: { workflowRunIds?: readonly string[] } = {},
 ): WorkflowRunExperienceView {
   const activeWorkflowRunId = workflowRunIdForAgentRun(activeAgentRun);
+  const workflowRunIds = options.workflowRunIds === undefined
+    ? undefined
+    : new Set(options.workflowRunIds);
   const blockById = new Map(snapshot.blocks.map((block) => [block.blockId, block]));
   const executionById = new Map(snapshot.executions.map((execution) => [execution.executionId, execution]));
   const gateEvaluationById = new Map(
@@ -121,6 +137,7 @@ export function workflowRunExperienceFor(
   );
   const runs = (snapshot.workflowRuns ?? [])
     .filter((run) => run.boardId === snapshot.board.boardId)
+    .filter((run) => workflowRunIds === undefined || workflowRunIds.has(run.workflowRunId))
     .map((run): WorkflowRunExperienceItemView => {
       const stepRecords = [...(stepRecordsByRun.get(run.workflowRunId) ?? [])];
       const stepOrder = new Map(run.stepRunIds.map((stepRunId, index) => [stepRunId, index]));
@@ -183,6 +200,14 @@ export function workflowRunExperienceFor(
           subjectLabel: `${subjectOperationLabel} · ${outputLabel}`,
         };
       });
+      const timelineEvents = timelineEventsFor({
+        artifacts,
+        blockById,
+        executionById,
+        gateEvaluations,
+        run,
+        stepRecords,
+      });
       return {
         artifactRevisionCount: artifacts.length,
         artifacts,
@@ -200,6 +225,7 @@ export function workflowRunExperienceFor(
         nextStepCount: steps.filter((step) => step.role === 'next').length,
         status: run.status,
         steps,
+        timelineEvents,
         totalStepCount: steps.length,
         updatedAt: run.updatedAt,
         workflowRunId: run.workflowRunId,
@@ -214,6 +240,101 @@ export function workflowRunExperienceFor(
     ...(runs[0] ? { defaultWorkflowRunId: runs[0].workflowRunId } : {}),
     runs,
   };
+}
+
+function timelineEventsFor(input: {
+  artifacts: WorkflowRunExperienceArtifactView[];
+  blockById: Map<string, BoardSnapshot['blocks'][number]>;
+  executionById: Map<string, ExecutionRecord>;
+  gateEvaluations: NonNullable<BoardSnapshot['workflowGateEvaluations']>;
+  run: WorkflowRunRecord;
+  stepRecords: NonNullable<BoardSnapshot['workflowStepRuns']>;
+}): WorkflowRunTimelineEventView[] {
+  const artifactRevisionIds = new Set(input.artifacts.map((artifact) => artifact.artifactRevisionId));
+  const events: WorkflowRunTimelineEventView[] = [{
+    eventId: `run-created:${input.run.workflowRunId}`,
+    kind: 'run',
+    label: input.run.workflowDefinitionLock.workflowId,
+    occurredAt: input.run.createdAt,
+    status: 'created',
+    tone: 'neutral',
+  }];
+  for (const step of input.stepRecords) {
+    if (step.status !== 'pending') {
+      events.push({
+        eventId: `step:${step.stepRunId}:${step.recordVersion}`,
+        kind: 'step',
+        label: operationLabel(input.blockById, step.operationBlockId, step.stepId),
+        occurredAt: step.updatedAt,
+        operationBlockId: step.operationBlockId,
+        status: step.status,
+        tone: timelineTone(step.status),
+      });
+    }
+    for (const executionId of step.executionIds) {
+      const execution = input.executionById.get(executionId);
+      if (!execution) continue;
+      events.push({
+        ...(executionProviderLabel(execution) ? { detail: executionProviderLabel(execution) } : {}),
+        eventId: `execution:${execution.executionId}:${execution.status}`,
+        kind: 'execution',
+        label: operationLabel(input.blockById, step.operationBlockId, execution.capabilityId),
+        occurredAt: execution.completedAt ?? execution.startedAt,
+        operationBlockId: step.operationBlockId,
+        status: execution.status,
+        tone: timelineTone(execution.status),
+      });
+    }
+    for (const binding of step.outputArtifactBindings) {
+      if (!artifactRevisionIds.has(binding.artifactRevisionId)) continue;
+      events.push({
+        detail: binding.artifactType,
+        eventId: `artifact:${binding.artifactRevisionId}`,
+        kind: 'artifact',
+        label: binding.workflowOutputSlotId || binding.outputSlotId,
+        occurredAt: binding.boundAt,
+        operationBlockId: step.operationBlockId,
+        status: 'ready',
+        tone: 'success',
+      });
+    }
+  }
+  for (const gate of input.gateEvaluations) {
+    events.push({
+      eventId: `gate:${gate.gateEvaluationId}:${gate.recordVersion}`,
+      kind: 'gate',
+      label: gate.gateDefinitionLock.name?.trim() || gate.gateId,
+      occurredAt: gate.updatedAt,
+      status: gate.status,
+      tone: timelineTone(gate.status),
+    });
+  }
+  events.push({
+    eventId: `run-status:${input.run.workflowRunId}:${input.run.recordVersion}`,
+    kind: 'run',
+    label: input.run.workflowDefinitionLock.workflowId,
+    occurredAt: input.run.updatedAt,
+    status: input.run.status,
+    tone: timelineTone(input.run.status),
+  });
+  return events.sort((left, right) => (
+    left.occurredAt.localeCompare(right.occurredAt)
+    || left.eventId.localeCompare(right.eventId)
+  ));
+}
+
+function timelineTone(status: string): WorkflowRunTimelineEventView['tone'] {
+  if (status === 'succeeded' || status === 'passed' || status === 'ready') return 'success';
+  if (
+    status === 'failed'
+    || status === 'blocked'
+    || status === 'needs_attention'
+    || status === 'waiting_approval'
+    || status === 'waiting_input'
+    || status === 'waiting_selection'
+  ) return 'attention';
+  if (status === 'queued' || status === 'running') return 'active';
+  return 'neutral';
 }
 
 function executionProviderLabel(execution?: ExecutionRecord): string | undefined {

@@ -91,6 +91,15 @@ assert.match(executionImageViewerSource, /onWheel=/);
 assert.match(executionImageViewerSource, /setPointerCapture/);
 assert.match(executionImageViewerSource, /onDoubleClick=/);
 assert.match(executionImageViewerSource, /inspector\.zoomReset/);
+assert.match(executionImageViewerSource, /applyImageTransform/);
+assert.match(executionImageViewerSource, /function imageTransform/);
+assert.match(executionImageViewerSource, /return 'none'/);
+const viewerPointerMove = executionImageViewerSource.slice(
+  executionImageViewerSource.indexOf('onPointerMove='),
+  executionImageViewerSource.indexOf('onPointerUp='),
+);
+assert.match(viewerPointerMove, /applyImageTransform/);
+assert.doesNotMatch(viewerPointerMove, /setPan/);
 assert.match(executionDetailSource, /annotatedCompositeAsset \|\| inputImages\.length/);
 
 console.log(JSON.stringify({

@@ -97,6 +97,8 @@ export function stageAgentOperationExecution(
     ? 'agent_created'
     : request.decision.bindingSource === 'message_explicit'
       ? 'user_explicit'
+      : request.decision.bindingSource === 'workflow_scope'
+        ? 'workflow_scope'
       : session?.workingOperation?.source ?? 'agent_created';
   setAgentSessionWorkingOperation(stagedSnapshot, request.agentSessionId, {
     operationBlockId: receipt.operationBlockId,
@@ -434,34 +436,77 @@ function updateAndValidateExistingOperation(
   );
   const targetIsBound = request.decision.bindingSource === 'session_working'
     ? session?.workingOperation?.operationBlockId === operation.blockId
-    : sourceMessage.contextRefs.some(
-        (ref) => ref.kind === 'operation' && ref.operationBlockId === operation.blockId,
-      );
+    : request.decision.bindingSource === 'workflow_scope'
+      ? workflowOperationIsInActiveRun(snapshot, session?.activeAgentRunId, operation.blockId)
+      : sourceMessage.contextRefs.some(
+          (ref) => ref.kind === 'operation' && ref.operationBlockId === operation.blockId,
+        );
   if (!targetIsBound) {
     throw new Error('Agent-selected Operation is not explicitly bound to this request.');
   }
   const prompt = request.decision.operationPrompt?.trim();
   let promptBlockId: string | undefined;
   if (prompt) {
-    const promptEdge = snapshot.edges.find(
-      (edge) =>
-        edge.kind === 'execution_input'
-        && edge.targetBlockId === operation.blockId
-        && snapshot.blocks.some(
-          (block) =>
-            block.blockId === edge.sourceBlockId
-            && block.type === 'text',
-        ),
-    );
-    const promptBlock = promptEdge
-      ? snapshot.blocks.find((block) => block.blockId === promptEdge.sourceBlockId)
-      : undefined;
-    if (!promptBlock || promptBlock.type !== 'text') {
-      throw new Error('Agent-selected Operation has no editable text prompt input.');
+    if (request.decision.bindingSource === 'workflow_scope') {
+      // Workflow inputs and accepted artifacts are revision history. A chat
+      // correction belongs to this Run's next Execution, not to the original
+      // prompt/document Block that produced earlier results.
+      operation.data = {
+        ...operation.data,
+        body: prompt,
+        executionAdjustmentInstruction: prompt,
+      };
+      operation.updatedAt = nowIso();
+    } else {
+      const promptEdge = snapshot.edges.find(
+        (edge) =>
+          edge.kind === 'execution_input'
+          && edge.targetBlockId === operation.blockId
+          && snapshot.blocks.some(
+            (block) =>
+              block.blockId === edge.sourceBlockId
+              && block.type === 'text',
+          ),
+      );
+      const promptBlock = promptEdge
+        ? snapshot.blocks.find((block) => block.blockId === promptEdge.sourceBlockId)
+        : undefined;
+      if (!promptBlock || promptBlock.type !== 'text') {
+        throw new Error('Agent-selected Operation has no editable text prompt input.');
+      } else {
+        promptBlock.data = { ...promptBlock.data, body: prompt };
+        promptBlock.updatedAt = nowIso();
+        promptBlockId = promptBlock.blockId;
+      }
     }
-    promptBlock.data = { ...promptBlock.data, body: prompt };
-    promptBlock.updatedAt = nowIso();
-    promptBlockId = promptBlock.blockId;
+  }
+  if (request.decision.generationParams) {
+    const existingGenerationParams: Record<string, unknown> = {
+      ...(operation.data.generationParams ?? {}),
+    };
+    const changesCanvasProfile = Boolean(
+      request.decision.generationParams.aspectRatioPreset
+      || request.decision.generationParams.targetResolution,
+    );
+    const generationParams = changesCanvasProfile
+      ? imageComposerGenerationParams({
+          ...(typeof existingGenerationParams.aspectRatioPreset === 'string'
+            ? { aspectRatioPreset: existingGenerationParams.aspectRatioPreset }
+            : {}),
+          ...(typeof existingGenerationParams.targetResolution === 'string'
+            ? { targetResolution: existingGenerationParams.targetResolution }
+            : {}),
+          ...(typeof existingGenerationParams.variationCount === 'number'
+            ? { variationCount: existingGenerationParams.variationCount }
+            : {}),
+          ...request.decision.generationParams,
+        })
+      : request.decision.generationParams;
+    operation.data.generationParams = {
+      ...existingGenerationParams,
+      ...generationParams,
+    };
+    operation.updatedAt = nowIso();
   }
   const readiness = operationReadinessFor(snapshot, operation);
   if (!readiness.canRun) {
@@ -476,6 +521,30 @@ function updateAndValidateExistingOperation(
     operationBlockId: operation.blockId,
     ...(promptBlockId ? { promptBlockId } : {}),
   };
+}
+
+function workflowOperationIsInActiveRun(
+  snapshot: BoardSnapshot,
+  activeAgentRunId: string | undefined,
+  operationBlockId: string,
+): boolean {
+  if (!activeAgentRunId) return false;
+  const run = snapshot.agentRuns?.find((candidate) => candidate.agentRunId === activeAgentRunId);
+  const workflowRunId = run?.target.kind === 'capability'
+    ? undefined
+    : run?.target.workflowRunId;
+  const step = snapshot.workflowStepRuns?.find((candidate) => (
+    candidate.workflowRunId === workflowRunId
+    && candidate.operationBlockId === operationBlockId
+  ));
+  return Boolean(
+    run
+    && run.target.kind !== 'capability'
+    && run.scope.allowedOperationBlockIds.includes(operationBlockId)
+    && step
+    && ['ready', 'waiting_input', 'waiting_selection', 'succeeded', 'failed', 'canceled']
+      .includes(step.status)
+  );
 }
 
 function requireAssistantMessage(

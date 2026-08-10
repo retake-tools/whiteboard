@@ -4,6 +4,7 @@ import {
   activeBoardAgentSessions,
   agentRuntimeTurnContext,
   appendAgentUserMessage,
+  applyAuthorizedOperationSuggestion,
   applyAgentRuntimeTurn,
   createAgentSession,
   ensureDefaultAgentSession,
@@ -15,12 +16,18 @@ import {
   setAgentSessionRun,
   setAgentSessionWorkingOperation,
 } from '../src/core/agentSession';
-import { appendAgentRuntimeEvent, decideChangeProposal } from '../src/core/agentChangeApplication';
+import {
+  appendAgentRuntimeEvent,
+  decideChangeProposal,
+  isResolvedAgentRunBlockerProposal,
+  supersedeResolvedAgentRunBlockerProposals,
+} from '../src/core/agentChangeApplication';
 import { cancelAgentRun, createAgentRunForOperation, startAgentRun } from '../src/core/agentRuntime';
 import { stageAgentOperationExecution } from '../src/core/agentOperationExecution';
 import { createBlockRecord } from '../src/core/blockFactory';
 import { createDraftTextToImageOperation } from '../src/core/imageOperations';
 import { createDraftSkillOperation } from '../src/core/textOperations';
+import { migrateBoardSnapshot } from '../src/core/snapshotMigration';
 import type { BoardSnapshot } from '../src/core/types';
 import { loadSnapshot, resetWorkspace, saveSnapshot } from './local-store/snapshot-store';
 import { agentRuntimeDecisionSchema, parseAgentRuntimeDecision } from './agent-runtime-port';
@@ -39,6 +46,9 @@ const [
   runtimeClientSource,
   canvasControllerSource,
   operationCardSource,
+  workflowApprovalMessageSource,
+  workflowAttentionMessageSource,
+  workflowStepConversationSource,
   agentWorkspaceCssSource,
   appEventBindingsSource,
   operationControlsSource,
@@ -57,6 +67,9 @@ const [
   readFile(new URL('../src/core/agentRuntimeClient.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/useCanvasController.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentOperationRunCard.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/AgentWorkflowApprovalMessage.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/AgentWorkflowAttentionMessage.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/AgentWorkflowStepConversation.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/agent-workspace.css', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/useAppEventBindings.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/nodes/OperationInlineControls.tsx', import.meta.url), 'utf8'),
@@ -70,6 +83,8 @@ assert.match(portSource, /publishedDecisionDelta/);
 assert.match(portSource, /sandbox: 'read-only'/);
 assert.match(portSource, /Do not call tools/);
 assert.match(portSource, /new cumulative edit/);
+assert.match(portSource, /approval actions shown directly in Agent/);
+assert.match(portSource, /Never make the Canvas the only\s+place to continue/);
 assert.match(portSource, /must use operation_create_execute instead/);
 assert.match(portSource, /an omitted ratio preserves the exact source image ratio/);
 assert.doesNotMatch(portSource, /saveSnapshot|createBlock|projectWorkflowDraft/);
@@ -86,10 +101,53 @@ assert.match(workspaceHeaderSource, /event\.key !== 'Escape'/);
 assert.match(workspaceHeaderSource, /maxLength=\{80\}/);
 assert.match(workspaceHeaderSource, /agent-workspace-runtime-label/);
 assert.match(workspaceSource, /AgentRunSummaryCard/);
+assert.match(workspaceSource, /activeRun\?\.target\.kind === 'capability'/);
 assert.match(workspaceSource, /AgentOperationRunCard/);
+assert.match(workspaceSource, /AgentWorkflowStepMessage/);
+assert.match(workspaceSource, /AgentWorkflowApprovalMessage/);
+assert.match(workspaceSource, /AgentWorkflowAttentionMessage/);
+assert.match(workspaceSource, /timelineItem\.kind === 'intervention'/);
+assert.match(workspaceSource, /intervention: activeRun/);
+assert.doesNotMatch(workspaceSource, /agentWorkspace\.thinking/);
+assert.match(workspaceSource, /onDecideWorkflowApproval/);
+assert.match(workspaceSource, /isResolvedAgentRunBlockerProposal/);
+assert.match(workspaceSource, /proposal\.status !== 'superseded'/);
+assert.match(workspaceSource, /messageHasSupersededProposal/);
+assert.match(workspaceSource, /pendingProposalCount = visibleProposals\.filter/);
+assert.match(workflowApprovalMessageSource, /workflowApprovalApproveComplete/);
+assert.match(workflowApprovalMessageSource, /workflowApprovalFinalTitle/);
+assert.match(workflowApprovalMessageSource, /workflowApprovalRevise/);
+assert.match(workflowApprovalMessageSource, /workflowApprovalCancel/);
+assert.match(workflowApprovalMessageSource, /workflowApprovalLocate/);
+assert.match(workflowAttentionMessageSource, /workflowAttentionRetry/);
+assert.match(workflowAttentionMessageSource, /workflowAttentionRetryResults/);
+assert.match(workflowAttentionMessageSource, /workflowAttentionPrepareReview/);
+assert.match(workflowAttentionMessageSource, /workflowAttentionAskAgent/);
+assert.match(workflowAttentionMessageSource, /onPrepareWorkflowReview/);
+assert.match(workflowAttentionMessageSource, /onRetryAgentRun/);
+assert.doesNotMatch(workflowAttentionMessageSource, /onRerunOperation/);
+assert.match(workspaceSource, /retryableResultBlockIds/);
+assert.match(workspaceSource, /agentConversationTimeline/);
+assert.match(workspaceSource, /workflowRunIdsForAgentSession/);
+assert.match(workspaceSource, /workflowExperience\.runs\.length > 0/);
+assert.doesNotMatch(agentWorkspaceCssSource, /backdrop-filter: blur\(14px\)/);
+assert.match(workspaceSource, /activeRun\?\.target\.kind === 'capability'/);
+assert.match(workspaceSource, /proposal\.status !== 'applied' \|\| !proposal\.draftLaunchEffect/);
+assert.match(workflowStepConversationSource, /onSelectWorkflowOutput/);
+assert.match(workflowStepConversationSource, /workflowCandidateSingle/);
+assert.match(workflowStepConversationSource, /workflowCandidateMultiple/);
+assert.match(workflowStepConversationSource, /candidates\[0\]\?\.assetId \?\? ''/);
+assert.match(workflowStepConversationSource, /userSelectedCandidateId/);
+assert.match(workflowStepConversationSource, /workflowAcceptContinue/);
+assert.match(workflowStepConversationSource, /workflowRegenerate/);
+assert.match(workflowStepConversationSource, /FileText/);
+assert.match(workflowStepConversationSource, /stepRun\.outputBlockIds/);
+assert.doesNotMatch(workflowStepConversationSource, /<span>\{candidate\.kind\}<\/span>/);
 assert.match(workspaceSource, /agentWorkspace\.quickStartPoster/);
 assert.match(workspaceSource, /message\.suggestions\?\.length/);
-assert.match(workspaceSource, /retake:focus-unified-composer/);
+assert.match(workspaceSource, /function submitSuggestedMessage/);
+assert.match(workspaceSource, /message\.agentMessageId/);
+assert.doesNotMatch(workspaceSource, /retake:focus-unified-composer/);
 assert.match(operationCardSource, /latestExecutionForOperation/);
 assert.match(operationCardSource, /currentExecutionProviderSettings/);
 assert.doesNotMatch(operationCardSource, /agentWorkspace\.scope/);
@@ -109,9 +167,23 @@ assert.match(sharedComposerSource, /workflowSelected=\{selectedEntryPoint\?\.ent
 assert.match(sharedComposerSource, /packageComposerParametersWithAgentPreferences/);
 assert.match(sharedComposerSource, /selectedEntryPoint\?\.entrypoint\.kind === 'workflow'/);
 assert.match(controllerSource, /kind: 'agent_preferences'/);
+assert.match(controllerSource, /kind: 'workflow_interaction_mode'/);
+assert.match(controllerSource, /if \(input\.workflowExecutionMode\)/);
+assert.match(controllerSource, /createTypedEntrypointProposalForMessage/);
+assert.match(controllerSource, /effect\?\.kind === 'goal_plan_draft'/);
+assert.match(controllerSource, /stageGoalPlanAgentLaunch\(nextSnapshot, command\)/);
+assert.match(controllerSource, /input\.suggestionAction/);
+assert.match(controllerSource, /runtimeResult\.decision\.coverage === 'full'/);
 assert.match(portSource, /attachedImageBlockIds/);
 assert.match(portSource, /localImagePaths/);
+assert.match(portSource, /Use at most one clarification turn/);
+assert.match(portSource, /no more than two short targeted questions/);
+assert.match(portSource, /Treat low-impact gaps as explicit assumptions/);
 assert.match(workspaceSource, /agent-workspace-quick-starts/);
+assert.match(workspaceSource, /agent-workspace-workflow-launch-settings/);
+assert.match(workspaceSource, /setWorkflowInteractionMode\('automatic'\)/);
+assert.match(workspaceSource, /setWorkflowInteractionMode\('manual'\)/);
+assert.match(workspaceSource, /conceptVariationCount/);
 assert.match(blockNodeSource, /operation-compact-node/);
 assert.doesNotMatch(composerSource, /onInvokeEntryPoint/);
 assert.match(sharedComposerSource, /listPackageEntryPoints/);
@@ -178,6 +250,12 @@ assert.deepEqual(parseAgentRuntimeDecision('{"kind":"reply","message":"No state 
   kind: 'reply',
   message: 'No state change.',
 });
+const noviceFacingReply = parseAgentRuntimeDecision(JSON.stringify({
+  kind: 'reply',
+  message: 'workflow_run_123 is needs_attention because block_456 is outdated; agent_run_789 is pending.',
+}), { ...parserContext, userMessage: '现在为什么没有继续？' });
+assert.equal(noviceFacingReply.kind, 'reply');
+assert.doesNotMatch(noviceFacingReply.message, /workflow_run_|agent_run_|block_|needs_attention|outdated|pending/);
 assert.throws(
   () => parseAgentRuntimeDecision('{"kind":"agent_run_control","message":"pause","action":"pause","agentRunId":"agent_run_foreign"}', parserContext),
   /outside the authorized scope/,
@@ -200,6 +278,38 @@ assert.throws(
   /outside the authorized scope/,
 );
 
+const workflowExecutionModeSnapshot = await emptySnapshot();
+const workflowExecutionModeSession = createAgentSession(
+  workflowExecutionModeSnapshot,
+  { model: 'test-model' },
+).session;
+const automaticMessage = appendAgentUserMessage(
+  workflowExecutionModeSnapshot,
+  workflowExecutionModeSession.agentSessionId,
+  {
+    content: '直接开始故事板 Workflow。',
+    contextRefs: [
+      { kind: 'entrypoint', entrypointId: 'workflow:retake.workflow.story-to-storyboard' },
+      { kind: 'workflow_interaction_mode', mode: 'automatic' },
+    ],
+  },
+);
+assert.deepEqual(
+  automaticMessage.contextRefs.find((ref) => ref.kind === 'workflow_interaction_mode'),
+  { kind: 'workflow_interaction_mode', mode: 'automatic' },
+);
+assert.throws(
+  () => appendAgentUserMessage(
+    workflowExecutionModeSnapshot,
+    workflowExecutionModeSession.agentSessionId,
+    {
+      content: '普通对话不能携带 Workflow 执行模式。',
+      contextRefs: [{ kind: 'workflow_interaction_mode', mode: 'manual' }],
+    },
+  ),
+  /requires one resolved Workflow EntryPoint/,
+);
+
 const operationSnapshot = await emptySnapshot();
 const legacyOperationDraft = createDraftTextToImageOperation(operationSnapshot, {
   operationTitle: 'Generate image',
@@ -219,6 +329,233 @@ const operationContext = agentRuntimeTurnContext(
   operationSnapshot,
   operationSession.agentSessionId,
   operationMessage.agentMessageId,
+);
+const workflowScopedDecision = parseAgentRuntimeDecision(JSON.stringify({
+  kind: 'operation_execute',
+  message: '好的，我会把画面里的饭粒减少并重新生成。',
+  operationBlockId: legacyOperationDraft.operationBlock.blockId,
+  operationPrompt: '蛋炒饭 IP 形象，减少表面饭粒数量，保留整体轮廓和温暖配色。',
+  suggestions: ['绑定 Operation 后重做'],
+}), {
+  ...operationContext,
+  agentRun: {
+    agentRunId: 'agent_run_workflow_scope',
+    allowedActions: ['pause', 'cancel'],
+    status: 'waiting_selection',
+    targetKind: 'workflow_run',
+    workflowSteps: [{
+      freshness: 'current',
+      label: '生成概念方向',
+      operationBlockId: legacyOperationDraft.operationBlock.blockId,
+      outputAssetIds: [],
+      status: 'waiting_selection',
+      stepId: 'generate_concepts',
+      stepRunId: 'step_run_generate_concepts',
+    }],
+  },
+});
+assert.deepEqual(workflowScopedDecision, {
+  bindingSource: 'workflow_scope',
+  kind: 'operation_execute',
+  message: '好的，我会把画面里的饭粒减少并重新生成。',
+  operationBlockId: legacyOperationDraft.operationBlock.blockId,
+  operationPrompt: '蛋炒饭 IP 形象，减少表面饭粒数量，保留整体轮廓和温暖配色。',
+}, 'An unambiguous Workflow correction must execute directly without technical suggestions.');
+const recoveredWorkflowCorrectionDecision = parseAgentRuntimeDecision(JSON.stringify({
+  kind: 'operation_create_execute',
+  message: '好的，我会把山羊改成两只角并重新生成两个方向。',
+  workflowStepId: 'generate_concepts',
+  operationBlockId: null,
+  operationPrompt: '山羊使用清晰的两只角，其他设计方向保持不变，重新生成两个独立候选。',
+  variationCount: 2,
+}), {
+  ...operationContext,
+  agentRun: {
+    agentRunId: 'agent_run_workflow_scope',
+    allowedActions: ['pause', 'cancel'],
+    status: 'waiting_selection',
+    targetKind: 'workflow_run',
+    workflowSteps: [{
+      freshness: 'current',
+      label: '生成概念方向',
+      operationBlockId: legacyOperationDraft.operationBlock.blockId,
+      outputAssetIds: [],
+      status: 'waiting_selection',
+      stepId: 'generate_concepts',
+      stepRunId: 'step_run_generate_concepts',
+    }],
+  },
+});
+assert.deepEqual(recoveredWorkflowCorrectionDecision, {
+  bindingSource: 'workflow_scope',
+  generationParams: { variationCount: 2 },
+  kind: 'operation_execute',
+  message: '我会按你的要求重新处理“生成概念方向”。',
+  operationBlockId: legacyOperationDraft.operationBlock.blockId,
+  operationPrompt: '山羊使用清晰的两只角，其他设计方向保持不变，重新生成两个独立候选。',
+}, 'A misclassified free Operation must be repaired into the AI-selected reached Workflow step.');
+const selectedOutputWorkflowContext = {
+  ...operationContext,
+  agentRun: {
+    agentRunId: 'agent_run_selected_workflow_output',
+    allowedActions: ['pause' as const, 'cancel' as const],
+    status: 'waiting_selection',
+    targetKind: 'workflow_run',
+    workflowSteps: [{
+      freshness: 'current' as const,
+      label: '生成概念方向',
+      operationBlockId: legacyOperationDraft.operationBlock.blockId,
+      outputAssetIds: ['asset_selected_concept'],
+      status: 'waiting_selection',
+      stepId: 'generate_concepts',
+      stepRunId: 'step_run_generate_concepts',
+    }],
+  },
+  boardReadModel: structuredClone(operationContext.boardReadModel),
+  selectedImageBlockIds: ['block_selected_concept'],
+};
+const selectedOutputOperation = selectedOutputWorkflowContext.boardReadModel.operations.find(
+  (operation) => operation.operationBlockId === legacyOperationDraft.operationBlock.blockId,
+);
+assert.ok(selectedOutputOperation);
+selectedOutputOperation.outputBlockIds = ['block_selected_concept'];
+const selectedOutputCorrection = parseAgentRuntimeDecision(JSON.stringify({
+  kind: 'operation_create_execute',
+  message: '重新生成这个结果。',
+  operationBlockId: null,
+  operationPrompt: '山羊使用清晰的两只角，重新生成两个独立候选。',
+  variationCount: 2,
+  workflowStepId: null,
+}), selectedOutputWorkflowContext);
+assert.equal(selectedOutputCorrection.kind, 'operation_execute');
+assert.equal(
+  selectedOutputCorrection.kind === 'operation_execute'
+    ? selectedOutputCorrection.operationBlockId
+    : undefined,
+  legacyOperationDraft.operationBlock.blockId,
+  'A selected current Workflow result must identify its owning reached step without asking again.',
+);
+const futureStepClarification = parseAgentRuntimeDecision(JSON.stringify({
+    kind: 'operation_execute',
+    message: '执行未来步骤。',
+    operationBlockId: legacyOperationDraft.operationBlock.blockId,
+    operationPrompt: 'future',
+  }), {
+    ...operationContext,
+    agentRun: {
+      agentRunId: 'agent_run_workflow_scope',
+      allowedActions: ['pause', 'cancel'],
+      status: 'running',
+      targetKind: 'workflow_run',
+      workflowSteps: [{
+        freshness: 'current',
+        label: '未来步骤',
+        operationBlockId: legacyOperationDraft.operationBlock.blockId,
+        outputAssetIds: [],
+        status: 'pending',
+        stepId: 'future',
+        stepRunId: 'step_run_future',
+      }],
+    },
+  });
+assert.equal(futureStepClarification.kind, 'reply');
+assert.doesNotMatch(
+  futureStepClarification.message,
+  /Operation|scope|Runtime|绑定|内部/i,
+  'An unreached target must become a user-facing clarification instead of an internal scope error.',
+);
+const ambiguousWorkflowCorrection = parseAgentRuntimeDecision(JSON.stringify({
+  kind: 'operation_execute',
+  message: '我需要确认你想修改哪一项。',
+  operationBlockId: 'block_unknown',
+  operationPrompt: '重新调整。',
+}), {
+  ...operationContext,
+  userMessage: '这个不对，重新做。',
+  agentRun: {
+    agentRunId: 'agent_run_ambiguous_workflow_scope',
+    allowedActions: ['pause', 'cancel'],
+    status: 'needs_attention',
+    targetKind: 'workflow_run',
+    workflowSteps: [{
+      freshness: 'current',
+      label: '定义 IP 角色',
+      operationBlockId: legacyOperationDraft.operationBlock.blockId,
+      outputAssetIds: [],
+      status: 'succeeded',
+      stepId: 'define_character',
+      stepRunId: 'step_run_define_character',
+    }, {
+      freshness: 'current',
+      label: '生成概念方向',
+      operationBlockId: 'block_other_reached_operation',
+      outputAssetIds: [],
+      status: 'succeeded',
+      stepId: 'generate_concepts',
+      stepRunId: 'step_run_generate_concepts',
+    }],
+  },
+});
+assert.equal(ambiguousWorkflowCorrection.kind, 'reply');
+assert.deepEqual(
+  ambiguousWorkflowCorrection.suggestions,
+  ['定义 IP 角色', '生成概念方向'],
+  'A genuinely ambiguous revision must offer user-facing step choices.',
+);
+const stalePrerequisiteDraft = createDraftTextToImageOperation(operationSnapshot, {
+  operationTitle: 'Refresh character sheet',
+  textBlockBody: 'Refresh the character sheet.',
+  textBlockTitle: 'Character sheet prompt',
+});
+const pendingApplicationDraft = createDraftTextToImageOperation(operationSnapshot, {
+  operationTitle: 'Generate application board',
+  textBlockBody: 'Generate the application board.',
+  textBlockTitle: 'Application board prompt',
+});
+const staleWorkflowContext = agentRuntimeTurnContext(
+  operationSnapshot,
+  operationSession.agentSessionId,
+  operationMessage.agentMessageId,
+);
+assert.deepEqual(
+  parseAgentRuntimeDecision(JSON.stringify({
+    kind: 'operation_execute',
+    message: '直接生成应用展示板。',
+    operationBlockId: pendingApplicationDraft.operationBlock.blockId,
+    operationPrompt: '生成应用展示板。',
+  }), {
+    ...staleWorkflowContext,
+    agentRun: {
+      agentRunId: 'agent_run_outdated_prerequisite',
+      allowedActions: ['pause', 'cancel'],
+      status: 'needs_attention',
+      targetKind: 'workflow_run',
+      workflowSteps: [{
+        freshness: 'outdated',
+        label: '生成角色设定图',
+        operationBlockId: stalePrerequisiteDraft.operationBlock.blockId,
+        outputAssetIds: ['asset_character_sheet_old'],
+        status: 'succeeded',
+        stepId: 'generate_character_sheet',
+        stepRunId: 'step_run_character_sheet',
+      }, {
+        freshness: 'current',
+        label: '生成应用展示板',
+        operationBlockId: pendingApplicationDraft.operationBlock.blockId,
+        outputAssetIds: [],
+        status: 'pending',
+        stepId: 'generate_application_board',
+        stepRunId: 'step_run_application_board',
+      }],
+    },
+  }),
+  {
+    bindingSource: 'workflow_scope',
+    kind: 'operation_execute',
+    message: '我会先更新“生成角色设定图”，完成后自动继续“生成应用展示板”。',
+    operationBlockId: stalePrerequisiteDraft.operationBlock.blockId,
+  },
+  'A pending downstream request must refresh its stale prerequisite instead of surfacing a scope error.',
 );
 const operationDecision = parseAgentRuntimeDecision(JSON.stringify({
   aspectRatioPreset: '9:16',
@@ -270,6 +607,190 @@ assert.equal(
     (candidate) => candidate.agentSessionId === operationSession.agentSessionId,
   )?.workingOperation?.operationBlockId,
   createdApplication.receipt.operationBlockId,
+);
+
+const workflowScopeSnapshot = structuredClone(operationSnapshot);
+const workflowScopeSession = createAgentSession(workflowScopeSnapshot, { model: 'test-model' }).session;
+workflowScopeSession.activeAgentRunId = 'agent_run_workflow_application';
+workflowScopeSnapshot.agentRuns?.push({
+  agentRunId: 'agent_run_workflow_application',
+  boardId: workflowScopeSnapshot.board.boardId,
+  createdAt: workflowScopeSnapshot.board.createdAt,
+  createdBy: 'user',
+  executionIds: [],
+  permissions: {
+    allowedToolPermissions: ['retake.execute_capability', 'retake.read'],
+    canCreateBlocks: false,
+    canDeleteAssets: false,
+    canInstallPackages: false,
+    canModifyWorkflow: false,
+  },
+  projectId: workflowScopeSnapshot.project.projectId,
+  recordVersion: 1,
+  runtimeKind: 'retake_orchestrator',
+  scope: {
+    allowedCapabilityIds: ['image.generate'],
+    allowedOperationBlockIds: [legacyOperationDraft.operationBlock.blockId],
+    allowedStepRunIds: ['step_run_generate_concepts'],
+    boardId: workflowScopeSnapshot.board.boardId,
+    projectId: workflowScopeSnapshot.project.projectId,
+    workflowRunId: 'workflow_run_application',
+  },
+  status: 'waiting_selection',
+  stopPolicy: { kind: 'workflow_terminal' },
+  target: {
+    kind: 'workflow_run',
+    workflowDefinitionLock: {
+      definitionHash: 'sha256:workflow',
+      version: '1.0.0',
+      workflowId: 'retake.workflow.ip-character-design',
+    },
+    workflowRunId: 'workflow_run_application',
+  },
+  updatedAt: workflowScopeSnapshot.board.updatedAt,
+});
+workflowScopeSnapshot.workflowStepRuns = [{
+  acceptedOutputAssetIds: [],
+  capabilityLock: {
+    capabilityId: 'image.generate',
+    definitionHash: 'sha256:image-generate',
+    version: '1.0.0',
+  },
+  createdAt: workflowScopeSnapshot.board.createdAt,
+  dependsOn: [],
+  executionIds: [],
+  freshness: 'current',
+  operationBlockId: legacyOperationDraft.operationBlock.blockId,
+  outputAcceptancePolicy: 'manual_select',
+  outputArtifactBindings: [],
+  outputAssetIds: [],
+  outputBlockIds: [],
+  outputSlotIds: ['image'],
+  recordVersion: 1,
+  resolvedInputBindings: [],
+  skillLock: {
+    definitionHash: 'sha256:skill',
+    skillId: 'retake.skill.image.generate',
+    version: '1.0.0',
+  },
+  status: 'waiting_selection',
+  stepId: 'generate_concepts',
+  stepRunId: 'step_run_generate_concepts',
+  updatedAt: workflowScopeSnapshot.board.updatedAt,
+  workflowRunId: 'workflow_run_application',
+}];
+const workflowCorrectionMessage = appendAgentUserMessage(
+  workflowScopeSnapshot,
+  workflowScopeSession.agentSessionId,
+  { content: '饭粒太密了，减少一些，其他设计保持不变。' },
+);
+const workflowCorrectionTurn = applyAgentRuntimeTurn(workflowScopeSnapshot, {
+  agentSessionId: workflowScopeSession.agentSessionId,
+  decision: recoveredWorkflowCorrectionDecision,
+  externalThreadId: 'thread_workflow_correction',
+  runtimeModel: 'test-model',
+  runtimeTurnId: 'turn_workflow_correction',
+  sourceMessageId: workflowCorrectionMessage.agentMessageId,
+});
+const futureWorkflowScopeSnapshot = structuredClone(workflowScopeSnapshot);
+futureWorkflowScopeSnapshot.workflowStepRuns![0]!.status = 'pending';
+assert.throws(
+  () => stageAgentOperationExecution(
+    futureWorkflowScopeSnapshot,
+    workflowCorrectionTurn.operationExecution!,
+    {
+      connectionIdForCapability: () => 'codex-app-server',
+      operationTitle: 'Generate image',
+      promptTitle: 'Prompt',
+    },
+  ),
+  /not explicitly bound/,
+  'Application validation must not execute an unreached future Workflow step.',
+);
+const workflowCorrectionApplication = stageAgentOperationExecution(
+  workflowScopeSnapshot,
+  workflowCorrectionTurn.operationExecution!,
+  {
+    connectionIdForCapability: () => 'codex-app-server',
+    operationTitle: 'Generate image',
+    promptTitle: 'Prompt',
+  },
+);
+assert.equal(workflowCorrectionApplication.receipt.action, 'continued');
+assert.equal(
+  workflowCorrectionApplication.stagedSnapshot.blocks.find(
+    (block) => block.blockId === legacyOperationDraft.textBlock.blockId,
+  )?.data.body,
+  'Old prompt.',
+  'A Workflow chat correction must preserve the original input Block as revision history.',
+);
+assert.equal(
+  workflowCorrectionApplication.stagedSnapshot.blocks.find(
+    (block) => block.blockId === legacyOperationDraft.operationBlock.blockId,
+  )?.data.executionAdjustmentInstruction,
+  recoveredWorkflowCorrectionDecision.kind === 'operation_execute'
+    ? recoveredWorkflowCorrectionDecision.operationPrompt
+    : undefined,
+);
+assert.equal(
+  workflowCorrectionApplication.stagedSnapshot.agentSessions?.find(
+    (candidate) => candidate.agentSessionId === workflowScopeSession.agentSessionId,
+  )?.workingOperation?.source,
+  'workflow_scope',
+);
+const documentWorkflowScopeSnapshot = structuredClone(workflowScopeSnapshot);
+const documentPromptBlock = documentWorkflowScopeSnapshot.blocks.find(
+  (block) => block.blockId === legacyOperationDraft.textBlock.blockId,
+);
+assert.ok(documentPromptBlock);
+documentPromptBlock.type = 'document';
+documentPromptBlock.data = {
+  ...documentPromptBlock.data,
+  assetId: 'asset_character_bible',
+  body: undefined,
+  title: '蛋炒饭小饭店 IP 角色圣经',
+};
+documentWorkflowScopeSnapshot.assets.push({
+  assetId: 'asset_character_bible',
+  createdAt: documentWorkflowScopeSnapshot.board.createdAt,
+  kind: 'document',
+  mimeType: 'text/markdown',
+  previewUrl: '',
+  projectId: documentWorkflowScopeSnapshot.project.projectId,
+  storageKey: 'documents/character-bible.md',
+  storageProvider: 'local_mock',
+});
+const documentWorkflowCorrection = stageAgentOperationExecution(
+  documentWorkflowScopeSnapshot,
+  workflowCorrectionTurn.operationExecution!,
+  {
+    connectionIdForCapability: () => 'codex-app-server',
+    operationTitle: 'Generate image',
+    promptTitle: 'Prompt',
+  },
+);
+assert.equal(
+  documentWorkflowCorrection.stagedSnapshot.blocks.find(
+    (block) => block.blockId === documentPromptBlock.blockId,
+  )?.data.title,
+  '蛋炒饭小饭店 IP 角色圣经',
+  'A Workflow correction must preserve the accepted upstream Document.',
+);
+assert.equal(
+  documentWorkflowCorrection.stagedSnapshot.blocks.find(
+    (block) => block.blockId === legacyOperationDraft.operationBlock.blockId,
+  )?.data.executionAdjustmentInstruction,
+  recoveredWorkflowCorrectionDecision.kind === 'operation_execute'
+    ? recoveredWorkflowCorrectionDecision.operationPrompt
+    : undefined,
+  'A Document-backed image Step must keep the correction on the current Operation.',
+);
+assert.equal(
+  documentWorkflowCorrection.stagedSnapshot.blocks.find(
+    (block) => block.blockId === legacyOperationDraft.operationBlock.blockId,
+  )?.data.generationParams?.variationCount,
+  2,
+  'A run-local Workflow correction must apply the requested candidate count to the rerun only.',
 );
 assert.deepEqual(
   createdApplication.stagedSnapshot.agentMessages?.find(
@@ -886,6 +1407,44 @@ const attachDecision = decideChangeProposal(snapshot, {
 assert.equal(attachDecision.proposal.status, 'applied');
 assert.equal(created.session.activeAgentRunId, secondRun.record.agentRunId);
 
+const resolvedBlockerSnapshot = structuredClone(snapshot);
+const resolvedBlockerSession = resolvedBlockerSnapshot.agentSessions?.find(
+  (candidate) => candidate.agentSessionId === created.session.agentSessionId,
+);
+const resolvedBlockerRun = resolvedBlockerSnapshot.agentRuns?.find(
+  (candidate) => candidate.agentRunId === secondRun.record.agentRunId,
+);
+assert.ok(resolvedBlockerSession);
+assert.ok(resolvedBlockerRun);
+const resolvedBlockerRequest = appendAgentUserMessage(
+  resolvedBlockerSnapshot,
+  resolvedBlockerSession.agentSessionId,
+  { content: '等当前流程结束后再开始新的 IP 设计。' },
+);
+const resolvedBlockerTurn = applyAgentRuntimeTurn(resolvedBlockerSnapshot, {
+  agentSessionId: resolvedBlockerSession.agentSessionId,
+  decision: {
+    kind: 'change_proposal',
+    message: '请先完成当前流程。',
+    proposalKind: 'out_of_scope',
+    proposedCommand: { kind: 'unsupported', reason: 'The current Workflow is not finished.' },
+    summary: '待当前流程结束后再开始新流程。',
+  },
+  externalThreadId: 'thread_test_001',
+  runtimeModel: 'test-model',
+  runtimeTurnId: 'turn_test_resolved_blocker',
+  sourceMessageId: resolvedBlockerRequest.agentMessageId,
+});
+assert.ok(resolvedBlockerTurn.proposal);
+resolvedBlockerRun.status = 'succeeded';
+assert.equal(
+  isResolvedAgentRunBlockerProposal(resolvedBlockerSnapshot, resolvedBlockerTurn.proposal),
+  true,
+);
+assert.equal(supersedeResolvedAgentRunBlockerProposals(resolvedBlockerSnapshot), true);
+assert.equal(resolvedBlockerTurn.proposal.status, 'superseded');
+assert.equal(supersedeResolvedAgentRunBlockerProposals(resolvedBlockerSnapshot), false);
+
 appendAgentRuntimeEvent(snapshot, {
   event: {
     agentSessionId: created.session.agentSessionId,
@@ -919,6 +1478,38 @@ assert.deepEqual(runtimeEventsForSession(snapshot, created.session.agentSessionI
 
 const secondSession = createAgentSession(snapshot, { title: 'Second session' });
 assert.equal(activeBoardAgentSessions(snapshot).length, 2);
+assert.equal(
+  secondSession.session.activeAgentRunId,
+  undefined,
+  'A new Agent Session must not inherit the latest Board-global Agent Run.',
+);
+const duplicateRunSnapshot = structuredClone(snapshot);
+const duplicateFirst = duplicateRunSnapshot.agentSessions?.find(
+  (candidate) => candidate.agentSessionId === created.session.agentSessionId,
+);
+const duplicateSecond = duplicateRunSnapshot.agentSessions?.find(
+  (candidate) => candidate.agentSessionId === secondSession.session.agentSessionId,
+);
+assert.ok(duplicateFirst && duplicateSecond);
+assert.ok(duplicateFirst.activeAgentRunId);
+const duplicatedAgentRunId = duplicateFirst.activeAgentRunId;
+duplicateSecond.activeAgentRunId = duplicatedAgentRunId;
+duplicateSecond.createdAt = '2099-01-01T00:00:00.000Z';
+delete duplicateRunSnapshot.agentSessionRunMigrationVersion;
+const migratedAgentRunOwnership = migrateBoardSnapshot(duplicateRunSnapshot);
+assert.equal(
+  migratedAgentRunOwnership.agentSessions?.find(
+    (candidate) => candidate.agentSessionId === duplicateFirst.agentSessionId,
+  )?.activeAgentRunId,
+  duplicatedAgentRunId,
+);
+assert.equal(
+  migratedAgentRunOwnership.agentSessions?.find(
+    (candidate) => candidate.agentSessionId === duplicateSecond.agentSessionId,
+  )?.activeAgentRunId,
+  undefined,
+  'Legacy duplicate Agent Run bindings must keep the earliest owning Session only.',
+);
 assert.throws(
   () => setAgentSessionRun(snapshot, secondSession.session.agentSessionId, 'agent_run_foreign'),
   /outside the current Board scope/,
@@ -996,6 +1587,97 @@ assert.deepEqual(attachmentContext.imageReferenceSettings, [{
   mode: 'source',
 }]);
 assert.equal(attachmentContext.agentPreferences?.outputType, 'image');
+const forcedImageContext = structuredClone(attachmentContext);
+forcedImageContext.attachedImageBlockIds = [];
+forcedImageContext.imageReferenceSettings = [];
+forcedImageContext.mentionedImageBlockIds = [];
+forcedImageContext.mentions = [];
+forcedImageContext.selectedImageBlockIds = [];
+forcedImageContext.workingOutputImageBlockIds = [];
+const forcedImageDecision = parseAgentRuntimeDecision(JSON.stringify({
+    kind: 'reply',
+    message: '我先只说明一下。',
+    suggestions: [],
+  }), forcedImageContext);
+assert.equal(forcedImageDecision.kind, 'operation_create_execute');
+assert.equal(
+  forcedImageDecision.kind === 'operation_create_execute'
+    ? forcedImageDecision.capabilityId
+    : undefined,
+  'image.generate',
+  'An explicit image output preference must create an image Operation instead of degrading to text.',
+);
+assert.deepEqual(
+  forcedImageDecision.kind === 'operation_create_execute'
+    ? forcedImageDecision.generationParams
+    : undefined,
+  { targetResolution: '2K', variationCount: 2 },
+);
+const forcedImageSnapshot = await emptySnapshot();
+const forcedImageSession = createAgentSession(
+  forcedImageSnapshot,
+  { model: 'test-model' },
+).session;
+const forcedImageMessage = appendAgentUserMessage(
+  forcedImageSnapshot,
+  forcedImageSession.agentSessionId,
+  {
+    content: '画一张红色纸飞机飞过蓝天的图片。',
+    contextRefs: [{
+      kind: 'agent_preferences',
+      outputType: 'image',
+      targetResolution: '2K',
+      variationCount: 2,
+    }],
+  },
+);
+const forcedImageRuntimeContext = agentRuntimeTurnContext(
+  forcedImageSnapshot,
+  forcedImageSession.agentSessionId,
+  forcedImageMessage.agentMessageId,
+);
+const forcedImageRuntimeDecision = parseAgentRuntimeDecision(JSON.stringify({
+  kind: 'reply',
+  message: '我先描述一下构图。',
+  suggestions: [],
+}), forcedImageRuntimeContext);
+const forcedImageTurn = applyAgentRuntimeTurn(forcedImageSnapshot, {
+  agentSessionId: forcedImageSession.agentSessionId,
+  decision: forcedImageRuntimeDecision,
+  externalThreadId: 'thread_forced_image_preference',
+  runtimeModel: 'test-model',
+  runtimeTurnId: 'turn_forced_image_preference',
+  sourceMessageId: forcedImageMessage.agentMessageId,
+});
+const forcedImageApplication = stageAgentOperationExecution(
+  forcedImageSnapshot,
+  forcedImageTurn.operationExecution!,
+  {
+    connectionIdForCapability: () => 'codex-app-server',
+    operationTitle: 'Generate image',
+    promptTitle: 'Prompt',
+  },
+);
+const forcedImageOperation = forcedImageApplication.stagedSnapshot.blocks.find(
+  (block) => block.blockId === forcedImageApplication.receipt.operationBlockId,
+);
+assert.equal(forcedImageApplication.receipt.action, 'created');
+assert.equal(forcedImageOperation?.data.capabilityId, 'image.generate');
+assert.equal(forcedImageOperation?.data.connectionId, 'codex-app-server');
+const automaticOutputContext = structuredClone(attachmentContext);
+automaticOutputContext.agentPreferences = {
+  kind: 'agent_preferences',
+  outputType: 'auto',
+};
+assert.equal(
+  parseAgentRuntimeDecision(JSON.stringify({
+    kind: 'reply',
+    message: '可以先讨论方向。',
+    suggestions: [],
+  }), automaticOutputContext).kind,
+  'reply',
+  'Agent-decides output preference must continue to allow text replies.',
+);
 const attachmentDecision = parseAgentRuntimeDecision(JSON.stringify({
   kind: 'operation_create_execute',
   message: '创建一个基于附件的新版本。',
@@ -1028,6 +1710,110 @@ assert.equal(
   'source',
 );
 assert.deepEqual(attachmentDecision.suggestions, ['继续调整灯光']);
+
+const suggestionSnapshot = await emptySnapshot();
+const suggestionSession = createAgentSession(
+  suggestionSnapshot,
+  { model: 'test-model' },
+).session;
+const suggestionPrompt = appendAgentUserMessage(
+  suggestionSnapshot,
+  suggestionSession.agentSessionId,
+  { content: '给我下一步选项。' },
+);
+const suggestionTurn = applyAgentRuntimeTurn(suggestionSnapshot, {
+  agentSessionId: suggestionSession.agentSessionId,
+  decision: {
+    kind: 'reply',
+    message: '可以直接继续。',
+    suggestions: ['规划完整流程'],
+  },
+  externalThreadId: 'thread_suggestion_action',
+  runtimeModel: 'test-model',
+  runtimeTurnId: 'turn_suggestion_action',
+  sourceMessageId: suggestionPrompt.agentMessageId,
+});
+const suggestionActionMessage = appendAgentUserMessage(
+  suggestionSnapshot,
+  suggestionSession.agentSessionId,
+  {
+    content: '规划完整流程',
+    contextRefs: [{
+      action: 'run',
+      kind: 'agent_suggestion_action',
+      sourceMessageId: suggestionTurn.assistantMessage.agentMessageId,
+    }],
+  },
+);
+assert.equal(
+  suggestionActionMessage.contextRefs[0]?.kind,
+  'agent_suggestion_action',
+  'A clicked suggestion must persist its exact assistant-message authorization.',
+);
+const suggestedOperation = createBlockRecord(suggestionSnapshot, 'operation');
+suggestedOperation.data = {
+  ...suggestedOperation.data,
+  title: 'Define IP character',
+  capabilityId: 'design.ip_character.define',
+};
+suggestionSnapshot.blocks.push(suggestedOperation);
+const executableSuggestionPrompt = appendAgentUserMessage(
+  suggestionSnapshot,
+  suggestionSession.agentSessionId,
+  { content: 'Which Operation is ready?' },
+);
+const executableSuggestionTurn = applyAgentRuntimeTurn(suggestionSnapshot, {
+  agentSessionId: suggestionSession.agentSessionId,
+  decision: {
+    kind: 'reply',
+    message: 'The first IP step is ready.',
+    suggestions: [`Execute Define IP character (${suggestedOperation.blockId})`],
+  },
+  externalThreadId: 'thread_operation_suggestion',
+  runtimeModel: 'test-model',
+  runtimeTurnId: 'turn_operation_suggestion',
+  sourceMessageId: executableSuggestionPrompt.agentMessageId,
+});
+const executableSuggestionMessage = appendAgentUserMessage(
+  suggestionSnapshot,
+  suggestionSession.agentSessionId,
+  {
+    content: `Execute Define IP character (${suggestedOperation.blockId})`,
+    contextRefs: [
+      {
+        action: 'run',
+        kind: 'agent_suggestion_action',
+        sourceMessageId: executableSuggestionTurn.assistantMessage.agentMessageId,
+      },
+      { kind: 'operation', operationBlockId: suggestedOperation.blockId },
+    ],
+  },
+);
+const authorizedSuggestion = applyAuthorizedOperationSuggestion(suggestionSnapshot, {
+  agentSessionId: suggestionSession.agentSessionId,
+  operationBlockId: suggestedOperation.blockId,
+  sourceMessageId: executableSuggestionMessage.agentMessageId,
+});
+assert.equal(authorizedSuggestion.operationExecution.kind, 'execute_existing');
+assert.equal(
+  authorizedSuggestion.operationExecution.decision.operationBlockId,
+  suggestedOperation.blockId,
+);
+assert.throws(
+  () => appendAgentUserMessage(
+    suggestionSnapshot,
+    suggestionSession.agentSessionId,
+    {
+      content: '另一个动作',
+      contextRefs: [{
+        action: 'run',
+        kind: 'agent_suggestion_action',
+        sourceMessageId: suggestionTurn.assistantMessage.agentMessageId,
+      }],
+    },
+  ),
+  /not bound to an exact assistant suggestion/,
+);
 
 const multiReferenceSnapshot = await emptySnapshot();
 const compositionReference = addTestImageBlock(multiReferenceSnapshot, '左侧构图参考');
@@ -1209,6 +1995,7 @@ console.log(JSON.stringify({
   agentPreferences: true,
   dynamicSuggestions: true,
   multiImageAgentReferences: true,
+  workflowInteractionMode: true,
 }));
 
 async function emptySnapshot(): Promise<BoardSnapshot> {

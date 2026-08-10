@@ -8,6 +8,16 @@ export type TranslationKey =
   | 'autosave.saved'
   | 'autosave.saving'
   | 'autosave.retry'
+  | 'canvasActivity.boardWriting'
+  | 'canvasActivity.agentPlanning'
+  | 'canvasActivity.agentWorking'
+  | 'canvasActivity.locate'
+  | 'canvasActivity.preparing'
+  | 'canvasActivity.providerGenerating'
+  | 'canvasActivity.providerStarting'
+  | 'canvasActivity.resultImporting'
+  | 'canvasActivity.running'
+  | 'canvasActivity.systemRunning'
   | 'workspace.loadingTitle'
   | 'workspace.loadingBody'
   | 'workspace.loadErrorTitle'
@@ -443,9 +453,17 @@ export type TranslationKey =
   | 'skillComposer.imageAttachmentOnly'
   | 'skillComposer.auto'
   | 'skillComposer.autoPreferences'
+  | 'skillComposer.workflowExecutionMode'
+  | 'skillComposer.workflowAutomatic'
+  | 'skillComposer.workflowManual'
+  | 'skillComposer.planFirst'
+  | 'skillComposer.runNow'
   | 'skillComposer.taskPreferences'
   | 'skillComposer.agentDecides'
   | 'skillComposer.outputType'
+  | 'skillComposer.outputPreferences'
+  | 'skillComposer.workflowImageDefaults'
+  | 'skillComposer.workflowImageSettings'
   | 'skillComposer.selectedMentions'
   | 'skillComposer.removeMention'
   | 'skillComposer.mentionLibrary'
@@ -771,6 +789,11 @@ export type TranslationKey =
   | 'workflowAuthoring.noCompatibleSkills'
   | 'workflowAuthoring.noCapabilities'
   | 'workflowAuthoring.noDraft'
+  | 'workflowAuthoring.imageStepParameters'
+  | 'workflowAuthoring.inheritWorkflowDefault'
+  | 'workflowAuthoring.defaultCandidateCount'
+  | 'workflowAuthoring.fixedCandidateCount'
+  | 'workflowAuthoring.useSystemDefault'
   | 'workflowAuthoring.noValidationIssues'
   | 'workflowAuthoring.optional'
   | 'workflowAuthoring.previewCapture'
@@ -849,6 +872,19 @@ export type TranslationKey =
   | 'agentWorkspace.effect'
   | 'agentWorkspace.goal'
   | 'agentWorkspace.goalPlan'
+  | 'agentWorkspace.recommendedWorkflow'
+  | 'agentWorkspace.recommendedSkill'
+  | 'agentWorkspace.skillConfirmHint'
+  | 'agentWorkspace.skipSkill'
+  | 'agentWorkspace.useSkill'
+  | 'agentWorkspace.workflowConfirmHint'
+  | 'agentWorkspace.workflowAutomaticDescription'
+  | 'agentWorkspace.workflowManualDescription'
+  | 'agentWorkspace.workflowMultipleCandidatesPause'
+  | 'agentWorkspace.conceptCandidateCount'
+  | 'agentWorkspace.workflowStepCount'
+  | 'agentWorkspace.useWorkflow'
+  | 'agentWorkspace.skipWorkflow'
   | 'agentWorkspace.coverage'
   | 'agentWorkspace.planScope'
   | 'agentWorkspace.renameSession'
@@ -857,6 +893,8 @@ export type TranslationKey =
   | 'agentWorkspace.limitation'
   | 'agentWorkspace.goalLaunchWarning'
   | 'agentWorkspace.history'
+  | 'agentWorkspace.taskOverview'
+  | 'agentWorkspace.activeTaskCount'
   | 'agentWorkspace.emptyBody'
   | 'agentWorkspace.emptyTitle'
   | 'agentWorkspace.eyebrow'
@@ -873,6 +911,16 @@ export type TranslationKey =
   | 'agentWorkspace.intervention.provider_authorization.title'
   | 'agentWorkspace.intervention.selection.body'
   | 'agentWorkspace.intervention.selection.title'
+  | 'agentWorkspace.workflowApprovalApproveComplete'
+  | 'agentWorkspace.workflowApprovalApproveContinue'
+  | 'agentWorkspace.workflowApprovalBody'
+  | 'agentWorkspace.workflowApprovalCancel'
+  | 'agentWorkspace.workflowApprovalChecklist'
+  | 'agentWorkspace.workflowApprovalFinalTitle'
+  | 'agentWorkspace.workflowApprovalHeader'
+  | 'agentWorkspace.workflowApprovalLocate'
+  | 'agentWorkspace.workflowApprovalRevise'
+  | 'agentWorkspace.workflowApprovalWaiting'
   | 'agentWorkspace.launchAgent'
   | 'agentWorkspace.launching'
   | 'agentWorkspace.launchReady'
@@ -891,6 +939,7 @@ export type TranslationKey =
   | 'agentWorkspace.useDefaultRuntime'
   | 'agentWorkspace.messageCopied'
   | 'agentWorkspace.noMatchingSessions'
+  | 'agentWorkspace.noTask'
   | 'agentWorkspace.noRun'
   | 'agentWorkspace.noSession'
   | 'agentWorkspace.open'
@@ -934,7 +983,25 @@ export type TranslationKey =
   | 'agentWorkspace.workflowArtifacts'
   | 'agentWorkspace.workflowActive'
   | 'agentWorkspace.workflowAttached'
+  | 'agentWorkspace.workflowTaskFallback'
   | 'agentWorkspace.workflowAttention'
+  | 'agentWorkspace.workflowAttentionBody'
+  | 'agentWorkspace.workflowAttentionBodyExecutionFailed'
+  | 'agentWorkspace.workflowAttentionBodyExecutionMissing'
+  | 'agentWorkspace.workflowAttentionBodyOutdated'
+  | 'agentWorkspace.workflowAttentionBodyReviewNotReady'
+  | 'agentWorkspace.workflowAttentionBodyRetiredDefinition'
+  | 'agentWorkspace.workflowAttentionAskAgent'
+  | 'agentWorkspace.workflowAttentionAskAgentPrompt'
+  | 'agentWorkspace.workflowAttentionHeader'
+  | 'agentWorkspace.workflowAttentionPrepareReview'
+  | 'agentWorkspace.workflowAttentionPrepareReviewFailed'
+  | 'agentWorkspace.workflowAttentionPrepareReviewFailedBody'
+  | 'agentWorkspace.workflowAttentionPreparingReview'
+  | 'agentWorkspace.workflowAttentionRetry'
+  | 'agentWorkspace.workflowAttentionRetryResults'
+  | 'agentWorkspace.workflowAttentionRetrying'
+  | 'agentWorkspace.workflowAttentionWaiting'
   | 'agentWorkspace.workflowBoardRun'
   | 'agentWorkspace.workflowBlocked'
   | 'agentWorkspace.workflowCurrent'
@@ -946,6 +1013,37 @@ export type TranslationKey =
   | 'agentWorkspace.workflowProgress'
   | 'agentWorkspace.workflowRevision'
   | 'agentWorkspace.workflowRuns'
+  | 'agentWorkspace.workflowStep'
+  | 'agentWorkspace.workflowStepReady'
+  | 'agentWorkspace.workflowStepRunning'
+  | 'agentWorkspace.workflowStepSucceeded'
+  | 'agentWorkspace.workflowStepWaitingInput'
+  | 'agentWorkspace.workflowStepWaitingSelection'
+  | 'agentWorkspace.workflowStepNeedsAttention'
+  | 'agentWorkspace.workflowViewResult'
+  | 'agentWorkspace.workflowCandidate'
+  | 'agentWorkspace.workflowCandidateSingle'
+  | 'agentWorkspace.workflowCandidateMultiple'
+  | 'agentWorkspace.workflowCandidatePreparing'
+  | 'agentWorkspace.workflowAcceptContinue'
+  | 'agentWorkspace.workflowUseCandidate'
+  | 'agentWorkspace.workflowRegenerate'
+  | 'agentWorkspace.workflowLocateStep'
+  | 'agentWorkspace.workflowDirectStartSummary'
+  | 'agentWorkspace.startWorkflow'
+  | 'agentWorkspace.workflowTimeline'
+  | 'agentWorkspace.workflowTimelineHide'
+  | 'agentWorkspace.workflowTimelineShow'
+  | 'agentWorkspace.workflowTimelineRun'
+  | 'agentWorkspace.workflowTimelineStep'
+  | 'agentWorkspace.workflowTimelineExecution'
+  | 'agentWorkspace.workflowTimelineArtifact'
+  | 'agentWorkspace.workflowTimelineGate'
+  | 'agentWorkspace.workflowTimelineCreated'
+  | 'agentWorkspace.workflowTimelineArtifactReady'
+  | 'agentWorkspace.workflowTimelineGateWaiting'
+  | 'agentWorkspace.workflowTimelineGatePassed'
+  | 'agentWorkspace.workflowTimelineGateFailed'
   | 'agentWorkspace.workflowStepRole.blocked'
   | 'agentWorkspace.workflowStepRole.current'
   | 'agentWorkspace.workflowStepRole.done'
@@ -1141,7 +1239,9 @@ export type TranslationKey =
   | 'packageLibrary.checkUpdates'
   | 'packageLibrary.dismissUpdates'
   | 'packageLibrary.dismissFailures'
+  | 'packageLibrary.candidateFailuresBanner'
   | 'packageLibrary.failuresIsolatedBanner'
+  | 'packageLibrary.hideFailureDetails'
   | 'packageLibrary.reviewUpdates'
   | 'packageLibrary.updateAvailable'
   | 'packageLibrary.updateCheckError'
@@ -1149,6 +1249,7 @@ export type TranslationKey =
   | 'packageLibrary.updatePinned'
   | 'packageLibrary.updateUnsupported'
   | 'packageLibrary.updatesAvailableBanner'
+  | 'packageLibrary.viewFailureDetails'
   | 'settings.keyboardShortcuts'
   | 'settings.generationProfiles'
   | 'settings.generationProfileBuiltin'
@@ -1298,6 +1399,16 @@ const translations: Record<Locale, Translations> = {
     'autosave.saved': 'All changes saved locally',
     'autosave.saving': 'Saving locally',
     'autosave.retry': 'Autosave failed. Retry saving',
+    'canvasActivity.boardWriting': 'Writing the result back to the Board',
+    'canvasActivity.agentPlanning': 'Understanding and planning the task',
+    'canvasActivity.agentWorking': 'Agent is working',
+    'canvasActivity.locate': 'Locate the running Operation on the Board',
+    'canvasActivity.preparing': 'Preparing this task',
+    'canvasActivity.providerGenerating': 'The image connection is generating',
+    'canvasActivity.providerStarting': 'Submitting to the image connection',
+    'canvasActivity.resultImporting': 'Importing the generated result',
+    'canvasActivity.running': 'The system is working',
+    'canvasActivity.systemRunning': 'Retake is working',
     'workspace.loadingTitle': 'Loading workspace',
     'workspace.loadingBody': 'Waiting for the Retake local service to load the current board.',
     'workspace.loadErrorTitle': 'Workspace unavailable',
@@ -1733,9 +1844,17 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.imageAttachmentOnly': 'Direct image and video creation only accepts image attachments.',
     'skillComposer.auto': 'Auto',
     'skillComposer.autoPreferences': 'Auto',
+    'skillComposer.workflowExecutionMode': 'Workflow execution',
+    'skillComposer.workflowAutomatic': 'Automatic',
+    'skillComposer.workflowManual': 'Manual',
+    'skillComposer.planFirst': 'Plan first',
+    'skillComposer.runNow': 'Run now',
     'skillComposer.taskPreferences': 'Task preferences',
     'skillComposer.agentDecides': 'Let Agent decide',
     'skillComposer.outputType': 'Output type',
+    'skillComposer.outputPreferences': 'Output preferences',
+    'skillComposer.workflowImageDefaults': 'Image generation defaults',
+    'skillComposer.workflowImageSettings': 'Image settings',
     'skillComposer.selectedMentions': 'Referenced inputs',
     'skillComposer.removeMention': 'Remove reference',
     'skillComposer.mentionLibrary': 'Compatible blocks and assets',
@@ -2037,6 +2156,19 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.effect': 'Effect',
     'agentWorkspace.goal': 'Goal',
     'agentWorkspace.goalPlan': 'Goal Plan',
+    'agentWorkspace.recommendedWorkflow': 'Recommended workflow',
+    'agentWorkspace.recommendedSkill': 'Recommended creative method',
+    'agentWorkspace.skillConfirmHint': 'Confirm to use this focused method and start now. It will not start or change a workflow.',
+    'agentWorkspace.skipSkill': 'Not now',
+    'agentWorkspace.useSkill': 'Use this method and start',
+    'agentWorkspace.workflowConfirmHint': 'Confirm to create and start this workflow. Retake will pause here again whenever your choice is needed.',
+    'agentWorkspace.workflowAutomaticDescription': 'Continue when the next action is unambiguous.',
+    'agentWorkspace.workflowManualDescription': 'Pause after each key result for your confirmation.',
+    'agentWorkspace.workflowMultipleCandidatesPause': 'Automatic mode will still pause when several visual candidates need your choice.',
+    'agentWorkspace.conceptCandidateCount': 'Concept directions',
+    'agentWorkspace.workflowStepCount': 'Steps',
+    'agentWorkspace.useWorkflow': 'Use this workflow',
+    'agentWorkspace.skipWorkflow': 'Not now',
     'agentWorkspace.coverage': 'Coverage',
     'agentWorkspace.planScope': 'Plan scope',
     'agentWorkspace.renameSession': 'Rename Agent',
@@ -2045,14 +2177,16 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.limitation': 'Limitation',
     'agentWorkspace.goalLaunchWarning': 'Starting only authorizes the locked Workflow orchestration. Gates, candidate selection, and external Provider actions still require their own explicit decisions.',
     'agentWorkspace.history': 'Conversation history',
+    'agentWorkspace.taskOverview': 'Agent tasks',
+    'agentWorkspace.activeTaskCount': '{count} active',
     'agentWorkspace.emptyBody': 'Sessions keep Board-scoped conversation history and can attach to one existing Agent Run.',
     'agentWorkspace.emptyTitle': 'Start a Board Agent session',
     'agentWorkspace.eyebrow': 'Board Agent',
     'agentWorkspace.inputPlaceholder': 'Ask about this Board or request an allowed Run action…',
     'agentWorkspace.instruction': 'Instruction',
     'agentWorkspace.intervention': 'Required user action',
-    'agentWorkspace.intervention.approval.body': 'Review the current result on canvas, then explicitly approve or reject its Gate.',
-    'agentWorkspace.intervention.approval.title': 'A Gate needs your decision',
+    'agentWorkspace.intervention.approval.body': 'Confirm the current result directly in Agent. You can approve it, request changes, or cancel this workflow.',
+    'agentWorkspace.intervention.approval.title': 'This result needs your confirmation',
     'agentWorkspace.intervention.attention.body': 'Inspect the affected Operation on canvas before retrying or changing its inputs.',
     'agentWorkspace.intervention.attention.title': 'This Run needs attention',
     'agentWorkspace.intervention.input.body': 'Complete the required input on the affected Operation. The Agent will not invent missing input.',
@@ -2061,6 +2195,16 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.intervention.provider_authorization.title': 'Provider authorization required',
     'agentWorkspace.intervention.selection.body': 'Review the generated candidates on canvas and explicitly choose the accepted result.',
     'agentWorkspace.intervention.selection.title': 'Choose an accepted result',
+    'agentWorkspace.workflowApprovalApproveComplete': 'Approve and finish',
+    'agentWorkspace.workflowApprovalApproveContinue': 'Approve and continue',
+    'agentWorkspace.workflowApprovalBody': 'Confirm whether this result meets your needs. Approving will move the workflow forward; choose “Needs changes” and tell me what to adjust if it does not.',
+    'agentWorkspace.workflowApprovalCancel': 'Cancel workflow',
+    'agentWorkspace.workflowApprovalChecklist': 'What to review',
+    'agentWorkspace.workflowApprovalFinalTitle': 'Final review',
+    'agentWorkspace.workflowApprovalHeader': 'Your confirmation is needed',
+    'agentWorkspace.workflowApprovalLocate': 'View on canvas',
+    'agentWorkspace.workflowApprovalRevise': 'Needs changes',
+    'agentWorkspace.workflowApprovalWaiting': 'Waiting for review',
     'agentWorkspace.launchAgent': 'Start Agent',
     'agentWorkspace.launching': 'Starting…',
     'agentWorkspace.launchReady': 'Inputs are ready for execution.',
@@ -2079,6 +2223,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.useDefaultRuntime': 'Use default runtime',
     'agentWorkspace.messageCopied': 'Message copied',
     'agentWorkspace.noMatchingSessions': 'No matching conversations.',
+    'agentWorkspace.noTask': 'No task yet',
     'agentWorkspace.noRun': 'No Agent Run attached',
     'agentWorkspace.noSession': 'No active session',
     'agentWorkspace.open': 'Open Agent Workspace',
@@ -2122,7 +2267,25 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.workflowArtifacts': 'Artifacts',
     'agentWorkspace.workflowActive': 'Active',
     'agentWorkspace.workflowAttached': 'Attached to current Agent Run',
+    'agentWorkspace.workflowTaskFallback': 'Working on this creative task',
     'agentWorkspace.workflowAttention': 'Needs attention',
+    'agentWorkspace.workflowAttentionBody': 'An earlier result changed or this step needs to be refreshed. Retake will rerun it first, then continue the remaining Workflow steps automatically.',
+    'agentWorkspace.workflowAttentionBodyExecutionFailed': 'This step did not finish successfully. Your completed results are still safe. Review the step on the canvas, then retry to continue the Workflow.',
+    'agentWorkspace.workflowAttentionBodyExecutionMissing': 'This step could not start, usually because its generation connection is unavailable or not fully configured. Review the step connection on the canvas, then retry. Your completed results are still safe.',
+    'agentWorkspace.workflowAttentionBodyOutdated': 'An earlier result changed, so this step needs to be refreshed. Retake will rerun it first, then continue the remaining Workflow steps automatically.',
+    'agentWorkspace.workflowAttentionBodyReviewNotReady': 'The result is complete, but the final review has not been prepared yet. Continue to review it here before completing the Workflow.',
+    'agentWorkspace.workflowAttentionBodyRetiredDefinition': 'This is a retired image-editing flow. Its existing results remain available, but it cannot continue. Start a regular image-to-image task from the original image instead.',
+    'agentWorkspace.workflowAttentionAskAgent': 'Ask Agent to resolve it',
+    'agentWorkspace.workflowAttentionAskAgentPrompt': 'Please inspect what this Workflow needs. Continue directly when it is safe; if you need my decision, explain the issue here and give me clear actions.',
+    'agentWorkspace.workflowAttentionHeader': 'Workflow needs attention',
+    'agentWorkspace.workflowAttentionPrepareReview': 'Continue to final review',
+    'agentWorkspace.workflowAttentionPrepareReviewFailed': 'The final review is not ready yet',
+    'agentWorkspace.workflowAttentionPrepareReviewFailedBody': 'Please try again. If it still cannot continue, ask the Agent to inspect and resolve the Workflow state.',
+    'agentWorkspace.workflowAttentionPreparingReview': 'Preparing review…',
+    'agentWorkspace.workflowAttentionRetry': 'Rerun and continue',
+    'agentWorkspace.workflowAttentionRetryResults': 'Retry {count} failed images',
+    'agentWorkspace.workflowAttentionRetrying': 'Restarting…',
+    'agentWorkspace.workflowAttentionWaiting': 'Waiting to continue',
     'agentWorkspace.workflowBoardRun': 'Board Workflow Run',
     'agentWorkspace.workflowBlocked': 'Blocked',
     'agentWorkspace.workflowCurrent': 'Current',
@@ -2134,6 +2297,37 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.workflowProgress': 'Workflow step progress',
     'agentWorkspace.workflowRevision': 'Revision',
     'agentWorkspace.workflowRuns': 'Workflow Runs',
+    'agentWorkspace.workflowStep': 'Step',
+    'agentWorkspace.workflowStepReady': 'This step is ready to continue.',
+    'agentWorkspace.workflowStepRunning': 'This step is being executed. Results will appear here when ready.',
+    'agentWorkspace.workflowStepSucceeded': 'This step is complete. The Workflow has kept its accepted output.',
+    'agentWorkspace.workflowStepWaitingInput': 'This step needs more input before it can continue.',
+    'agentWorkspace.workflowStepWaitingSelection': 'Generation is complete. Choose the result that should continue through the Workflow.',
+    'agentWorkspace.workflowStepNeedsAttention': 'This step needs attention before the Workflow can continue.',
+    'agentWorkspace.workflowViewResult': 'View result on canvas',
+    'agentWorkspace.workflowCandidate': 'Candidate',
+    'agentWorkspace.workflowCandidateSingle': 'One candidate is ready. Accept it and continue?',
+    'agentWorkspace.workflowCandidateMultiple': 'Choose one candidate to continue.',
+    'agentWorkspace.workflowCandidatePreparing': 'The generated result is still being prepared for review.',
+    'agentWorkspace.workflowAcceptContinue': 'Accept and continue',
+    'agentWorkspace.workflowUseCandidate': 'Use selected candidate',
+    'agentWorkspace.workflowRegenerate': 'Generate again',
+    'agentWorkspace.workflowLocateStep': 'View on canvas',
+    'agentWorkspace.workflowDirectStartSummary': 'Start the selected Workflow now.',
+    'agentWorkspace.startWorkflow': 'Start Workflow',
+    'agentWorkspace.workflowTimeline': 'Execution timeline',
+    'agentWorkspace.workflowTimelineHide': 'Hide execution timeline',
+    'agentWorkspace.workflowTimelineShow': 'Show execution timeline',
+    'agentWorkspace.workflowTimelineRun': 'Run',
+    'agentWorkspace.workflowTimelineStep': 'Step',
+    'agentWorkspace.workflowTimelineExecution': 'Execution',
+    'agentWorkspace.workflowTimelineArtifact': 'Artifact',
+    'agentWorkspace.workflowTimelineGate': 'Gate',
+    'agentWorkspace.workflowTimelineCreated': 'Created',
+    'agentWorkspace.workflowTimelineArtifactReady': 'Ready',
+    'agentWorkspace.workflowTimelineGateWaiting': 'Waiting for approval',
+    'agentWorkspace.workflowTimelineGatePassed': 'Passed',
+    'agentWorkspace.workflowTimelineGateFailed': 'Failed',
     'agentWorkspace.workflowStepRole.blocked': 'Blocked',
     'agentWorkspace.workflowStepRole.current': 'Current',
     'agentWorkspace.workflowStepRole.done': 'Done',
@@ -2222,6 +2416,11 @@ const translations: Record<Locale, Translations> = {
     'workflowAuthoring.noCompatibleSkills': 'No compatible installed Skill',
     'workflowAuthoring.noCapabilities': 'No matching installed Capability',
     'workflowAuthoring.noDraft': 'Fork this immutable source Workflow before editing.',
+    'workflowAuthoring.imageStepParameters': 'Image Step parameters',
+    'workflowAuthoring.inheritWorkflowDefault': 'Inherit Workflow default',
+    'workflowAuthoring.defaultCandidateCount': 'Default candidate count',
+    'workflowAuthoring.fixedCandidateCount': 'Fixed candidate count',
+    'workflowAuthoring.useSystemDefault': 'Use system default',
     'workflowAuthoring.noValidationIssues': 'No validation issues.',
     'workflowAuthoring.optional': 'Optional step',
     'workflowAuthoring.previewCapture': 'Review selection',
@@ -2431,13 +2630,16 @@ const translations: Record<Locale, Translations> = {
     'packageLibrary.checkUpdates': 'Check for updates',
     'packageLibrary.dismissUpdates': 'Dismiss update notification',
     'packageLibrary.dismissFailures': 'Dismiss Package failure notification',
-    'packageLibrary.failuresIsolatedBanner': 'Package failures isolated; Whiteboard remains available',
+    'packageLibrary.candidateFailuresBanner': 'Package update(s) not enabled; the current version remains available',
+    'packageLibrary.failuresIsolatedBanner': 'Package(s) failed to load and were isolated; Whiteboard remains available',
+    'packageLibrary.hideFailureDetails': 'Hide reason',
     'packageLibrary.reviewUpdates': 'Review updates',
     'packageLibrary.updateAvailable': 'Update available',
     'packageLibrary.updateCheckError': 'Update check failed',
     'packageLibrary.updateCurrent': 'Up to date',
     'packageLibrary.updatePinned': 'Version pinned',
     'packageLibrary.updateUnsupported': 'Update check unavailable',
+    'packageLibrary.viewFailureDetails': 'View reason',
     'packageLibrary.updatesAvailableBanner': 'Plugin updates available',
     'settings.keyboardShortcuts': 'Keyboard shortcuts',
     'settings.generationProfiles': 'Generation profiles',
@@ -2583,6 +2785,16 @@ const translations: Record<Locale, Translations> = {
     'autosave.saved': '更改已保存到本地',
     'autosave.saving': '正在保存到本地',
     'autosave.retry': '自动保存失败，点击重试',
+    'canvasActivity.boardWriting': '正在把结果写回画板',
+    'canvasActivity.agentPlanning': '正在理解并规划任务',
+    'canvasActivity.agentWorking': 'Agent 正在处理',
+    'canvasActivity.locate': '定位画板上正在执行的 Operation',
+    'canvasActivity.preparing': '正在准备这个任务',
+    'canvasActivity.providerGenerating': '图片连接正在生成',
+    'canvasActivity.providerStarting': '正在提交给图片连接',
+    'canvasActivity.resultImporting': '正在导入生成结果',
+    'canvasActivity.running': '系统正在处理',
+    'canvasActivity.systemRunning': 'Retake 正在工作',
     'workspace.loadingTitle': '正在加载工作区',
     'workspace.loadingBody': '正在等待 Retake 本地服务载入当前画板。',
     'workspace.loadErrorTitle': '工作区不可用',
@@ -3018,9 +3230,17 @@ const translations: Record<Locale, Translations> = {
     'skillComposer.imageAttachmentOnly': '图片和视频直接创作目前只接受图片附件。',
     'skillComposer.auto': '自动',
     'skillComposer.autoPreferences': '自动偏好',
+    'skillComposer.workflowExecutionMode': 'Workflow 执行方式',
+    'skillComposer.workflowAutomatic': '自动',
+    'skillComposer.workflowManual': '手动',
+    'skillComposer.planFirst': '先规划',
+    'skillComposer.runNow': '直接执行',
     'skillComposer.taskPreferences': '任务偏好',
     'skillComposer.agentDecides': '由 Agent 判断',
     'skillComposer.outputType': '输出类型',
+    'skillComposer.outputPreferences': '输出偏好',
+    'skillComposer.workflowImageDefaults': '图片生成默认值',
+    'skillComposer.workflowImageSettings': '图片设置',
     'skillComposer.selectedMentions': '已引用输入',
     'skillComposer.removeMention': '移除引用',
     'skillComposer.mentionLibrary': '兼容的 Block 与 Asset',
@@ -3322,6 +3542,19 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.effect': '预期效果',
     'agentWorkspace.goal': '目标',
     'agentWorkspace.goalPlan': 'Goal 计划',
+    'agentWorkspace.recommendedWorkflow': '推荐流程',
+    'agentWorkspace.recommendedSkill': '推荐创作方式',
+    'agentWorkspace.skillConfirmHint': '确认后会按这套方法直接开始；它不会启动或修改完整流程。',
+    'agentWorkspace.skipSkill': '暂不使用',
+    'agentWorkspace.useSkill': '使用此方式并开始',
+    'agentWorkspace.workflowConfirmHint': '确认后会直接创建并开始这个流程；遇到需要你选择的结果时，Retake 会再次在这里询问。',
+    'agentWorkspace.workflowAutomaticDescription': '下一步明确时由 Agent 自动继续。',
+    'agentWorkspace.workflowManualDescription': '每个关键结果完成后都等你确认。',
+    'agentWorkspace.workflowMultipleCandidatesPause': '即使选择自动模式，出现多个视觉候选时仍会停下来请你选择。',
+    'agentWorkspace.conceptCandidateCount': '概念方案数量',
+    'agentWorkspace.workflowStepCount': '流程步骤',
+    'agentWorkspace.useWorkflow': '使用这个流程',
+    'agentWorkspace.skipWorkflow': '暂不使用',
     'agentWorkspace.coverage': '覆盖范围',
     'agentWorkspace.planScope': '计划范围',
     'agentWorkspace.renameSession': '重命名 Agent',
@@ -3330,14 +3563,16 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.limitation': '未覆盖范围',
     'agentWorkspace.goalLaunchWarning': '本次只授权已锁定 Workflow 的编排；Gate、候选选择与 Provider 外部动作仍需各自明确确认。',
     'agentWorkspace.history': '会话历史',
+    'agentWorkspace.taskOverview': 'Agent 任务总览',
+    'agentWorkspace.activeTaskCount': '{count} 个进行中',
     'agentWorkspace.emptyBody': '会话保存当前画板范围内的对话，并且可以绑定一个已有 Agent Run。',
     'agentWorkspace.emptyTitle': '开始画板 Agent 会话',
     'agentWorkspace.eyebrow': '画板 Agent',
     'agentWorkspace.inputPlaceholder': '询问当前画板，或请求 Agent Run 范围内的动作…',
     'agentWorkspace.instruction': '指令',
     'agentWorkspace.intervention': '需要用户处理',
-    'agentWorkspace.intervention.approval.body': '请在画布中审阅当前结果，然后明确批准或拒绝对应 Gate。',
-    'agentWorkspace.intervention.approval.title': 'Gate 等待你的决定',
+    'agentWorkspace.intervention.approval.body': '请直接在 Agent 中确认当前结果；你可以通过、要求修改，或取消当前流程。',
+    'agentWorkspace.intervention.approval.title': '这份结果需要你的确认',
     'agentWorkspace.intervention.attention.body': '请先在画布中检查对应 Operation，再决定重试或修改输入。',
     'agentWorkspace.intervention.attention.title': '当前 Run 需要处理',
     'agentWorkspace.intervention.input.body': '请补齐对应 Operation 的必填输入；Agent 不会自行编造缺失内容。',
@@ -3346,6 +3581,16 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.intervention.provider_authorization.title': '需要 Provider 授权',
     'agentWorkspace.intervention.selection.body': '请在画布中审阅生成的候选，并明确选择要接受的结果。',
     'agentWorkspace.intervention.selection.title': '选择要接受的结果',
+    'agentWorkspace.workflowApprovalApproveComplete': '通过并完成',
+    'agentWorkspace.workflowApprovalApproveContinue': '通过并继续',
+    'agentWorkspace.workflowApprovalBody': '请确认这份结果是否符合你的要求。通过后流程会继续；如果还需要调整，请选择“需要修改”，然后直接告诉我希望怎么改。',
+    'agentWorkspace.workflowApprovalCancel': '取消当前流程',
+    'agentWorkspace.workflowApprovalChecklist': '本次主要确认',
+    'agentWorkspace.workflowApprovalFinalTitle': '最终审核',
+    'agentWorkspace.workflowApprovalHeader': '需要你的确认',
+    'agentWorkspace.workflowApprovalLocate': '在画板查看',
+    'agentWorkspace.workflowApprovalRevise': '需要修改',
+    'agentWorkspace.workflowApprovalWaiting': '等待审核',
     'agentWorkspace.launchAgent': '启动 Agent',
     'agentWorkspace.launching': '正在启动…',
     'agentWorkspace.launchReady': '输入已就绪，可以执行。',
@@ -3364,6 +3609,7 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.useDefaultRuntime': '使用默认运行连接',
     'agentWorkspace.messageCopied': '消息已复制',
     'agentWorkspace.noMatchingSessions': '没有匹配的会话。',
+    'agentWorkspace.noTask': '尚未开始任务',
     'agentWorkspace.noRun': '未绑定 Agent Run',
     'agentWorkspace.noSession': '没有活动会话',
     'agentWorkspace.open': '打开 Agent Workspace',
@@ -3407,7 +3653,25 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.workflowArtifacts': '产物',
     'agentWorkspace.workflowActive': '活动',
     'agentWorkspace.workflowAttached': '已关联当前 Agent Run',
+    'agentWorkspace.workflowTaskFallback': '正在处理这项创作任务',
     'agentWorkspace.workflowAttention': '需处理',
+    'agentWorkspace.workflowAttentionBody': '前面的结果发生了变化，或这个步骤需要更新。Retake 会先重新执行这里，完成后自动继续后续步骤。',
+    'agentWorkspace.workflowAttentionBodyExecutionFailed': '这个步骤没有成功完成，已经完成的成果不会丢失。请先查看画板中的这个步骤，再重新执行并继续流程。',
+    'agentWorkspace.workflowAttentionBodyExecutionMissing': '这个步骤没有成功开始，通常是生成连接不可用或设置尚未完成。请先在画板中检查这个步骤的连接，再重新执行；已经完成的成果不会丢失。',
+    'agentWorkspace.workflowAttentionBodyOutdated': '前面的结果发生了变化，因此这个步骤需要更新。Retake 会先重新执行这里，完成后自动继续后续步骤。',
+    'agentWorkspace.workflowAttentionBodyReviewNotReady': '结果已经生成，但最终审核尚未准备完成。请在这里继续进入审核，确认后即可完成流程。',
+    'agentWorkspace.workflowAttentionBodyRetiredDefinition': '这是已经停用的旧版图片编辑流程。已有结果仍会保留，但流程不能继续执行；请从原图发起普通图生图任务。',
+    'agentWorkspace.workflowAttentionAskAgent': '交给 Agent 处理',
+    'agentWorkspace.workflowAttentionAskAgentPrompt': '请检查当前流程需要处理的原因；可以安全恢复时直接继续。如果需要我决定，请在这里说明问题并给出明确的操作选项。',
+    'agentWorkspace.workflowAttentionHeader': '流程需要处理',
+    'agentWorkspace.workflowAttentionPrepareReview': '进入最终审核',
+    'agentWorkspace.workflowAttentionPrepareReviewFailed': '最终审核暂时没有准备好',
+    'agentWorkspace.workflowAttentionPrepareReviewFailedBody': '请再试一次；如果仍然无法继续，可以交给 Agent 检查并恢复流程状态。',
+    'agentWorkspace.workflowAttentionPreparingReview': '正在准备审核…',
+    'agentWorkspace.workflowAttentionRetry': '重新执行并继续',
+    'agentWorkspace.workflowAttentionRetryResults': '重试失败的 {count} 张图片',
+    'agentWorkspace.workflowAttentionRetrying': '正在重新执行…',
+    'agentWorkspace.workflowAttentionWaiting': '等待继续',
     'agentWorkspace.workflowBoardRun': '画板 Workflow Run',
     'agentWorkspace.workflowBlocked': '阻塞',
     'agentWorkspace.workflowCurrent': '当前',
@@ -3419,6 +3683,37 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.workflowProgress': 'Workflow 步骤进度',
     'agentWorkspace.workflowRevision': '版本',
     'agentWorkspace.workflowRuns': 'Workflow Runs',
+    'agentWorkspace.workflowStep': '步骤',
+    'agentWorkspace.workflowStepReady': '这个步骤已经就绪，可以继续执行。',
+    'agentWorkspace.workflowStepRunning': '正在执行这个步骤；结果完成后会直接显示在这里。',
+    'agentWorkspace.workflowStepSucceeded': '这个步骤已经完成，Workflow 已保留其接受的输出。',
+    'agentWorkspace.workflowStepWaitingInput': '这个步骤还需要补充输入，完成后才能继续。',
+    'agentWorkspace.workflowStepWaitingSelection': '图片已经生成，请选择要带入后续 Workflow 的结果。',
+    'agentWorkspace.workflowStepNeedsAttention': '这个步骤需要处理后，Workflow 才能继续。',
+    'agentWorkspace.workflowViewResult': '在画板中查看结果',
+    'agentWorkspace.workflowCandidate': '候选',
+    'agentWorkspace.workflowCandidateSingle': '已生成 1 个候选，是否接受并继续？',
+    'agentWorkspace.workflowCandidateMultiple': '请选择一个候选继续。',
+    'agentWorkspace.workflowCandidatePreparing': '生成结果正在准备审阅，请稍候。',
+    'agentWorkspace.workflowAcceptContinue': '接受并继续',
+    'agentWorkspace.workflowUseCandidate': '使用所选候选',
+    'agentWorkspace.workflowRegenerate': '重新生成',
+    'agentWorkspace.workflowLocateStep': '在画布中查看',
+    'agentWorkspace.workflowDirectStartSummary': '立即启动已选择的 Workflow。',
+    'agentWorkspace.startWorkflow': '开始执行',
+    'agentWorkspace.workflowTimeline': '执行时间线',
+    'agentWorkspace.workflowTimelineHide': '收起执行时间线',
+    'agentWorkspace.workflowTimelineShow': '展开执行时间线',
+    'agentWorkspace.workflowTimelineRun': 'Run',
+    'agentWorkspace.workflowTimelineStep': '步骤',
+    'agentWorkspace.workflowTimelineExecution': '执行',
+    'agentWorkspace.workflowTimelineArtifact': '产物',
+    'agentWorkspace.workflowTimelineGate': 'Gate',
+    'agentWorkspace.workflowTimelineCreated': '已创建',
+    'agentWorkspace.workflowTimelineArtifactReady': '已就绪',
+    'agentWorkspace.workflowTimelineGateWaiting': '等待批准',
+    'agentWorkspace.workflowTimelineGatePassed': '已通过',
+    'agentWorkspace.workflowTimelineGateFailed': '失败',
     'agentWorkspace.workflowStepRole.blocked': '阻塞',
     'agentWorkspace.workflowStepRole.current': '当前',
     'agentWorkspace.workflowStepRole.done': '完成',
@@ -3507,6 +3802,11 @@ const translations: Record<Locale, Translations> = {
     'workflowAuthoring.noCompatibleSkills': '没有兼容的已安装 Skill',
     'workflowAuthoring.noCapabilities': '没有匹配的已安装 Capability',
     'workflowAuthoring.noDraft': '这个来源不可变，请先创建可编辑副本。',
+    'workflowAuthoring.imageStepParameters': '图片 Step 参数',
+    'workflowAuthoring.inheritWorkflowDefault': '继承 Workflow 默认值',
+    'workflowAuthoring.defaultCandidateCount': '默认候选数量',
+    'workflowAuthoring.fixedCandidateCount': '固定候选数量',
+    'workflowAuthoring.useSystemDefault': '使用系统默认值',
     'workflowAuthoring.noValidationIssues': '当前没有校验问题。',
     'workflowAuthoring.optional': '可选步骤',
     'workflowAuthoring.previewCapture': '检查选择',
@@ -3716,13 +4016,16 @@ const translations: Record<Locale, Translations> = {
     'packageLibrary.checkUpdates': '检查更新',
     'packageLibrary.dismissUpdates': '关闭更新通知',
     'packageLibrary.dismissFailures': '关闭 Package 故障通知',
+    'packageLibrary.candidateFailuresBanner': '个 Package 更新暂未启用，当前版本仍可使用',
     'packageLibrary.failuresIsolatedBanner': '个 Package 加载失败并已隔离，画布仍可使用',
+    'packageLibrary.hideFailureDetails': '收起原因',
     'packageLibrary.reviewUpdates': '查看更新',
     'packageLibrary.updateAvailable': '有可用更新',
     'packageLibrary.updateCheckError': '更新检查失败',
     'packageLibrary.updateCurrent': '已是最新版本',
     'packageLibrary.updatePinned': '版本已固定',
     'packageLibrary.updateUnsupported': '此来源不支持检查更新',
+    'packageLibrary.viewFailureDetails': '查看原因',
     'packageLibrary.updatesAvailableBanner': '个 Plugin 有可用更新',
     'settings.keyboardShortcuts': '快捷键',
     'settings.generationProfiles': '生成配置',

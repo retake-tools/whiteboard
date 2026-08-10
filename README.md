@@ -14,7 +14,7 @@ Retake Whiteboard `0.1.3` includes:
 - a unified `image.generate` Operation for text-led and source-image-led
   creation, multiple references, one to four results, and reruns;
 - the official Image Studio Package with annotation, adjust, crop, resize,
-  outpaint, Guided Image Skill, Workflow, and Agent preset;
+  outpaint, IP Character Strategy, and the IP Character Design Workflow;
 - Package installation and updates from GitHub source, exact-version caching,
   rollback, isolation, scoped permissions, and Project / Board enablement;
 - persistent Workflow Runs, gates, output selection, Artifacts, History, and an

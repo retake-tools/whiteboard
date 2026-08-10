@@ -12,6 +12,7 @@ import { ensureExecutionResultGroups, repairGroupRelationships } from './groupin
 import type { ChangeProposalCommand } from './agentSessionContracts';
 import { normalizeBoardBackground } from './boardBackground';
 import { imageGenerateCapabilityId } from './imageGenerateContracts';
+import { arrangeWorkflowGroup } from './workflowGroupLayout';
 
 type LegacyBlockType = BlockType | 'task' | 'frame';
 type LegacyConnectionKind = ConnectionKind | 'reference' | 'derived_from';
@@ -154,13 +155,47 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
     workflowApprovalRequests: legacy.workflowApprovalRequests ?? [],
     workflowApprovalDecisions: legacy.workflowApprovalDecisions ?? [],
   };
+  if ((legacy.agentSessionRunMigrationVersion ?? 0) < 1) {
+    migrateAgentSessionRunOwnership(migratedSnapshot);
+    migratedSnapshot.agentSessionRunMigrationVersion = 1;
+  }
   repairGroupRelationships(migratedSnapshot);
   ensureExecutionResultGroups(migratedSnapshot);
+  if ((legacy.workflowLayoutMigrationVersion ?? 0) < 2) {
+    for (const group of migratedSnapshot.blocks) {
+      if (
+        group.type === 'group'
+        && group.data.groupKind === 'workflow'
+        && typeof group.data.workflowRevisionId !== 'string'
+      ) {
+        arrangeWorkflowGroup(migratedSnapshot, group.blockId);
+      }
+    }
+    migratedSnapshot.workflowLayoutMigrationVersion = 2;
+  }
   if ((legacy.groupMigrationVersion ?? 0) < 1) migratedSnapshot.groupMigrationVersion = 1;
   if ((legacy.imageGenerateMigrationVersion ?? 0) < 1) {
     migratedSnapshot.imageGenerateMigrationVersion = 1;
   }
   return migratedSnapshot;
+}
+
+function migrateAgentSessionRunOwnership(snapshot: BoardSnapshot): void {
+  const validAgentRunIds = new Set((snapshot.agentRuns ?? []).map((run) => run.agentRunId));
+  const claimedAgentRunIds = new Set<string>();
+  const sessions = [...(snapshot.agentSessions ?? [])].sort((left, right) => (
+    left.createdAt.localeCompare(right.createdAt)
+    || left.agentSessionId.localeCompare(right.agentSessionId)
+  ));
+  for (const session of sessions) {
+    const agentRunId = session.activeAgentRunId;
+    if (!agentRunId) continue;
+    if (!validAgentRunIds.has(agentRunId) || claimedAgentRunIds.has(agentRunId)) {
+      delete session.activeAgentRunId;
+      continue;
+    }
+    claimedAgentRunIds.add(agentRunId);
+  }
 }
 
 function migrateImageGenerateOperationContracts(

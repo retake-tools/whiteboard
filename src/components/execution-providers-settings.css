@@ -6,7 +6,6 @@
   place-items: center;
   padding: 28px;
   background: rgb(15 23 42 / 38%);
-  backdrop-filter: blur(4px);
 }
 
 .execution-settings-dialog {

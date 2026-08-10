@@ -66,6 +66,37 @@
   align-items: center;
 }
 
+.workflow-execution-mode {
+  display: inline-flex;
+  height: 30px;
+  flex: 0 0 auto;
+  padding: 2px;
+  border: 1px solid var(--retake-border);
+  border-radius: 999px;
+  background: var(--retake-surface-subtle);
+}
+
+.workflow-execution-mode button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--retake-text-subtle);
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.workflow-execution-mode button:hover,
+.workflow-execution-mode button.is-selected {
+  background: var(--retake-surface);
+  color: var(--retake-accent-strong);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 10%);
+}
+
 .agent-composer-preferences {
   position: relative;
   display: flex;
@@ -75,6 +106,9 @@
 .agent-composer-preferences-trigger {
   display: inline-flex;
   height: 30px;
+  min-width: 0;
+  max-width: 180px;
+  flex: 0 1 auto;
   gap: 4px;
   align-items: center;
   padding: 0 9px;
@@ -85,7 +119,17 @@
   font: inherit;
   font-size: 11px;
   cursor: pointer;
+  white-space: nowrap;
 }
+
+.agent-composer-preferences-trigger > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-composer-preferences-trigger > svg { flex: 0 0 auto; }
 
 .agent-composer-preferences-trigger:hover,
 .agent-composer-preferences-trigger[aria-expanded='true'] {
@@ -983,6 +1027,7 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--retake-accent) 8%, transparent);
 }
 .skill-composer.is-agent-workspace .skill-composer-entrypoint { max-width: 170px; }
+.skill-composer.is-agent-workspace .agent-composer-preferences-trigger { max-width: 112px; }
 .skill-composer.is-agent-workspace .skill-composer-input-shell textarea { min-height: 72px; }
 .skill-composer.is-agent-workspace .skill-composer-picker {
   right: 12px;

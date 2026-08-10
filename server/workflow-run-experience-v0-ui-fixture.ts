@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AgentPresetDefinition } from '../src/core/agentPresetContracts';
 import {
   createAgentRunForWorkflowRun,
   reconcileAgentRuntime,
@@ -8,18 +7,12 @@ import {
 } from '../src/core/agentRuntime';
 import {
   appendAgentUserMessage,
-  applyAgentRuntimeTurn,
   createAgentSession,
   setAgentSessionRun,
 } from '../src/core/agentSession';
 import {
   configureAgentPresetRegistry,
 } from '../src/core/agentPresetRegistry';
-import { decideChangeProposal } from '../src/core/agentChangeApplication';
-import { createBlockRecord } from '../src/core/blockFactory';
-import { operationReadinessFor } from '../src/core/capabilities';
-import type { ExecutionConnectionSummary } from '../src/core/executionProviders';
-import { executeExistingImageOperationBlock } from '../src/core/imageOperations';
 import type { RetakePackageManifest } from '../src/core/packageContracts';
 import { configurePackageRegistry } from '../src/core/packageRegistry';
 import {
@@ -31,11 +24,14 @@ import {
   configureWorkflowRegistry,
   type WorkflowDefinition,
 } from '../src/core/workflowRegistry';
+import { replaceInstalledPluginCapabilityDefinitions } from '../src/core/pluginCapabilityDefinitions';
+import { readInstalledPackageCapabilityDefinitions } from './installed-plugin-capability-definitions';
 import {
   createWorkflowRunForGroup,
   reconcileWorkflowRuntime,
   workflowRunViewForGroup,
 } from '../src/core/workflowRuntime';
+import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import {
   readMaterializedPackageArchive,
   validateDeclarativePackage,
@@ -55,7 +51,7 @@ const packageArchive = path.join(
   repositoryRoot,
   'packages',
   'bootstrap',
-  'image-studio-0.12.0.retakepkg',
+  'image-studio-0.12.3.retakepkg',
 );
 const inspected = await validateDeclarativePackage(packageArchive);
 const materialized = await readMaterializedPackageArchive(packageArchive);
@@ -64,127 +60,68 @@ const skills = [...materialized.definitions.skills.values()]
   .map((definition) => structuredClone(definition) as RetakeSkillDefinition);
 const workflows = [...materialized.definitions.workflows.values()]
   .map((definition) => structuredClone(definition) as WorkflowDefinition);
-const agentPresets = [...materialized.definitions.agentPresets.values()]
-  .map((definition) => structuredClone(definition) as AgentPresetDefinition);
 
 configureSkillRegistry(skills);
 configureWorkflowRegistry(workflows);
-configureAgentPresetRegistry(agentPresets);
+configureAgentPresetRegistry([]);
+replaceInstalledPluginCapabilityDefinitions([
+  ...readInstalledPackageCapabilityDefinitions(
+    materialized.definitions.pluginModules.values(),
+    materialized.files,
+  ).values(),
+]);
 configurePackageRegistry([runtimePackage]);
 
 const snapshot = await emptySnapshot();
-const previewUrl = fixtureImageDataUrl();
-snapshot.assets.push({
-  assetId: 'asset_workflow_run_experience_source',
-  createdAt: new Date().toISOString(),
-  kind: 'image',
-  mimeType: 'image/svg+xml',
-  previewUrl,
-  projectId: snapshot.project.projectId,
-  storageKey: 'assets/asset_workflow_run_experience_source/original.svg',
-  storageProvider: 'local',
-});
-const sourceImage = createBlockRecord(snapshot, 'image');
-sourceImage.position = { x: 80, y: 160 };
-sourceImage.data = {
-  ...sourceImage.data,
-  assetId: 'asset_workflow_run_experience_source',
-  previewUrl,
-  title: '源图片（验收 fixture）',
-};
-snapshot.blocks.push(sourceImage);
-
 const workflow = workflows.find(
-  (candidate) => candidate.workflowId === 'retake.workflow.guided-image-review',
+  (candidate) => candidate.workflowId === 'retake.workflow.ip-character-design',
 );
-const entrypoint = runtimePackage.entrypoints.find(
-  (candidate) => candidate.entrypointId === 'workflow:retake.workflow.guided-image-review',
-);
-if (!workflow || !entrypoint) {
-  throw new Error('Bundled Image Studio Guided Image Workflow is incomplete.');
+if (!workflow) {
+  throw new Error('Bundled Image Studio IP Character Design definition is missing.');
 }
 
 const session = createAgentSession(snapshot, {
   model: 'fixture-model',
-  title: '引导式图片 Agent',
+  title: 'IP 形象设计 Agent',
 }).session;
 const sourceMessage = appendAgentUserMessage(snapshot, session.agentSessionId, {
-  content: '把背景调整为温暖的日落光线，同时保持主体、构图和文字不变。',
-  contextRefs: [
-    { entrypointId: entrypoint.entrypointId, kind: 'entrypoint' },
-    {
-      blockId: sourceImage.blockId,
-      kind: 'block',
-      slotId: 'source_image',
+  content: '为一家社区早餐店设计亲切、易识别的蛋炒饭 IP 角色。',
+  contextRefs: [],
+});
+const projection = projectWorkflowDraft(snapshot, {
+  composerInput: {
+    instruction: {
+      body: sourceMessage.content,
+      slotId: 'creative_brief',
     },
-  ],
-});
-const proposalTurn = applyAgentRuntimeTurn(snapshot, {
-  agentSessionId: session.agentSessionId,
-  decision: {
-    kind: 'reply',
-    message: '将创建引导式图片编辑 Workflow 草稿，等待批准。',
+    mentions: [],
   },
-  externalThreadId: 'thread_workflow_run_experience_fixture',
-  runtimeModel: 'fixture-model',
-  runtimeTurnId: 'turn_workflow_run_experience_fixture',
-  sourceMessageId: sourceMessage.agentMessageId,
+  connectionIdForCapability: () => 'codex-app-server',
+  labelsForSkill: () => ({
+    operationTitle: 'IP design step',
+    promptPlaceholder: 'Describe the character.',
+    promptTitle: 'Creative brief',
+    resultTitle: 'IP design result',
+    waitingBody: 'Waiting for the result.',
+  }),
+  outputPlaceholder: 'Waiting for the result.',
+  workflowId: workflow.workflowId,
+  workflowTitle: 'IP 形象设计',
 });
-if (!proposalTurn.proposal) {
-  throw new Error('Guided Image EntryPoint did not create a typed Change Proposal.');
-}
-const approvedDraft = decideChangeProposal(snapshot, {
-  decision: 'approve',
-  expectedProposalVersion: proposalTurn.proposal.recordVersion,
-  proposalId: proposalTurn.proposal.proposalId,
-});
-const projectionGroupId = approvedDraft.proposal.appliedEffect?.kind === 'package_entrypoint_draft'
-  ? approvedDraft.proposal.appliedEffect.workflowGroupId
-  : undefined;
-if (!projectionGroupId) {
-  throw new Error('Guided Image EntryPoint did not project a Workflow Group.');
-}
-const operationBlockIds = approvedDraft.proposal.appliedEffect?.createdBlockIds.filter((blockId) =>
-  snapshot.blocks.some((block) => block.blockId === blockId && block.type === 'operation')) ?? [];
+const projectionGroupId = projection.groupBlock.blockId;
+const operationBlockIds = projection.operationBlockIds;
 
 const workflowRun = createWorkflowRunForGroup(snapshot, projectionGroupId);
 reconcileWorkflowRuntime(snapshot);
 const runtimeView = workflowRunViewForGroup(snapshot, projectionGroupId);
-if (runtimeView?.status !== 'ready' || runtimeView.steps.length !== 1) {
-  const operationBlock = snapshot.blocks.find(
-    (block) => block.blockId === operationBlockIds[0],
-  );
-  throw new Error(`Guided Image Workflow did not start through the real Runtime path: ${JSON.stringify({
-    operation: operationBlock ? operationReadinessFor(snapshot, operationBlock) : undefined,
+if (runtimeView?.status !== 'ready' || runtimeView.steps.length !== 4) {
+  throw new Error(`IP Character Design Workflow did not start through the real Runtime path: ${JSON.stringify({
     status: runtimeView?.status,
     steps: runtimeView?.steps.map((step) => ({
       status: step.status,
       inputBindings: step.record.resolvedInputBindings,
     })),
   })}`);
-}
-
-const attachmentProbe = structuredClone(snapshot);
-const probeOperation = attachmentProbe.blocks.find(
-  (block) => block.blockId === operationBlockIds[0] && block.type === 'operation',
-);
-if (!probeOperation) throw new Error('Guided Image Workflow Operation is missing.');
-const probeExecution = executeExistingImageOperationBlock(attachmentProbe, {
-  capabilityId: String(probeOperation.data.capabilityId),
-  connection: readyCodexMcpConnection(),
-  operation: 'image_to_image',
-  operationBlockId: probeOperation.blockId,
-}).execution;
-const attachedStep = attachmentProbe.workflowStepRuns?.find(
-  (step) => step.operationBlockId === probeOperation.blockId,
-);
-if (
-  !attachedStep
-  || probeExecution.workflowRunId !== attachedStep.workflowRunId
-  || probeExecution.stepRunId !== attachedStep.stepRunId
-  || !attachedStep.executionIds.includes(probeExecution.executionId)
-) {
-  throw new Error('Image execution was not attached to its Workflow Step.');
 }
 
 const agentRun = createAgentRunForWorkflowRun(snapshot, workflowRun.record.workflowRunId);
@@ -198,7 +135,7 @@ console.log(JSON.stringify({
   agentRunStatus: agentRun.record.status,
   agentSessionId: session.agentSessionId,
   boardId: snapshot.board.boardId,
-  entrypointId: entrypoint.entrypointId,
+  entrypointId: 'workflow:retake.workflow.ip-character-design',
   ok: true,
   operationCount: operationBlockIds.length,
   packageVersion: runtimePackage.version,
@@ -261,45 +198,9 @@ function packageManifestForFixture(
     schemaVersion: 1,
     source: {
       archiveDigest: packageArchiveValue.archiveDigest,
-      installationId: 'test-fixture-image-studio-0.12.0',
+      installationId: 'test-fixture-image-studio-0.12.3',
       kind: 'installed',
     },
     version: manifest.version,
-  };
-}
-
-function fixtureImageDataUrl(): string {
-  const svg = [
-    '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640">',
-    '<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">',
-    '<stop offset="0" stop-color="#8bb7d8"/><stop offset="1" stop-color="#ead3b0"/>',
-    '</linearGradient></defs>',
-    '<rect width="960" height="640" fill="url(#sky)"/>',
-    '<rect y="420" width="960" height="220" fill="#64745d"/>',
-    '<circle cx="480" cy="300" r="120" fill="#f1b86a"/>',
-    '<path d="M360 500 L480 250 L600 500 Z" fill="#26323b"/>',
-    '<text x="480" y="585" text-anchor="middle" font-family="sans-serif" font-size="34" fill="white">RETAKE</text>',
-    '</svg>',
-  ].join('');
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
-
-function readyCodexMcpConnection(): ExecutionConnectionSummary {
-  return {
-    configurable: false,
-    connectionId: 'codex-managed',
-    connectionKind: 'model_provider',
-    connectorId: 'codex-managed',
-    deletable: false,
-    description: 'Workflow attachment regression fixture.',
-    displayName: 'Codex MCP',
-    enabled: true,
-    enabledUseCases: ['image'],
-    hasCredential: true,
-    implementationKind: 'mcp',
-    modelId: 'codex-mcp',
-    providerLabel: 'Codex MCP',
-    status: 'ready',
-    supportedCapabilityIds: ['image.generate'],
   };
 }

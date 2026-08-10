@@ -105,10 +105,52 @@
 }
 
 .package-update-banner.is-failure {
+  align-items: stretch;
   background: #fff7ed;
   border-color: #fed7aa;
   box-shadow: 0 8px 22px rgb(194 65 12 / 14%);
   color: #9a3412;
+  max-width: min(720px, calc(100vw - 32px));
+}
+
+.package-update-banner.is-failure .package-update-banner-main,
+.package-update-banner.is-failure .package-update-banner-main > span,
+.package-update-banner.is-failure .package-update-banner-actions {
+  align-items: center;
+  display: flex;
+}
+
+.package-update-banner.is-failure .package-update-banner-main {
+  min-width: 0;
+}
+
+.package-update-banner.is-failure .package-update-banner-main > span {
+  gap: 7px;
+  min-width: 0;
+}
+
+.package-update-banner.is-failure .package-update-banner-actions {
+  gap: 4px;
+  margin-left: 10px;
+}
+
+.package-update-banner.is-failure .package-update-banner-details-toggle {
+  background: transparent;
+  color: #9a3412;
+  padding-inline: 7px;
+}
+
+.package-update-banner-failure-details {
+  border-top: 1px solid #fed7aa;
+  list-style: none;
+  margin: 4px 0 0;
+  max-height: 120px;
+  overflow: auto;
+  padding: 6px 0 2px;
+}
+
+.package-update-banner-failure-details li {
+  overflow-wrap: anywhere;
 }
 
 .package-update-banner.is-failure .package-update-banner-dismiss {

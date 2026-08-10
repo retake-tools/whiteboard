@@ -1,35 +1,34 @@
-import { Activity, ArrowUpRight, Workflow } from 'lucide-react';
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { ArrowUpRight, CircleStop, Pause, Play, Workflow } from 'lucide-react';
+import type { ReactElement } from 'react';
 import type { AgentRunRecord } from '../core/agentRuntimeContracts';
-import type { BoardSnapshot } from '../core/types';
-import {
-  workflowRunExperienceFor,
-  type WorkflowRunExperienceItemView,
+import type {
+  WorkflowRunExperienceItemView,
+  WorkflowRunExperienceView,
 } from '../core/workflowRunExperience';
 import { useI18n } from '../i18n';
 
 export function AgentWorkflowRunNavigator({
   activeAgentRun,
+  experience,
+  onCancelAgentRun,
   onOpenWorkflowRun,
-  snapshot,
+  onPauseAgentRun,
+  onResumeAgentRun,
+  onSelectWorkflowRun,
+  selectedWorkflowRunId,
+  taskSummary,
 }: {
   activeAgentRun?: AgentRunRecord;
+  experience: WorkflowRunExperienceView;
+  onCancelAgentRun: (agentRunId: string) => void;
   onOpenWorkflowRun: (workflowRunId: string) => void;
-  snapshot: BoardSnapshot;
+  onPauseAgentRun: (agentRunId: string) => void;
+  onResumeAgentRun: (agentRunId: string) => void;
+  onSelectWorkflowRun: (workflowRunId: string) => void;
+  selectedWorkflowRunId: string;
+  taskSummary?: string;
 }): ReactElement | null {
   const { t } = useI18n();
-  const experience = useMemo(
-    () => workflowRunExperienceFor(snapshot, activeAgentRun),
-    [activeAgentRun, snapshot],
-  );
-  const [selectedWorkflowRunId, setSelectedWorkflowRunId] = useState(
-    experience.defaultWorkflowRunId ?? '',
-  );
-
-  useEffect(() => {
-    setSelectedWorkflowRunId(experience.defaultWorkflowRunId ?? '');
-  }, [activeAgentRun?.agentRunId]);
-
   const selectedRun = experience.runs.find(
     (run) => run.workflowRunId === selectedWorkflowRunId,
   ) ?? experience.runs[0];
@@ -48,6 +47,12 @@ export function AgentWorkflowRunNavigator({
   const visibleStepKind = currentSteps.length > 0
     ? t('agentWorkspace.workflowCurrent')
     : t('agentWorkspace.workflowNext');
+  const attachedAgentRun = selectedRun.isActiveAgentRunTarget
+    ? activeAgentRun
+    : undefined;
+  const isTerminalAgentRun = attachedAgentRun
+    ? ['succeeded', 'failed', 'canceled'].includes(attachedAgentRun.status)
+    : true;
 
   return (
     <section className="agent-workflow-runs" aria-label={t('agentWorkspace.workflowRuns')}>
@@ -55,21 +60,63 @@ export function AgentWorkflowRunNavigator({
         <span className="agent-workflow-run-icon"><Workflow size={14} /></span>
         <div>
           <strong>{selectedRun.label}</strong>
-          <small>
-            {selectedRun.isActiveAgentRunTarget ? <Activity size={11} /> : null}
+          <small title={taskSummary}>
             {selectedRun.isActiveAgentRunTarget
-              ? t('agentWorkspace.workflowAttached')
+              ? taskSummary ?? t('agentWorkspace.workflowTaskFallback')
               : isTerminalWorkflowRun(selectedRun)
                 ? t('agentWorkspace.workflowHistory')
                 : t('agentWorkspace.workflowBoardRun')}
           </small>
         </div>
       </div>
+      <div className="agent-workflow-run-actions">
+        {attachedAgentRun ? (
+          attachedAgentRun.status === 'paused' ? (
+            <button
+              type="button"
+              aria-label={t('agentRuntime.resume')}
+              title={t('agentRuntime.resume')}
+              onClick={() => onResumeAgentRun(attachedAgentRun.agentRunId)}
+            >
+              <Play size={13} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              aria-label={t('agentRuntime.pause')}
+              title={t('agentRuntime.pause')}
+              disabled={isTerminalAgentRun}
+              onClick={() => onPauseAgentRun(attachedAgentRun.agentRunId)}
+            >
+              <Pause size={13} />
+            </button>
+          )
+        ) : null}
+        {attachedAgentRun ? (
+          <button
+            type="button"
+            aria-label={t('agentRuntime.cancel')}
+            title={t('agentRuntime.cancel')}
+            disabled={isTerminalAgentRun}
+            onClick={() => onCancelAgentRun(attachedAgentRun.agentRunId)}
+          >
+            <CircleStop size={13} />
+          </button>
+        ) : null}
+        <button
+          type="button"
+          aria-label={`${t('workflowWorkspace.open')}: ${selectedRun.label}`}
+          title={t('workflowWorkspace.open')}
+          onClick={() => onOpenWorkflowRun(selectedRun.workflowRunId)}
+        >
+          <ArrowUpRight size={14} />
+        </button>
+      </div>
       {experience.runs.length > 1 ? (
         <select
           aria-label={t('agentWorkspace.workflowViewing')}
           value={selectedRun.workflowRunId}
-          onChange={(event) => setSelectedWorkflowRunId(event.currentTarget.value)}
+          onChange={(event) => onSelectWorkflowRun(event.currentTarget.value)}
         >
           {experience.runs.map((run) => (
             <option key={run.workflowRunId} value={run.workflowRunId}>
@@ -98,25 +145,6 @@ export function AgentWorkflowRunNavigator({
           </strong>
         ) : null}
       </div>
-      <div className="agent-workflow-run-compact-facts">
-        <span>{t('agentWorkspace.workflowCurrent')} {selectedRun.currentStepCount}</span>
-        <span>{t('agentWorkspace.workflowNext')} {selectedRun.nextStepCount}</span>
-        {selectedRun.blockedStepCount + selectedRun.gateWaitingCount > 0 ? (
-          <span className="is-attention">
-            {t('agentWorkspace.workflowAttention')}{' '}
-            {selectedRun.blockedStepCount + selectedRun.gateWaitingCount}
-          </span>
-        ) : null}
-      </div>
-      <button
-        type="button"
-        className="agent-workflow-run-open"
-        aria-label={`${t('workflowWorkspace.open')}: ${selectedRun.label}`}
-        title={t('workflowWorkspace.open')}
-        onClick={() => onOpenWorkflowRun(selectedRun.workflowRunId)}
-      >
-        <ArrowUpRight size={14} />
-      </button>
     </section>
   );
 }

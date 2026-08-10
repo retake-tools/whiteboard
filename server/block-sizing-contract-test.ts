@@ -57,6 +57,31 @@ assert.equal(
   'workflow bounds must move as one unit away from occupied blocks',
 );
 
+const largeOccupiedGroup = createBlockRecord(placementSnapshot, 'group');
+largeOccupiedGroup.position = { x: -2_000, y: -2_000 };
+largeOccupiedGroup.size = { width: 4_000, height: 4_000 };
+const nestedWorkflowGroup = createBlockRecord(placementSnapshot, 'group');
+nestedWorkflowGroup.position = { x: -500, y: -500 };
+nestedWorkflowGroup.size = { width: 1_000, height: 1_000 };
+const nestedWorkflowChild = createBlockRecord(placementSnapshot, 'operation');
+nestedWorkflowChild.parentGroupId = nestedWorkflowGroup.blockId;
+nestedWorkflowChild.position = { x: -100, y: -95 };
+placementSnapshot.blocks.push(largeOccupiedGroup, nestedWorkflowChild, nestedWorkflowGroup);
+moveBlockGroupToNearestFreeArea(
+  placementSnapshot,
+  [nestedWorkflowChild, nestedWorkflowGroup],
+  { x: 0, y: 0 },
+);
+const nestedWorkflowBounds = blockGroupBounds([nestedWorkflowChild, nestedWorkflowGroup]);
+assert.equal(
+  nestedWorkflowBounds.x + nestedWorkflowBounds.width + 32 <= largeOccupiedGroup.position.x
+    || largeOccupiedGroup.position.x + largeOccupiedGroup.size.width + 32 <= nestedWorkflowBounds.x
+    || nestedWorkflowBounds.y + nestedWorkflowBounds.height + 32 <= largeOccupiedGroup.position.y
+    || largeOccupiedGroup.position.y + largeOccupiedGroup.size.height + 32 <= nestedWorkflowBounds.y,
+  true,
+  'Agent-created nested Workflow blocks must escape occupied regions larger than the old search radius.',
+);
+
 const attachmentBlocks = [
   createBlockRecord(placementSnapshot, 'image'),
   createBlockRecord(placementSnapshot, 'image'),

@@ -12,7 +12,10 @@ export async function resolveImageExecutionPrompt(
     execution.capabilityId === 'image.generate'
     && fullSkillSnapshot(execution.skillSnapshot)
   ) {
-    return resolveBoundSkillPrompt(execution, snapshot);
+    return withExecutionAdjustment(
+      await resolveBoundSkillPrompt(execution, snapshot),
+      executionAdjustmentInstruction(execution),
+    );
   }
   const promptBinding = execution.inputBindingsSnapshot?.find(
     (binding) => binding.slotId === 'prompt',
@@ -41,7 +44,27 @@ export async function resolveImageExecutionPrompt(
   const prompt = resolved.map((value) => value.trim()).filter(Boolean).join('\n\n---\n\n')
     || execution.prompt?.trim();
   if (!prompt) throw new Error('Image generation requires a readable prompt input.');
-  return prompt;
+  return withExecutionAdjustment(prompt, executionAdjustmentInstruction(execution));
+}
+
+function executionAdjustmentInstruction(execution: ExecutionRecord): string | undefined {
+  const adjustment = execution.params?.executionAdjustmentInstruction;
+  return typeof adjustment === 'string' && adjustment.trim()
+    ? adjustment.trim()
+    : undefined;
+}
+
+function withExecutionAdjustment(
+  basePrompt: string,
+  adjustment: string | undefined,
+): string {
+  if (!adjustment) return basePrompt;
+  return [
+    basePrompt,
+    '# Current user adjustment',
+    adjustment,
+    'Apply this adjustment to the current result. Preserve every unspecified identity, composition, and workflow constraint.',
+  ].join('\n\n');
 }
 
 function fullSkillSnapshot(

@@ -1,5 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import type { OperationToast } from '../components/OperationFeedback';
+import { supersedeResolvedAgentRunBlockerProposals } from '../core/agentChangeApplication';
 import {
   attachAgentRunExecution,
   cancelAgentRun,
@@ -9,11 +10,13 @@ import {
   createAgentRunForWorkflowStageSlice,
   createAgentRunForWorkflowRun,
   markAgentRunNeedsAttention,
-  nextAgentRunExecutionAction,
+  nextAgentRunExecutionActions,
   pauseAgentRun,
   reconcileAgentRuntime,
+  retryAgentRunAfterMissingExecution,
   startAgentRun,
 } from '../core/agentRuntime';
+import { isRetiredDefinitionError } from '../core/retiredDefinitions';
 import { reconcileAgentArtifactTarget } from '../core/agentArtifactTargetClient';
 import type { AgentWorkflowGateCompletion } from '../core/agentRuntimeContracts';
 import type { BoardSnapshot } from '../core/types';
@@ -47,63 +50,74 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
     updateSnapshot,
   } = options;
   const runOperationRef = useRef(runOperation);
-  const inFlightActionRef = useRef<{ actionKey: string; boardId: string } | undefined>(undefined);
+  const inFlightActionsRef = useRef(new Map<string, { actionKey: string; boardId: string }>());
   runOperationRef.current = runOperation;
 
   const runtimeRevision = [
     snapshot.board.boardId,
     snapshot.board.updatedAt,
     ...(snapshot.agentRuns ?? []).map((run) => `${run.agentRunId}:${run.recordVersion}:${run.status}`),
-    ...snapshot.executions.slice(0, 8).map((execution) => `${execution.executionId}:${execution.status}`),
+    ...snapshot.executions.map((execution) =>
+      `${execution.executionId}:${execution.recordVersion ?? 0}:${execution.status}`),
   ].join('|');
 
   useEffect(() => {
     const scope = snapshotRef.current;
     const runtimeSnapshot = structuredClone(scope);
     const changed = reconcileAgentRuntime(runtimeSnapshot);
-    const action = nextAgentRunExecutionAction(runtimeSnapshot);
-    if (changed) {
+    const proposalsChanged = supersedeResolvedAgentRunBlockerProposals(runtimeSnapshot);
+    const actions = nextAgentRunExecutionActions(runtimeSnapshot);
+    if (changed || proposalsChanged) {
       updateSnapshot(() => runtimeSnapshot, { history: false, persist: true });
     }
-    // An Execution can change the Step's actionKey before its AgentRun lineage
-    // has been attached. Keep the controller single-flight across that window,
-    // otherwise a fast failure or persistence refresh can dispatch the same
-    // Step more than once.
-    if (!action || inFlightActionRef.current) return;
     const boardId = runtimeSnapshot.board.boardId;
-    const knownExecutionIds = new Set(runtimeSnapshot.executions.map((execution) => execution.executionId));
-    inFlightActionRef.current = { actionKey: action.actionKey, boardId };
-    const settleAction = (error?: unknown): void => {
-      if (inFlightActionRef.current?.actionKey === action.actionKey) inFlightActionRef.current = undefined;
-      if (snapshotRef.current.board.boardId !== boardId) return;
-      updateSnapshot((current) => {
-        let attachedExecution = false;
-        for (const execution of current.executions) {
-          if (
-            !knownExecutionIds.has(execution.executionId)
-            && execution.params?.operationBlockId === action.operationBlockId
-          ) {
-            attachAgentRunExecution(current, action.agentRunId, execution.executionId);
-            attachedExecution = true;
+    for (const action of actions) {
+      // The same Run stays single-flight while its new Execution is being
+      // persisted and attached, but a different AgentRun may dispatch in
+      // parallel on the same Board.
+      if (inFlightActionsRef.current.has(action.agentRunId)) continue;
+      const knownExecutionIds = new Set(
+        runtimeSnapshot.executions.map((execution) => execution.executionId),
+      );
+      inFlightActionsRef.current.set(action.agentRunId, { actionKey: action.actionKey, boardId });
+      const settleAction = (error?: unknown): void => {
+        if (inFlightActionsRef.current.get(action.agentRunId)?.actionKey === action.actionKey) {
+          inFlightActionsRef.current.delete(action.agentRunId);
+        }
+        if (snapshotRef.current.board.boardId !== boardId) return;
+        updateSnapshot((current) => {
+          let attachedExecution = false;
+          for (const execution of current.executions) {
+            if (
+              !knownExecutionIds.has(execution.executionId)
+              && execution.params?.operationBlockId === action.operationBlockId
+            ) {
+              attachAgentRunExecution(current, action.agentRunId, execution.executionId);
+              attachedExecution = true;
+            }
           }
-        }
-        if (!attachedExecution) {
-          markAgentRunNeedsAttention(
-            current,
-            action.agentRunId,
-            error
-              ? error instanceof Error ? error.message : String(error)
-              : 'Operation returned without creating an Execution.',
-          );
-        }
-        reconcileAgentRuntime(current);
-        return current;
-      }, { history: false, persist: true });
-    };
-    void runOperationRef.current(action.operationBlockId).then(
-      () => settleAction(),
-      (error) => settleAction(error),
-    );
+          if (!attachedExecution) {
+            markAgentRunNeedsAttention(
+              current,
+              action.agentRunId,
+              error
+                ? error instanceof Error ? error.message : String(error)
+                : 'Operation returned without creating an Execution.',
+              isRetiredDefinitionError(error)
+                ? 'retired_definition'
+                : 'operation_execution_missing',
+            );
+          }
+          reconcileAgentRuntime(current);
+          supersedeResolvedAgentRunBlockerProposals(current);
+          return current;
+        }, { history: false, persist: true });
+      };
+      void runOperationRef.current(action.operationBlockId).then(
+        () => settleAction(),
+        (error) => settleAction(error),
+      );
+    }
   }, [runtimeRevision]);
 
   function createWorkflowAgentRun(workflowRunId: string): string | undefined {
@@ -262,14 +276,22 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
     );
   }
 
+  async function retry(agentRunId: string): Promise<void> {
+    await persistAgentRunControl(
+      'retry',
+      (current) => retryAgentRunAfterMissingExecution(current, agentRunId).record.agentRunId,
+    );
+  }
+
   async function persistAgentRunControl(
-    action: 'cancel' | 'pause' | 'resume',
+    action: 'cancel' | 'pause' | 'resume' | 'retry',
     mutate: (snapshot: BoardSnapshot) => string,
   ): Promise<void> {
     let agentRunId = '';
     try {
       const nextSnapshot = updateSnapshot((current) => {
         agentRunId = mutate(current);
+        supersedeResolvedAgentRunBlockerProposals(current);
         return current;
       }, { history: true });
       await persistSnapshot(nextSnapshot, { requireLocalApi: true });
@@ -325,10 +347,11 @@ export function useAgentRuntimeController(options: AgentRuntimeControllerOptions
     createWorkflowStageSliceAgentRun,
     pauseAgentRun: pause,
     resumeAgentRun: resume,
+    retryAgentRun: retry,
   };
 }
 
-function agentActionSuccessKey(action: 'cancel' | 'create' | 'pause' | 'resume') {
+function agentActionSuccessKey(action: 'cancel' | 'create' | 'pause' | 'resume' | 'retry') {
   if (action === 'cancel') return 'agentRuntime.canceled' as const;
   if (action === 'create') return 'agentRuntime.created' as const;
   if (action === 'pause') return 'agentRuntime.paused' as const;

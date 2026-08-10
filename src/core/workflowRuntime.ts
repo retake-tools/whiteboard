@@ -9,6 +9,7 @@ import { touchBoard } from './blockFactory';
 import {
   configurationFingerprint,
   currentOperationConfiguration,
+  executionConfiguration,
 } from './executionConfiguration';
 import { createId, nowIso } from './id';
 import type { BlockRecord, BoardSnapshot, ExecutionRecord } from './types';
@@ -18,6 +19,10 @@ import {
   workflowGatesAllowStep,
 } from './workflowGateRuntime';
 import { workflowDefinitionFor } from './workflowRegistry';
+import {
+  RetiredDefinitionError,
+  retiredGuidedImageWorkflowId,
+} from './retiredDefinitions';
 import {
   projectWorkflowStageViews,
   type WorkflowStageRuntimeView,
@@ -32,6 +37,10 @@ import type {
   WorkflowStepRunStatus,
 } from './workflowRuntimeContracts';
 import { resolveWorkflowInputBlock } from './workflowInputResolution';
+import {
+  ensureWorkflowGroupRoutingBounds,
+  refreshWorkflowGroupLayoutForBlock,
+} from './workflowGroupLayout';
 
 export interface WorkflowStepRuntimeView {
   canStart: boolean;
@@ -77,10 +86,20 @@ export function createWorkflowRunForGroup(
   const projectionId = stringMetadata(group, 'workflowProjectionId');
   const projectRevisionId = optionalStringMetadata(group, 'workflowRevisionId');
   const packageContext = packageContextFromGroup(group);
-  const definition = workflowDefinitionFor(workflowId, {
-    definitionHash: workflowHash,
-    version: workflowVersion,
-  });
+  let definition: ReturnType<typeof workflowDefinitionFor>;
+  try {
+    definition = workflowDefinitionFor(workflowId, {
+      definitionHash: workflowHash,
+      version: workflowVersion,
+    });
+  } catch (error) {
+    if (workflowId === retiredGuidedImageWorkflowId) {
+      throw new RetiredDefinitionError(
+        'This retired image-editing flow is read-only. Start a regular image-to-image task from the original image.',
+      );
+    }
+    throw error;
+  }
   if (definition.version !== workflowVersion || definition.definitionHash !== workflowHash) {
     throw new Error(`Workflow Definition lock mismatch: ${workflowId}@${workflowVersion}`);
   }
@@ -316,11 +335,16 @@ export function attachWorkflowExecution(
   execution.workflowRunId = run.workflowRunId;
   execution.stepRunId = view.record.stepRunId;
   view.record.executionIds = [...view.record.executionIds, execution.executionId];
+  view.record.outputBlockIds = unique([
+    ...view.record.outputBlockIds,
+    ...execution.outputBlockIds,
+  ]);
   view.record.outputArtifactBindings = [];
   if (view.record.outputAcceptancePolicy !== 'automatic') {
     view.record.acceptedOutputAssetIds = [];
     view.record.acceptedAt = undefined;
     view.record.acceptedBy = undefined;
+    view.record.acceptanceReason = undefined;
     clearSelectedOutputMarkers(snapshot, view.record);
   }
   view.record.inputFingerprint = workflowStepInputFingerprint(snapshot, view.record);
@@ -337,7 +361,10 @@ export function attachWorkflowExecution(
 
 export function acceptWorkflowStepOutputs(
   snapshot: BoardSnapshot,
-  input: AcceptWorkflowStepOutputsInput,
+  input: AcceptWorkflowStepOutputsInput & {
+    acceptedBy?: 'agent' | 'user';
+    acceptanceReason?: string;
+  },
 ): WorkflowStepRuntimeView {
   const record = (snapshot.workflowStepRuns ?? []).find(
     (candidate) => candidate.stepRunId === input.stepRunId,
@@ -395,7 +422,8 @@ export function acceptWorkflowStepOutputs(
 
   const acceptedAt = nowIso();
   record.acceptedOutputAssetIds = acceptedOutputAssetIds;
-  record.acceptedBy = 'user';
+  record.acceptedBy = input.acceptedBy ?? 'user';
+  record.acceptanceReason = input.acceptanceReason;
   record.acceptedAt = acceptedAt;
   record.updatedAt = acceptedAt;
   record.recordVersion += 1;
@@ -413,6 +441,11 @@ export function reconcileWorkflowRuntime(snapshot: BoardSnapshot): BoardSnapshot
   for (const run of snapshot.workflowRuns ?? []) {
     const stepRuns = stepRunsFor(snapshot, run);
     const updatedAt = nowIso();
+    reconcileWorkflowExecutionOutputs(snapshot, stepRuns, updatedAt);
+    const workflowGroup = snapshot.blocks.find(
+      (block) => block.type === 'group' && block.data.workflowRunId === run.workflowRunId,
+    );
+    if (workflowGroup) ensureWorkflowGroupRoutingBounds(snapshot, workflowGroup.blockId);
     let view = projectWorkflowRunView(snapshot, run, stepRuns);
     applyWorkflowStepProjection(snapshot, view, updatedAt);
     reconcileWorkflowGates(snapshot, run, stepRuns);
@@ -425,6 +458,50 @@ export function reconcileWorkflowRuntime(snapshot: BoardSnapshot): BoardSnapshot
     run.recordVersion += 1;
   }
   return snapshot;
+}
+
+function reconcileWorkflowExecutionOutputs(
+  snapshot: BoardSnapshot,
+  stepRuns: WorkflowStepRunRecord[],
+  updatedAt: string,
+): void {
+  const executionById = new Map(
+    snapshot.executions.map((execution) => [execution.executionId, execution]),
+  );
+  const blockById = new Map(snapshot.blocks.map((block) => [block.blockId, block]));
+  for (const step of stepRuns) {
+    const operation = blockById.get(step.operationBlockId);
+    if (!operation) continue;
+    const executionOutputBlockIds = step.executionIds.flatMap(
+      (executionId) => executionById.get(executionId)?.outputBlockIds ?? [],
+    );
+    const outputBlockIds = unique([...step.outputBlockIds, ...executionOutputBlockIds]);
+    let changed = !arraysEqual(step.outputBlockIds, outputBlockIds);
+    step.outputBlockIds = outputBlockIds;
+    let layoutBlock: BlockRecord | undefined;
+    for (const outputBlockId of executionOutputBlockIds) {
+      const outputBlock = blockById.get(outputBlockId);
+      if (!outputBlock) continue;
+      if (
+        outputBlock.parentGroupId === operation.parentGroupId
+        && outputBlock.data.workflowStepId === step.stepId
+        && outputBlock.data.operationBlockId === operation.blockId
+      ) continue;
+      outputBlock.parentGroupId = operation.parentGroupId;
+      outputBlock.data = {
+        ...outputBlock.data,
+        operationBlockId: operation.blockId,
+        workflowStepId: step.stepId,
+      };
+      outputBlock.updatedAt = updatedAt;
+      layoutBlock = outputBlock;
+      changed = true;
+    }
+    if (!changed) continue;
+    step.updatedAt = updatedAt;
+    step.recordVersion += 1;
+    if (layoutBlock) refreshWorkflowGroupLayoutForBlock(snapshot, layoutBlock);
+  }
 }
 
 export function workflowRunViewForGroup(
@@ -539,8 +616,8 @@ function projectStepView(
     const operation = snapshot.blocks.find((block) => block.blockId === record.operationBlockId && block.type === 'operation');
     const configurationOutdated = Boolean(
       operation
-      && latest.configurationFingerprint
-      && latest.configurationFingerprint !== configurationFingerprint(currentOperationConfiguration(snapshot, operation)),
+      && workflowStepConfigurationFingerprint(record, latest, operation, snapshot, 'execution')
+        !== workflowStepConfigurationFingerprint(record, latest, operation, snapshot, 'current'),
     );
     const inputOutdated = Boolean(
       record.inputFingerprint
@@ -585,6 +662,30 @@ function projectStepView(
       && dependencyReady
       && (status === 'ready' || canRetry),
   };
+}
+
+function workflowStepConfigurationFingerprint(
+  step: WorkflowStepRunRecord,
+  execution: ExecutionRecord,
+  operation: BlockRecord,
+  snapshot: BoardSnapshot,
+  source: 'current' | 'execution',
+): string {
+  const configuration = source === 'execution'
+    ? executionConfiguration(execution)
+    : currentOperationConfiguration(snapshot, operation);
+  const executionAdjustment = typeof execution.params?.executionAdjustmentInstruction === 'string'
+    ? execution.params.executionAdjustmentInstruction.trim()
+    : '';
+  const currentAdjustment = typeof operation.data.executionAdjustmentInstruction === 'string'
+    ? operation.data.executionAdjustmentInstruction.trim()
+    : '';
+  const promptIsDerivedFromWorkflowInputs = step.capabilityLock.capabilityId === 'image.generate'
+    && !executionAdjustment
+    && !currentAdjustment;
+  return configurationFingerprint(promptIsDerivedFromWorkflowInputs
+    ? { ...configuration, prompt: '' }
+    : configuration);
 }
 
 function projectedRunStatus(

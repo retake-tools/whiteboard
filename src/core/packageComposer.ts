@@ -53,11 +53,23 @@ export interface PackageComposerParametersValue {
 
 export function packageComposerParametersWithAgentPreferences(
   parameters: Record<string, unknown> | undefined,
-  preferences: { variationCount?: 1 | 2 | 3 | 4 },
+  preferences: {
+    aspectRatioPreset?: string;
+    connectionId?: string;
+    targetResolution?: string;
+    variationCount?: 1 | 2 | 3 | 4;
+  },
 ): Record<string, unknown> {
   const resolved = structuredClone(parameters ?? {});
-  if (resolved.variationCount === undefined && preferences.variationCount !== undefined) {
-    resolved.variationCount = preferences.variationCount;
+  for (const key of [
+    'aspectRatioPreset',
+    'connectionId',
+    'targetResolution',
+    'variationCount',
+  ] as const) {
+    if (resolved[key] === undefined && preferences[key] !== undefined) {
+      resolved[key] = preferences[key];
+    }
   }
   return resolved;
 }

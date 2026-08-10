@@ -4,9 +4,16 @@ import path from 'node:path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AgentWorkflowRunNavigator } from '../src/components/AgentWorkflowRunNavigator';
+import { AgentWorkflowStepConversation } from '../src/components/AgentWorkflowStepConversation';
+import {
+  CanvasExecutionActivity,
+  executionActivityRecordsForAgent,
+  executionActivityPhaseKey,
+} from '../src/components/CanvasExecutionActivity';
 import { WorkflowRunStepInspector } from '../src/components/WorkflowRunStepInspector';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import type { BoardSnapshot } from '../src/core/types';
+import { workflowRunExperienceFor } from '../src/core/workflowRunExperience';
 import { workflowWorkspaceGraphFor } from '../src/core/workflowWorkspaceGraph';
 import type {
   WorkflowRunRecord,
@@ -66,8 +73,13 @@ Object.defineProperty(globalThis, 'navigator', {
 const compactMarkup = renderToStaticMarkup(
   <I18nProvider>
     <AgentWorkflowRunNavigator
+      experience={workflowRunExperienceFor(snapshot)}
+      onCancelAgentRun={() => undefined}
       onOpenWorkflowRun={() => undefined}
-      snapshot={snapshot}
+      onPauseAgentRun={() => undefined}
+      onResumeAgentRun={() => undefined}
+      onSelectWorkflowRun={() => undefined}
+      selectedWorkflowRunId="run_ip"
     />
   </I18nProvider>,
 );
@@ -79,6 +91,117 @@ assert.match(
 );
 assert.doesNotMatch(compactMarkup, /agent-workflow-run-details/);
 assert.doesNotMatch(compactMarkup, /agent-workflow-step-list/);
+
+const runningSnapshot = structuredClone(snapshot);
+runningSnapshot.executions.push({
+  adapter: 'codex_app_server',
+  boardId: runningSnapshot.board.boardId,
+  capabilityId: 'image.generate',
+  executionId: 'execution_running_character_sheet',
+  inputBlockIds: [],
+  outputAssetIds: [],
+  outputBlockIds: [],
+  params: { operationBlockId: 'operation_c' },
+  projectId: runningSnapshot.project.projectId,
+  startedAt: now,
+  status: 'running',
+});
+const activityMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <CanvasExecutionActivity
+      agentIsWorking={false}
+      onLocateBlock={() => undefined}
+      snapshot={runningSnapshot}
+      workingOperationBlockId="operation_c"
+    />
+  </I18nProvider>,
+);
+assert.match(activityMarkup, /Character sheet/);
+assert.match(activityMarkup, /The system is working/);
+assert.match(activityMarkup, /Locate the running Operation on the Board/);
+const agentActivityMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <CanvasExecutionActivity
+      agentIsWorking
+      onLocateBlock={() => undefined}
+      snapshot={snapshot}
+    />
+  </I18nProvider>,
+);
+assert.match(agentActivityMarkup, /Agent is working/);
+assert.match(agentActivityMarkup, /Understanding and planning the task/);
+const runningExecution = runningSnapshot.executions[0]!;
+runningExecution.workflowRunId = 'run_ip';
+assert.deepEqual(
+  executionActivityRecordsForAgent(runningSnapshot, {
+    agentRunId: 'agent_without_direct_execution_binding',
+    workflowRunIds: ['run_ip'],
+  }).map((execution) => execution.executionId),
+  [runningExecution.executionId],
+  'Agent loading must follow WorkflowRun ownership when Execution.agentRunId is absent.',
+);
+assert.deepEqual(
+  executionActivityRecordsForAgent(runningSnapshot, {
+    agentRunId: 'another_agent',
+    workflowRunIds: ['another_workflow'],
+  }),
+  [],
+  'Agent loading must not leak executions from another Agent Workflow.',
+);
+assert.equal(executionActivityPhaseKey(runningExecution, {
+  phase: 'provider_starting',
+  type: 'execution.progress',
+}), 'canvasActivity.providerStarting');
+assert.equal(executionActivityPhaseKey(runningExecution, {
+  current: 1,
+  phase: 'provider_generating',
+  total: 2,
+  type: 'execution.progress',
+}), 'canvasActivity.providerGenerating');
+assert.equal(executionActivityPhaseKey(runningExecution, {
+  phase: 'result_importing',
+  type: 'execution.progress',
+}), 'canvasActivity.resultImporting');
+assert.equal(executionActivityPhaseKey(runningExecution, {
+  phase: 'board_writing',
+  type: 'execution.progress',
+}), 'canvasActivity.boardWriting');
+
+const candidateSnapshot = structuredClone(snapshot);
+candidateSnapshot.workflowStepRuns![0]!.status = 'waiting_selection';
+candidateSnapshot.workflowStepRuns![0]!.outputAssetIds = ['candidate_a', 'candidate_b'];
+candidateSnapshot.assets = ['candidate_a', 'candidate_b'].map((assetId) => ({
+  assetId,
+  createdAt: now,
+  kind: 'image' as const,
+  mimeType: 'image/png',
+  previewUrl: `data:image/png;base64,${assetId}`,
+  projectId: candidateSnapshot.project.projectId,
+  storageKey: `fixture/${assetId}.png`,
+  storageProvider: 'local_mock' as const,
+}));
+const candidateRun = workflowRunExperienceFor(candidateSnapshot).runs[0];
+assert.ok(candidateRun);
+const candidateMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <AgentWorkflowStepConversation
+      onLocateBlock={() => undefined}
+      onRerunOperation={() => undefined}
+      onSelectWorkflowOutput={() => undefined}
+      run={candidateRun}
+      snapshot={candidateSnapshot}
+    />
+  </I18nProvider>,
+);
+assert.match(candidateMarkup, /Choose one candidate to continue/);
+assert.match(candidateMarkup, /Candidate 1/);
+assert.match(candidateMarkup, /Candidate 2/);
+assert.match(
+  candidateMarkup,
+  /class="is-selected" aria-pressed="true" aria-label="Candidate 1"/,
+  'The first Workflow image candidate should be visibly selected by default without accepting it.',
+);
+assert.match(candidateMarkup, /Use selected candidate/);
 
 const executedSnapshot = structuredClone(snapshot);
 executedSnapshot.executions.push({
@@ -121,6 +244,7 @@ assert.match(runInspectorMarkup, /Rerun with last inputs/);
 const repositoryRoot = path.resolve(process.cwd());
 const [
   agentRuntimeControllerSource,
+  agentWorkspaceSource,
   appSource,
   canvasSource,
   workflowDraftControllerSource,
@@ -138,6 +262,7 @@ const [
   workspaceStyles,
 ] = await Promise.all([
   readFile(path.join(repositoryRoot, 'src/app/useAgentRuntimeController.ts'), 'utf8'),
+  readFile(path.join(repositoryRoot, 'src/components/AgentWorkspace.tsx'), 'utf8'),
   readFile(path.join(repositoryRoot, 'src/App.tsx'), 'utf8'),
   readFile(path.join(repositoryRoot, 'src/app/WhiteboardCanvas.tsx'), 'utf8'),
   readFile(path.join(repositoryRoot, 'src/app/useWorkflowDraftController.ts'), 'utf8'),
@@ -160,6 +285,8 @@ assert.match(appSource, /onStartWorkflowRun=\{startWorkflowFromWorkspace\}/);
 assert.match(appSource, /onStartWorkflowStep=\{startWorkflowStepFromWorkspace\}/);
 assert.match(appSource, /onCreateWorkflowRun=\{workflowRuntimeController\.createWorkflowRun\}/);
 assert.match(appSource, /agentWorkspaceController\.focusAgentRun\(agentRunId\)/);
+assert.match(agentWorkspaceSource, /<CanvasExecutionActivity/);
+assert.doesNotMatch(canvasSource, /<CanvasExecutionActivity/);
 assert.match(
   agentRuntimeControllerSource,
   /Operation returned without creating an Execution\./,
@@ -219,6 +346,12 @@ assert.match(runStepNodeSource, /<WorkflowStepCard/);
 assert.match(designStepInspectorSource, /workflowInspector\.overview/);
 assert.match(designStepInspectorSource, /workflowInspector\.inputs/);
 assert.match(designStepInspectorSource, /workflowInspector\.behavior/);
+assert.match(designStepInspectorSource, /workflowAuthoring\.imageStepParameters/);
+assert.match(designStepInspectorSource, /currentStep\.capabilityLock\.capabilityId === imageGenerateCapabilityId/);
+assert.match(designStepInspectorSource, /workflow-step-\$\{stepId\}-connection/);
+assert.match(designStepInspectorSource, /workflow-step-\$\{stepId\}-aspect-ratio/);
+assert.match(designStepInspectorSource, /workflow-step-\$\{stepId\}-resolution/);
+assert.match(designStepInspectorSource, /workflow-step-\$\{stepId\}-variation-count/);
 assert.match(designStepInspectorSource, /workflowInspector\.outputs/);
 assert.match(designStepInspectorSource, /workflowInspector\.validation/);
 assert.match(designWorkspaceSource, /workflowAuthoringChecklistFor/);

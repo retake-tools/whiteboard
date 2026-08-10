@@ -5,6 +5,7 @@ import {
   createAgentRunForWorkflowRun,
   createAgentRunForWorkflowSlice,
   createAgentRunForWorkflowStageSlice,
+  supersedeIdleAgentRunForLaunch,
   startAgentRun,
 } from './agentRuntime';
 import {
@@ -112,6 +113,10 @@ export function stagePackageEntrypointAgentLaunch(
     throw new Error('Package EntryPoint Agent launch Draft effect provenance is invalid.');
   }
 
+  // An explicit launch replaces an idle/attention-bound Run. Provider work
+  // that is still queued or running remains protected by the runtime guard.
+  supersedeIdleAgentRunForLaunch(stagedSnapshot, session.activeAgentRunId);
+
   let agentRunId: string;
   let workflowRunId: string | undefined;
   let createdWorkflowRun: boolean | undefined;
@@ -157,6 +162,9 @@ export function stagePackageEntrypointAgentLaunch(
   if (!agentRun) throw new Error(`Package EntryPoint AgentRun was not created: ${agentRunId}`);
   agentRun.sourceChangeProposalId = stagedProposal.proposalId;
   agentRun.sourceDraftLaunchIdempotencyKey = command.idempotencyKey;
+  if (stagedProposal.workflowInteractionMode) {
+    agentRun.interactionMode = stagedProposal.workflowInteractionMode;
+  }
   if (command.agentPresetSelection) {
     applyAgentPresetToRun(stagedSnapshot, {
       agentRunId,

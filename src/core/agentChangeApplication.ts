@@ -4,7 +4,9 @@ import type {
   AgentRuntimeEventRecord,
   ChangeDecisionRecord,
   ChangeProposalRecord,
+  WorkflowLaunchPreferences,
 } from './agentSessionContracts';
+import { touchBoard } from './blockFactory';
 import { createId, nowIso } from './id';
 import {
   buildPackageEntrypointInstantiationCommand,
@@ -13,7 +15,93 @@ import {
 } from './packageEntrypointDraftApplication';
 import { stageGoalPlanDraft } from './goalPlanDraftApplication';
 import { assertCurrentGoalPlanCommand } from './goalPlanRegistry';
+import { assertCurrentRecommendedSkillCommand } from './agentSkillRecommendation';
 import type { BoardSnapshot } from './types';
+
+const terminalAgentRunStatuses = new Set(['canceled', 'failed', 'succeeded']);
+
+export function applyWorkflowLaunchPreferences(
+  proposal: ChangeProposalRecord,
+  preferences: WorkflowLaunchPreferences,
+): void {
+  if (proposal.status !== 'awaiting_decision') {
+    throw new Error('Workflow launch preferences require an awaiting Proposal.');
+  }
+  const invocation = proposal.proposedCommand.kind === 'package_entrypoint.instantiate'
+    ? proposal.proposedCommand.invocation
+    : proposal.proposedCommand.kind === 'goal_plan.instantiate'
+      ? proposal.proposedCommand.draftCommand.invocation
+      : undefined;
+  if (!invocation || invocation.targetLock.entrypointKind !== 'workflow') {
+    throw new Error('Workflow launch preferences require a Workflow EntryPoint Proposal.');
+  }
+  if (!['automatic', 'manual'].includes(preferences.interactionMode)) {
+    throw new Error('Workflow interaction mode is invalid.');
+  }
+  const parameters = structuredClone(
+    proposal.workflowLaunchParameters ?? invocation.parameters,
+  );
+  for (const [key, value] of [
+    ['connectionId', preferences.connectionId],
+    ['aspectRatioPreset', preferences.aspectRatioPreset],
+    ['targetResolution', preferences.targetResolution],
+  ] as const) {
+    if (!Object.prototype.hasOwnProperty.call(preferences, key)) continue;
+    if (value) parameters[key] = value;
+    else delete parameters[key];
+  }
+  if (preferences.conceptStepId && preferences.conceptVariationCount) {
+    // Candidate count belongs to the concept step. Do not keep the legacy flat
+    // value, which would otherwise override every image step in the Workflow.
+    delete parameters.variationCount;
+    const rawOverrides = parameters.stepParameterOverrides;
+    const stepParameterOverrides = rawOverrides && typeof rawOverrides === 'object' && !Array.isArray(rawOverrides)
+      ? structuredClone(rawOverrides as Record<string, unknown>)
+      : {};
+    const rawStep = stepParameterOverrides[preferences.conceptStepId];
+    const step = rawStep && typeof rawStep === 'object' && !Array.isArray(rawStep)
+      ? structuredClone(rawStep as Record<string, unknown>)
+      : {};
+    step.variationCount = preferences.conceptVariationCount;
+    stepParameterOverrides[preferences.conceptStepId] = step;
+    parameters.stepParameterOverrides = stepParameterOverrides;
+  }
+  proposal.workflowLaunchParameters = parameters;
+  proposal.workflowInteractionMode = preferences.interactionMode;
+}
+
+export function isResolvedAgentRunBlockerProposal(
+  snapshot: BoardSnapshot,
+  proposal: ChangeProposalRecord,
+): boolean {
+  if (
+    proposal.status !== 'awaiting_decision'
+    || proposal.kind !== 'out_of_scope'
+    || proposal.proposedCommand.kind !== 'unsupported'
+    || !proposal.agentRunId
+  ) return false;
+  const run = (snapshot.agentRuns ?? []).find(
+    (candidate) => candidate.agentRunId === proposal.agentRunId,
+  );
+  return Boolean(run && terminalAgentRunStatuses.has(run.status));
+}
+
+export function supersedeResolvedAgentRunBlockerProposals(
+  snapshot: BoardSnapshot,
+): boolean {
+  const resolved = (snapshot.changeProposals ?? []).filter(
+    (proposal) => isResolvedAgentRunBlockerProposal(snapshot, proposal),
+  );
+  if (resolved.length === 0) return false;
+  const updatedAt = nowIso();
+  for (const proposal of resolved) {
+    proposal.status = 'superseded';
+    proposal.updatedAt = updatedAt;
+    proposal.recordVersion += 1;
+  }
+  touchBoard(snapshot);
+  return true;
+}
 
 export function appendAgentRuntimeEvent(
   snapshot: BoardSnapshot,
@@ -177,7 +265,13 @@ function applyApprovedChangeProposal(
   ) throw new Error('Typed EntryPoint Proposal source message is outside the approved scope.');
   if (proposal.proposedCommand.kind === 'goal_plan.instantiate') {
     assertCurrentGoalPlanCommand(snapshot, source, proposal.proposedCommand);
-    const staged = stageGoalPlanDraft(snapshot, proposal.proposedCommand, presentation);
+    const effectiveCommand = structuredClone(proposal.proposedCommand);
+    if (proposal.workflowLaunchParameters) {
+      effectiveCommand.draftCommand.invocation.parameters = structuredClone(
+        proposal.workflowLaunchParameters,
+      );
+    }
+    const staged = stageGoalPlanDraft(snapshot, effectiveCommand, presentation);
     snapshot.blocks = staged.stagedSnapshot.blocks;
     snapshot.edges = staged.stagedSnapshot.edges;
     snapshot.board = staged.stagedSnapshot.board;
@@ -187,11 +281,24 @@ function applyApprovedChangeProposal(
   if (proposal.proposedCommand.kind !== 'package_entrypoint.instantiate') {
     throw new Error('This Change Proposal has no registered Application Service command.');
   }
-  const expectedCommand = buildPackageEntrypointInstantiationCommand(snapshot, source, proposal.proposalId);
-  if (JSON.stringify(expectedCommand) !== JSON.stringify(proposal.proposedCommand)) {
-    throw new Error('Typed EntryPoint Proposal command no longer matches its frozen source message.');
+  if (proposal.kind === 'plan_skill') {
+    assertCurrentRecommendedSkillCommand(
+      snapshot,
+      source,
+      proposal.proposalId,
+      proposal.proposedCommand,
+    );
+  } else {
+    const expectedCommand = buildPackageEntrypointInstantiationCommand(snapshot, source, proposal.proposalId);
+    if (JSON.stringify(expectedCommand) !== JSON.stringify(proposal.proposedCommand)) {
+      throw new Error('Typed EntryPoint Proposal command no longer matches its frozen source message.');
+    }
   }
-  const staged = stagePackageEntrypointDraft(snapshot, proposal.proposedCommand, presentation);
+  const effectiveCommand = structuredClone(proposal.proposedCommand);
+  if (proposal.workflowLaunchParameters) {
+    effectiveCommand.invocation.parameters = structuredClone(proposal.workflowLaunchParameters);
+  }
+  const staged = stagePackageEntrypointDraft(snapshot, effectiveCommand, presentation);
   snapshot.blocks = staged.stagedSnapshot.blocks;
   snapshot.edges = staged.stagedSnapshot.edges;
   snapshot.board = staged.stagedSnapshot.board;

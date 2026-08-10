@@ -1,9 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { ExecutionProgressEvent } from '../src/core/executionEventContracts';
 import type { BoardSnapshot } from '../src/core/types';
 
 export type ExecutionEventPayload =
   | { type: 'execution.started' }
-  | { type: 'execution.progress'; message: string }
+  | ExecutionProgressEvent
   | { type: 'text.delta'; delta: string; resultBlockId: string }
   | { type: 'execution.snapshot'; snapshot: BoardSnapshot }
   | { type: 'execution.failed'; errorMessage: string; snapshot?: BoardSnapshot };

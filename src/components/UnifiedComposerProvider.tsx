@@ -31,6 +31,7 @@ import type {
   ComposerImageReferenceSetting,
   ReferenceIntentV1,
 } from '../core/referenceIntent';
+import type { WorkflowInteractionMode } from '../core/agentRuntimeContracts';
 
 export interface ComposerReferenceSetting {
   purpose: string;
@@ -46,7 +47,14 @@ export interface UnifiedComposerAgentInput {
   inlineValues: PackageComposerInlineValue[];
   mentions: PackageComposerMention[];
   parameters: Record<string, unknown>;
+  suggestionAction?: {
+    operationBlockId?: string;
+    sourceMessageId: string;
+  };
+  workflowExecutionMode?: WorkflowExecutionMode;
 }
+
+export type WorkflowExecutionMode = WorkflowInteractionMode;
 
 export interface AgentComposerPreferences {
   aspectRatioPreset?: string;
@@ -121,6 +129,8 @@ export interface UnifiedComposerDraftController {
   startWorkflowContinuation: (handoff: WorkflowContinuationComposerHandoff) => void;
   storyboardOutputCount: 1 | 2 | 3 | 4;
   storyboardPanelCount: StoryboardSheetPanelCount;
+  workflowExecutionMode: WorkflowExecutionMode;
+  setWorkflowExecutionMode: Dispatch<SetStateAction<WorkflowExecutionMode>>;
   videoConnectionId?: string;
   videoParameters: {
     aspectRatio: string;
@@ -143,6 +153,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
   });
   const [composerMode, setComposerModeState] = useState<ComposerMode>('agent');
   const [entrypointId, setEntrypointId] = useState<string>();
+  const [workflowExecutionMode, setWorkflowExecutionMode] = useState<WorkflowExecutionMode>('automatic');
   const [instruction, setInstruction] = useState('');
   const [inlineValuesBySlot, setInlineValuesBySlot] = useState<Record<string, string>>({});
   const [storyboardOutputCount, setStoryboardOutputCount] = useState<1 | 2 | 3 | 4>(1);
@@ -169,6 +180,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
 
   const reset = useCallback((): void => {
     setEntrypointId(undefined);
+    setWorkflowExecutionMode('automatic');
     setInstruction('');
     setInlineValuesBySlot({});
     setStoryboardOutputCount(1);
@@ -188,6 +200,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
 
   const clearEntryPoint = useCallback((): void => {
     setEntrypointId(undefined);
+    setWorkflowExecutionMode('automatic');
     setInlineValuesBySlot({});
     setStoryboardOutputCount(1);
     setStoryboardPanelCount(6);
@@ -198,6 +211,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
 
   const selectEntryPoint = useCallback((nextEntrypointId: string): void => {
     setEntrypointId(nextEntrypointId);
+    setWorkflowExecutionMode('automatic');
     setInlineValuesBySlot({});
     setStoryboardOutputCount(1);
     setStoryboardPanelCount(6);
@@ -209,6 +223,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
   const setComposerMode = useCallback((mode: ComposerMode): void => {
     setComposerModeState(mode);
     setEntrypointId(undefined);
+    setWorkflowExecutionMode('automatic');
     setInlineValuesBySlot({});
     setStoryboardOutputCount(1);
     setStoryboardPanelCount(6);
@@ -224,6 +239,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
   ): void => {
     setComposerModeState('agent');
     setEntrypointId(handoff.entrypointId);
+    setWorkflowExecutionMode('automatic');
     setInstruction('');
     setInlineValuesBySlot(structuredClone(handoff.inlineValuesBySlot));
     setStoryboardOutputCount(1);
@@ -281,6 +297,8 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     videoParameters,
     setVideoConnectionId,
     setVideoParameters,
+    setWorkflowExecutionMode,
+    workflowExecutionMode,
   }), [
     agentPreferences,
     clearEntryPoint,
@@ -305,6 +323,7 @@ export function UnifiedComposerProvider({ children }: { children: ReactNode }): 
     storyboardPanelCount,
     videoConnectionId,
     videoParameters,
+    workflowExecutionMode,
   ]);
 
   return <UnifiedComposerContext.Provider value={value}>{children}</UnifiedComposerContext.Provider>;
