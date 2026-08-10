@@ -29,8 +29,10 @@ export type AgentRunStopReason =
   | 'target_invalid'
   | 'provider_execution_authorization_required'
   | 'operation_execution_missing'
+  | 'retired_definition'
   | 'user_paused'
-  | 'user_canceled';
+  | 'user_canceled'
+  | 'superseded_by_new_run';
 
 export interface AgentWorkflowArtifactTarget {
   artifactScope: 'workflow_run';
@@ -124,6 +126,7 @@ export interface AgentRunRecord {
   entrypointId?: string;
   error?: string;
   executionIds: string[];
+  interactionMode?: WorkflowInteractionMode;
   permissions: AgentRunPermissions;
   projectId: string;
   recordVersion: number;
@@ -141,6 +144,8 @@ export interface AgentRunRecord {
   target: AgentRunTarget;
   updatedAt: string;
 }
+
+export type WorkflowInteractionMode = 'automatic' | 'manual';
 
 export interface AgentRunExecutionAction {
   actionKey: string;

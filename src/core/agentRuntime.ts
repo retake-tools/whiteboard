@@ -22,6 +22,7 @@ import {
 } from './agentWorkflowRuntime';
 import type { BlockRecord, BoardSnapshot, ExecutionRecord } from './types';
 import {
+  acceptWorkflowStepOutputs,
   reconcileWorkflowRuntime,
   workflowRunViewForId,
 } from './workflowRuntime';
@@ -49,7 +50,6 @@ export function createAgentRunForWorkflowRun(
   workflowRunId: string,
 ): AgentRunRuntimeView {
   reconcileWorkflowRuntime(snapshot);
-  assertNoActiveAgentRun(snapshot);
   const workflow = workflowRunViewForId(snapshot, workflowRunId);
   if (!workflow) throw new Error(`Workflow Run not found: ${workflowRunId}`);
   const stepRuns = workflow.steps.map((step) => step.record);
@@ -83,6 +83,7 @@ export function createAgentRunForWorkflowRun(
     updatedAt: createdAt,
     recordVersion: 1,
   };
+  assertNoConflictingActiveAgentRun(snapshot, record);
   snapshot.agentRuns = [...(snapshot.agentRuns ?? []), record];
   touchBoard(snapshot);
   return agentRunView(record);
@@ -97,7 +98,6 @@ export function createAgentRunForGoalPlan(
   },
 ): AgentRunRuntimeView {
   reconcileWorkflowRuntime(snapshot);
-  assertNoActiveAgentRun(snapshot);
   const workflow = workflowRunViewForId(snapshot, input.workflowRunId);
   if (!workflow) throw new Error(`Workflow Run not found: ${input.workflowRunId}`);
   if (workflow.steps.length === 0) {
@@ -146,6 +146,7 @@ export function createAgentRunForGoalPlan(
     target,
     updatedAt: createdAt,
   };
+  assertNoConflictingActiveAgentRun(snapshot, record);
   snapshot.agentRuns = [...(snapshot.agentRuns ?? []), record];
   touchBoard(snapshot);
   return agentRunView(record);
@@ -157,7 +158,6 @@ export function createAgentRunForWorkflowSlice(
   stepRunId: string,
 ): AgentRunRuntimeView {
   reconcileWorkflowRuntime(snapshot);
-  assertNoActiveAgentRun(snapshot);
   const workflow = workflowRunViewForId(snapshot, workflowRunId);
   if (!workflow) throw new Error(`Workflow Run not found: ${workflowRunId}`);
   const step = workflow.steps.find((candidate) => candidate.record.stepRunId === stepRunId);
@@ -196,6 +196,7 @@ export function createAgentRunForWorkflowSlice(
     updatedAt: createdAt,
     recordVersion: 1,
   };
+  assertNoConflictingActiveAgentRun(snapshot, record);
   snapshot.agentRuns = [...(snapshot.agentRuns ?? []), record];
   touchBoard(snapshot);
   return agentRunView(record);
@@ -207,7 +208,6 @@ export function createAgentRunForWorkflowArtifactSlice(
   workflowOutputSlotId: string,
 ): AgentRunRuntimeView {
   reconcileWorkflowRuntime(snapshot);
-  assertNoActiveAgentRun(snapshot);
   const workflow = workflowRunViewForId(snapshot, workflowRunId);
   if (!workflow) throw new Error(`Workflow Run not found: ${workflowRunId}`);
   const output = workflow.record.outputSlotLocks.find(
@@ -255,6 +255,7 @@ export function createAgentRunForWorkflowArtifactSlice(
     updatedAt: createdAt,
     recordVersion: 1,
   };
+  assertNoConflictingActiveAgentRun(snapshot, record);
   snapshot.agentRuns = [...(snapshot.agentRuns ?? []), record];
   touchBoard(snapshot);
   return agentRunView(record);
@@ -266,7 +267,6 @@ export function createAgentRunForWorkflowStageSlice(
   stageId: string,
 ): AgentRunRuntimeView {
   reconcileWorkflowRuntime(snapshot);
-  assertNoActiveAgentRun(snapshot);
   const workflow = workflowRunViewForId(snapshot, workflowRunId);
   if (!workflow) throw new Error(`Workflow Run not found: ${workflowRunId}`);
   const stage = workflow.stages.find(
@@ -330,6 +330,7 @@ export function createAgentRunForWorkflowStageSlice(
     updatedAt: createdAt,
     recordVersion: 1,
   };
+  assertNoConflictingActiveAgentRun(snapshot, record);
   snapshot.agentRuns = [...(snapshot.agentRuns ?? []), record];
   touchBoard(snapshot);
   return agentRunView(record);
@@ -342,7 +343,6 @@ export function createAgentRunForWorkflowGateSlice(
   completion: AgentWorkflowGateCompletion,
 ): AgentRunRuntimeView {
   reconcileWorkflowRuntime(snapshot);
-  assertNoActiveAgentRun(snapshot);
   const workflow = workflowRunViewForId(snapshot, workflowRunId);
   if (!workflow) throw new Error(`Workflow Run not found: ${workflowRunId}`);
   const gateDefinitionLock = workflow.record.gateDefinitionLocks.find(
@@ -392,6 +392,7 @@ export function createAgentRunForWorkflowGateSlice(
     updatedAt: createdAt,
     recordVersion: 1,
   };
+  assertNoConflictingActiveAgentRun(snapshot, record);
   snapshot.agentRuns = [...(snapshot.agentRuns ?? []), record];
   touchBoard(snapshot);
   return agentRunView(record);
@@ -401,7 +402,6 @@ export function createAgentRunForOperation(
   snapshot: BoardSnapshot,
   operationBlockId: string,
 ): AgentRunRuntimeView {
-  assertNoActiveAgentRun(snapshot);
   const operation = operationBlock(snapshot, operationBlockId);
   const capabilityId = stringValue(operation.data.capabilityId);
   if (!capabilityId) throw new Error(`Operation Capability is missing: ${operationBlockId}`);
@@ -448,6 +448,7 @@ export function createAgentRunForOperation(
     updatedAt: createdAt,
     recordVersion: 1,
   };
+  assertNoConflictingActiveAgentRun(snapshot, record);
   snapshot.agentRuns = [...(snapshot.agentRuns ?? []), record];
   touchBoard(snapshot);
   return agentRunView(record);
@@ -458,6 +459,7 @@ export function startAgentRun(snapshot: BoardSnapshot, agentRunId: string): Agen
   if (record.status !== 'queued' && record.status !== 'paused') {
     throw new Error(`Agent Run cannot start from status: ${record.status}`);
   }
+  assertNoConflictingActiveAgentRun(snapshot, record);
   assertAgentRunTarget(snapshot, record);
   updateAgentRun(record, {
     status: 'running',
@@ -495,17 +497,76 @@ export function cancelAgentRun(snapshot: BoardSnapshot, agentRunId: string): Age
   return agentRunView(record);
 }
 
+export function assertAgentRunCanBeSupersededForLaunch(
+  snapshot: BoardSnapshot,
+  agentRunId?: string,
+): void {
+  const active = agentRunId ? agentRunRecord(snapshot, agentRunId) : undefined;
+  if (!active) return;
+  if (!activeStatuses.has(active.status)) return;
+  if (
+    active.status === 'queued'
+    || active.status === 'running'
+    || hasActiveExecutionForAgentRun(snapshot, active)
+  ) {
+    throw new Error(
+      `The current Agent Run is still executing and must be stopped before another task can start: ${active.agentRunId}`,
+    );
+  }
+}
+
+export function supersedeIdleAgentRunForLaunch(
+  snapshot: BoardSnapshot,
+  agentRunId?: string,
+): AgentRunRuntimeView | undefined {
+  const active = agentRunId ? agentRunRecord(snapshot, agentRunId) : undefined;
+  if (!active) return undefined;
+  if (!activeStatuses.has(active.status)) return undefined;
+  assertAgentRunCanBeSupersededForLaunch(snapshot, active.agentRunId);
+  updateAgentRun(active, {
+    status: 'canceled',
+    stopReason: 'superseded_by_new_run',
+    currentOperationBlockId: undefined,
+    error: undefined,
+  });
+  touchBoard(snapshot);
+  return agentRunView(active);
+}
+
 export function markAgentRunNeedsAttention(
   snapshot: BoardSnapshot,
   agentRunId: string,
   error: string,
+  stopReason: Extract<AgentRunStopReason, 'operation_execution_missing' | 'retired_definition'> = 'operation_execution_missing',
 ): AgentRunRuntimeView {
   const record = agentRunRecord(snapshot, agentRunId);
   if (!activeStatuses.has(record.status)) return agentRunView(record);
   updateAgentRun(record, {
     error,
     status: 'needs_attention',
-    stopReason: 'operation_execution_missing',
+    stopReason,
+  });
+  touchBoard(snapshot);
+  return agentRunView(record);
+}
+
+export function retryAgentRunAfterMissingExecution(
+  snapshot: BoardSnapshot,
+  agentRunId: string,
+): AgentRunRuntimeView {
+  const record = agentRunRecord(snapshot, agentRunId);
+  if (
+    record.status !== 'needs_attention'
+    || record.stopReason !== 'operation_execution_missing'
+  ) {
+    throw new Error(`Agent Run is not waiting for a missing Execution retry: ${agentRunId}`);
+  }
+  assertNoConflictingActiveAgentRun(snapshot, record);
+  assertAgentRunTarget(snapshot, record);
+  updateAgentRun(record, {
+    status: 'running',
+    stopReason: undefined,
+    error: undefined,
   });
   touchBoard(snapshot);
   return agentRunView(record);
@@ -513,14 +574,18 @@ export function markAgentRunNeedsAttention(
 
 export function reconcileAgentRuntime(snapshot: BoardSnapshot): boolean {
   reconcileWorkflowRuntime(snapshot);
-  let changed = false;
+  let changed = acceptAutomaticSingleCandidateOutputs(snapshot);
+  if (changed) reconcileWorkflowRuntime(snapshot);
   for (const record of snapshot.agentRuns ?? []) {
     if (
       record.status === 'queued'
       || record.status === 'paused'
       || (
         record.status === 'needs_attention'
-        && record.stopReason === 'operation_execution_missing'
+        && (
+          record.stopReason === 'operation_execution_missing'
+          || record.stopReason === 'retired_definition'
+        )
       )
       || record.status === 'canceled'
       || record.status === 'succeeded'
@@ -546,10 +611,52 @@ export function reconcileAgentRuntime(snapshot: BoardSnapshot): boolean {
   return changed;
 }
 
+function acceptAutomaticSingleCandidateOutputs(snapshot: BoardSnapshot): boolean {
+  let changed = false;
+  for (const record of snapshot.agentRuns ?? []) {
+    if (
+      record.interactionMode !== 'automatic'
+      || record.status === 'paused'
+      || record.status === 'canceled'
+      || record.status === 'failed'
+      || record.status === 'succeeded'
+      || record.target.kind === 'capability'
+    ) continue;
+    const workflow = workflowRunViewForId(snapshot, record.target.workflowRunId);
+    const step = workflow?.steps.find((candidate) => (
+      candidate.status === 'waiting_selection'
+      && candidate.record.outputAcceptancePolicy === 'manual_single'
+      && candidate.record.outputAssetIds.length === 1
+    ));
+    if (!step) continue;
+    acceptWorkflowStepOutputs(snapshot, {
+      acceptedBy: 'agent',
+      acceptanceReason: 'automatic_single_candidate',
+      acceptedOutputAssetIds: [step.record.outputAssetIds[0]!],
+      expectedStepRunVersion: step.record.recordVersion,
+      stepRunId: step.record.stepRunId,
+    });
+    changed = true;
+  }
+  return changed;
+}
+
 export function nextAgentRunExecutionAction(snapshot: BoardSnapshot): AgentRunExecutionAction | undefined {
+  return nextAgentRunExecutionActions(snapshot)[0];
+}
+
+export function nextAgentRunExecutionActions(snapshot: BoardSnapshot): AgentRunExecutionAction[] {
   reconcileWorkflowRuntime(snapshot);
-  const record = (snapshot.agentRuns ?? []).find((candidate) => candidate.status === 'running');
-  if (!record) return undefined;
+  return (snapshot.agentRuns ?? [])
+    .filter((candidate) => candidate.status === 'running')
+    .map((record) => nextAgentRunExecutionActionForRecord(snapshot, record))
+    .filter((action): action is AgentRunExecutionAction => Boolean(action));
+}
+
+function nextAgentRunExecutionActionForRecord(
+  snapshot: BoardSnapshot,
+  record: AgentRunRecord,
+): AgentRunExecutionAction | undefined {
   try {
     assertAgentRunTarget(snapshot, record);
   } catch {
@@ -831,9 +938,37 @@ function assertAgentRunTarget(snapshot: BoardSnapshot, record: AgentRunRecord): 
   assertWorkflowAgentTarget(snapshot, record);
 }
 
-function assertNoActiveAgentRun(snapshot: BoardSnapshot): void {
-  const active = (snapshot.agentRuns ?? []).find((record) => activeStatuses.has(record.status));
-  if (active) throw new Error(`Board already has an active Agent Run: ${active.agentRunId}`);
+function assertNoConflictingActiveAgentRun(
+  snapshot: BoardSnapshot,
+  candidate: AgentRunRecord,
+): void {
+  const candidateWorkflowRunId = candidate.scope.workflowRunId;
+  const candidateOperationIds = new Set(candidate.scope.allowedOperationBlockIds);
+  const conflict = (snapshot.agentRuns ?? []).find((record) => {
+    if (record.agentRunId === candidate.agentRunId || !activeStatuses.has(record.status)) return false;
+    if (candidateWorkflowRunId && record.scope.workflowRunId === candidateWorkflowRunId) return true;
+    return record.scope.allowedOperationBlockIds.some((blockId) => candidateOperationIds.has(blockId));
+  });
+  if (!conflict) return;
+  if (candidateWorkflowRunId && conflict.scope.workflowRunId === candidateWorkflowRunId) {
+    throw new Error(`Workflow Run already has an active Agent Run: ${conflict.agentRunId}`);
+  }
+  throw new Error(`Operation scope already has an active Agent Run: ${conflict.agentRunId}`);
+}
+
+function hasActiveExecutionForAgentRun(
+  snapshot: BoardSnapshot,
+  record: AgentRunRecord,
+): boolean {
+  const executionIds = new Set(record.executionIds);
+  return snapshot.executions.some(
+    (execution) =>
+      (execution.status === 'queued' || execution.status === 'running')
+      && (
+        execution.agentRunId === record.agentRunId
+        || executionIds.has(execution.executionId)
+      ),
+  );
 }
 
 function agentRunRecord(snapshot: BoardSnapshot, agentRunId: string): AgentRunRecord {

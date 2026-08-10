@@ -581,9 +581,30 @@ export function PackageFailureBanner({
 }: {
   failures: PackageBootstrapNoticeV1[];
 }): ReactElement | null {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [dismissed, setDismissed] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   if (dismissed || failures.length === 0) return null;
+  const candidateFailureCount = failures.filter(
+    (failure) => failure.source === 'distribution',
+  ).length;
+  const activeFailureCount = failures.length - candidateFailureCount;
+  const messages = [
+    candidateFailureCount > 0
+      ? countedPackageMessage(
+          candidateFailureCount,
+          t('packageLibrary.candidateFailuresBanner'),
+          locale,
+        )
+      : null,
+    activeFailureCount > 0
+      ? countedPackageMessage(
+          activeFailureCount,
+          t('packageLibrary.failuresIsolatedBanner'),
+          locale,
+        )
+      : null,
+  ].filter((message): message is string => Boolean(message));
   const details = failures.map((failure) => (
     `${failure.packageId ?? 'bootstrap'}${failure.version ? `@${failure.version}` : ''}: ${failure.error}`
   )).join('\n');
@@ -593,23 +614,53 @@ export function PackageFailureBanner({
       role="status"
       title={details}
     >
-      <span>
-        <TriangleAlert size={15} />
-        <strong>{failures.length}</strong>
-        {t('packageLibrary.failuresIsolatedBanner')}
-      </span>
-      <div>
-        <button
-          type="button"
-          className="package-update-banner-dismiss"
-          aria-label={t('packageLibrary.dismissFailures')}
-          onClick={() => setDismissed(true)}
-        >
-          <X size={15} />
-        </button>
+      <div className="package-update-banner-main">
+        <span>
+          <TriangleAlert size={15} />
+          {messages.join(locale === 'zh' ? '；' : '; ')}
+        </span>
+        <div className="package-update-banner-actions">
+          <button
+            type="button"
+            className="package-update-banner-details-toggle"
+            aria-expanded={detailsOpen}
+            onClick={() => setDetailsOpen((current) => !current)}
+          >
+            {detailsOpen
+              ? t('packageLibrary.hideFailureDetails')
+              : t('packageLibrary.viewFailureDetails')}
+          </button>
+          <button
+            type="button"
+            className="package-update-banner-dismiss"
+            aria-label={t('packageLibrary.dismissFailures')}
+            onClick={() => setDismissed(true)}
+          >
+            <X size={15} />
+          </button>
+        </div>
       </div>
+      {detailsOpen ? (
+        <ul className="package-update-banner-failure-details">
+          {failures.map((failure, index) => (
+            <li key={`${failure.source}:${failure.packageId}:${failure.version}:${index}`}>
+              {failure.packageId ?? 'bootstrap'}
+              {failure.version ? `@${failure.version}` : ''}
+              {' · '}{failure.error}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </aside>
   );
+}
+
+function countedPackageMessage(
+  count: number,
+  message: string,
+  locale: Locale,
+): string {
+  return locale === 'zh' ? `${count}${message}` : `${count} ${message}`;
 }
 
 export function PackageUpdateBanner({

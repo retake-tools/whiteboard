@@ -1,6 +1,7 @@
 import { Activity, Bot, CircleAlert, CircleStop, MapPin, Pause, Play } from 'lucide-react';
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -13,7 +14,11 @@ import {
   agentPresetCompatibilityForRequirements,
 } from '../core/agentPresetApplication';
 import { agentPresetDefinitionFor } from '../core/agentPresetRegistry';
-import { messagesForSession, proposalsForSession, runtimeEventsForSession } from '../core/agentSession';
+import {
+  messagesForSession,
+  proposalsForSession,
+  workflowRunIdsForAgentSession,
+} from '../core/agentSession';
 import type {
   AgentDraftLaunchTarget,
   AgentRuntimeBindingRecord,
@@ -21,12 +26,18 @@ import type {
   ChangeProposalRecord,
   ChangeProposalStatus,
   PackageEntrypointAgentLaunchTarget,
+  WorkflowLaunchPreferences,
 } from '../core/agentSessionContracts';
-import type { AgentRunRecord } from '../core/agentRuntimeContracts';
+import type { AgentRunRecord, WorkflowInteractionMode } from '../core/agentRuntimeContracts';
+import {
+  agentConversationTimeline,
+  workflowTaskSummary,
+} from '../core/agentConversationTimeline';
 import {
   agentRunInterventionFor,
   type AgentRunInterventionKind,
 } from '../core/agentRunIntervention';
+import { isResolvedAgentRunBlockerProposal } from '../core/agentChangeApplication';
 import {
   listPackageEntryPoints,
   resolvePackageEntryPoint,
@@ -42,9 +53,13 @@ import {
 import { useI18n } from '../i18n';
 import { AgentMessageCard } from './AgentMessageCard';
 import { AgentOperationRunCard } from './AgentOperationRunCard';
+import { CanvasExecutionActivity } from './CanvasExecutionActivity';
 import { AgentWorkspaceComposer } from './AgentWorkspaceComposer';
 import { AgentWorkspaceHeader } from './AgentWorkspaceHeader';
 import { AgentWorkflowRunNavigator } from './AgentWorkflowRunNavigator';
+import { AgentWorkflowApprovalMessage } from './AgentWorkflowApprovalMessage';
+import { AgentWorkflowAttentionMessage } from './AgentWorkflowAttentionMessage';
+import { AgentWorkflowStepMessage } from './AgentWorkflowStepConversation';
 import { WorkflowAgentTargetPicker } from './WorkflowAgentTargetPicker';
 import {
   currentInstalledRuntimeRegistryRevision,
@@ -55,6 +70,13 @@ import {
   readyAutomatedExecutionConnections,
   subscribeExecutionProviderSettings,
 } from '../core/executionProviderPreferences';
+import { useUnifiedComposerDraft } from './UnifiedComposerProvider';
+import { workflowRunExperienceFor } from '../core/workflowRunExperience';
+import {
+  imageGenerateAspectRatioPresets,
+  imageGenerateCapabilityId,
+  imageGenerateResolutionPresets,
+} from '../core/imageGenerateContracts';
 
 export function AgentWorkspace({
   binding,
@@ -67,16 +89,21 @@ export function AgentWorkspace({
   onCancelAgentRun,
   onClose,
   onCreateSession,
+  onDecideWorkflowApproval,
   onPauseAgentRun,
   onDecideProposal,
   onLaunchProposal,
   onLocateBlock,
   onOpenWorkflowRun,
+  onPrepareWorkflowReview,
   onResumeAgentRun,
   onRequestCanvasMode,
   onRenameSession,
+  onRerunOperation,
+  onRetryAgentRun,
   onSelectLaunchConnection,
   onSelectAgentRun,
+  onSelectWorkflowOutput,
   onSelectSession,
   onSubmitMessage,
   onViewProposalEffect,
@@ -95,12 +122,18 @@ export function AgentWorkspace({
   onCancelAgentRun: (agentRunId: string) => void;
   onClose: () => void;
   onCreateSession: (connectionId?: string) => void;
+  onDecideWorkflowApproval: (
+    approvalRequestId: string,
+    expectedApprovalRequestVersion: number,
+    decision: 'approve' | 'reject',
+  ) => void | Promise<void>;
   onPauseAgentRun: (agentRunId: string) => void;
   onDecideProposal: (
     proposalId: string,
     expectedProposalVersion: number,
     decision: 'approve' | 'reject',
-  ) => void;
+    workflowPreferences?: WorkflowLaunchPreferences,
+  ) => void | Promise<void>;
   onLaunchProposal: (
     proposalId: string,
     expectedProposalVersion: number,
@@ -109,14 +142,22 @@ export function AgentWorkspace({
   ) => void;
   onLocateBlock: (blockId: string) => void;
   onOpenWorkflowRun: (workflowRunId: string) => void;
+  onPrepareWorkflowReview: (stepRunId: string) => void | Promise<void>;
   onResumeAgentRun: (agentRunId: string) => void;
   onRequestCanvasMode: () => void;
   onRenameSession: (title: string) => boolean;
+  onRerunOperation: (operationBlockId: string) => void | Promise<void>;
+  onRetryAgentRun: (agentRunId: string, retryExecutionId?: string) => void | Promise<void>;
   onSelectLaunchConnection: (
     blockId: string,
     connectionId: string,
   ) => void;
   onSelectAgentRun: (agentRunId?: string) => void;
+  onSelectWorkflowOutput: (
+    stepRunId: string,
+    assetId: string,
+    expectedStepRunVersion: number,
+  ) => void | Promise<void>;
   onSelectSession: (agentSessionId: string) => void;
   onSubmitMessage: (input: Parameters<typeof AgentWorkspaceComposer>[0]['onSubmit'] extends (value: infer T) => void ? T : never) => void;
   onViewProposalEffect: (proposalId: string) => void;
@@ -126,6 +167,7 @@ export function AgentWorkspace({
   snapshot: BoardSnapshot;
 }): ReactElement {
   const { t } = useI18n();
+  const { agentPreferences, reset: resetComposer } = useUnifiedComposerDraft();
   useSyncExternalStore(
     subscribeInstalledRuntimeRegistry,
     currentInstalledRuntimeRegistryRevision,
@@ -143,19 +185,70 @@ export function AgentWorkspace({
     ? [...proposalsForSession(snapshot, selectedSession.agentSessionId)]
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
     : [];
-  const runtimeEvents = selectedSession ? runtimeEventsForSession(snapshot, selectedSession.agentSessionId) : [];
-  const latestRuntimeEvent = runtimeEvents.at(-1);
+  const visibleProposals = proposals.filter(
+    (proposal) =>
+      proposal.status !== 'superseded'
+      &&
+      !isResolvedAgentRunBlockerProposal(snapshot, proposal)
+      && (proposal.status !== 'applied' || !proposal.draftLaunchEffect),
+  );
   const agentRuns = [...(snapshot.agentRuns ?? [])].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   const activeRun = selectedSession?.activeAgentRunId
     ? agentRuns.find((run) => run.agentRunId === selectedSession.activeAgentRunId)
     : undefined;
-  const pendingProposalCount = proposals.filter(
+  const activeWorkflowRunIds = activeRun && activeRun.target.kind !== 'capability'
+    ? [activeRun.target.workflowRunId]
+    : [];
+  const agentIsWorking = isSending
+    || activeRun?.status === 'queued'
+    || activeRun?.status === 'running';
+  const sessionWorkflowRunIds = selectedSession
+    ? workflowRunIdsForAgentSession(snapshot, selectedSession.agentSessionId)
+    : [];
+  const workflowExperience = useMemo(
+    () => workflowRunExperienceFor(snapshot, activeRun, {
+      workflowRunIds: sessionWorkflowRunIds,
+    }),
+    [activeRun, sessionWorkflowRunIds.join('\u0000'), snapshot],
+  );
+  const [selectedWorkflowRunId, setSelectedWorkflowRunId] = useState('');
+  const selectedWorkflowRun = workflowExperience.runs.find(
+    (run) => run.workflowRunId === selectedWorkflowRunId,
+  ) ?? workflowExperience.runs[0];
+  const activeIntervention = useMemo(
+    () => activeRun ? agentRunInterventionFor(snapshot, activeRun) : undefined,
+    [activeRun, snapshot],
+  );
+  const conversationTimeline = useMemo(
+    () => agentConversationTimeline({
+      intervention: activeRun
+        && activeIntervention
+        && activeRun.target.kind !== 'capability'
+        && (
+          activeIntervention.kind === 'approval'
+          || activeIntervention.kind === 'attention'
+        ) ? {
+          agentRunId: activeRun.agentRunId,
+          kind: activeIntervention.kind,
+          occurredAt: activeIntervention.occurredAt,
+        } : undefined,
+      messages,
+      run: activeRun?.target.kind === 'capability' ? undefined : selectedWorkflowRun,
+      stepRuns: snapshot.workflowStepRuns ?? [],
+    }),
+    [activeIntervention, activeRun, messages, selectedWorkflowRun, snapshot.workflowStepRuns],
+  );
+  const taskSummary = useMemo(
+    () => workflowTaskSummary(messages, activeRun),
+    [activeRun, messages],
+  );
+  const pendingProposalCount = visibleProposals.filter(
     (proposal) => proposal.status === 'awaiting_decision',
   ).length;
   const sourceMessageIdsWithReply = new Set(
     messages.flatMap((message) => message.sourceMessageId ? [message.sourceMessageId] : []),
   );
-  const orphanProposals = proposals.filter(
+  const orphanProposals = visibleProposals.filter(
     (proposal) => !sourceMessageIdsWithReply.has(proposal.sourceMessageId),
   );
   const runtimeConnection = currentExecutionProviderSettings()?.connections.find(
@@ -167,14 +260,39 @@ export function AgentWorkspace({
   }, [focusedAgentRunId]);
 
   useEffect(() => {
+    setSelectedWorkflowRunId(workflowExperience.defaultWorkflowRunId ?? '');
+  }, [selectedSession?.agentSessionId, workflowExperience.defaultWorkflowRunId]);
+
+  useEffect(() => {
     timelineEndRef.current?.scrollIntoView({ block: 'end' });
   }, [
+    activeIntervention?.locateBlockId,
     activeRun?.status,
     isSending,
     messages.length,
     proposals.length,
     selectedSession?.agentSessionId,
   ]);
+
+  function submitSuggestedMessage(content: string, sourceMessageId?: string): void {
+    if (isSending || !content.trim()) return;
+    const operationBlockId = exactOperationIdInSuggestion(snapshot, content);
+    onSubmitMessage({
+      agentPreferences,
+      content: content.trim(),
+      imageReferenceSettings: {},
+      inlineValues: [],
+      mentions: [],
+      parameters: {},
+      ...(sourceMessageId ? {
+        suggestionAction: {
+          sourceMessageId,
+          ...(operationBlockId ? { operationBlockId } : {}),
+        },
+      } : {}),
+    });
+    resetComposer();
+  }
 
   return (
     <aside
@@ -194,8 +312,10 @@ export function AgentWorkspace({
           : undefined}
         selectedSession={selectedSession}
         sessions={sessions}
+        snapshot={snapshot}
       />
-      {selectedSession && (activeRun || pendingProposalCount > 0) ? (
+      {selectedSession
+      && (activeRun?.target.kind === 'capability' || pendingProposalCount > 0) ? (
         <div
           className="agent-workspace-context-bar"
           role="status"
@@ -221,18 +341,26 @@ export function AgentWorkspace({
           </div>
         ) : (
           <div className="agent-workspace-chat">
-            <AgentWorkflowRunNavigator
-              activeAgentRun={activeRun}
-              onOpenWorkflowRun={onOpenWorkflowRun}
-              snapshot={snapshot}
-            />
+            {workflowExperience.runs.length > 0 ? (
+              <AgentWorkflowRunNavigator
+                activeAgentRun={activeRun}
+                experience={workflowExperience}
+                onCancelAgentRun={onCancelAgentRun}
+                onOpenWorkflowRun={onOpenWorkflowRun}
+                onPauseAgentRun={onPauseAgentRun}
+                onResumeAgentRun={onResumeAgentRun}
+                onSelectWorkflowRun={setSelectedWorkflowRunId}
+                selectedWorkflowRunId={selectedWorkflowRun?.workflowRunId ?? ''}
+                taskSummary={taskSummary}
+              />
+            ) : null}
             <div
               className="agent-workspace-messages"
               role="log"
               aria-live="polite"
               aria-relevant="additions text"
             >
-              {messages.length === 0 && proposals.length === 0 && !activeRun
+              {messages.length === 0 && visibleProposals.length === 0 && !activeRun
                 ? (
                   <div className="agent-workspace-welcome">
                     <Bot size={20} />
@@ -247,10 +375,8 @@ export function AgentWorkspace({
                         <button
                           key={prompt}
                           type="button"
-                          onClick={() => window.dispatchEvent(new CustomEvent(
-                            'retake:focus-unified-composer',
-                            { detail: { instruction: prompt } },
-                          ))}
+                          disabled={isSending}
+                          onClick={() => submitSuggestedMessage(prompt)}
                         >
                           {prompt}
                         </button>
@@ -259,26 +385,98 @@ export function AgentWorkspace({
                   </div>
                 )
                 : null}
-              {messages.map((message) => {
+              {conversationTimeline.map((timelineItem) => {
+                if (timelineItem.kind === 'workflow_step') {
+                  const step = selectedWorkflowRun?.steps.find(
+                    (candidate) => candidate.stepRunId === timelineItem.stepRunId,
+                  );
+                  if (!step || !selectedWorkflowRun) return null;
+                  return (
+                    <div key={timelineItem.itemId} className="agent-workspace-timeline-item">
+                      <AgentWorkflowStepMessage
+                        onLocateBlock={onLocateBlock}
+                        onRerunOperation={onRerunOperation}
+                        onSelectWorkflowOutput={onSelectWorkflowOutput}
+                        snapshot={snapshot}
+                        step={step}
+                        stepIndex={selectedWorkflowRun.steps.findIndex(
+                          (candidate) => candidate.stepRunId === step.stepRunId,
+                        )}
+                        totalStepCount={selectedWorkflowRun.totalStepCount}
+                      />
+                    </div>
+                  );
+                }
+                if (timelineItem.kind === 'intervention') {
+                  if (
+                    !activeRun
+                    || timelineItem.agentRunId !== activeRun.agentRunId
+                    || timelineItem.interventionKind !== activeIntervention?.kind
+                  ) return null;
+                  return (
+                    <div key={timelineItem.itemId} className="agent-workspace-timeline-item">
+                      {activeIntervention.kind === 'approval' ? (
+                        <AgentWorkflowApprovalMessage
+                          agentRunId={activeRun.agentRunId}
+                          intervention={activeIntervention}
+                          onCancelAgentRun={onCancelAgentRun}
+                          onDecideWorkflowApproval={onDecideWorkflowApproval}
+                          onLocateBlock={onLocateBlock}
+                        />
+                      ) : (
+                        <AgentWorkflowAttentionMessage
+                          agentRunId={activeRun.agentRunId}
+                          canRetry={
+                            activeRun.stopReason === 'operation_execution_missing'
+                            || Boolean(activeIntervention.retryExecutionId)
+                          }
+                          intervention={activeIntervention}
+                          onLocateBlock={onLocateBlock}
+                          onPrepareWorkflowReview={onPrepareWorkflowReview}
+                          onRequestAgentHelp={() => submitSuggestedMessage(
+                            t('agentWorkspace.workflowAttentionAskAgentPrompt'),
+                          )}
+                          onRetryAgentRun={onRetryAgentRun}
+                          retryResultCount={activeIntervention.retryableResultBlockIds?.length}
+                        />
+                      )}
+                    </div>
+                  );
+                }
+                const message = messages.find(
+                  (candidate) => candidate.agentMessageId === timelineItem.messageId,
+                );
+                if (!message) return null;
                 const messageProposals = message.role === 'assistant' && message.sourceMessageId
-                  ? proposals.filter((proposal) => proposal.sourceMessageId === message.sourceMessageId)
+                  ? visibleProposals.filter((proposal) => proposal.sourceMessageId === message.sourceMessageId)
                   : [];
+                const messageHasSupersededProposal = message.role === 'assistant'
+                  && Boolean(message.sourceMessageId)
+                  && proposals.some((proposal) =>
+                    proposal.sourceMessageId === message.sourceMessageId
+                    && (
+                      proposal.status === 'superseded'
+                      || isResolvedAgentRunBlockerProposal(snapshot, proposal)
+                    ));
                 const operationReceipt = message.role === 'assistant'
                   ? message.contextRefs.find((ref) => ref.kind === 'operation_receipt')
                   : undefined;
                 return (
-                  <div key={message.agentMessageId} className="agent-workspace-timeline-item">
+                  <div key={timelineItem.itemId} className="agent-workspace-timeline-item">
                     <AgentMessageCard message={message} />
-                    {message.role === 'assistant' && message.suggestions?.length ? (
+                    {message.role === 'assistant'
+                      && message.suggestions?.length
+                      && !messageHasSupersededProposal ? (
                       <div className="agent-workspace-suggestions" aria-label={t('agentWorkspace.suggestions')}>
                         {message.suggestions.map((suggestion) => (
                           <button
                             key={suggestion}
                             type="button"
-                            onClick={() => window.dispatchEvent(new CustomEvent(
-                              'retake:focus-unified-composer',
-                              { detail: { instruction: suggestion } },
-                            ))}
+                            disabled={isSending}
+                            onClick={() => submitSuggestedMessage(
+                              suggestion,
+                              message.agentMessageId,
+                            )}
                           >
                             {suggestion}
                           </button>
@@ -323,7 +521,7 @@ export function AgentWorkspace({
                   onViewRun={onViewProposalRun}
                 />
               ))}
-              {activeRun ? (
+              {activeRun?.target.kind === 'capability' ? (
                 <AgentRunSummaryCard
                   cardRef={runCardRef}
                   activeRun={activeRun}
@@ -338,22 +536,19 @@ export function AgentWorkspace({
                   snapshot={snapshot}
                 />
               ) : null}
-              {isSending ? (
-                <article
-                  className="is-assistant is-pending"
-                  role="status"
-                  aria-atomic="true"
-                  aria-live="polite"
-                >
-                  <span>{t('agentWorkspace.agent')}</span>
-                  <p>{latestRuntimeEvent?.kind === 'decision_delta'
-                    ? t('agentWorkspace.streaming')
-                    : t('agentWorkspace.thinking')}</p>
-                </article>
-              ) : null}
               <div ref={timelineEndRef} aria-hidden="true" />
             </div>
             {error ? <p className="agent-workspace-error" role="alert">{error}</p> : null}
+            <CanvasExecutionActivity
+              agentExecutionIds={activeRun?.executionIds}
+              agentRunId={activeRun?.agentRunId}
+              agentIsWorking={agentIsWorking}
+              agentStartedAt={activeRun?.updatedAt}
+              onLocateBlock={onLocateBlock}
+              snapshot={snapshot}
+              workflowRunIds={activeWorkflowRunIds}
+              workingOperationBlockId={selectedSession.workingOperation?.operationBlockId}
+            />
             <AgentWorkspaceComposer
               disabled={isSending}
               onAttachFiles={onAttachFiles}
@@ -366,6 +561,16 @@ export function AgentWorkspace({
       </div>
     </aside>
   );
+}
+
+function exactOperationIdInSuggestion(
+  snapshot: BoardSnapshot,
+  suggestion: string,
+): string | undefined {
+  const matches = snapshot.blocks.filter(
+    (block) => block.type === 'operation' && suggestion.includes(block.blockId),
+  );
+  return matches.length === 1 ? matches[0]?.blockId : undefined;
 }
 
 const AgentRunSummaryCard = function AgentRunSummaryCard({
@@ -554,7 +759,8 @@ function ProposalCard({
     proposalId: string,
     expectedProposalVersion: number,
     decision: 'approve' | 'reject',
-  ) => void;
+    workflowPreferences?: WorkflowLaunchPreferences,
+  ) => void | Promise<void>;
   onLaunch: (
     proposalId: string,
     expectedProposalVersion: number,
@@ -632,9 +838,41 @@ function ProposalCard({
     ? typedInvocation.targetLock.workflowDefinitionLock.workflowDefinitionId
     : undefined;
   const isWorkflowEntrypoint = Boolean(workflowDefinitionId);
+  const isRecommendedSkill = proposal.kind === 'plan_skill'
+    && typedInvocation?.targetLock.entrypointKind === 'skill';
   const workflowDefinition = workflowDefinitionId
     ? listWorkflows().find((definition) => definition.workflowId === workflowDefinitionId)
     : undefined;
+  const conceptStep = workflowDefinition?.steps.find((step) => (
+    step.capabilityLock.capabilityId === imageGenerateCapabilityId
+    && step.outputAcceptancePolicy === 'manual_single'
+  ));
+  const hasImageSteps = workflowDefinition?.steps.some(
+    (step) => step.capabilityLock.capabilityId === imageGenerateCapabilityId,
+  ) ?? false;
+  const workflowLaunchParameters = proposal.workflowLaunchParameters
+    ?? typedInvocation?.parameters;
+  const imageConnections = readyAutomatedExecutionConnections({
+    capabilityId: imageGenerateCapabilityId,
+    settings: providerSettings,
+  });
+  const [workflowInteractionMode, setWorkflowInteractionMode] = useState<WorkflowInteractionMode>(
+    proposal.workflowInteractionMode ?? 'automatic',
+  );
+  const [conceptVariationCount, setConceptVariationCount] = useState<1 | 2 | 3 | 4>(() => (
+    workflowConceptVariationCount(workflowLaunchParameters, conceptStep?.stepId)
+    ?? workflowConceptVariationCount(conceptStep?.defaultParameters)
+    ?? 1
+  ));
+  const [workflowImageConnectionId, setWorkflowImageConnectionId] = useState(() => (
+    stringParameter(workflowLaunchParameters, 'connectionId') ?? ''
+  ));
+  const [workflowAspectRatio, setWorkflowAspectRatio] = useState(() => (
+    stringParameter(workflowLaunchParameters, 'aspectRatioPreset') ?? ''
+  ));
+  const [workflowResolution, setWorkflowResolution] = useState(() => (
+    stringParameter(workflowLaunchParameters, 'targetResolution') ?? ''
+  ));
   const launchTarget: AgentDraftLaunchTarget = goalPlan
     ? { kind: 'goal' }
     : isWorkflowEntrypoint
@@ -655,7 +893,9 @@ function ProposalCard({
     <article className={`agent-workspace-proposal is-${proposal.status}`}>
       <header>
         <strong>{goalPlan
-          ? `${t('agentWorkspace.goalPlan')} · ${entrypointName}`
+          ? `${t('agentWorkspace.recommendedWorkflow')} · ${entrypointName}`
+          : isRecommendedSkill
+          ? `${t('agentWorkspace.recommendedSkill')} · ${entrypointName}`
           : typedInvocation
           ? `${entrypointName} · ${typedInvocation.targetLock.entrypointKind}`
           : proposal.kind}</strong>
@@ -669,24 +909,8 @@ function ProposalCard({
             <dd>{goalPlan.goal}</dd>
           </div>
           <div>
-            <dt>{t('agentWorkspace.coverage')}</dt>
-            <dd>{goalPlan.coverage}</dd>
-          </div>
-          <div>
-            <dt>{t('agentWorkspace.planScope')}</dt>
-            <dd>
-              {goalPlan.steps.length} Steps · {
-                new Set(goalPlan.steps.map((step) => step.capabilityLock.capabilityId)).size
-              } Capabilities
-            </dd>
-          </div>
-          <div>
-            <dt>{t('agentWorkspace.budget')}</dt>
-            <dd>
-              ≤ {goalPlan.budget.maxExecutionCount} Executions · 0 Package installs · {
-                goalPlan.budget.externalActionPolicy
-              }
-            </dd>
+            <dt>{t('agentWorkspace.workflowStepCount')}</dt>
+            <dd>{goalPlan.steps.length}</dd>
           </div>
           {goalPlan.limitations.map((limitation) => (
             <div key={limitation}>
@@ -696,8 +920,98 @@ function ProposalCard({
           ))}
         </dl>
       ) : null}
+      {goalPlan && proposal.status === 'awaiting_decision' ? (
+        <p className="agent-workspace-workflow-confirm-hint">
+          {t('agentWorkspace.workflowConfirmHint')}
+        </p>
+      ) : null}
+      {isRecommendedSkill && proposal.status === 'awaiting_decision' ? (
+        <p className="agent-workspace-workflow-confirm-hint">
+          {t('agentWorkspace.skillConfirmHint')}
+        </p>
+      ) : null}
+      {isWorkflowEntrypoint && proposal.status === 'awaiting_decision' ? (
+        <section className="agent-workspace-workflow-launch-settings">
+          <div className="agent-workspace-workflow-mode" role="group" aria-label={t('skillComposer.workflowExecutionMode')}>
+            <button
+              type="button"
+              className={workflowInteractionMode === 'automatic' ? 'is-selected' : undefined}
+              aria-pressed={workflowInteractionMode === 'automatic'}
+              onClick={() => setWorkflowInteractionMode('automatic')}
+            >
+              <strong>{t('skillComposer.workflowAutomatic')}</strong>
+              <span>{t('agentWorkspace.workflowAutomaticDescription')}</span>
+            </button>
+            <button
+              type="button"
+              className={workflowInteractionMode === 'manual' ? 'is-selected' : undefined}
+              aria-pressed={workflowInteractionMode === 'manual'}
+              onClick={() => setWorkflowInteractionMode('manual')}
+            >
+              <strong>{t('skillComposer.workflowManual')}</strong>
+              <span>{t('agentWorkspace.workflowManualDescription')}</span>
+            </button>
+          </div>
+          {hasImageSteps ? <div className="agent-workspace-workflow-image-settings">
+            {conceptStep ? (
+              <label>
+                <span>{t('agentWorkspace.conceptCandidateCount')}</span>
+                <select
+                  value={conceptVariationCount}
+                  onChange={(event) => setConceptVariationCount(Number(event.target.value) as 1 | 2 | 3 | 4)}
+                >
+                  {[1, 2, 3, 4].map((count) => (
+                    <option key={count} value={count}>{count}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <label>
+              <span>{t('skillComposer.imageExecutionConnection')}</span>
+              <select
+                value={workflowImageConnectionId}
+                onChange={(event) => setWorkflowImageConnectionId(event.target.value)}
+              >
+                <option value="">{t('skillComposer.followWorkspaceDefault')}</option>
+                {imageConnections.map((connection) => (
+                  <option key={connection.connectionId} value={connection.connectionId}>
+                    {connection.displayName}{connection.modelId ? ` · ${connection.modelId}` : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>{t('skillComposer.aspectRatio')}</span>
+              <select
+                value={workflowAspectRatio}
+                onChange={(event) => setWorkflowAspectRatio(event.target.value)}
+              >
+                <option value="">{t('skillComposer.useModelDefault')}</option>
+                {imageGenerateAspectRatioPresets.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>{t('skillComposer.resolution')}</span>
+              <select
+                value={workflowResolution}
+                onChange={(event) => setWorkflowResolution(event.target.value)}
+              >
+                <option value="">{t('skillComposer.useConnectionDefault')}</option>
+                {imageGenerateResolutionPresets.map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
+              </select>
+            </label>
+          </div> : null}
+          {workflowInteractionMode === 'automatic' && conceptVariationCount > 1 ? (
+            <p>{t('agentWorkspace.workflowMultipleCandidatesPause')}</p>
+          ) : null}
+        </section>
+      ) : null}
       {typedInvocation ? (
-        <dl className="agent-workspace-proposal-details">
+        isRecommendedSkill || goalPlan ? null : <dl className="agent-workspace-proposal-details">
           <div>
             <dt>EntryPoint</dt>
             <dd>{typedInvocation.targetLock.entrypointId}</dd>
@@ -742,22 +1056,49 @@ function ProposalCard({
           <small>{command.kind}</small>
         </>
       )}
-      {typedInvocation ? <p className="agent-workspace-draft-only">{t('agentWorkspace.draftOnly')}</p> : null}
+      {typedInvocation && !goalPlan && !isWorkflowEntrypoint && !isRecommendedSkill
+        && proposal.status === 'awaiting_decision'
+        ? <p className="agent-workspace-draft-only">{t('agentWorkspace.draftOnly')}</p>
+        : null}
       {proposal.applyError ? <p className="agent-workspace-error">{proposal.applyError}</p> : null}
       {proposal.status === 'awaiting_decision' ? (
         <div className="agent-workspace-proposal-actions">
           <button
             type="button"
             disabled={command.kind === 'unsupported'}
-            onClick={() => onDecide(proposal.proposalId, proposal.recordVersion, 'approve')}
+            onClick={() => onDecide(
+              proposal.proposalId,
+              proposal.recordVersion,
+              'approve',
+              isWorkflowEntrypoint ? {
+                ...(hasImageSteps ? {
+                  aspectRatioPreset: workflowAspectRatio || undefined,
+                  connectionId: workflowImageConnectionId || undefined,
+                  targetResolution: workflowResolution || undefined,
+                } : {}),
+                ...(conceptStep ? {
+                  conceptStepId: conceptStep.stepId,
+                  conceptVariationCount,
+                } : {}),
+                interactionMode: workflowInteractionMode,
+              } : undefined,
+            )}
           >
-            {t('agentWorkspace.approveProposal')}
+            {isWorkflowEntrypoint
+              ? t('agentWorkspace.useWorkflow')
+              : isRecommendedSkill
+              ? t('agentWorkspace.useSkill')
+              : t('agentWorkspace.approveProposal')}
           </button>
           <button
             type="button"
             onClick={() => onDecide(proposal.proposalId, proposal.recordVersion, 'reject')}
           >
-            {t('agentWorkspace.rejectProposal')}
+            {goalPlan
+              ? t('agentWorkspace.skipWorkflow')
+              : isRecommendedSkill
+              ? t('agentWorkspace.skipSkill')
+              : t('agentWorkspace.rejectProposal')}
           </button>
         </div>
       ) : null}
@@ -1011,6 +1352,40 @@ function invocationParameterSummary(parameters: Record<string, unknown>): string
   const entries = Object.entries(parameters);
   if (entries.length === 0) return '—';
   return entries.map(([key, value]) => `${key}=${String(value)}`).join(' · ');
+}
+
+function workflowConceptVariationCount(
+  parameters: Record<string, unknown> | undefined,
+  stepId?: string,
+): 1 | 2 | 3 | 4 | undefined {
+  if (!parameters) return undefined;
+  if (stepId) {
+    const rawOverrides = parameters.stepParameterOverrides;
+    if (rawOverrides && typeof rawOverrides === 'object' && !Array.isArray(rawOverrides)) {
+      const rawStep = (rawOverrides as Record<string, unknown>)[stepId];
+      if (rawStep && typeof rawStep === 'object' && !Array.isArray(rawStep)) {
+        const value = (rawStep as Record<string, unknown>).variationCount;
+        if (isWorkflowCandidateCount(value)) return value;
+      }
+    }
+  }
+  const value = parameters.variationCount;
+  return isWorkflowCandidateCount(value) ? value : undefined;
+}
+
+function isWorkflowCandidateCount(value: unknown): value is 1 | 2 | 3 | 4 {
+  return typeof value === 'number'
+    && Number.isInteger(value)
+    && value >= 1
+    && value <= 4;
+}
+
+function stringParameter(
+  parameters: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  const value = parameters?.[key];
+  return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
 function inlineValueSummary(value: unknown): string {

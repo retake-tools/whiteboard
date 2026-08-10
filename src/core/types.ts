@@ -357,6 +357,7 @@ export interface BlockData {
   groupPositionLocked?: boolean;
   groupRunningCount?: number;
   groupScopeSelected?: boolean;
+  groupStructureLocked?: boolean;
   operationReferenceInputs?: OperationReferenceInputPresentation[];
   operationCanRun?: boolean;
   operationCompact?: boolean;
@@ -380,13 +381,18 @@ export interface BlockData {
   executionVersion?: number;
   executionStatus?: ExecutionStatus;
   executionDraft?: BlockExecutionDraft;
+  executionAdjustmentInstruction?: string;
   workflowDefinitionHash?: string;
   workflowDefinitionId?: string;
   workflowDefinitionVersion?: string;
+  workflowAutoLayout?: 'snake_rows' | 'step_rows';
   workflowInputSlotId?: string;
   workflowOutputSlotId?: string;
   workflowProjectionId?: string;
   workflowRevisionId?: string;
+  workflowResultSummary?: boolean;
+  workflowHistoricalResult?: boolean;
+  workflowFlowDirection?: 'forward' | 'reverse';
   workflowStepId?: string;
   workflowStepRunFreshness?: WorkflowStepRunFreshness;
   workflowStepRunStatus?: WorkflowStepRunStatus;
@@ -446,8 +452,10 @@ export interface BoardSnapshot {
   workflowApprovalRequests?: WorkflowApprovalRequestRecord[];
   workflowApprovalDecisions?: WorkflowApprovalDecisionRecord[];
   historyEvents?: BoardHistoryEvent[];
+  agentSessionRunMigrationVersion?: number;
   groupMigrationVersion?: number;
   imageGenerateMigrationVersion?: number;
+  workflowLayoutMigrationVersion?: number;
 }
 
 export interface WorkspaceBoardSummary {
@@ -483,4 +491,11 @@ export type RetakeEdge = Edge<{
   resultCount?: number;
   resultHeight?: number;
   resultIndex?: number;
+  workflowFanoutCount?: number;
+  workflowFanoutIndex?: number;
+  workflowFaninCount?: number;
+  workflowFaninIndex?: number;
+  workflowGutterX?: number;
+  workflowHistoricalResult?: boolean;
+  workflowRouteKind?: 'long_dependency' | 'result_fanout' | 'standard' | 'step_dependency';
 }>;

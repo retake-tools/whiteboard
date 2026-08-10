@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import type { ExecutionConnectionSummary } from '../src/core/executionProviders';
 import { textDocumentCapabilityIds } from '../src/core/capabilityRegistry';
+import { connectedInputBlocks } from '../src/core/capabilities';
 import { executeExistingTextGenerationOperation, type TextGenerationLabels } from '../src/core/textOperations';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import {
@@ -14,6 +15,7 @@ import {
   reconcileAgentRuntime,
   startAgentRun,
 } from '../src/core/agentRuntime';
+import { agentRunInterventionFor } from '../src/core/agentRunIntervention';
 import {
   decideWorkflowApproval,
   workflowGateViewsForRun,
@@ -300,7 +302,7 @@ const selectionDefinitionStep = selectionDefinition.steps.find(
   (step) => step.stepId === 'screenplay_generate',
 );
 assert.ok(selectionDefinitionStep);
-selectionDefinitionStep.outputAcceptancePolicy = 'manual_selection';
+selectionDefinitionStep.outputAcceptancePolicy = 'manual_single';
 configureWorkflowRegistry(selectionWorkflowRegistry);
 const selectionRun = createWorkflowRunForGroup(
   selectionSnapshot,
@@ -308,7 +310,7 @@ const selectionRun = createWorkflowRunForGroup(
 );
 configureWorkflowRegistry(originalWorkflowRegistry);
 const selectionStep = stepFor(selectionSnapshot, selectionRun.record.workflowRunId, 'screenplay_generate');
-assert.equal(selectionStep.outputAcceptancePolicy, 'manual_selection');
+assert.equal(selectionStep.outputAcceptancePolicy, 'manual_single');
 const firstCandidateExecution = queueStep(
   selectionSnapshot,
   operationForStep(selectionSnapshot, selectionRun.record.workflowRunId, 'screenplay_generate'),
@@ -327,6 +329,31 @@ assert.equal(
   'waiting_selection',
 );
 assert.deepEqual(selectionRun.record.currentStepIds, ['screenplay_generate']);
+const automaticSelectionSnapshot = structuredClone(selectionSnapshot);
+const automaticSelectionAgent = createAgentRunForWorkflowRun(
+  automaticSelectionSnapshot,
+  selectionRun.record.workflowRunId,
+);
+automaticSelectionAgent.record.interactionMode = 'automatic';
+startAgentRun(automaticSelectionSnapshot, automaticSelectionAgent.record.agentRunId);
+reconcileAgentRuntime(automaticSelectionSnapshot);
+const automaticallyAcceptedStep = stepFor(
+  automaticSelectionSnapshot,
+  selectionRun.record.workflowRunId,
+  'screenplay_generate',
+);
+assert.deepEqual(automaticallyAcceptedStep.acceptedOutputAssetIds, [firstCandidateAssetId]);
+assert.equal(automaticallyAcceptedStep.acceptedBy, 'agent');
+assert.equal(automaticallyAcceptedStep.acceptanceReason, 'automatic_single_candidate');
+assert.equal(
+  stepView(
+    automaticSelectionSnapshot,
+    selectionRun.record.workflowRunId,
+    'character_define',
+  ).status,
+  'ready',
+  'Automatic mode may accept exactly one candidate and continue.',
+);
 const firstCandidateBlock = structuredClone(blockFor(selectionSnapshot, firstCandidateExecution.outputBlockIds[0]));
 firstCandidateBlock.blockId = 'block_selection_candidate_one';
 firstCandidateBlock.position.x += 420;
@@ -343,6 +370,24 @@ const secondCandidateAssetId = completeStep(
 );
 assert.deepEqual(selectionStep.outputAssetIds, [firstCandidateAssetId, secondCandidateAssetId]);
 assert.equal(selectionSnapshot.assets.some((asset) => asset.assetId === firstCandidateAssetId), true);
+const automaticMultipleSnapshot = structuredClone(selectionSnapshot);
+const automaticMultipleAgent = createAgentRunForWorkflowRun(
+  automaticMultipleSnapshot,
+  selectionRun.record.workflowRunId,
+);
+automaticMultipleAgent.record.interactionMode = 'automatic';
+startAgentRun(automaticMultipleSnapshot, automaticMultipleAgent.record.agentRunId);
+reconcileAgentRuntime(automaticMultipleSnapshot);
+assert.deepEqual(
+  stepFor(
+    automaticMultipleSnapshot,
+    selectionRun.record.workflowRunId,
+    'screenplay_generate',
+  ).acceptedOutputAssetIds,
+  [],
+  'Automatic mode must pause for a real choice instead of silently selecting the first candidate.',
+);
+secondCandidateExecution.configurationFingerprint = 'cfg_pre_roundtrip_value';
 const selectionVersion = selectionStep.recordVersion;
 const acceptedView = acceptWorkflowStepOutputs(selectionSnapshot, {
   stepRunId: selectionStep.stepRunId,
@@ -350,11 +395,33 @@ const acceptedView = acceptWorkflowStepOutputs(selectionSnapshot, {
   expectedStepRunVersion: selectionVersion,
 });
 assert.equal(acceptedView.status, 'succeeded');
+assert.equal(
+  acceptedView.freshness,
+  'current',
+  'A stale persisted fingerprint must not override the normalized immutable Execution configuration.',
+);
+assert.equal(
+  stepView(selectionSnapshot, selectionRun.record.workflowRunId, 'character_define').status,
+  'ready',
+  'Accepting the regenerated candidate must unblock the next Workflow Step.',
+);
 assert.deepEqual(selectionStep.acceptedOutputAssetIds, [secondCandidateAssetId]);
 assert.equal(selectionStep.acceptedBy, 'user');
 assert.ok(selectionStep.acceptedAt);
-assert.equal(blockFor(selectionSnapshot, secondCandidateExecution.outputBlockIds[0]).data.reviewStatus, 'selected');
+const selectedCandidateBlock = blockFor(
+  selectionSnapshot,
+  secondCandidateExecution.outputBlockIds[0],
+);
+selectedCandidateBlock.data.title = 'Selected candidate two';
+assert.equal(selectedCandidateBlock.data.reviewStatus, 'selected');
 assert.equal(firstCandidateBlock.data.reviewStatus, undefined);
+const downstreamResolvedInput = connectedInputBlocks(
+  selectionSnapshot,
+  operationForStep(selectionSnapshot, selectionRun.record.workflowRunId, 'character_define').blockId,
+).find((block) => block.data.assetId === secondCandidateAssetId);
+assert.equal(downstreamResolvedInput?.data.assetId, secondCandidateAssetId);
+assert.equal(downstreamResolvedInput?.data.title, 'Selected candidate two');
+assert.match(String(downstreamResolvedInput?.data.body), /Candidate two/);
 assert.throws(
   () => acceptWorkflowStepOutputs(selectionSnapshot, {
     stepRunId: selectionStep.stepRunId,
@@ -457,6 +524,14 @@ const firstGateView = workflowGateViewsForRun(gateSnapshot, gateRun.record.workf
 assert.ok(firstGateView?.request);
 assert.equal(firstGateView.canDecide, true);
 assert.deepEqual(firstGateView.evaluation?.subjectAssetIds, [gateScreenplayAssetId]);
+const gateIntervention = agentRunInterventionFor(gateSnapshot, gateAgent.record);
+assert.equal(gateIntervention?.kind, 'approval');
+assert.equal(gateIntervention.approvalRequestId, firstGateView.request.approvalRequestId);
+assert.equal(gateIntervention.expectedApprovalRequestVersion, firstGateView.request.recordVersion);
+assert.deepEqual(gateIntervention.reviewChecklist, [
+  'The screenplay preserves the approved story intent.',
+]);
+assert.equal(gateIntervention.approvalCompletesWorkflow, false);
 const firstRequestVersion = firstGateView.request.recordVersion;
 const approvedDecision = decideWorkflowApproval(gateSnapshot, {
   approvalRequestId: firstGateView.request.approvalRequestId,

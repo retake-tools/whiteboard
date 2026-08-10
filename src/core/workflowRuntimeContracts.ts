@@ -130,7 +130,8 @@ export interface WorkflowRunRecord {
 
 export interface WorkflowStepRunRecord {
   acceptedAt?: string;
-  acceptedBy?: 'user';
+  acceptedBy?: 'agent' | 'user';
+  acceptanceReason?: string;
   acceptedOutputAssetIds: string[];
   capabilityLock: CapabilityDefinitionLock;
   createdAt: string;

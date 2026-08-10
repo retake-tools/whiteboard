@@ -45,6 +45,21 @@ const forked = await forkProjectWorkflowDraft({
   projectId: snapshot.project.projectId,
   source: { kind: 'installed', workflowId: 'retake.workflow.ip-character-design' },
 });
+const definitionWithImageStepParameters = structuredClone(forked.draft.definition);
+const conceptDefinitionStep = definitionWithImageStepParameters.steps.find(
+  (step) => step.stepId === 'generate_concept_directions',
+);
+assert.ok(conceptDefinitionStep);
+conceptDefinitionStep.defaultParameters = { variationCount: 2 };
+const characterSheetDefinitionStep = definitionWithImageStepParameters.steps.find(
+  (step) => step.stepId === 'generate_character_sheet',
+);
+assert.ok(characterSheetDefinitionStep);
+characterSheetDefinitionStep.parameters = {
+  aspectRatioPreset: '9:16',
+  connectionId: 'step-image-connection',
+  variationCount: 1,
+};
 const movedTemplate = structuredClone(forked.draft.projectionTemplate);
 movedTemplate.positions = movedTemplate.positions.map((position, index) => ({
   ...position,
@@ -52,7 +67,7 @@ movedTemplate.positions = movedTemplate.positions.map((position, index) => ({
   y: 75 + (index % 2) * 90,
 }));
 const saved = await saveProjectWorkflowDraft({
-  definition: forked.draft.definition,
+  definition: definitionWithImageStepParameters,
   draftId: forked.draft.draftId,
   expectedRecordVersion: forked.draft.recordVersion,
   projectId: snapshot.project.projectId,
@@ -82,8 +97,17 @@ const projection = projectWorkflowDraft(snapshot, {
   composerInput: {
     instruction: { body: 'Design an orange courier cat.', slotId: 'creative_brief' },
     mentions: [],
+    parameters: {
+      aspectRatioPreset: '1:1',
+      connectionId: 'workflow-image-connection',
+      targetResolution: '2K',
+      stepParameterOverrides: {
+        generate_concept_directions: { variationCount: 3 },
+        generate_character_sheet: { variationCount: 4 },
+      },
+    },
   },
-  connectionIdForCapability: () => undefined,
+  connectionIdForCapability: (capabilityId) => `project-default:${capabilityId}`,
   labelsForSkill: (skillId) => {
     const ui = resolvedSkillUiDefinitionFor(skillId, 'en');
     return {
@@ -120,11 +144,49 @@ const firstOperation = snapshot.blocks.find((block) => (
   && block.data.workflowStepId === firstStep.stepId
 ));
 assert.deepEqual(firstOperation?.position, { x: 420, y: 80 });
+const operationForStep = (stepId: string) => snapshot.blocks.find((block) => (
+  block.type === 'operation'
+  && block.data.workflowProjectionId === projection.projectionId
+  && block.data.workflowStepId === stepId
+));
+const defineOperation = operationForStep('define_character');
+const conceptOperation = operationForStep('generate_concept_directions');
+const characterSheetOperation = operationForStep('generate_character_sheet');
+const applicationBoardOperation = operationForStep('generate_application_board');
+assert.equal(
+  defineOperation?.data.connectionId,
+  'project-default:design.ip_character.define',
+  'Workflow image defaults must not replace a non-image Step connection.',
+);
+assert.equal(defineOperation?.data.generationParams, undefined);
+for (const operation of [conceptOperation, applicationBoardOperation]) {
+  assert.equal(operation?.data.connectionId, 'workflow-image-connection');
+}
+assert.deepEqual(conceptOperation?.data.generationParams, {
+  aspectRatioPreset: '1:1',
+  targetResolution: '2K',
+  variationCount: 3,
+});
+assert.deepEqual(applicationBoardOperation?.data.generationParams, {
+    aspectRatioPreset: '1:1',
+    targetResolution: '2K',
+  }, 'Concept candidate count must not leak into later image Steps.');
+assert.equal(characterSheetOperation?.data.connectionId, 'step-image-connection');
+assert.deepEqual(characterSheetOperation?.data.generationParams, {
+  aspectRatioPreset: '9:16',
+  targetResolution: '2K',
+  variationCount: 1,
+}, 'A fixed Step parameter must win over the per-run default.');
 
 const run = createWorkflowRunForGroup(snapshot, projection.groupBlock.blockId);
 assert.equal(run.record.sourceWorkflowRevisionId, published.revision.revisionId);
 assert.equal(run.record.workflowDefinitionLock.definitionHash, published.revision.definition.definitionHash);
 assert.equal(run.steps.length, published.revision.definition.steps.length);
+assert.deepEqual(
+  run.steps.find((step) => step.record.stepId === 'generate_character_sheet')?.record.parameters,
+  { aspectRatioPreset: '9:16', targetResolution: '2K', variationCount: 1 },
+  'WorkflowRun must freeze Step overrides merged with inherited Workflow defaults.',
+);
 
 configureProjectWorkflowRegistry(snapshot.project.projectId, []);
 assert.throws(

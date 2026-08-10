@@ -7,6 +7,7 @@ import type {
 export interface WorkflowSelectedStepOutput {
   artifactBinding?: WorkflowStepOutputArtifactBinding;
   assetId: string;
+  outputBlockId?: string;
   sourceStepRunId: string;
 }
 
@@ -56,9 +57,13 @@ export function workflowSelectedStepOutputForInput(
     source.outputSlotId,
     assetId,
   );
+  const outputBlock = sourceStep.outputBlockIds
+    .map((blockId) => snapshot.blocks.find((candidate) => candidate.blockId === blockId))
+    .find((candidate) => candidate?.data.assetId === assetId);
   return {
     ...(artifactBinding ? { artifactBinding: structuredClone(artifactBinding) } : {}),
     assetId,
+    ...(outputBlock ? { outputBlockId: outputBlock.blockId } : {}),
     sourceStepRunId: sourceStep.stepRunId,
   };
 }
@@ -79,6 +84,15 @@ export function resolveWorkflowInputBlock(
   if (!asset) return block;
 
   const resolved = structuredClone(block);
+  const selectedOutputBlock = selected.outputBlockId
+    ? snapshot.blocks.find((candidate) => candidate.blockId === selected.outputBlockId)
+    : undefined;
+  if (selectedOutputBlock?.type === block.type) {
+    resolved.data = {
+      ...resolved.data,
+      ...structuredClone(selectedOutputBlock.data),
+    };
+  }
   resolved.data.assetId = asset.assetId;
   resolved.data.previewUrl = asset.previewUrl;
   resolved.data.sourceExecutionId = asset.sourceExecutionId;

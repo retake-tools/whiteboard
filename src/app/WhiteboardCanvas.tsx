@@ -25,6 +25,7 @@ import { CanvasViewportControls } from '../components/CanvasViewportControls';
 import { BoardBackgroundLayer } from '../components/BoardBackgroundLayer';
 import { ContextToolbar } from '../components/ContextToolbar';
 import { ExecutionOutputEdge } from '../components/ExecutionOutputEdge';
+import { WorkflowEdge } from '../components/WorkflowEdge';
 import { GroupDrawOverlay } from '../components/GroupDrawOverlay';
 import { GroupToolbar } from '../components/GroupToolbar';
 import {
@@ -60,7 +61,7 @@ import type { useWorkflowRuntimeController } from './useWorkflowRuntimeControlle
 import { workflowRunViewForGroup } from '../core/workflowRuntime';
 
 const nodeTypes = { text: BlockNode, document: BlockNode, image: BlockNode, video: BlockNode, operation: BlockNode, group: BlockNode } satisfies NodeTypes;
-const edgeTypes = { executionOutput: ExecutionOutputEdge } satisfies EdgeTypes;
+const edgeTypes = { executionOutput: ExecutionOutputEdge, workflow: WorkflowEdge } satisfies EdgeTypes;
 
 interface WhiteboardCanvasProps {
   blockActions: ReturnType<typeof useBlockActions>;
@@ -559,8 +560,6 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
         {isMiniMapVisible ? <CanvasMiniMap onSelectBlock={canvas.selectBlock} /> : null}
         <CanvasViewportControls
           isMiniMapVisible={isMiniMapVisible}
-          projectionMode={canvas.projectionMode}
-          onChangeProjectionMode={canvas.changeProjectionMode}
           onToggleMiniMap={() => setMiniMapVisible((current) => !current)}
         />
         </ReactFlow>

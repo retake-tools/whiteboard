@@ -670,7 +670,9 @@ function historicalFailureRetryStep(
   record: AgentRunRecord,
 ): WorkflowStepRuntimeView | undefined {
   return steps.find((step) => {
-    if ((step.status !== 'failed' && step.status !== 'canceled') || !step.canStart) return false;
+    if (!step.canStart) return false;
+    if (step.status === 'succeeded' && step.freshness === 'outdated') return true;
+    if (step.status !== 'failed' && step.status !== 'canceled') return false;
     if (snapshot.executions.some(
       (execution) =>
         execution.agentRunId === record.agentRunId

@@ -168,13 +168,22 @@ export async function runConnectedPluginExecution(
   const preference = resolveExecutionConnectionPreference({
     capabilityId: input.capabilityId,
     explicitConnectionId: input.connectionId,
-    initialConnectionId: 'codex-managed',
+    initialConnectionId: 'codex-app-server',
     projectId: initial.project.projectId,
     settings: currentExecutionProviderSettings(),
     useCase: 'image',
   });
-  const connection = preference.connection;
-  if (!connection || !preference.isUsable) {
+  const connection = preference.isUsable
+    ? preference.connection
+    : !input.connectionId
+      ? currentExecutionProviderSettings()?.connections.find((candidate) => (
+          candidate.enabled
+          && candidate.status === 'ready'
+          && candidate.enabledUseCases.includes('image')
+          && candidate.supportedCapabilityIds.includes(input.capabilityId)
+        ))
+      : undefined;
+  if (!connection) {
     throw new Error(
       `The selected Retake image Connection is not ready for ${input.capabilityId}: ${preference.connectionId ?? 'none'}`,
     );
@@ -287,24 +296,29 @@ export function listConnectedPluginExecutionConnections(input: {
   if (!settings) return [];
   const preferred = resolveExecutionConnectionPreference({
     capabilityId: input.capabilityId,
-    initialConnectionId: 'codex-managed',
+    initialConnectionId: 'codex-app-server',
     projectId: input.projectId,
     settings,
     useCase: 'image',
   }).connectionId;
-  return settings.connections
-    .filter((connection) => (
+  const compatibleConnections = settings.connections.filter((connection) => (
       connection.enabled
       && connection.status === 'ready'
       && connection.enabledUseCases.includes('image')
       && connection.supportedCapabilityIds.includes(input.capabilityId)
-    ))
+    ));
+  const selectedConnectionId = compatibleConnections.some(
+    (connection) => connection.connectionId === preferred,
+  )
+    ? preferred
+    : compatibleConnections[0]?.connectionId;
+  return compatibleConnections
     .map((connection) => Object.freeze({
       connectionId: connection.connectionId,
       displayName: connection.displayName,
       ...(connection.modelId ? { modelLabel: connection.modelId } : {}),
       providerLabel: connection.providerLabel,
-      selectedByDefault: connection.connectionId === preferred,
+      selectedByDefault: connection.connectionId === selectedConnectionId,
     }));
 }
 

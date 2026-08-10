@@ -5,7 +5,10 @@ import {
   applyAgentRuntimeTurn,
   createAgentSession,
 } from '../src/core/agentSession';
-import { decideChangeProposal } from '../src/core/agentChangeApplication';
+import {
+  applyWorkflowLaunchPreferences,
+  decideChangeProposal,
+} from '../src/core/agentChangeApplication';
 import { reconcileAgentRuntime } from '../src/core/agentRuntime';
 import type {
   ChangeProposalRecord,
@@ -18,6 +21,11 @@ import {
 import type { BoardSnapshot, ExecutionRecord } from '../src/core/types';
 import { resetWorkspace } from './local-store/snapshot-store';
 import './studio-domain-test-fixtures';
+
+const workspaceDirectory = process.env.RETAKE_WORKSPACE_DIR;
+if (!workspaceDirectory?.includes('.retake-test-agent-draft-launch-v0')) {
+  throw new Error('Agent Draft launch tests require a disposable RETAKE_WORKSPACE_DIR.');
+}
 
 const skill = await appliedProposal({
   content: '一只快递猫要在日出前把最后一卷胶片送到影院。',
@@ -70,6 +78,84 @@ const launchedWaiting = stagePackageEntrypointAgentLaunch(
 reconcileAgentRuntime(launchedWaiting.stagedSnapshot);
 assert.equal(launchedWaiting.stagedSnapshot.agentRuns?.[0]?.status, 'waiting_input');
 assert.equal(launchedWaiting.stagedSnapshot.executions.length, 0);
+
+const replaceable = await appliedProposal({
+  content: '先生成一个快递猫故事梗概。',
+  entrypointId: 'skill:retake.screenplay.from-brief',
+});
+const firstReplaceableLaunch = stagePackageEntrypointAgentLaunch(
+  replaceable.snapshot,
+  launchCommand(replaceable.proposal, replaceable.sessionId, { kind: 'capability' }),
+);
+const supersededRun = firstReplaceableLaunch.stagedSnapshot.agentRuns?.find(
+  (run) => run.agentRunId === firstReplaceableLaunch.effect.agentRunId,
+);
+assert.ok(supersededRun);
+supersededRun.status = 'needs_attention';
+supersededRun.stopReason = 'operation_execution_missing';
+supersededRun.error = 'No executable Operation is currently ready.';
+const replacement = appliedProposalOnSnapshot(
+  firstReplaceableLaunch.stagedSnapshot,
+  replaceable.sessionId,
+  {
+    content: '改为规划完整快递猫分镜流程。',
+    entrypointId: 'workflow:retake.workflow.story-to-storyboard',
+    interactionMode: 'manual',
+  },
+);
+const replacementLaunch = stagePackageEntrypointAgentLaunch(
+  replacement.snapshot,
+  launchCommand(replacement.proposal, replacement.sessionId, { kind: 'workflow_run' }),
+);
+assert.equal(
+  replacementLaunch.stagedSnapshot.agentRuns?.find(
+    (run) => run.agentRunId === supersededRun.agentRunId,
+  )?.status,
+  'canceled',
+);
+assert.equal(
+  replacementLaunch.stagedSnapshot.agentRuns?.find(
+    (run) => run.agentRunId === supersededRun.agentRunId,
+  )?.stopReason,
+  'superseded_by_new_run',
+);
+assert.equal(
+  replacementLaunch.stagedSnapshot.agentSessions?.find(
+    (session) => session.agentSessionId === replaceable.sessionId,
+  )?.activeAgentRunId,
+  replacementLaunch.effect.agentRunId,
+);
+assert.equal(
+  replacementLaunch.stagedSnapshot.agentRuns?.find(
+    (run) => run.agentRunId === replacementLaunch.effect.agentRunId,
+  )?.interactionMode,
+  'manual',
+);
+
+const protectedActive = await appliedProposal({
+  content: '正在生成快递猫故事梗概。',
+  entrypointId: 'skill:retake.screenplay.from-brief',
+});
+const protectedLaunch = stagePackageEntrypointAgentLaunch(
+  protectedActive.snapshot,
+  launchCommand(protectedActive.proposal, protectedActive.sessionId, { kind: 'capability' }),
+);
+const blockedReplacement = appliedProposalOnSnapshot(
+  protectedLaunch.stagedSnapshot,
+  protectedActive.sessionId,
+  {
+    content: '同时启动完整分镜流程。',
+    entrypointId: 'workflow:retake.workflow.story-to-storyboard',
+  },
+);
+assert.throws(
+  () => stagePackageEntrypointAgentLaunch(
+    blockedReplacement.snapshot,
+    launchCommand(blockedReplacement.proposal, blockedReplacement.sessionId, { kind: 'workflow_run' }),
+  ),
+  /still executing and must be stopped/,
+);
+assert.equal(blockedReplacement.snapshot.agentRuns?.length, 1);
 
 const executedSkill = await appliedProposal({
   content: 'Already executed.',
@@ -164,6 +250,8 @@ console.log(JSON.stringify({
   appliedProposalDoesNotLaunch: true,
   skillCapabilityLaunch: true,
   waitingInputWithoutExecution: true,
+  idleRunSupersededByExplicitLaunch: true,
+  activeRunProtectedFromReplacement: true,
   executedSkillRejected: true,
   workflowFullAndTypedSlices: true,
   sessionBinding: true,
@@ -178,6 +266,7 @@ console.log(JSON.stringify({
 async function appliedProposal(input: {
   content: string;
   entrypointId: string;
+  interactionMode?: 'automatic' | 'manual';
 }): Promise<{
   proposal: ChangeProposalRecord;
   sessionId: string;
@@ -185,12 +274,28 @@ async function appliedProposal(input: {
 }> {
   const snapshot = await emptySnapshot();
   const session = createAgentSession(snapshot, { model: 'test-model' }).session;
-  const message = appendAgentUserMessage(snapshot, session.agentSessionId, {
+  return appliedProposalOnSnapshot(snapshot, session.agentSessionId, input);
+}
+
+function appliedProposalOnSnapshot(
+  snapshot: BoardSnapshot,
+  sessionId: string,
+  input: {
+    content: string;
+    entrypointId: string;
+    interactionMode?: 'automatic' | 'manual';
+  },
+): {
+  proposal: ChangeProposalRecord;
+  sessionId: string;
+  snapshot: BoardSnapshot;
+} {
+  const message = appendAgentUserMessage(snapshot, sessionId, {
     content: input.content,
     contextRefs: [{ entrypointId: input.entrypointId, kind: 'entrypoint' }],
   });
   const turn = applyAgentRuntimeTurn(snapshot, {
-    agentSessionId: session.agentSessionId,
+    agentSessionId: sessionId,
     decision: { kind: 'reply', message: 'Create a Draft.' },
     externalThreadId: 'thread_agent_launch',
     runtimeModel: 'test-model',
@@ -198,14 +303,18 @@ async function appliedProposal(input: {
     sourceMessageId: message.agentMessageId,
   });
   assert.ok(turn.proposal);
+  if (input.interactionMode) {
+    applyWorkflowLaunchPreferences(turn.proposal, {
+      interactionMode: input.interactionMode,
+    });
+  }
   const approved = decideChangeProposal(snapshot, {
     decision: 'approve',
     expectedProposalVersion: turn.proposal.recordVersion,
     proposalId: turn.proposal.proposalId,
   });
   assert.equal(approved.proposal.status, 'applied');
-  assert.equal(snapshot.agentRuns?.length, 0);
-  return { proposal: approved.proposal, sessionId: session.agentSessionId, snapshot };
+  return { proposal: approved.proposal, sessionId, snapshot };
 }
 
 function launchCommand(

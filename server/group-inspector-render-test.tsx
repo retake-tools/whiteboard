@@ -451,13 +451,13 @@ assert.match(sourceAspectOperationMarkup, /Source ratio \/ 1x/);
 
 assert.equal(operationSkillSelectionAvailable({
   capabilityId: 'image.generate',
-  skillId: 'retake.image.guided-edit',
+  skillId: 'retake.image.retired-history-fixture',
 }), true);
 assert.equal(operationSkillSelectionAvailable({
   capabilityId: 'image.generate',
-  skillId: 'retake.image.guided-edit',
-  workflowProjectionId: 'projection_guided_image',
-  workflowStepId: 'guided_image_edit',
+  skillId: 'retake.image.retired-history-fixture',
+  workflowProjectionId: 'projection_retired_image_history',
+  workflowStepId: 'retired_image_edit',
 }), false, 'Workflow Definition locks the Step Skill and the Operation must not offer a selector');
 
 const localAdjustOperationMarkup = renderToStaticMarkup(

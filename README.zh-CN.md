@@ -11,8 +11,8 @@ Retake Whiteboard `0.1.3` 已包括：
 
 - 基于自由无限画布的 Project / Board 管理；
 - 统一的 `image.generate` Operation，支持文字起图、原图派生、多参考图、一至四个结果与再次生成；
-- 官方 Image Studio Package，包括标注、调整、裁剪、缩放、扩图，以及 Guided Image Skill、
-  Workflow 和 AgentPreset；
+- 官方 Image Studio Package，包括标注、调整、裁剪、缩放、扩图、IP 角色策略，以及 IP 形象设计
+  Workflow；
 - GitHub Source 安装与更新、exact-version cache、回滚、隔离、分项权限和 Project / Board 启用；
 - 可持久化 Workflow Run、Gate、输出选择、Artifact、History，以及支持 Codex App Server 和
   已配置 Direct API Runtime 的 Agent Workspace；

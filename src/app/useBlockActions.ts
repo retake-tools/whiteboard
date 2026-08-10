@@ -6,6 +6,7 @@ import { createBlockRecord, maxZIndex, touchBoard } from '../core/blockFactory';
 import { activeExecutionsForBlockIds, cancelExecution, executionCancellationRequiresConfirmation } from '../core/executionLifecycle';
 import {
   blockLockedByGroup,
+  blockManagedByWorkflowGroup,
   createGroupAroundBlocks,
   descendantBlockIds,
   expandGroupToContents,
@@ -79,7 +80,11 @@ export function useBlockActions(options: BlockActionsOptions) {
   function deletableRootBlockIds(current: BoardSnapshot, blockIds: readonly string[]): string[] {
     return blockIds.filter((blockId) => {
       const block = current.blocks.find((candidate) => candidate.blockId === blockId);
-      if (!block || blockLockedByGroup(current, blockId)) return false;
+      if (
+        !block
+        || blockLockedByGroup(current, blockId)
+        || blockManagedByWorkflowGroup(current, blockId)
+      ) return false;
       return block.type !== 'group' || !groupStructureLocked(current, blockId);
     });
   }
@@ -143,6 +148,7 @@ export function useBlockActions(options: BlockActionsOptions) {
 
   function duplicateSelection(): void {
     if (selectedBlockIds.length === 0) return;
+    if (selectedBlockIds.some((blockId) => blockManagedByWorkflowGroup(snapshotRef.current, blockId))) return;
     const newBlockIds: string[] = [];
     const nextSnapshot = updateSnapshot((current) => {
       const selectedGroupIds = selectedBlockIds.filter((blockId) => current.blocks.find((block) => block.blockId === blockId)?.type === 'group');

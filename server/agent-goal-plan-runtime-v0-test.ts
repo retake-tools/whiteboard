@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { decideChangeProposal } from '../src/core/agentChangeApplication';
+import {
+  applyWorkflowLaunchPreferences,
+  decideChangeProposal,
+} from '../src/core/agentChangeApplication';
 import {
   nextAgentRunExecutionAction,
   reconcileAgentRuntime,
@@ -18,6 +21,11 @@ import {
   stageGoalPlanAgentLaunch,
 } from '../src/core/goalPlanAgentLaunchApplication';
 import { listGoalPlanWorkflowOptions } from '../src/core/goalPlanRegistry';
+import { listAgentSkillEntrypointOptions } from '../src/core/agentSkillRecommendation';
+import {
+  buildPackageEntrypointDraftLaunchCommand,
+  stagePackageEntrypointAgentLaunch,
+} from '../src/core/packageEntrypointAgentLaunchApplication';
 import type { BlockRecord, BoardSnapshot } from '../src/core/types';
 import { parseAgentRuntimeDecision } from './agent-runtime-port';
 import { resetWorkspace } from './local-store/snapshot-store';
@@ -25,6 +33,109 @@ import './studio-domain-test-fixtures';
 
 const workflowEntryPointId = 'workflow:retake.workflow.story-to-storyboard';
 const presetEntryPointId = 'agent:retake.agent.story-production-director';
+const skillEntryPointId = 'skill:retake.screenplay.from-brief';
+
+const skillOptions = listAgentSkillEntrypointOptions();
+assert.deepEqual(
+  skillOptions.map((option) => option.entrypointId).sort(),
+  [
+    'skill:retake.screenplay.from-brief',
+    'skill:retake.screenplay.normalize',
+  ],
+  'Only recommended, instruction-complete named Skills belong to the Agent catalog.',
+);
+assert.ok(skillOptions.some((option) =>
+  option.entrypointId === skillEntryPointId
+  && option.instructionInputSlotId === 'brief'));
+
+const imagePreferenceSnapshot = await emptySnapshot();
+const imagePreferenceSession = createAgentSession(
+  imagePreferenceSnapshot,
+  { model: 'test-model' },
+).session;
+const imagePreferenceMessage = appendAgentUserMessage(
+  imagePreferenceSnapshot,
+  imagePreferenceSession.agentSessionId,
+  {
+    content: '生成一张快递猫海报。',
+    contextRefs: [{ kind: 'agent_preferences', outputType: 'image' }],
+  },
+);
+assert.equal(
+  agentRuntimeTurnContext(
+    imagePreferenceSnapshot,
+    imagePreferenceSession.agentSessionId,
+    imagePreferenceMessage.agentMessageId,
+  ).skillEntrypointOptions.length,
+  0,
+  'Image output preference must not surface text-document Skill recommendations.',
+);
+
+const skillSnapshot = await emptySnapshot();
+const skillSession = createAgentSession(skillSnapshot, { model: 'test-model' }).session;
+const skillMessage = appendAgentUserMessage(skillSnapshot, skillSession.agentSessionId, {
+  content: '先用专业剧本方法，把快递猫在日出前送胶片的点子写成可拍摄剧本。',
+});
+const skillContext = agentRuntimeTurnContext(
+  skillSnapshot,
+  skillSession.agentSessionId,
+  skillMessage.agentMessageId,
+);
+assert.equal(skillContext.skillEntrypointOptions.length, 2);
+const skillDecision = parseAgentRuntimeDecision(JSON.stringify({
+  kind: 'skill_entrypoint_proposal',
+  message: '这个目标适合先用“生成剧本”的创作方式，确认后我会直接开始。',
+  skillEntryPointId,
+  summary: '把快递猫在日出前送胶片的点子整理成可拍摄剧本。',
+}), skillContext);
+assert.equal(skillDecision.kind, 'skill_entrypoint_proposal');
+assert.throws(
+  () => parseAgentRuntimeDecision(JSON.stringify({
+    kind: 'skill_entrypoint_proposal',
+    message: '使用不存在的创作方式。',
+    skillEntryPointId: 'skill:missing',
+    summary: '越过目录。',
+  }), skillContext),
+  /outside the recommendation catalog/,
+);
+const skillTurn = applyAgentRuntimeTurn(skillSnapshot, {
+  agentSessionId: skillSession.agentSessionId,
+  decision: skillDecision,
+  externalThreadId: 'thread_skill_recommendation',
+  runtimeModel: 'test-model',
+  runtimeTurnId: 'turn_skill_recommendation',
+  sourceMessageId: skillMessage.agentMessageId,
+});
+assert.equal(skillTurn.proposal?.kind, 'plan_skill');
+assert.equal(skillTurn.proposal?.proposedCommand.kind, 'package_entrypoint.instantiate');
+assert.ok(skillTurn.proposal?.proposedCommand.kind === 'package_entrypoint.instantiate');
+assert.equal(
+  skillTurn.proposal.proposedCommand.invocation.targetLock.entrypointId,
+  skillEntryPointId,
+);
+assert.equal(skillTurn.proposal.proposedCommand.invocation.instructionSlotId, 'brief');
+const approvedSkill = decideChangeProposal(skillSnapshot, {
+  decision: 'approve',
+  expectedProposalVersion: skillTurn.proposal.recordVersion,
+  proposalId: skillTurn.proposal.proposalId,
+});
+assert.equal(approvedSkill.proposal.status, 'applied');
+assert.equal(approvedSkill.proposal.appliedEffect?.entrypointKind, 'skill');
+const skillLaunch = stagePackageEntrypointAgentLaunch(
+  skillSnapshot,
+  buildPackageEntrypointDraftLaunchCommand({
+    agentSessionId: skillSession.agentSessionId,
+    expectedProposalVersion: approvedSkill.proposal.recordVersion,
+    proposalId: approvedSkill.proposal.proposalId,
+    target: { kind: 'capability' },
+  }),
+);
+assert.equal(skillLaunch.effect.targetKind, 'capability');
+assert.equal(skillLaunch.stagedSnapshot.agentRuns?.[0]?.status, 'running');
+assert.equal(
+  skillLaunch.stagedSnapshot.agentSessions?.[0]?.activeAgentRunId,
+  skillLaunch.effect.agentRunId,
+);
 
 const snapshot = await emptySnapshot();
 const brief = textBlock(snapshot, 'block_goal_brief', '一只快递猫要在日出前把最后一卷胶片送到影院。');
@@ -38,6 +149,7 @@ const context = agentRuntimeTurnContext(snapshot, session.agentSessionId, messag
 
 assert.equal(listGoalPlanWorkflowOptions().length, 4);
 assert.equal(context.goalPlanOptions.length, 4);
+assert.equal(context.skillEntrypointOptions.length, 2);
 assert.equal(context.entrypointId, undefined);
 assert.ok(context.goalPlanOptions.some((option) =>
   option.entrypointId === workflowEntryPointId
@@ -49,10 +161,12 @@ const parsed = parseAgentRuntimeDecision(JSON.stringify({
   kind: 'goal_plan_proposal',
   limitations: [],
   message: '我会使用已安装的 Story to storyboard plan。',
+  suggestions: ['确认使用流程'],
   summary: '生成剧本、角色与场景设定，并推进到故事板计划。',
   workflowEntryPointId,
 }), context);
 assert.equal(parsed.kind, 'goal_plan_proposal');
+assert.equal('suggestions' in parsed, false, 'The confirmation card replaces duplicate suggestion actions.');
 assert.throws(
   () => parseAgentRuntimeDecision(JSON.stringify({
     coverage: 'full',
@@ -86,6 +200,7 @@ assert.equal(command.goalPlan.budget.packageInstallCount, 0);
 assert.equal(command.goalPlan.budget.externalActionPolicy, 'explicit_user_per_action');
 assert.equal(command.draftCommand.invocation.targetLock.entrypointKind, 'workflow');
 assert.equal(command.draftCommand.invocation.mentionLocks[0]?.kind, 'block');
+applyWorkflowLaunchPreferences(turn.proposal, { interactionMode: 'manual' });
 
 const beforeApproval = runtimeCounts(snapshot);
 const approved = decideChangeProposal(snapshot, {
@@ -148,6 +263,7 @@ const run = launched.stagedSnapshot.agentRuns?.[0];
 assert.ok(run);
 assert.equal(run.target.kind, 'goal');
 assert.equal(run.status, 'running');
+assert.equal(run.interactionMode, 'manual');
 assert.equal(run.stopPolicy.kind, 'goal_plan_terminal');
 assert.equal(run.sourceChangeProposalId, approved.proposal.proposalId);
 assert.equal(run.scope.allowedStepRunIds.length, 4);
@@ -188,6 +304,7 @@ const activeContext = agentRuntimeTurnContext(
   activeMessage.agentMessageId,
 );
 assert.equal(activeContext.goalPlanOptions.length, 0);
+assert.equal(activeContext.skillEntrypointOptions.length, 0);
 assert.throws(
   () => parseAgentRuntimeDecision(JSON.stringify({
     coverage: 'full',
@@ -200,6 +317,54 @@ assert.throws(
   /cannot replace an active Agent Run/,
 );
 
+const completedRunSnapshot = structuredClone(launched.stagedSnapshot);
+const completedRun = completedRunSnapshot.agentRuns?.find(
+  (candidate) => candidate.agentRunId === run.agentRunId,
+);
+assert.ok(completedRun);
+completedRun.status = 'succeeded';
+completedRun.updatedAt = new Date(Date.parse(completedRun.updatedAt) + 1_000).toISOString();
+appendAgentUserMessage(
+  completedRunSnapshot,
+  session.agentSessionId,
+  { content: '请按已经讨论好的雨燕快递方案开始完整设计流程。' },
+);
+const actualContinueMessage = appendAgentUserMessage(
+  completedRunSnapshot,
+  session.agentSessionId,
+  { content: '继续。' },
+);
+const completedContext = agentRuntimeTurnContext(
+  completedRunSnapshot,
+  session.agentSessionId,
+  actualContinueMessage.agentMessageId,
+);
+assert.equal(completedContext.agentRun, undefined);
+assert.equal(completedContext.goalPlanOptions.length, 4);
+const continuedGoal = '为雨燕快递设计一套完整的 IP 形象方案。';
+const completedDecision = parseAgentRuntimeDecision(JSON.stringify({
+  coverage: 'full',
+  kind: 'goal_plan_proposal',
+  limitations: [],
+  message: '雨燕快递适合使用 IP 形象设计流程，确认后我会直接开始。',
+  summary: continuedGoal,
+  workflowEntryPointId,
+}), completedContext);
+const completedTurn = applyAgentRuntimeTurn(completedRunSnapshot, {
+  agentSessionId: session.agentSessionId,
+  decision: completedDecision,
+  externalThreadId: 'thread_goal_plan_after_completed_run',
+  runtimeModel: 'test-model',
+  runtimeTurnId: 'turn_goal_plan_after_completed_run',
+  sourceMessageId: actualContinueMessage.agentMessageId,
+});
+assert.equal(completedTurn.proposal?.proposedCommand.kind, 'goal_plan.instantiate');
+const continuedPlanGoal = completedTurn.proposal?.proposedCommand.kind === 'goal_plan.instantiate'
+  ? completedTurn.proposal.proposedCommand.goalPlan.goal
+  : '';
+assert.match(continuedPlanGoal, /雨燕快递/);
+assert.notEqual(continuedPlanGoal, '继续。');
+
 await assertSourceDriftRejected();
 
 const [workspaceSource, controllerSource, runtimePortSource] = await Promise.all([
@@ -207,8 +372,15 @@ const [workspaceSource, controllerSource, runtimePortSource] = await Promise.all
   readFile(new URL('../src/app/useAgentWorkspaceController.ts', import.meta.url), 'utf8'),
   readFile(new URL('./agent-runtime-port.ts', import.meta.url), 'utf8'),
 ]);
-assert.match(workspaceSource, /agentWorkspace\.goalPlan/);
+assert.match(workspaceSource, /agentWorkspace\.recommendedWorkflow/);
+assert.match(workspaceSource, /agentWorkspace\.recommendedSkill/);
+assert.match(workspaceSource, /proposal\.kind === 'plan_skill'/);
+assert.match(workspaceSource, /agentWorkspace\.workflowConfirmHint/);
+assert.match(workspaceSource, /agentWorkspace\.skillConfirmHint/);
 assert.match(workspaceSource, /goalPlanDraftLaunchRequirements/);
+assert.match(controllerSource, /proposalKind === 'plan_skill'/);
+assert.match(controllerSource, /target: \{ kind: 'capability' \}/);
+assert.match(runtimePortSource, /skill_entrypoint_proposal/);
 assert.match(workspaceSource, /goalLaunchWarning/);
 assert.match(controllerSource, /stageGoalPlanAgentLaunch/);
 assert.match(runtimePortSource, /goal_plan_proposal/);
@@ -226,6 +398,8 @@ console.log(JSON.stringify({
   tamperedGoalTargetRejected: true,
   presetCompatibility: true,
   activeRunCannotBeReplanned: true,
+  completedRunCanStartConfirmedWorkflow: true,
+  continuedGoalUsesConversationContext: true,
   sourceDriftRejected: true,
   idempotentApprovalAndLaunch: true,
   boundedPermissions: true,

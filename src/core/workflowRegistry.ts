@@ -3,6 +3,10 @@ import {
   tryCapabilityDefinitionFor,
 } from './capabilityRegistry';
 import type { CapabilityCardinality, CapabilityDataType } from './capabilityContracts';
+import {
+  imageGenerateCapabilityId,
+  validateImageGenerateParametersV1,
+} from './imageGenerateContracts';
 import { skillDefinitionFor } from './skillRegistry';
 
 export type WorkflowStepType = 'capability';
@@ -36,10 +40,12 @@ export interface WorkflowCapabilityStepDefinition {
     version: string;
   };
   dependsOn: string[];
+  defaultParameters?: Record<string, unknown>;
   inputBindings: WorkflowStepInputBinding[];
   optional: boolean;
   outputAcceptancePolicy?: WorkflowOutputAcceptancePolicy;
   outputSlots: string[];
+  parameters?: Record<string, unknown>;
   runPolicy: WorkflowRunPolicy;
   skillLock: {
     definitionHash: string;
@@ -282,6 +288,24 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
     )) {
       issues.push(`Skill does not bind Workflow capability: ${step.stepId}.${skill.skillId}`);
     }
+    for (const [parameterKind, parameters] of [
+      ['default parameters', step.defaultParameters],
+      ['parameters', step.parameters],
+    ] as const) {
+      if (parameters === undefined) continue;
+      if (!isWorkflowStepParameters(parameters)) {
+        issues.push(`Workflow Step ${parameterKind} must be an object: ${step.stepId}`);
+      } else if (step.capabilityLock.capabilityId === imageGenerateCapabilityId) {
+        const connectionId = parameters.connectionId;
+        if (connectionId !== undefined && (typeof connectionId !== 'string' || !connectionId.trim())) {
+          issues.push(`Workflow image Step ${parameterKind} connectionId is invalid: ${step.stepId}`);
+        }
+        const { connectionId: _connectionId, ...generationParameters } = parameters;
+        for (const issue of validateImageGenerateParametersV1(generationParameters)) {
+          issues.push(`Workflow image Step ${parameterKind} are invalid: ${step.stepId}.${issue}`);
+        }
+      }
+    }
     for (const dependencyId of step.dependsOn) {
       if (dependencyId === step.stepId || !stepById.has(dependencyId)) {
         issues.push(`Invalid Workflow dependency: ${step.stepId}.${dependencyId}`);
@@ -387,6 +411,10 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
     }
   }
   return issues;
+}
+
+function isWorkflowStepParameters(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 function validateWorkflowStages(

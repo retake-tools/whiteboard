@@ -214,6 +214,12 @@ export function ensureExecutionResultGroups(snapshot: BoardSnapshot): void {
       typeof execution.params?.operationBlockId === 'string' ? execution.params.operationBlockId : undefined;
     const operationBlock = snapshot.blocks.find((block) => block.blockId === operationBlockId && block.type === 'operation');
     if (!operationBlock) continue;
+    const parentGroup = operationBlock.parentGroupId
+      ? snapshot.blocks.find(
+          (block) => block.blockId === operationBlock.parentGroupId && block.type === 'group',
+        )
+      : undefined;
+    if (parentGroup?.data.groupKind === 'workflow') continue;
     const resultBlocks = execution.outputBlockIds
       .map((blockId) => snapshot.blocks.find((block) => block.blockId === blockId))
       .filter(
@@ -258,11 +264,34 @@ export function blockLockedByGroup(snapshot: BoardSnapshot, blockId: string): bo
   });
 }
 
+export function workflowGroupForBlock(
+  snapshot: BoardSnapshot,
+  blockId: string,
+): BlockRecord | undefined {
+  return groupAncestorIds(snapshot, blockId)
+    .map((groupId) => snapshot.blocks.find(
+      (block) => block.blockId === groupId && block.type === 'group',
+    ))
+    .find((group): group is BlockRecord => group?.data.groupKind === 'workflow');
+}
+
+export function blockManagedByWorkflowGroup(
+  snapshot: BoardSnapshot,
+  blockId: string,
+): boolean {
+  return Boolean(workflowGroupForBlock(snapshot, blockId));
+}
+
 export function groupStructureLocked(snapshot: BoardSnapshot, groupId: string): boolean {
   const group = snapshot.blocks.find((block) => block.blockId === groupId && block.type === 'group');
   return Boolean(
     group &&
-    (group.data.groupPositionLocked || group.data.groupContentsLocked || blockLockedByGroup(snapshot, groupId)),
+    (
+      group.data.groupKind === 'workflow'
+      || group.data.groupPositionLocked
+      || group.data.groupContentsLocked
+      || blockLockedByGroup(snapshot, groupId)
+    ),
   );
 }
 
@@ -274,6 +303,13 @@ export function findGroupDropTarget(
 ): string | undefined {
   const block = snapshot.blocks.find((candidate) => candidate.blockId === blockId);
   if (!block || !canDragToGroup(snapshot, block)) return block?.parentGroupId;
+  if (blockManagedByWorkflowGroup(snapshot, blockId)) return block.parentGroupId;
+  const currentParent = block.parentGroupId
+    ? snapshot.blocks.find(
+        (candidate) => candidate.blockId === block.parentGroupId && candidate.type === 'group',
+      )
+    : undefined;
+  if (currentParent?.data.groupKind === 'workflow') return currentParent.blockId;
   const excludedIds = new Set(excludedGroupIds);
   excludedIds.add(blockId);
   if (block.type === 'group') {
@@ -283,6 +319,8 @@ export function findGroupDropTarget(
     .filter(
       (candidate) =>
         candidate.type === 'group' &&
+        candidate.data.groupKind !== 'workflow' &&
+        !blockManagedByWorkflowGroup(snapshot, candidate.blockId) &&
         !excludedIds.has(candidate.blockId) &&
         !candidate.data.groupContentsLocked &&
         !blockLockedByGroup(snapshot, candidate.blockId) &&
@@ -330,6 +368,13 @@ export function fitGroupToChildren(snapshot: BoardSnapshot, groupId: string): Bl
   return group;
 }
 
+export function groupContentOrigin(group: BlockRecord): { x: number; y: number } {
+  return {
+    x: group.position.x + groupPadding.left,
+    y: group.position.y + groupPadding.top,
+  };
+}
+
 export function arrangeGroupChildren(
   snapshot: BoardSnapshot,
   groupId: string,
@@ -345,7 +390,7 @@ export function arrangeGroupChildren(
   }
 
   const gap = 24;
-  const origin = { x: group.position.x + groupPadding.left, y: group.position.y + groupPadding.top };
+  const origin = groupContentOrigin(group);
   const updatedAt = nowIso();
   if (layoutMode === 'row') {
     let x = origin.x;

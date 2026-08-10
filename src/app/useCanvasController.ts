@@ -33,6 +33,7 @@ import {
 } from '../core/canvasProjectionViewState';
 import {
   blockLockedByGroup,
+  blockManagedByWorkflowGroup,
   findGroupDropTarget,
   groupAncestorIds,
 } from '../core/grouping';
@@ -330,7 +331,11 @@ export function useCanvasController(options: CanvasControllerOptions) {
     updateSnapshot((current) => {
       const removedEdgeIds = new Set(removeChanges
         .map((change) => current.edges.find((edge) => edge.edgeId === change.id))
-        .filter((edge): edge is BoardEdgeRecord => Boolean(edge) && !blockLockedByGroup(current, edge!.sourceBlockId) && !blockLockedByGroup(current, edge!.targetBlockId))
+        .filter((edge): edge is BoardEdgeRecord => Boolean(edge)
+          && !blockLockedByGroup(current, edge!.sourceBlockId)
+          && !blockLockedByGroup(current, edge!.targetBlockId)
+          && !blockManagedByWorkflowGroup(current, edge!.sourceBlockId)
+          && !blockManagedByWorkflowGroup(current, edge!.targetBlockId))
         .map((edge) => edge.edgeId));
       current.edges = current.edges.filter((edge) => !removedEdgeIds.has(edge.edgeId));
       return touchBoard(current);
@@ -409,6 +414,10 @@ export function useCanvasController(options: CanvasControllerOptions) {
     const sourceBlock = snapshotRef.current.blocks.find((block) => block.blockId === connection.source);
     const targetBlock = snapshotRef.current.blocks.find((block) => block.blockId === connection.target);
     if (blockLockedByGroup(snapshotRef.current, connection.source) || blockLockedByGroup(snapshotRef.current, connection.target)) return;
+    if (
+      blockManagedByWorkflowGroup(snapshotRef.current, connection.source)
+      || blockManagedByWorkflowGroup(snapshotRef.current, connection.target)
+    ) return;
     const kind = connectionKindForBlocks(sourceBlock, targetBlock);
     const edgeId = createId('edge');
     const compatibleInputSlotIds = kind === 'execution_input' && sourceBlock && targetBlock
@@ -736,10 +745,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
       snapshotRef.current.board.boardId,
       next,
     );
-    const retainedSelection = selectedBlockIdsRef.current.filter((blockId) => (
-      snapshotRef.current.blocks.find((block) => block.blockId === blockId)?.type !== 'operation'
-    ));
-    setSelectedBlocks(snapshotRef.current, retainedSelection);
+    setSelectedBlocks(snapshotRef.current, selectedBlockIdsRef.current);
   }
 
   function restoreViewport(

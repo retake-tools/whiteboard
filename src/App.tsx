@@ -27,7 +27,7 @@ import { createId, nowIso } from './core/id';
 import type { BlockRecord, BoardSnapshot } from './core/types';
 import { executionConnection } from './core/executionProviderPreferences';
 import { blockLockedByGroup, groupMediaItems } from './core/grouping';
-import { loadUiPreferences } from './core/uiPreferences';
+import { loadUiPreferences, saveUiPreferences } from './core/uiPreferences';
 import { setBoardBackground } from './core/boardBackground';
 import { loadExecutionProviderSettings } from './core/executionProviderClient';
 import { useI18n } from './i18n';
@@ -233,7 +233,9 @@ function ReadyApp({
   const [isMiniMapVisible, setIsMiniMapVisible] = useState(() => initialUiPreferences.current.isMiniMapVisible);
   const [showGrid, setShowGrid] = useState(() => initialUiPreferences.current.showGrid);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isAgentWorkspaceOpen, setIsAgentWorkspaceOpen] = useState(false);
+  const [isAgentWorkspaceOpen, setIsAgentWorkspaceOpen] = useState(
+    () => initialUiPreferences.current.isAgentWorkspaceOpen,
+  );
   const [isArtifactLibraryOpen, setIsArtifactLibraryOpen] = useState(false);
   const [workflowWorkspaceRunId, setWorkflowWorkspaceRunId] = useState<string>();
   const [reviewDocumentBlockId, setReviewDocumentBlockId] = useState<string | undefined>();
@@ -662,6 +664,7 @@ function ReadyApp({
     updateSnapshot,
   });
   const agentWorkspaceController = useAgentWorkspaceController({
+    centerBlockGroup,
     focusWorkflowBlocks,
     layoutImageComposerWorkflow,
     locale,
@@ -673,6 +676,17 @@ function ReadyApp({
     t,
     updateSnapshot,
   });
+  useEffect(() => {
+    saveUiPreferences({ isAgentWorkspaceOpen });
+  }, [isAgentWorkspaceOpen]);
+  useEffect(() => {
+    if (!isAgentWorkspaceOpen) return;
+    agentWorkspaceController.ensureDefaultSession();
+  }, [
+    isAgentWorkspaceOpen,
+    snapshot.board.boardId,
+    snapshot.project.projectId,
+  ]);
   const agentAttachmentController = useAgentAttachmentController({
     centeredBlockPosition,
     persistSnapshot,
@@ -1140,6 +1154,7 @@ function ReadyApp({
           onCancelAgentRun={agentRuntimeController.cancelAgentRun}
           onClose={closeAgentWorkspace}
           onCreateSession={(connectionId) => agentWorkspaceController.newSession(connectionId)}
+          onDecideWorkflowApproval={workflowRuntimeController.decideWorkflowGate}
           onDecideProposal={agentWorkspaceController.decideProposal}
           onLaunchProposal={(proposalId, expectedProposalVersion, target, agentPresetEntryPointId) =>
             void agentWorkspaceController.launchProposal(
@@ -1151,14 +1166,41 @@ function ReadyApp({
           onLocateBlock={locateBlock}
           onOpenWorkflowRun={setWorkflowWorkspaceRunId}
           onPauseAgentRun={agentRuntimeController.pauseAgentRun}
+          onPrepareWorkflowReview={(stepRunId) => workflowRuntimeController.prepareWorkflowReview({
+            boardId: snapshot.board.boardId,
+            projectId: snapshot.project.projectId,
+            stepRunId,
+          })}
           onResumeAgentRun={agentRuntimeController.resumeAgentRun}
           onRequestCanvasMode={closeAgentWorkspace}
           onRenameSession={agentWorkspaceController.renameSession}
+          onRerunOperation={(operationBlockId) => runOperation(
+            operationBlockId,
+            false,
+            true,
+          )}
+          onRetryAgentRun={async (agentRunId, retryExecutionId) => {
+            if (!retryExecutionId) {
+              await agentRuntimeController.retryAgentRun(agentRunId);
+              return;
+            }
+            try {
+              await imageOperationController.retryFailedImageExecution(retryExecutionId);
+            } catch {
+              setOperationToast({
+                id: `retry-execution:${retryExecutionId}`,
+                title: t('agentRuntime.actionFailed'),
+                body: t('feedback.codexImageFailed'),
+                tone: 'error',
+              });
+            }
+          }}
           onSelectLaunchConnection={
             imageOperationController.updateOperationConnection
           }
           onSelectAgentRun={agentWorkspaceController.selectAgentRun}
           onSelectSession={agentWorkspaceController.selectSession}
+          onSelectWorkflowOutput={workflowRuntimeController.acceptWorkflowOutput}
           onSubmitMessage={(input) => void agentWorkspaceController.submitMessage(input)}
           onViewProposalEffect={agentWorkspaceController.focusProposalEffect}
           onViewProposalRun={agentWorkspaceController.focusProposalRun}

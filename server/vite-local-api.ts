@@ -158,7 +158,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
           }
 
           if (method === 'POST' && url.pathname === '/reset') {
-            const snapshot = await resetWorkspace();
+            const snapshot = await resetWorkspace({ allowDefaultWorkspaceReset: true });
             invalidateDefaultDeclarativePackageBootstrap();
             await ensurePackageBootstrap();
             sendJson(res, snapshot);
@@ -696,6 +696,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               boardId?: string;
               connectionId?: string;
               resultBlockId?: string;
+              resultBlockIds?: string[];
             };
             if (!body.projectId || !body.boardId || !body.connectionId) {
               sendJson(res, { error: 'projectId, boardId, and connectionId are required' }, 400);
@@ -707,6 +708,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               executionId,
               connectionId: body.connectionId,
               resultBlockId: body.resultBlockId,
+              resultBlockIds: body.resultBlockIds,
             });
             sendJson(res, { snapshot: started.snapshot, execution: started.execution }, 202);
             return;
@@ -720,6 +722,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               boardId?: string;
               connectionId?: string;
               resultBlockId?: string;
+              resultBlockIds?: string[];
             };
             if (!body.projectId || !body.boardId || !body.connectionId) {
               sendJson(res, { error: 'projectId, boardId, and connectionId are required' }, 400);
@@ -731,6 +734,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               executionId,
               connectionId: body.connectionId,
               resultBlockId: body.resultBlockId,
+              resultBlockIds: body.resultBlockIds,
             });
             sendJson(res, { snapshot: started.snapshot, execution: started.execution }, 202);
             return;

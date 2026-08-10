@@ -25,9 +25,9 @@ import {
 } from './agent-runtime-port';
 import { loadAgentCallableCapabilities } from './agent-callable-capability-catalog';
 
-const guidedEditDefinition = imageCapability({
-  capabilityId: 'image.guided_edit',
-  displayName: 'Guided image edit',
+const referenceEditDefinition = imageCapability({
+  capabilityId: 'image.reference_edit_fixture',
+  displayName: 'Reference image edit fixture',
   inputSlots: [
     imageSlot('source_image', 'source', true),
     imageSlot('guidance_image', 'guidance', false),
@@ -52,25 +52,25 @@ const localCropDefinition = imageCapability({
 
 const catalog = projectAgentCallableCapabilities([
   capabilityDefinitionFor(imageGenerateCapabilityId),
-  guidedEditDefinition,
+  referenceEditDefinition,
   maskedEditDefinition,
   localCropDefinition,
 ]);
 assert.deepEqual(
   catalog.map((capability) => capability.capabilityId),
-  ['image.generate', 'image.guided_edit'],
+  ['image.generate', 'image.reference_edit_fixture'],
 );
 assert.equal(
   catalog.find((capability) => capability.capabilityId === imageGenerateCapabilityId)?.authoringKind,
   'image_generate',
 );
 assert.equal(
-  catalog.find((capability) => capability.capabilityId === 'image.guided_edit')?.authoringKind,
+  catalog.find((capability) => capability.capabilityId === 'image.reference_edit_fixture')?.authoringKind,
   'source_image_edit',
 );
 assert.deepEqual(
   agentRuntimeDecisionSchemaFor(catalog).properties.capabilityId.enum,
-  ['image.generate', 'image.guided_edit', null],
+  ['image.generate', 'image.reference_edit_fixture', null],
 );
 const installedCatalog = await loadAgentCallableCapabilities();
 assert.equal(
@@ -93,7 +93,7 @@ assert.equal(
   false,
 );
 
-replacePluginCapabilityDefinitions([guidedEditDefinition]);
+replacePluginCapabilityDefinitions([referenceEditDefinition]);
 try {
   const snapshot = await emptySnapshot();
   const sourceImage = addTestImageBlock(snapshot);
@@ -130,9 +130,9 @@ try {
     workingOutputImageBlockIds: [],
   } as Parameters<typeof parseAgentRuntimeDecision>[1];
   const decision = parseAgentRuntimeDecision(JSON.stringify({
-    capabilityId: 'image.guided_edit',
+    capabilityId: 'image.reference_edit_fixture',
     kind: 'operation_create_execute',
-    message: '正在创建引导式图片编辑。',
+    message: '正在创建参考图编辑。',
     operationPrompt: '保留主体和构图，只把窗外改成月色。',
     sourceImageBlockId: sourceImage.blockId,
   }), context, catalog);
@@ -143,19 +143,19 @@ try {
   const turn = applyAgentRuntimeTurn(snapshot, {
     agentSessionId: session.agentSessionId,
     decision,
-    externalThreadId: 'thread_guided_edit',
+    externalThreadId: 'thread_reference_edit_fixture',
     runtimeModel: 'test-model',
-    runtimeTurnId: 'turn_guided_edit',
+    runtimeTurnId: 'turn_reference_edit_fixture',
     sourceMessageId: sourceMessage.agentMessageId,
   });
   const staged = stageAgentOperationExecution(snapshot, turn.operationExecution!, {
     connectionIdForCapability: () => 'codex-app-server',
     operationTitle: 'Generate image',
-    operationTitleForCapability: () => 'Guided image edit',
+    operationTitleForCapability: () => 'Reference image edit fixture',
     promptTitle: 'Prompt',
   }).stagedSnapshot;
   const operation = staged.blocks.find(
-    (block) => block.type === 'operation' && block.data.capabilityId === 'image.guided_edit',
+    (block) => block.type === 'operation' && block.data.capabilityId === 'image.reference_edit_fixture',
   );
   assert.ok(operation);
   assert.equal(operationReadinessFor(staged, operation).canRun, true);
@@ -171,14 +171,14 @@ try {
   )));
 
   const execution = executeExistingImageOperationBlock(staged, {
-    capabilityId: 'image.guided_edit',
+    capabilityId: 'image.reference_edit_fixture',
     generationParams: operation.data.generationParams,
     instruction: '',
     operation: 'image_to_image',
     operationBlockId: operation.blockId,
   });
-  assert.equal(execution.execution.capabilityId, 'image.guided_edit');
-  assert.equal(execution.operationBlock.data.capabilityId, 'image.guided_edit');
+  assert.equal(execution.execution.capabilityId, 'image.reference_edit_fixture');
+  assert.equal(execution.operationBlock.data.capabilityId, 'image.reference_edit_fixture');
 } finally {
   replacePluginCapabilityDefinitions([]);
 }
@@ -187,7 +187,7 @@ console.log(JSON.stringify({
   ok: true,
   dynamicCatalog: true,
   enabledInstalledCapabilityFilter: true,
-  guidedEditAgentAuthoring: true,
+  pluginImageEditAgentAuthoring: true,
   requiredInteractiveInputsExcluded: true,
 }));
 

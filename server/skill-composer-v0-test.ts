@@ -24,6 +24,8 @@ assert.match(composerSource, /trailingTriggerQuery\(value, '@'\)/);
 assert.match(composerSource, /data-mention-id/);
 assert.match(composerSource, /selectEntryPoint\(registration\)/);
 assert.match(composerSource, /onInvokeEntryPoint\(invocation\)/);
+assert.match(composerSource, /mode === 'agent' \|\| selectedEntryPoint\?\.entrypoint\.kind === 'workflow'/);
+assert.match(composerSource, /!event\.nativeEvent\.isComposing/);
 assert.match(controllerSource, /resolvePackageComposerInvocation/);
 assert.equal(composerSource.includes('AgentRun'), false);
 assert.equal(

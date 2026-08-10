@@ -217,6 +217,16 @@ assert.ok(promptCandidates.some((candidate) => (
 
 const renamedDefinition = structuredClone(forked.draft.definition);
 renamedDefinition.name = 'Courier Cat Campaign';
+const renamedCharacterSheetStep = renamedDefinition.steps.find(
+  (step) => step.stepId === 'generate_character_sheet',
+);
+assert.ok(renamedCharacterSheetStep);
+renamedCharacterSheetStep.parameters = {
+  aspectRatioPreset: '9:16',
+  connectionId: 'studio-image-connection',
+  targetResolution: '4K',
+  variationCount: 3,
+};
 const renamed = await saveProjectWorkflowDraft({
   definition: renamedDefinition,
   draftId: forked.draft.draftId,
@@ -226,6 +236,12 @@ const renamed = await saveProjectWorkflowDraft({
 });
 assert.equal(renamed.draft.recordVersion, 2);
 assert.equal(renamed.draft.definition.name, 'Courier Cat Campaign');
+assert.deepEqual(
+  renamed.draft.definition.steps.find(
+    (step) => step.stepId === 'generate_character_sheet',
+  )?.parameters,
+  renamedCharacterSheetStep.parameters,
+);
 assert.notEqual(
   renamed.draft.definition.definitionHash,
   forked.draft.definition.definitionHash,
@@ -245,6 +261,15 @@ const invalidDefinition = structuredClone(renamed.draft.definition);
 invalidDefinition.steps[0]!.dependsOn = [
   invalidDefinition.steps[invalidDefinition.steps.length - 1]!.stepId,
 ];
+const invalidImageStep = invalidDefinition.steps.find(
+  (step) => step.stepId === 'generate_character_sheet',
+);
+assert.ok(invalidImageStep);
+invalidImageStep.parameters = {
+  aspectRatioPreset: 'invalid-ratio',
+  connectionId: '',
+  variationCount: 9,
+};
 const invalid = await saveProjectWorkflowDraft({
   definition: invalidDefinition,
   draftId: renamed.draft.draftId,
@@ -254,6 +279,9 @@ const invalid = await saveProjectWorkflowDraft({
 });
 assert.equal(invalid.draft.validation.valid, false);
 assert.match(invalid.draft.validation.issues.join('\n'), /acyclic/);
+assert.match(invalid.draft.validation.issues.join('\n'), /connectionId is invalid/);
+assert.match(invalid.draft.validation.issues.join('\n'), /aspectRatioPreset/);
+assert.match(invalid.draft.validation.issues.join('\n'), /variationCount/);
 await assert.rejects(
   publishProjectWorkflowDraft({
     draftId: invalid.draft.draftId,
@@ -265,6 +293,11 @@ await assert.rejects(
 
 const repairedDefinition = structuredClone(invalid.draft.definition);
 repairedDefinition.steps[0]!.dependsOn = [];
+const repairedImageStep = repairedDefinition.steps.find(
+  (step) => step.stepId === 'generate_character_sheet',
+);
+assert.ok(repairedImageStep);
+repairedImageStep.parameters = structuredClone(renamedCharacterSheetStep.parameters);
 const repaired = await saveProjectWorkflowDraft({
   definition: repairedDefinition,
   draftId: invalid.draft.draftId,
@@ -287,6 +320,12 @@ assert.equal(
 published.revision.definition.name = 'mutated client copy';
 const restored = await readProjectWorkflowAuthoring(projectId);
 assert.equal(restored.revisions[0]?.definition.name, 'Courier Cat Campaign');
+assert.deepEqual(
+  restored.revisions[0]?.definition.steps.find(
+    (step) => step.stepId === 'generate_character_sheet',
+  )?.parameters,
+  renamedCharacterSheetStep.parameters,
+);
 const resolved = resolveWorkflowDefinitionV1({
   installedDefinitions: listWorkflows(),
   projectRevisions: restored.revisions,

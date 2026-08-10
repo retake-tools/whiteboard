@@ -265,11 +265,45 @@ assert.equal(
   true,
 );
 
+const concurrentBlockSnapshot = await resetWorkspace();
+const concurrentBlocks = concurrentBlockSnapshot.blocks.slice(0, 2);
+assert.equal(concurrentBlocks.length, 2);
+await saveSnapshot(concurrentBlockSnapshot);
+const completionA = structuredClone(concurrentBlockSnapshot);
+const completionB = structuredClone(concurrentBlockSnapshot);
+const completionABlock = completionA.blocks.find((block) => block.blockId === concurrentBlocks[0]?.blockId);
+const completionBBlock = completionB.blocks.find((block) => block.blockId === concurrentBlocks[1]?.blockId);
+assert(completionABlock);
+assert(completionBBlock);
+completionABlock.data.concurrentResult = 'agent-a';
+completionABlock.updatedAt = '2099-01-01T00:00:01.000Z';
+completionBBlock.data.concurrentResult = 'agent-b';
+completionBBlock.updatedAt = '2099-01-01T00:00:02.000Z';
+await saveSnapshot(completionA);
+await saveSnapshot(completionB);
+const afterConcurrentCompletions = await getBoardSnapshot({
+  projectId: concurrentBlockSnapshot.project.projectId,
+  boardId: concurrentBlockSnapshot.board.boardId,
+});
+assert.equal(
+  afterConcurrentCompletions.blocks.find((block) => block.blockId === completionABlock.blockId)
+    ?.data.concurrentResult,
+  'agent-a',
+  'a stale second completion must preserve the first Agent result Block',
+);
+assert.equal(
+  afterConcurrentCompletions.blocks.find((block) => block.blockId === completionBBlock.blockId)
+    ?.data.concurrentResult,
+  'agent-b',
+  'the second Agent result Block must also be saved',
+);
+
 console.log({
   agentSessionDoesNotLookLikeBootstrap: true,
   apiConflictSurfaced: true,
   bootstrapOverwriteRejected: true,
   durableHistoryPreserved: true,
+  concurrentAgentBlocksPreserved: true,
   pluginOperationModePreserved: true,
   staleQueuedExecutionRejected: true,
   staleSelectionRecoveredFromServer: true,

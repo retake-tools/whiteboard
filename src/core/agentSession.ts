@@ -28,8 +28,13 @@ import {
   buildGoalPlanInstantiationCommand,
   listGoalPlanWorkflowOptions,
 } from './goalPlanRegistry';
+import {
+  buildRecommendedSkillInstantiationCommand,
+  listAgentSkillEntrypointOptions,
+} from './agentSkillRecommendation';
 import { resolvePackageEntryPoint } from './packageRegistry';
 import type { BoardSnapshot } from './types';
+import { workflowRunExperienceFor } from './workflowRunExperience';
 
 export function createAgentSession(
   snapshot: BoardSnapshot,
@@ -44,7 +49,7 @@ export function createAgentSession(
   const now = nowIso();
   const agentRun = input.agentRunId
     ? requireScopedAgentRun(snapshot, input.agentRunId)
-    : latestBoardAgentRun(snapshot);
+    : undefined;
   const agentSessionId = createId('agsession');
   const agentRuntimeBindingId = createId('agruntime');
   const binding: AgentRuntimeBindingRecord = {
@@ -76,6 +81,7 @@ export function createAgentSession(
   snapshot.agentRuntimeBindings ??= [];
   snapshot.agentSessions.push(session);
   snapshot.agentRuntimeBindings.push(binding);
+  if (agentRun) claimAgentRunForSession(snapshot, session, agentRun.agentRunId);
   return { binding, session };
 }
 
@@ -105,7 +111,7 @@ export function appendAgentUserMessage(
   const hasTypedInput = contextRefs.some((ref) => ref.kind === 'entrypoint')
     && contextRefs.some((ref) => ref.kind === 'block' || ref.kind === 'asset' || ref.kind === 'inline');
   if (!content && !hasTypedInput) throw new Error('Agent message cannot be empty.');
-  assertContextRefs(snapshot, session, contextRefs);
+  assertContextRefs(snapshot, session, contextRefs, input.content);
   const message: AgentMessageRecord = {
     agentMessageId: createId('agmsg'),
     agentSessionId,
@@ -161,10 +167,15 @@ export function applyAgentRuntimeTurn(
   } else if (input.decision.kind === 'agent_run_control') {
     applyAgentRunControl(snapshot, session, input.decision.action, input.decision.agentRunId);
   } else if (input.decision.kind === 'goal_plan_proposal') {
-    if (session.activeAgentRunId) {
+    if (activeAgentRunForSession(snapshot, session)) {
       throw new Error('Goal Plan cannot replace the active Agent Run target.');
     }
     proposal = createGoalPlanProposal(snapshot, session, source, input.decision);
+  } else if (input.decision.kind === 'skill_entrypoint_proposal') {
+    if (activeAgentRunForSession(snapshot, session)) {
+      throw new Error('Recommended Skill cannot replace the active Agent Run target.');
+    }
+    proposal = createRecommendedSkillProposal(snapshot, session, source, input.decision);
   } else if (input.decision.kind === 'change_proposal') {
     proposal = createChangeProposal(snapshot, session, source, input.decision);
   }
@@ -174,8 +185,8 @@ export function applyAgentRuntimeTurn(
     agentSessionId: session.agentSessionId,
     boardId: snapshot.board.boardId,
     content: input.decision.message.trim() || 'Agent completed without a message.',
-    contextRefs: session.activeAgentRunId
-      ? [{ kind: 'agent_run', agentRunId: session.activeAgentRunId }]
+    contextRefs: activeAgentRunForSession(snapshot, session)
+      ? [{ kind: 'agent_run', agentRunId: session.activeAgentRunId! }]
       : [],
     createdAt: nowIso(),
     projectId: snapshot.project.projectId,
@@ -212,6 +223,85 @@ export function applyAgentRuntimeTurn(
     assistantMessage,
     ...(operationExecution ? { operationExecution } : {}),
     ...(proposal ? { proposal } : {}),
+  };
+}
+
+export function applyAuthorizedOperationSuggestion(
+  snapshot: BoardSnapshot,
+  input: {
+    agentSessionId: string;
+    operationBlockId: string;
+    sourceMessageId: string;
+  },
+): {
+  assistantMessage: AgentMessageRecord;
+  operationExecution: AgentOperationExecutionRequest;
+} {
+  const session = requireActiveSession(snapshot, input.agentSessionId);
+  const activeRun = session.activeAgentRunId
+    ? requireScopedAgentRun(snapshot, session.activeAgentRunId)
+    : undefined;
+  if (
+    activeRun
+    && !['canceled', 'failed', 'succeeded'].includes(activeRun.status)
+  ) {
+    throw new Error('An Operation suggestion cannot bypass the active Agent Run.');
+  }
+  const source = requireMessage(snapshot, input.sourceMessageId);
+  if (source.agentSessionId !== session.agentSessionId || source.role !== 'user') {
+    throw new Error('Agent Operation suggestion source message is invalid.');
+  }
+  const suggestionRef = source.contextRefs.find(
+    (ref) => ref.kind === 'agent_suggestion_action',
+  );
+  const operationRef = source.contextRefs.find(
+    (ref) => ref.kind === 'operation' && ref.operationBlockId === input.operationBlockId,
+  );
+  const suggestion = suggestionRef
+    ? requireMessage(snapshot, suggestionRef.sourceMessageId)
+    : undefined;
+  if (
+    !suggestionRef
+    || !operationRef
+    || suggestion?.role !== 'assistant'
+    || !suggestion.suggestions?.includes(source.content)
+    || !source.content.includes(input.operationBlockId)
+  ) {
+    throw new Error('Agent Operation suggestion is not bound to an exact visible action.');
+  }
+  const operation = snapshot.blocks.find(
+    (block) => block.blockId === input.operationBlockId && block.type === 'operation',
+  );
+  if (!operation) throw new Error('Suggested Operation is no longer available.');
+  const assistantMessage: AgentMessageRecord = {
+    agentMessageId: createId('agmsg'),
+    agentSessionId: session.agentSessionId,
+    boardId: snapshot.board.boardId,
+    content: `正在执行“${operation.data.title}”。`,
+    contextRefs: [],
+    createdAt: nowIso(),
+    projectId: snapshot.project.projectId,
+    recordVersion: 1,
+    role: 'assistant',
+    sourceMessageId: source.agentMessageId,
+  };
+  snapshot.agentMessages ??= [];
+  snapshot.agentMessages.push(assistantMessage);
+  touchSession(session);
+  return {
+    assistantMessage,
+    operationExecution: {
+      agentSessionId: session.agentSessionId,
+      assistantMessageId: assistantMessage.agentMessageId,
+      decision: {
+        bindingSource: 'message_explicit',
+        kind: 'operation_execute',
+        message: assistantMessage.content,
+        operationBlockId: operation.blockId,
+      },
+      kind: 'execute_existing',
+      sourceMessageId: source.agentMessageId,
+    },
   };
 }
 
@@ -257,7 +347,8 @@ export function setAgentSessionRun(
 ): AgentSessionRecord {
   const session = requireActiveSession(snapshot, agentSessionId);
   if (agentRunId) requireScopedAgentRun(snapshot, agentRunId);
-  session.activeAgentRunId = agentRunId;
+  if (agentRunId) claimAgentRunForSession(snapshot, session, agentRunId);
+  else delete session.activeAgentRunId;
   touchSession(session);
   return session;
 }
@@ -346,7 +437,16 @@ export function agentRuntimeTurnContext(
     ref.kind === 'operation' ? [ref.operationBlockId] : []);
   const selectedImageBlockIds = message.contextRefs.flatMap((ref) =>
     ref.kind === 'canvas_image_selection' ? ref.imageBlockIds : []);
-  const run = session.activeAgentRunId ? requireScopedAgentRun(snapshot, session.activeAgentRunId) : undefined;
+  const run = activeAgentRunForSession(snapshot, session);
+  const workflowRunId = run?.target.kind === 'capability'
+    ? undefined
+    : run?.target.workflowRunId;
+  const workflowExperience = workflowRunId
+    ? workflowRunExperienceFor(snapshot, run, { workflowRunIds: [workflowRunId] }).runs[0]
+    : undefined;
+  const workflowStepRunById = new Map(
+    (snapshot.workflowStepRuns ?? []).map((step) => [step.stepRunId, step]),
+  );
   const workingOperation = scopedWorkingOperation(snapshot, session);
   const workingOutputImageBlockIds = workingOperation
     ? agentSessionWorkingOutputImageBlockIds(snapshot, workingOperation.operationBlockId)
@@ -374,6 +474,19 @@ export function agentRuntimeTurnContext(
         allowedActions: allowedAgentRunActions(run.status),
         status: run.status,
         targetKind: run.target.kind,
+        ...(workflowExperience ? {
+          workflowSteps: workflowExperience.steps.map((step) => ({
+            freshness: step.freshness,
+            label: step.label,
+            operationBlockId: step.operationBlockId,
+            outputAssetIds: [
+              ...(workflowStepRunById.get(step.stepRunId)?.outputAssetIds ?? []),
+            ],
+            status: step.status,
+            stepId: step.stepId,
+            stepRunId: step.stepRunId,
+          })),
+        } : {}),
       },
     } : {}),
     availableAgentRuns: (snapshot.agentRuns ?? [])
@@ -407,6 +520,13 @@ export function agentRuntimeTurnContext(
     goalPlanOptions: !run && !entrypoint
       ? listGoalPlanWorkflowOptions()
       : [],
+    skillEntrypointOptions: !run && !entrypoint
+      ? listAgentSkillEntrypointOptions().filter((option) => (
+          agentPreferences?.kind !== 'agent_preferences'
+          || agentPreferences.outputType === 'auto'
+          || option.outputDataTypes.includes(agentPreferences.outputType)
+        ))
+      : [],
     mentions,
     mentionedImageBlockIds,
     inlineValues,
@@ -431,6 +551,43 @@ export function proposalsForSession(snapshot: BoardSnapshot, agentSessionId: str
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
+export function workflowRunIdsForAgentSession(
+  snapshot: BoardSnapshot,
+  agentSessionId: string,
+): string[] {
+  const session = (snapshot.agentSessions ?? []).find(
+    (candidate) => candidate.agentSessionId === agentSessionId
+      && candidate.projectId === snapshot.project.projectId
+      && candidate.boardId === snapshot.board.boardId,
+  );
+  if (!session) return [];
+
+  const agentRunIds = new Set<string>();
+  if (session.activeAgentRunId) agentRunIds.add(session.activeAgentRunId);
+  for (const message of messagesForSession(snapshot, agentSessionId)) {
+    for (const ref of message.contextRefs) {
+      if (ref.kind === 'agent_run') agentRunIds.add(ref.agentRunId);
+    }
+  }
+
+  const workflowRunIds = new Set<string>();
+  for (const proposal of proposalsForSession(snapshot, agentSessionId)) {
+    if (proposal.draftLaunchEffect?.workflowRunId) {
+      workflowRunIds.add(proposal.draftLaunchEffect.workflowRunId);
+      agentRunIds.add(proposal.draftLaunchEffect.agentRunId);
+    }
+  }
+  for (const run of snapshot.agentRuns ?? []) {
+    if (!agentRunIds.has(run.agentRunId) || run.target.kind === 'capability') continue;
+    workflowRunIds.add(run.target.workflowRunId);
+  }
+
+  const availableRunIds = new Set(
+    (snapshot.workflowRuns ?? []).map((run) => run.workflowRunId),
+  );
+  return [...workflowRunIds].filter((workflowRunId) => availableRunIds.has(workflowRunId));
+}
+
 export function runtimeEventsForSession(snapshot: BoardSnapshot, agentSessionId: string): AgentRuntimeEventRecord[] {
   return [...(snapshot.agentRuntimeEvents ?? [])]
     .filter((event) => event.agentSessionId === agentSessionId)
@@ -443,6 +600,15 @@ export function activeBoardAgentSessions(snapshot: BoardSnapshot): AgentSessionR
       && session.boardId === snapshot.board.boardId
       && session.status === 'active')
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+}
+
+export function agentSessionForRun(
+  snapshot: BoardSnapshot,
+  agentRunId: string,
+): AgentSessionRecord | undefined {
+  return activeBoardAgentSessions(snapshot).find(
+    (session) => session.activeAgentRunId === agentRunId,
+  );
 }
 
 export function runtimeBindingForSession(
@@ -488,6 +654,30 @@ function createTypedEntrypointProposal(
   snapshot.changeProposals ??= [];
   snapshot.changeProposals.push(proposal);
   return proposal;
+}
+
+export function createTypedEntrypointProposalForMessage(
+  snapshot: BoardSnapshot,
+  input: {
+    agentSessionId: string;
+    explanation: string;
+    sourceMessageId: string;
+  },
+): ChangeProposalRecord {
+  const session = requireActiveSession(snapshot, input.agentSessionId);
+  const source = requireMessage(snapshot, input.sourceMessageId);
+  if (source.agentSessionId !== session.agentSessionId || source.role !== 'user') {
+    throw new Error('Typed EntryPoint Proposal source message is invalid.');
+  }
+  if (!source.contextRefs.some((ref) => ref.kind === 'entrypoint')) {
+    throw new Error('Typed EntryPoint Proposal requires an explicit EntryPoint.');
+  }
+  return createTypedEntrypointProposal(
+    snapshot,
+    session,
+    source,
+    input.explanation,
+  );
 }
 
 function createChangeProposal(
@@ -552,6 +742,49 @@ function createGoalPlanProposal(
   return proposal;
 }
 
+function createRecommendedSkillProposal(
+  snapshot: BoardSnapshot,
+  session: AgentSessionRecord,
+  source: AgentMessageRecord,
+  decision: Extract<AgentRuntimeTurnDecision, { kind: 'skill_entrypoint_proposal' }>,
+): ChangeProposalRecord {
+  const now = nowIso();
+  const proposalId = createId('proposal');
+  const proposedCommand = buildRecommendedSkillInstantiationCommand(snapshot, source, {
+    proposalId,
+    skillEntryPointId: decision.skillEntryPointId,
+  });
+  const proposal: ChangeProposalRecord = {
+    agentSessionId: session.agentSessionId,
+    boardId: snapshot.board.boardId,
+    createdAt: now,
+    instruction: source.content,
+    kind: 'plan_skill',
+    proposedCommand,
+    projectId: snapshot.project.projectId,
+    proposalId,
+    recordVersion: 1,
+    sourceMessageId: source.agentMessageId,
+    status: 'awaiting_decision',
+    summary: decision.summary.trim() || decision.message.trim(),
+    updatedAt: now,
+  };
+  snapshot.changeProposals ??= [];
+  snapshot.changeProposals.push(proposal);
+  return proposal;
+}
+
+function activeAgentRunForSession(
+  snapshot: BoardSnapshot,
+  session: AgentSessionRecord,
+) {
+  if (!session.activeAgentRunId) return undefined;
+  const run = requireScopedAgentRun(snapshot, session.activeAgentRunId);
+  return run.status === 'succeeded' || run.status === 'failed' || run.status === 'canceled'
+    ? undefined
+    : run;
+}
+
 function applyAgentRunControl(
   snapshot: BoardSnapshot,
   session: AgentSessionRecord,
@@ -582,6 +815,7 @@ function assertContextRefs(
   snapshot: BoardSnapshot,
   session: AgentSessionRecord,
   refs: AgentMessageContextRef[],
+  content: string,
 ): void {
   const entrypointRefs = refs.filter((ref) => ref.kind === 'entrypoint');
   if (entrypointRefs.length > 1) throw new Error('Agent message has multiple EntryPoint refs.');
@@ -593,10 +827,42 @@ function assertContextRefs(
   const inlineRefs = refs.filter((ref) => ref.kind === 'inline');
   const parameterRefs = refs.filter((ref) => ref.kind === 'parameters');
   const preferenceRefs = refs.filter((ref) => ref.kind === 'agent_preferences');
+  const workflowExecutionModeRefs = refs.filter(
+    (ref) => ref.kind === 'workflow_execution_mode',
+  );
+  const workflowInteractionModeRefs = refs.filter(
+    (ref) => ref.kind === 'workflow_interaction_mode',
+  );
   if (parameterRefs.length > 1) throw new Error('Agent message has multiple parameter refs.');
   if (preferenceRefs.length > 1) throw new Error('Agent message has multiple Agent preference refs.');
+  if (workflowExecutionModeRefs.length > 1) {
+    throw new Error('Agent message has multiple Workflow execution mode refs.');
+  }
+  if (workflowInteractionModeRefs.length > 1) {
+    throw new Error('Agent message has multiple Workflow interaction mode refs.');
+  }
   if ((inlineRefs.length > 0 || parameterRefs.length > 0) && !entrypointId) {
     throw new Error('Agent message typed inline inputs require one EntryPoint context.');
+  }
+  if (workflowExecutionModeRefs.length > 0) {
+    const resolution = entrypointId ? resolvePackageEntryPoint({ entrypointId }) : undefined;
+    if (
+      resolution?.status !== 'resolved'
+      || resolution.target.kind !== 'workflow'
+      || !['plan_first', 'run_now'].includes(workflowExecutionModeRefs[0]!.mode)
+    ) {
+      throw new Error('Workflow execution mode requires one resolved Workflow EntryPoint.');
+    }
+  }
+  if (workflowInteractionModeRefs.length > 0) {
+    const resolution = entrypointId ? resolvePackageEntryPoint({ entrypointId }) : undefined;
+    if (
+      resolution?.status !== 'resolved'
+      || resolution.target.kind !== 'workflow'
+      || !['automatic', 'manual'].includes(workflowInteractionModeRefs[0]!.mode)
+    ) {
+      throw new Error('Workflow interaction mode requires one resolved Workflow EntryPoint.');
+    }
   }
   const compatibleMentionIds = entrypointId
     ? new Set(listPackageComposerMentionOptions(snapshot, entrypointId).map((option) => option.mentionId))
@@ -611,6 +877,24 @@ function assertContextRefs(
         || (ref.variationCount !== undefined && ![1, 2, 3, 4].includes(ref.variationCount))
       ) {
         throw new Error('Agent message preferences are invalid.');
+      }
+    } else if (ref.kind === 'workflow_execution_mode') {
+      // Validated once above together with the exact Workflow EntryPoint.
+    } else if (ref.kind === 'workflow_interaction_mode') {
+      // Validated once above together with the exact Workflow EntryPoint.
+    } else if (ref.kind === 'agent_suggestion_action') {
+      const source = (snapshot.agentMessages ?? []).find(
+        (message) =>
+          message.agentMessageId === ref.sourceMessageId
+          && message.agentSessionId === session.agentSessionId
+          && message.boardId === session.boardId
+          && message.role === 'assistant',
+      );
+      if (
+        ref.action !== 'run'
+        || !source?.suggestions?.includes(content.trim())
+      ) {
+        throw new Error('Agent suggestion action is not bound to an exact assistant suggestion.');
       }
     } else if (ref.kind === 'agent_run') {
       if (session.activeAgentRunId !== ref.agentRunId) throw new Error('Agent message Agent Run ref is outside Session scope.');
@@ -735,10 +1019,30 @@ export function agentSessionWorkingOutputImageBlockIds(
   });
 }
 
-function latestBoardAgentRun(snapshot: BoardSnapshot) {
-  return [...(snapshot.agentRuns ?? [])]
-    .filter((run) => run.projectId === snapshot.project.projectId && run.boardId === snapshot.board.boardId)
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0];
+function claimAgentRunForSession(
+  snapshot: BoardSnapshot,
+  session: AgentSessionRecord,
+  agentRunId: string,
+): void {
+  const currentRun = session.activeAgentRunId && session.activeAgentRunId !== agentRunId
+    ? (snapshot.agentRuns ?? []).find((run) => run.agentRunId === session.activeAgentRunId)
+    : undefined;
+  if (
+    currentRun
+    && !['canceled', 'failed', 'succeeded'].includes(currentRun.status)
+  ) {
+    throw new Error(`Agent already has an active task: ${currentRun.agentRunId}`);
+  }
+  const owner = (snapshot.agentSessions ?? []).find(
+    (candidate) =>
+      candidate.status === 'active'
+      && candidate.agentSessionId !== session.agentSessionId
+      && candidate.activeAgentRunId === agentRunId,
+  );
+  if (owner) {
+    throw new Error(`Agent Run already belongs to another Agent: ${owner.agentSessionId}`);
+  }
+  session.activeAgentRunId = agentRunId;
 }
 
 function requireSession(snapshot: BoardSnapshot, agentSessionId: string): AgentSessionRecord {

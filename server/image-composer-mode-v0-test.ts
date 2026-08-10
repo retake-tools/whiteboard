@@ -16,6 +16,11 @@ import {
 import { executeExistingImageOperationBlock } from '../src/core/imageOperations';
 import { imageGenerateCapabilityId } from '../src/core/imageGenerateContracts';
 import {
+  isRetiredDefinitionError,
+  retiredGuidedImageSkillId,
+} from '../src/core/retiredDefinitions';
+import { createFlowNodes } from '../src/core/flowProjection';
+import {
   configureSkillRegistry,
   listSkills,
   type RetakeSkillDefinition,
@@ -48,6 +53,10 @@ const [
   readFile(new URL('../src/components/OperationFromImagePicker.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/ImageComposerReferenceTray.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/styles/toolbars.css', import.meta.url), 'utf8'),
+]);
+const [operationInlineControlsSource, connectedPluginExecutionSource] = await Promise.all([
+  readFile(new URL('../src/nodes/OperationInlineControls.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/app/runConnectedPluginExecution.ts', import.meta.url), 'utf8'),
 ]);
 
 assert.match(composerSource, /listAvailableComposerModes/);
@@ -98,8 +107,15 @@ assert.match(operationFromImagePickerSource, /onSelect\('similar'\)/);
 assert.match(appSource, /mode === 'similar' \? 'create_similar' : 'quick_edit'/);
 assert.match(toolbarStyles, /\.image-composer-reference-thumbnail/);
 assert.match(toolbarStyles, /\.image-composer-reference-preview/);
+assert.match(operationInlineControlsSource, /connectionId === 'codex-app-server'/);
+assert.match(connectedPluginExecutionSource, /initialConnectionId: 'codex-app-server'/);
 
 const snapshot = await emptySnapshot();
+assert.equal(
+  createBlockRecord(snapshot, 'operation').data.connectionId,
+  'codex-app-server',
+  'New image Operations must default to the Codex App Server when no user default overrides it.',
+);
 const firstAsset = imageAsset(snapshot, 'asset_image_composer_block');
 const secondAsset = imageAsset(snapshot, 'asset_image_composer_asset');
 snapshot.assets.push(firstAsset, secondAsset);
@@ -476,6 +492,15 @@ staleCandidateBlock.data = {
   sourceExecutionId: 'exec_workflow_concept',
   title: 'Static projected candidate',
 };
+const selectedCandidateBlock = createBlockRecord(workflowSelectionSnapshot, 'image');
+selectedCandidateBlock.blockId = 'block_workflow_selected_candidate';
+selectedCandidateBlock.data = {
+  ...selectedCandidateBlock.data,
+  assetId: selectedCandidate.assetId,
+  previewUrl: selectedCandidate.previewUrl,
+  sourceExecutionId: 'exec_workflow_concept',
+  title: 'Accepted selected candidate',
+};
 const workflowPromptBlock = createBlockRecord(workflowSelectionSnapshot, 'text');
 workflowPromptBlock.blockId = 'block_workflow_character_sheet_prompt';
 workflowPromptBlock.data = {
@@ -501,9 +526,25 @@ workflowOperation.data = {
 };
 const workflowOutput = createBlockRecord(workflowSelectionSnapshot, 'image');
 workflowOutput.blockId = 'block_workflow_character_sheet_output';
-workflowOutput.data = { ...workflowOutput.data, title: 'Character Sheet output' };
+workflowOutput.data = {
+  ...workflowOutput.data,
+  title: 'Character Sheet output',
+  workflowStepId: 'character_sheet',
+};
+const workflowGroup = createBlockRecord(workflowSelectionSnapshot, 'group');
+workflowGroup.blockId = 'block_workflow_selected_input_group';
+workflowGroup.data = {
+  ...workflowGroup.data,
+  groupKind: 'workflow',
+  workflowAutoLayout: 'step_rows',
+};
+workflowPromptBlock.parentGroupId = workflowGroup.blockId;
+workflowOperation.parentGroupId = workflowGroup.blockId;
+workflowOutput.parentGroupId = workflowGroup.blockId;
 workflowSelectionSnapshot.blocks.push(
+  workflowGroup,
   staleCandidateBlock,
+  selectedCandidateBlock,
   workflowPromptBlock,
   workflowOperation,
   workflowOutput,
@@ -538,7 +579,7 @@ workflowSelectionSnapshot.executions.push({
   executionId: 'exec_workflow_concept',
   inputBlockIds: [],
   outputAssetIds: [staleCandidate.assetId, selectedCandidate.assetId],
-  outputBlockIds: [],
+  outputBlockIds: [staleCandidateBlock.blockId, selectedCandidateBlock.blockId],
   outputSlotResults: [{
     assetIds: [staleCandidate.assetId, selectedCandidate.assetId],
     slotId: 'images',
@@ -600,7 +641,7 @@ workflowSelectionSnapshot.workflowStepRuns = [
       workflowOutputSlotId: 'accepted_concept',
     }],
     outputAssetIds: [staleCandidate.assetId, selectedCandidate.assetId],
-    outputBlockIds: [],
+    outputBlockIds: [staleCandidateBlock.blockId, selectedCandidateBlock.blockId],
     outputSlotIds: ['images'],
     recordVersion: 2,
     resolvedInputBindings: [],
@@ -658,6 +699,11 @@ workflowSelectionSnapshot.workflowStepRuns = [
     workflowRunId: 'workflow_run_selected_input',
   },
 ];
+const selectedInputPresentation = createFlowNodes(workflowSelectionSnapshot)
+  .find((node) => node.id === workflowOperation.blockId)
+  ?.data.operationReferenceInputs?.find((input) => input.inputSlotId === 'source_image');
+assert.equal(selectedInputPresentation?.title, 'Accepted selected candidate');
+assert.equal(selectedInputPresentation?.previewUrl, selectedCandidate.previewUrl);
 const originalSkills = listSkills();
 configureSkillRegistry(originalSkills.filter(
   (skill) => skill.skillId !== 'retake.image.ip-character-sheet',
@@ -679,6 +725,28 @@ assert.equal(
   undefined,
   'An unavailable explicit Skill must fail before mutating the Operation.',
 );
+const retiredSkillSnapshot = structuredClone(workflowSelectionSnapshot);
+const retiredOperation = retiredSkillSnapshot.blocks.find(
+  (block) => block.blockId === workflowOperation.blockId,
+);
+assert.ok(retiredOperation);
+retiredOperation.data = {
+  ...retiredOperation.data,
+  skillId: retiredGuidedImageSkillId,
+};
+assert.throws(() => executeExistingImageOperationBlock(retiredSkillSnapshot, {
+  capabilityId: imageGenerateCapabilityId,
+  connection: autoConnection,
+  generationParams: retiredOperation.data.generationParams,
+  instruction: '',
+  operation: 'image_to_image',
+  operationBlockId: retiredOperation.blockId,
+}), (error) => (
+  isRetiredDefinitionError(error)
+  && error instanceof Error
+  && /read-only/.test(error.message)
+));
+assert.equal(retiredSkillSnapshot.executions.length, 1);
 const workflowCharacterSheetSkill: RetakeSkillDefinition = {
   capabilityBindings: [{
     capabilityId: imageGenerateCapabilityId,
@@ -746,6 +814,33 @@ assert.equal(
 );
 assert.equal(workflowSelectionRun.execution.workflowRunId, 'workflow_run_selected_input');
 assert.equal(workflowSelectionRun.execution.stepRunId, 'step_run_workflow_character_sheet');
+assert.equal(workflowSelectionRun.resultBlocks.length, 2);
+assert.deepEqual(
+  workflowSelectionRun.resultBlocks.map((block) => block.parentGroupId),
+  [workflowGroup.blockId, workflowGroup.blockId],
+  'Workflow candidates must stay as direct children of the Workflow Group.',
+);
+assert.deepEqual(
+  workflowSelectionRun.resultBlocks.map((block) => block.data.workflowStepId),
+  ['character_sheet', 'character_sheet'],
+  'Every regenerated candidate must inherit its owning Workflow Step.',
+);
+assert.equal(
+  workflowSelectionRun.resultBlocks[0]?.position.x,
+  workflowSelectionRun.resultBlocks[1]?.position.x,
+  'Candidates from the same Workflow Step must share the output column.',
+);
+assert.ok(
+  (workflowSelectionRun.resultBlocks[1]?.position.y ?? 0)
+    > (workflowSelectionRun.resultBlocks[0]?.position.y ?? 0),
+  'Candidates from the same Workflow Step must stack vertically.',
+);
+assert.deepEqual(
+  workflowSelectionSnapshot.workflowStepRuns?.find(
+    (step) => step.stepRunId === 'step_run_workflow_character_sheet',
+  )?.outputBlockIds,
+  workflowSelectionRun.resultBlocks.map((block) => block.blockId),
+);
 assert.equal(
   workflowSelectionRun.execution.skillSnapshot
     && 'instructionTemplate' in workflowSelectionRun.execution.skillSnapshot

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createBlockRecord } from '../src/core/blockFactory';
+import { executeExistingImageOperationBlock } from '../src/core/imageOperations';
 import type { RetakeSkillSnapshot } from '../src/core/skillRegistry';
 import type { ExecutionRecord } from '../src/core/types';
 import { imageExecutionInputAssignments } from './image-execution-prompt';
@@ -48,6 +49,35 @@ selectedImageBlock.data = {
   title: 'Selected character direction',
 };
 snapshot.blocks.push(documentBlock, selectedImageBlock);
+
+const adjustedOperation = createBlockRecord(snapshot, 'operation');
+adjustedOperation.data = {
+  ...adjustedOperation.data,
+  capabilityId: 'image.generate',
+  executionAdjustmentInstruction: '减少角色表面的饭粒数量，保留整体轮廓和温暖配色。',
+  title: 'Generate concept directions',
+};
+snapshot.blocks.push(adjustedOperation);
+snapshot.edges.push({
+  edgeId: 'edge_document_adjustment_prompt',
+  inputSlotId: 'prompt',
+  kind: 'execution_input',
+  sourceBlockId: documentBlock.blockId,
+  targetBlockId: adjustedOperation.blockId,
+});
+const adjustedRun = executeExistingImageOperationBlock(snapshot, {
+  capabilityId: 'image.generate',
+  instruction: '',
+  operation: 'text_to_image',
+  operationBlockId: adjustedOperation.blockId,
+});
+assert.equal(
+  adjustedRun.execution.params?.executionAdjustmentInstruction,
+  '减少角色表面的饭粒数量，保留整体轮廓和温暖配色。',
+  'The run-local adjustment must be frozen into the new Execution.',
+);
+assert.equal(adjustedRun.execution.prompt, '减少角色表面的饭粒数量，保留整体轮廓和温暖配色。');
+assert.equal(adjustedRun.execution.inputBlockIds.includes(documentBlock.blockId), true);
 
 const inputBindings = [{
   slotId: 'prompt',
@@ -102,6 +132,7 @@ const execution: ExecutionRecord = {
   inputBindingsSnapshot: inputBindings,
   prompt: documentBlock.data.title,
   params: {
+    executionAdjustmentInstruction: '减少角色表面的饭粒数量，保留整体轮廓和温暖配色。',
     inputBindings: [{
       assetId: selectedImageAsset.assetId,
       blockId: selectedImageBlock.blockId,
@@ -117,6 +148,9 @@ assert.match(resolved, /Preserve the bound character identity/);
 assert.match(resolved, /round orange courier cat/);
 assert.match(resolved, /no photorealistic fur/);
 assert.match(resolved, /Attached image Artifact Revision: artrev_selected_character_v1/);
+assert.match(resolved, /# Current user adjustment/);
+assert.match(resolved, /减少角色表面的饭粒数量/);
+assert.match(resolved, /Preserve every unspecified identity/);
 assert.doesNotMatch(resolved, /^Courier Cat Character Bible$/);
 assert.deepEqual(
   imageExecutionInputAssignments(execution),

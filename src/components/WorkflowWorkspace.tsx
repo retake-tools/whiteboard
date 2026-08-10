@@ -107,17 +107,21 @@ export function WorkflowWorkspace({
   const selectedRunRecord = (snapshot.workflowRuns ?? []).find(
     (run) => run.workflowRunId === effectiveWorkflowRunId,
   );
-  const activeBoardAgentRun = useMemo(
+  const activeWorkflowAgentRun = useMemo(
     () => [...(snapshot.agentRuns ?? [])].reverse().find((run) => (
-      run.status === 'queued'
-      || run.status === 'running'
-      || run.status === 'waiting_input'
-      || run.status === 'waiting_selection'
-      || run.status === 'waiting_approval'
-      || run.status === 'paused'
-      || run.status === 'needs_attention'
+      run.target.kind !== 'capability'
+      && run.target.workflowRunId === effectiveWorkflowRunId
+      && (
+        run.status === 'queued'
+        || run.status === 'running'
+        || run.status === 'waiting_input'
+        || run.status === 'waiting_selection'
+        || run.status === 'waiting_approval'
+        || run.status === 'paused'
+        || run.status === 'needs_attention'
+      )
     )),
-    [snapshot.agentRuns],
+    [effectiveWorkflowRunId, snapshot.agentRuns],
   );
   const runIsTerminal = graph
     ? graph.run.status === 'canceled'
@@ -235,11 +239,11 @@ export function WorkflowWorkspace({
             </button>
           </div>
           {mode === 'run' && graph ? (
-            activeBoardAgentRun ? (
+            activeWorkflowAgentRun ? (
               <button
                 type="button"
                 className="workflow-workspace-agent-action is-secondary"
-                onClick={() => onOpenAgentRun(activeBoardAgentRun.agentRunId)}
+                onClick={() => onOpenAgentRun(activeWorkflowAgentRun.agentRunId)}
               >
                 <Bot size={14} /><span>{t('workflowWorkspace.openActiveAgent')}</span>
               </button>
@@ -369,7 +373,7 @@ export function WorkflowWorkspace({
             <header><strong>{t('workflowWorkspace.inspector')}</strong></header>
             {selectedNode ? (
               <WorkflowRunStepInspector
-                canRunToStep={!activeBoardAgentRun && !runIsTerminal && !stepIsComplete}
+                canRunToStep={!activeWorkflowAgentRun && !runIsTerminal && !stepIsComplete}
                 node={selectedNode}
                 onLocate={() => {
                   onClose();

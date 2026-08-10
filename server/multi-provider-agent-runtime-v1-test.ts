@@ -63,12 +63,28 @@ await saveSnapshot(snapshot);
 const originalFetch = globalThis.fetch;
 let requestedModel = '';
 let requestedStructuredPayload = '';
+let directRequestCount = 0;
 globalThis.fetch = async (_input, init) => {
+  directRequestCount += 1;
   const body = JSON.parse(String(init?.body)) as {
     model?: string;
   };
   requestedModel = body.model ?? '';
   requestedStructuredPayload = JSON.stringify(body);
+  if (directRequestCount === 1) {
+    return new Response(JSON.stringify({
+      id: 'chatcmpl-agent-runtime-empty',
+      object: 'chat.completion',
+      created: 1,
+      model: 'deepseek-chat',
+      choices: [{
+        index: 0,
+        message: { role: 'assistant', content: '' },
+        finish_reason: 'stop',
+      }],
+      usage: { prompt_tokens: 100, completion_tokens: 0, total_tokens: 100 },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  }
   return new Response(JSON.stringify({
     id: 'chatcmpl-agent-runtime',
     object: 'chat.completion',
@@ -117,7 +133,16 @@ try {
   assert.equal(result.model, 'deepseek-chat');
   assert.equal(result.externalThreadId, `direct:${created.session.agentSessionId}`);
   assert.equal(requestedModel, 'deepseek-chat');
+  assert.equal(directRequestCount, 2);
   assert.match(requestedStructuredPayload, /capabilityId/);
+  const requestedBody = JSON.parse(requestedStructuredPayload) as {
+    messages?: Array<{ content?: string; role?: string }>;
+    thinking?: { type?: string };
+  };
+  assert.deepEqual(requestedBody.thinking, { type: 'disabled' });
+  assert.match(requestedBody.messages?.[0]?.content ?? '', /JSON Schema exactly/);
+  assert.match(requestedBody.messages?.[0]?.content ?? '', /Example JSON output/);
+  assert.match(requestedBody.messages?.[0]?.content ?? '', /"required":\["kind","message"/);
 } finally {
   globalThis.fetch = originalFetch;
 }
@@ -140,6 +165,9 @@ assert.equal(deletedSettings.projectAgentRuntimeConnectionId, undefined);
 console.log(JSON.stringify({
   ok: true,
   directApiRuntime: true,
+  deepSeekNonThinkingJsonMode: true,
+  deepSeekParseRetryBounded: true,
+  explicitCompatibleSchemaPrompt: true,
   frozenSessionModel: true,
   independentAgentDefault: true,
   unavailableDefaultDoesNotFallback: true,

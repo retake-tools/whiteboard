@@ -57,6 +57,7 @@ export async function startCodexAppServerImageGeneration(input: {
   executionId: string;
   connectionId: string;
   resultBlockId?: string;
+  resultBlockIds?: string[];
 }, dependencies: CodexAppServerImageDependencies = {}): Promise<{
   snapshot: BoardSnapshot;
   execution: ExecutionRecord;
@@ -74,7 +75,8 @@ export async function startCodexAppServerImageGeneration(input: {
   }
   const current = await loadSnapshot(input.projectId, input.boardId);
   const execution = current.executions.find((candidate) => candidate.executionId === input.executionId);
-  const expectedStatus = input.resultBlockId ? 'failed' : 'queued';
+  const retryResultBlockIds = requestedRetryResultBlockIds(input);
+  const expectedStatus = retryResultBlockIds.length > 0 ? 'failed' : 'queued';
   if (!execution || execution.status !== expectedStatus || execution.adapter !== 'codex_app_server') {
     throw new Error(`${expectedStatus === 'failed' ? 'Failed' : 'Queued'} Codex App Server image execution not found: ${input.executionId}`);
   }
@@ -82,11 +84,13 @@ export async function startCodexAppServerImageGeneration(input: {
     throw new Error(`Image execution connection mismatch: ${input.connectionId}`);
   }
 
-  const started = input.resultBlockId
-    ? await markExecutionAdapterRetryRunning({ ...input, resultBlockId: input.resultBlockId, adapter: 'codex_app_server' })
+  const started = retryResultBlockIds.length > 0
+    ? await markExecutionAdapterRetryRunning({ ...input, resultBlockIds: retryResultBlockIds, adapter: 'codex_app_server' })
     : await markExecutionRunning(input);
   publishExecutionEvent(input.executionId, { type: 'execution.started' });
-  const resultBlockIds = input.resultBlockId ? [input.resultBlockId] : started.execution.outputBlockIds;
+  const resultBlockIds = retryResultBlockIds.length > 0
+    ? retryResultBlockIds
+    : started.execution.outputBlockIds;
   const completion = executeCodexImageRun(started.execution, connection.modelId, dependencies, resultBlockIds)
     .then(async () => settleIncompleteRetry(input))
     .catch(async (error) => {
@@ -167,6 +171,11 @@ async function executeCodexImageRun(
     executionId: execution.executionId,
     requestPrompts: requests,
   });
+  publishExecutionEvent(execution.executionId, {
+    type: 'execution.progress',
+    phase: 'provider_starting',
+    total: execution.outputBlockIds.length,
+  });
   const enqueueWrite = createSerialTaskQueue();
   const results = await Promise.allSettled(requests.map(async (request) => {
     const { index, outputBlockId: resultBlockId } = request;
@@ -179,13 +188,21 @@ async function executeCodexImageRun(
       sandbox: 'workspace-write',
       onImageGenerationStarted: () => publishExecutionEvent(execution.executionId, {
         type: 'execution.progress',
-        message: `Generating image ${index + 1} of ${execution.outputBlockIds.length}`,
+        current: index + 1,
+        phase: 'provider_generating',
+        total: execution.outputBlockIds.length,
       }),
     });
     if (!result.image) throw new Error('Codex App Server completed without an image result.');
     const image = result.image;
     await enqueueWrite(async () => {
       await assertExecutionRunning(execution);
+      publishExecutionEvent(execution.executionId, {
+        type: 'execution.progress',
+        current: index + 1,
+        phase: 'result_importing',
+        total: execution.outputBlockIds.length,
+      });
       const asset = execution.capabilityId === 'image.masked_edit'
         ? await importMaskedCodexImage(
           execution,
@@ -212,6 +229,12 @@ async function executeCodexImageRun(
         threadId: result.threadId,
         turnId: result.turnId,
         revisedPrompt: image.revisedPrompt,
+      });
+      publishExecutionEvent(execution.executionId, {
+        type: 'execution.progress',
+        current: index + 1,
+        phase: 'board_writing',
+        total: execution.outputBlockIds.length,
       });
       const updated = await updateImageResultBlock({
         projectId: execution.projectId,
@@ -396,8 +419,9 @@ async function settleIncompleteRetry(input: {
   boardId: string;
   executionId: string;
   resultBlockId?: string;
+  resultBlockIds?: string[];
 }): Promise<void> {
-  if (!input.resultBlockId) return;
+  if (requestedRetryResultBlockIds(input).length === 0) return;
   const snapshot = await loadSnapshot(input.projectId, input.boardId);
   const execution = snapshot.executions.find((candidate) => candidate.executionId === input.executionId);
   if (execution?.status !== 'running') return;
@@ -407,6 +431,16 @@ async function settleIncompleteRetry(input: {
     executionId: input.executionId,
     errorMessage: 'One or more image candidates are still incomplete. Retry the remaining failed results.',
   });
+}
+
+function requestedRetryResultBlockIds(input: {
+  resultBlockId?: string;
+  resultBlockIds?: string[];
+}): string[] {
+  return [...new Set([
+    ...(input.resultBlockIds ?? []),
+    ...(input.resultBlockId ? [input.resultBlockId] : []),
+  ])];
 }
 
 async function executionInputImagePaths(

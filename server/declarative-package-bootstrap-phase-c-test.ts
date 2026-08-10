@@ -18,6 +18,7 @@ import type {
 } from '@retake-tools/package-contracts';
 import {
   configureInstalledRuntimeRegistry,
+  withSnapshotDigest,
 } from '../src/core/installedRuntimeRegistry';
 import { capabilityDefinitionFor } from '../src/core/capabilityRegistry';
 import {
@@ -34,6 +35,11 @@ import {
   resolvedWorkflowUiDefinitionFor,
 } from '../src/core/workflowRegistry';
 import { listAgentPresets } from '../src/core/agentPresetRegistry';
+import {
+  retiredGuidedImageAgentPresetId,
+  retiredGuidedImageSkillId,
+  retiredGuidedImageWorkflowId,
+} from '../src/core/retiredDefinitions';
 import {
   bootstrapDeclarativePackages,
   defaultBootstrapProfilePath,
@@ -88,12 +94,12 @@ try {
   );
   assert.deepEqual(
     (await readdir(bundledRoot)).sort(),
-    ['image-studio-0.12.0.retakepkg', 'retake.bootstrap.json'],
+    ['image-studio-0.12.3.retakepkg', 'retake.bootstrap.json'],
     'The published Whiteboard bootstrap must not ship a Video Studio archive.',
   );
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.version),
-    ['0.12.0'],
+    ['0.12.3'],
   );
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.updateSource),
@@ -148,9 +154,9 @@ try {
   assert.equal(first.installed, true);
   assert.equal(first.snapshot.lockRevision, 2);
   assert.equal(first.snapshot.packages.length, 2);
-  assert.equal(first.snapshot.skills.length, 13);
-  assert.equal(first.snapshot.workflows.length, 6);
-  assert.equal(first.snapshot.agentPresets.length, 2);
+  assert.equal(first.snapshot.skills.length, 12);
+  assert.equal(first.snapshot.workflows.length, 5);
+  assert.equal(first.snapshot.agentPresets.length, 1);
   assert.equal(
     first.snapshot.capabilities.some(
       (definition) => definition.capabilityId === 'image.guided_edit',
@@ -193,14 +199,38 @@ try {
 
   configureInstalledRuntimeRegistry(first.snapshot);
   assert.equal(listPackages().length, 2);
-  assert.equal(listSkills().length, 13);
-  assert.equal(listWorkflows().length, 6);
-  assert.equal(listAgentPresets().length, 2);
+  assert.equal(listSkills().length, 12);
+  assert.equal(listWorkflows().length, 5);
+  assert.equal(listAgentPresets().length, 1);
+  assert.equal(
+    listSkills().some((skill) => skill.skillId === 'retake.image.guided-edit'),
+    false,
+  );
+  assert.equal(
+    listWorkflows().some((workflow) => workflow.workflowId === 'retake.workflow.guided-image-review'),
+    false,
+  );
+  assert.equal(
+    listAgentPresets().some((preset) => preset.agentPresetId === 'retake.agent.guided-image-operator'),
+    false,
+  );
   assert.equal(
     capabilityDefinitionFor('image.generate').definitionHash,
     'sha256:retake-image-generate-document-prompt-v2',
   );
-  assert.equal(listPackageEntryPoints().length, 16);
+  assert.equal(listPackageEntryPoints().length, 15);
+  assert.equal(
+    listPackageEntryPoints().some(
+      (entry) => entry.entrypoint.entrypointId === 'skill:retake.image.ip-character-strategy',
+    ),
+    true,
+  );
+  assert.equal(
+    listPackageEntryPoints().some(
+      (entry) => entry.entrypoint.entrypointId === 'workflow:retake.workflow.guided-image-review',
+    ),
+    false,
+  );
   assert.equal(
     resolvedSkillUiDefinitionFor('retake.screenplay.from-brief', 'zh-CN').name,
     '生成剧本',
@@ -212,6 +242,89 @@ try {
   if (resolved.status === 'resolved') {
     assert.equal(resolved.target.packageLock.packageId, videoPackageId);
   }
+
+  const staleGuidedSnapshot = structuredClone(first.snapshot);
+  const stalePackage = staleGuidedSnapshot.packages.find(
+    (manifest) => manifest.packageId === imagePackageId,
+  );
+  const skillTemplate = staleGuidedSnapshot.skills[0];
+  const workflowTemplate = staleGuidedSnapshot.workflows[0];
+  const agentTemplate = staleGuidedSnapshot.agentPresets[0];
+  assert.ok(stalePackage && skillTemplate && workflowTemplate && agentTemplate);
+  staleGuidedSnapshot.skills.push({
+    ...structuredClone(skillTemplate),
+    skillId: retiredGuidedImageSkillId,
+  });
+  staleGuidedSnapshot.workflows.push({
+    ...structuredClone(workflowTemplate),
+    workflowId: retiredGuidedImageWorkflowId,
+  });
+  staleGuidedSnapshot.agentPresets.push({
+    ...structuredClone(agentTemplate),
+    agentPresetId: retiredGuidedImageAgentPresetId,
+  });
+  stalePackage.components.skills.push({
+    definitionHash: skillTemplate.definitionHash,
+    skillId: retiredGuidedImageSkillId,
+    version: skillTemplate.version,
+  });
+  stalePackage.components.workflows.push({
+    definitionHash: workflowTemplate.definitionHash,
+    version: workflowTemplate.version,
+    workflowDefinitionId: retiredGuidedImageWorkflowId,
+  });
+  stalePackage.components.agentPresets.push({
+    agentPresetId: retiredGuidedImageAgentPresetId,
+    definitionHash: agentTemplate.definitionHash,
+    version: agentTemplate.version,
+  });
+  stalePackage.entrypoints.push({
+    compatibleStageIds: [],
+    description: 'Retired compatibility fixture.',
+    entrypointId: `skill:${retiredGuidedImageSkillId}`,
+    kind: 'skill',
+    name: 'Retired compatibility fixture',
+    ref: {
+      capabilityId: skillTemplate.capabilityBindings[0]!.capabilityId,
+      skillId: retiredGuidedImageSkillId,
+    },
+    requiredInputSlotIds: [],
+    schemaVersion: 1,
+  });
+  const sanitizedStaleSnapshot = configureInstalledRuntimeRegistry(withSnapshotDigest({
+    agentPresets: staleGuidedSnapshot.agentPresets,
+    capabilities: staleGuidedSnapshot.capabilities,
+    lockRevision: staleGuidedSnapshot.lockRevision,
+    packages: staleGuidedSnapshot.packages,
+    profileId: staleGuidedSnapshot.profileId,
+    schemaVersion: 1,
+    skills: staleGuidedSnapshot.skills,
+    workflows: staleGuidedSnapshot.workflows,
+  }));
+  assert.equal(
+    sanitizedStaleSnapshot.skills.some((skill) => skill.skillId === retiredGuidedImageSkillId),
+    false,
+  );
+  assert.equal(
+    sanitizedStaleSnapshot.workflows.some(
+      (workflow) => workflow.workflowId === retiredGuidedImageWorkflowId,
+    ),
+    false,
+  );
+  assert.equal(
+    sanitizedStaleSnapshot.agentPresets.some(
+      (preset) => preset.agentPresetId === retiredGuidedImageAgentPresetId,
+    ),
+    false,
+  );
+  assert.equal(
+    listPackageEntryPoints().some(
+      ({ entrypoint }) => entrypoint.entrypointId === `skill:${retiredGuidedImageSkillId}`,
+    ),
+    false,
+    'A pinned legacy Image Studio package must not re-register retired entrypoints.',
+  );
+  configureInstalledRuntimeRegistry(first.snapshot);
 
   const lockPath = path.join(
     workspaceRoot,

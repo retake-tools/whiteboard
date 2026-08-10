@@ -330,12 +330,12 @@ assert.equal(completed.assets.length, assetCountBeforeEmptyImage);
 
 const partialImageDraft = createDraftTextToImageOperation(completed, {
   operationTitle: 'Generate partial App Server batch',
-  textBlockBody: 'Generate two candidates and preserve a successful paid draw.',
+  textBlockBody: 'Generate three candidates and preserve a successful paid draw.',
   textBlockTitle: 'Prompt',
   generationParams: {
     aspectRatioPreset: '1:1',
     targetAspectRatio: 1,
-    variationCount: 2,
+    variationCount: 3,
   },
 });
 partialImageDraft.operationBlock.data.connectionId = connection!.connectionId;
@@ -348,8 +348,7 @@ const partialImageRun = executeExistingImageOperationBlock(completed, {
 });
 const preservedAppServerAssetId = 'asset_app_server_preserved';
 const preservedAppServerResultBlock = partialImageRun.resultBlocks[0];
-const failedAppServerResultBlockId = partialImageRun.resultBlocks[1].blockId;
-const failedAppServerResultIndex = 1;
+const failedAppServerResultBlockIds = partialImageRun.resultBlocks.slice(1).map((block) => block.blockId);
 const partialImageCompletedAt = new Date().toISOString();
 completed.assets.unshift({
   assetId: preservedAppServerAssetId,
@@ -366,15 +365,17 @@ preservedAppServerResultBlock.data.assetId = preservedAppServerAssetId;
 preservedAppServerResultBlock.data.previewUrl = completed.assets[0].previewUrl;
 preservedAppServerResultBlock.data.status = 'succeeded';
 preservedAppServerResultBlock.updatedAt = partialImageCompletedAt;
-partialImageRun.resultBlocks[1].data.status = 'failed';
-partialImageRun.resultBlocks[1].updatedAt = partialImageCompletedAt;
+for (const resultBlock of partialImageRun.resultBlocks.slice(1)) {
+  resultBlock.data.status = 'failed';
+  resultBlock.updatedAt = partialImageCompletedAt;
+}
 partialImageRun.operationBlock.data.status = 'failed';
 partialImageRun.operationBlock.updatedAt = partialImageCompletedAt;
 partialImageRun.execution.status = 'failed';
 partialImageRun.execution.completedAt = partialImageCompletedAt;
 partialImageRun.execution.errorMessage = 'Synthetic partial App Server failure.';
 partialImageRun.execution.outputAssetIds = [preservedAppServerAssetId];
-partialImageRun.execution.resultSummary = { requested: 2, succeeded: 1, failed: 1 };
+partialImageRun.execution.resultSummary = { requested: 3, succeeded: 1, failed: 2 };
 await saveSnapshot(completed);
 let appServerRetryCalls = 0;
 const retriedImage = await startCodexAppServerImageGeneration({
@@ -382,12 +383,12 @@ const retriedImage = await startCodexAppServerImageGeneration({
   boardId: completed.board.boardId,
   executionId: partialImageRun.execution.executionId,
   connectionId: connection!.connectionId,
-  resultBlockId: failedAppServerResultBlockId,
+  resultBlockIds: failedAppServerResultBlockIds,
 }, {
   connectionCheck: { codexAppServerAvailability },
   runTurn: async (input) => {
     appServerRetryCalls += 1;
-    assert.match(input.prompt, new RegExp(`candidate ${failedAppServerResultIndex + 1} of 2`));
+    assert.match(input.prompt, /candidate [23] of 3/);
     return {
       threadId: 'thread_retry_image',
       turnId: 'turn_retry_image',
@@ -404,9 +405,9 @@ const partialImageSnapshot = await loadSnapshot(completed.project.projectId, com
 const retriedImageExecution = partialImageSnapshot.executions.find(
   (candidate) => candidate.executionId === partialImageRun.execution.executionId,
 );
-assert.equal(appServerRetryCalls, 1, 'Retrying one App Server candidate must issue exactly one paid draw.');
+assert.equal(appServerRetryCalls, 2, 'Retrying failed App Server candidates must issue one paid draw per failed result.');
 assert.equal(retriedImageExecution?.status, 'succeeded');
-assert.equal(retriedImageExecution?.outputAssetIds.length, 2);
+assert.equal(retriedImageExecution?.outputAssetIds.length, 3);
 assert.equal(retriedImageExecution?.outputAssetIds.includes(preservedAppServerAssetId), true);
 
 const referenceOnlyExecution = structuredClone(imageRun.execution);

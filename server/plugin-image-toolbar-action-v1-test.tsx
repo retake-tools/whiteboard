@@ -194,9 +194,12 @@ assert.match(contextToolbarSource, /context\.regenerate/);
 assert.doesNotMatch(contextToolbarSource, /quick-edit|create-similar/);
 assert.match(toolbarStyles, /\.image-context-toolbar-bridge\s*\{[\s\S]*pointer-events: auto/);
 assert.match(pluginPanelHostSource, /plugin-panel-host nodrag nopan nowheel/);
+assert.match(pluginPanelHostSource, /hasVisibleAnchoredPanel/);
+assert.match(pluginPanelHostSource, /bounds\.width > 0\.5 && bounds\.height > 0\.5/);
 assert.match(pluginPanelHostSource, /onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/);
 assert.match(pluginPanelHostSource, /onWheel=\{\(event\) => event\.stopPropagation\(\)\}/);
 assert.match(pluginPanelHostStyles, /max-width: calc\(100vw - 32px\)/);
+assert.match(pluginPanelHostStyles, /\.plugin-panel-host__panel:empty\s*\{[^}]*display: none/s);
 
 const selectionRegistry = createPluginContributionRegistry();
 assert.deepEqual(selectionRegistry.replace([{

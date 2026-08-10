@@ -2,6 +2,7 @@ import { capabilityDefinitionFor } from './capabilityRegistry';
 import type { CapabilityBindingValue } from './capabilityContracts';
 import { createBlockRecord, touchBoard } from './blockFactory';
 import { createGroupAroundBlocks } from './grouping';
+import { arrangeWorkflowGroup } from './workflowGroupLayout';
 import { createId } from './id';
 import type { PackageInvocationContext } from './packageContracts';
 import type {
@@ -15,6 +16,7 @@ import { storyboardSheetCapabilityId } from './storyboardSheetContracts';
 import {
   validateWorkflowDefinition,
   workflowDefinitionFor,
+  type WorkflowCapabilityStepDefinition,
   type WorkflowDefinition,
 } from './workflowRegistry';
 import type { WorkflowProjectionTemplateV1 } from './workflowAuthoringContracts';
@@ -189,6 +191,12 @@ export function projectWorkflowDraft(
           } => Boolean(value.blockId))
     ));
     const domainVideoGeneration = step.capabilityLock.capabilityId === domainVideoGenerationCapabilityId;
+    const imageStepSettings = step.capabilityLock.capabilityId === imageGenerateCapabilityId
+      ? workflowImageStepProjectionSettings(
+          input.composerInput?.parameters,
+          step,
+        )
+      : undefined;
     const draft = generationPreparation
       ? createDraftGenerationPreparationOperation(snapshot, {
           connectionId: input.connectionIdForCapability(step.capabilityLock.capabilityId),
@@ -216,10 +224,13 @@ export function projectWorkflowDraft(
       : mediaOutput
         ? createDraftMediaCapabilityOperation(snapshot, {
             capabilityId: step.capabilityLock.capabilityId,
-            connectionId: input.connectionIdForCapability(step.capabilityLock.capabilityId),
+            connectionId: imageStepSettings?.connectionId
+              ?? input.connectionIdForCapability(step.capabilityLock.capabilityId),
             explicitInputBindings: explicitGenerationInputs,
             labels,
-            parameters: input.composerInput?.parameters,
+            parameters: imageStepSettings?.generationParameters
+              ? { ...imageStepSettings.generationParameters }
+              : input.composerInput?.parameters,
             skillId: step.skillLock.skillId,
           })
       : createDraftSkillOperation(snapshot, {
@@ -310,6 +321,7 @@ export function projectWorkflowDraft(
       values: structuredClone(values),
     })),
   };
+  if (!input.projectionTemplate) arrangeWorkflowGroup(snapshot, groupBlock.blockId);
   touchBoard(snapshot);
 
   return {
@@ -395,6 +407,54 @@ function imageGenerateParametersFromInvocation(
     throw new Error(`Workflow image generation parameters are invalid: ${issues.join('; ')}`);
   }
   return resolved;
+}
+
+function workflowImageStepProjectionSettings(
+  workflowDefaults: Record<string, unknown> | undefined,
+  step: WorkflowCapabilityStepDefinition,
+): {
+  connectionId?: string;
+  generationParameters?: ImageGenerateParametersV1;
+} {
+  const defaults = step.defaultParameters ?? {};
+  const explicit = step.parameters ?? {};
+  const stepOverrides = workflowStepParameterOverrides(workflowDefaults, step.stepId);
+  const connectionValue = explicit.connectionId
+    ?? stepOverrides.connectionId
+    ?? workflowDefaults?.connectionId
+    ?? defaults.connectionId;
+  if (
+    connectionValue !== undefined
+    && (typeof connectionValue !== 'string' || !connectionValue.trim())
+  ) {
+    throw new Error(`Workflow image connection is invalid: ${step.stepId}`);
+  }
+  const stepDefaults = imageGenerateParametersFromInvocation(defaults);
+  const workflowGenerationDefaults = imageGenerateParametersFromInvocation(workflowDefaults);
+  const runStepOverrides = imageGenerateParametersFromInvocation(stepOverrides);
+  const stepGenerationParameters = imageGenerateParametersFromInvocation(explicit);
+  const generationParameters = {
+    ...stepDefaults,
+    ...workflowGenerationDefaults,
+    ...runStepOverrides,
+    ...stepGenerationParameters,
+  };
+  return {
+    ...(typeof connectionValue === 'string' ? { connectionId: connectionValue } : {}),
+    ...(Object.keys(generationParameters).length > 0 ? { generationParameters } : {}),
+  };
+}
+
+function workflowStepParameterOverrides(
+  workflowDefaults: Record<string, unknown> | undefined,
+  stepId: string,
+): Record<string, unknown> {
+  const raw = workflowDefaults?.stepParameterOverrides;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const value = (raw as Record<string, unknown>)[stepId];
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? structuredClone(value as Record<string, unknown>)
+    : {};
 }
 
 function workflowParametersFromOperation(operationBlock: BlockRecord): Record<string, unknown> {
@@ -547,9 +607,7 @@ function layoutWorkflowProjection(
         };
       }
     }
-    [...workflowInputs.values()].flat().forEach((block, index) => {
-      block.position = { x: 40, y: 270 + index * (block.size.height + 36) };
-    });
+    layoutWorkflowInputs(workflow, workflowInputs, operationBlocks);
     return;
   }
   const depthByStepId = new Map<string, number>();
@@ -577,8 +635,54 @@ function layoutWorkflowProjection(
       }
     });
   }
-  [...workflowInputs.values()].flat().forEach((block, index) => {
-    block.position = { x: 40, y: 270 + index * (block.size.height + 36) };
+  layoutWorkflowInputs(workflow, workflowInputs, operationBlocks);
+}
+
+function layoutWorkflowInputs(
+  workflow: WorkflowDefinition,
+  workflowInputs: Map<string, BlockRecord[]>,
+  operationBlocks: Map<string, BlockRecord>,
+): void {
+  const inputsByConsumerStep = new Map<string, BlockRecord[]>();
+  const unboundInputs: BlockRecord[] = [];
+  for (const slot of workflow.inputSlots) {
+    const blocks = workflowInputs.get(slot.slotId) ?? [];
+    const consumer = topologicalSteps(workflow).find((step) =>
+      step.inputBindings.some(
+        (binding) => binding.source.kind === 'workflow_input'
+          && binding.source.slotId === slot.slotId,
+      ));
+    if (!consumer) {
+      unboundInputs.push(...blocks);
+      continue;
+    }
+    inputsByConsumerStep.set(
+      consumer.stepId,
+      [...(inputsByConsumerStep.get(consumer.stepId) ?? []), ...blocks],
+    );
+  }
+  for (const [stepId, blocks] of inputsByConsumerStep) {
+    const operation = operationBlocks.get(stepId);
+    if (!operation) {
+      unboundInputs.push(...blocks);
+      continue;
+    }
+    const gap = 28;
+    const totalHeight = blocks.reduce(
+      (height, block, index) => height + block.size.height + (index > 0 ? gap : 0),
+      0,
+    );
+    let y = operation.position.y + operation.size.height / 2 - totalHeight / 2;
+    for (const block of blocks) {
+      block.position = {
+        x: operation.position.x - block.size.width - 80,
+        y,
+      };
+      y += block.size.height + gap;
+    }
+  }
+  unboundInputs.forEach((block, index) => {
+    block.position = { x: 40, y: 80 + index * (block.size.height + 36) };
   });
 }
 

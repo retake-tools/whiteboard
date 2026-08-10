@@ -12,7 +12,7 @@ import type {
 } from './types';
 import type { ExecutionConnectionSummary } from './executionProviders';
 import { maxZIndex, touchBoard } from './blockFactory';
-import { fitMediaBlockSize, imageResultColumnGap } from './blockSizing';
+import { fitImageBlockSize, fitMediaBlockSize, imageResultColumnGap } from './blockSizing';
 import { createExecutionResultGroup, expandGroupToContents } from './grouping';
 import { syncExecutionOutputContractSnapshot } from './executionContractSnapshot';
 import { createImageOperationPrompt } from './prompts';
@@ -25,6 +25,7 @@ import {
   volcengineArkSeedreamImageAdapterDefinition,
 } from './capabilityRegistry';
 import { imageBlockAspectRatio } from './operationAspectRatio';
+import { refreshWorkflowGroupLayoutForBlock } from './workflowGroupLayout';
 import {
   annotationOperationBranchLayout,
   imageBranchDraftLayout,
@@ -46,6 +47,7 @@ import {
   schemaForCapability,
 } from './capabilities';
 import { skillsForCapability, snapshotSkill } from './skillRegistry';
+import { retiredSkillExecutionError } from './retiredDefinitions';
 import { outpaintCapabilityId } from './outpaintContracts';
 import { imageGenerateCapabilityId } from './imageGenerateContracts';
 import { resolveExecutionAdapterInputProfile } from './adapterInputProfiles';
@@ -432,7 +434,7 @@ export function addImageCodexOperation(
   };
 
   snapshot.blocks.push(operationBlock, ...resultBlocks);
-  createExecutionResultGroup(snapshot, { executionId, operationBlock, resultBlocks });
+  createImageExecutionResultGroup(snapshot, { executionId, operationBlock, resultBlocks });
   if (operationBlock.parentGroupId) expandGroupToContents(snapshot, operationBlock.parentGroupId);
   if (sourceInputSlotId) {
     snapshot.edges.push({
@@ -831,6 +833,8 @@ export function completePluginImageOperation(
   operationBlock.updatedAt = completedAt;
   resultBlock.data.assetId = asset.assetId;
   resultBlock.data.status = 'succeeded';
+  resultBlock.size = fitImageBlockSize(asset.width, asset.height);
+  refreshWorkflowGroupLayoutForBlock(snapshot, resultBlock);
   resultBlock.updatedAt = completedAt;
 
   const resultUpdatedEvent: BoardHistoryEvent = {
@@ -932,6 +936,10 @@ export function executeExistingImageOperationBlock(
         ? promptBlock.data.title.trim()
         : 'Connected document prompt')
     : undefined;
+  const executionAdjustmentInstruction = typeof operationBlock.data.executionAdjustmentInstruction === 'string'
+    && operationBlock.data.executionAdjustmentInstruction.trim()
+    ? operationBlock.data.executionAdjustmentInstruction.trim()
+    : undefined;
   const promptText = connectedPromptText ?? documentPrompt ?? frozenPromptText;
   if (!isAnnotationRepeat && !promptBlock && !promptText) {
     throw new Error(
@@ -958,6 +966,8 @@ export function executeExistingImageOperationBlock(
       )
     : undefined;
   if (explicitSkillId && !explicitSkill) {
+    const retiredError = retiredSkillExecutionError(explicitSkillId);
+    if (retiredError) throw retiredError;
     throw new Error(`Image operation Skill is unavailable or incompatible: ${explicitSkillId}`);
   }
   const annotationManifest = isAnnotationRepeat && isAnnotationManifest(operationBlock.data.annotationManifest)
@@ -1005,7 +1015,7 @@ export function executeExistingImageOperationBlock(
     : titleForOperation(codexOperation);
   const instruction = isAnnotationRepeat
     ? (typeof operationBlock.data.annotationText === 'string' ? operationBlock.data.annotationText.trim() : '')
-    : promptText ?? '';
+    : executionAdjustmentInstruction ?? promptText ?? '';
   if (!instruction) throw new Error('Enter a prompt before running this operation.');
   const generationProfileId = operationBlock.data.generationProfileId ?? defaultGenerationProfileId;
   const connectionId = input.connection?.connectionId ?? (typeof operationBlock.data.connectionId === 'string'
@@ -1062,7 +1072,7 @@ export function executeExistingImageOperationBlock(
     title,
     executionId,
   });
-  createExecutionResultGroup(snapshot, { executionId, operationBlock, resultBlocks });
+  createImageExecutionResultGroup(snapshot, { executionId, operationBlock, resultBlocks });
   if (operationBlock.parentGroupId) expandGroupToContents(snapshot, operationBlock.parentGroupId);
   const resultBlock = resultBlocks[0];
 
@@ -1093,6 +1103,7 @@ export function executeExistingImageOperationBlock(
     prompt: instruction,
     params: {
       operationBlockId: operationBlock.blockId,
+      ...(executionAdjustmentInstruction ? { executionAdjustmentInstruction } : {}),
       ...(generationParams ? { generation: generationParams } : {}),
       ...(annotationManifest ? { annotationManifest } : {}),
       ...(annotatedCompositeAssetId ? { annotatedCompositeAssetId } : {}),
@@ -1114,6 +1125,7 @@ export function executeExistingImageOperationBlock(
   for (const outputBlock of resultBlocks) {
     ensureEdge(snapshot, operationBlock.blockId, outputBlock.blockId, 'execution_output');
   }
+  if (resultBlocks[0]) refreshWorkflowGroupLayoutForBlock(snapshot, resultBlocks[0]);
   recordExecutionConfiguration(snapshot, execution, operationBlock);
   const skill = explicitSkill ?? (execution.skillId
     ? skillsForCapability(execution.capabilityId).find(
@@ -1432,6 +1444,10 @@ function findOrCreateOperationResultBlocks(
   );
   const baseX = resultLayout.x;
   const baseY = resultLayout.y;
+  const workflowStepId = typeof input.operationBlock.data.workflowStepId === 'string'
+    ? input.operationBlock.data.workflowStepId
+    : undefined;
+  const workflowFlowDirection = input.operationBlock.data.workflowFlowDirection;
 
   for (let index = 0; index < input.count; index += 1) {
     const outputSlot = availableOutputSlots[index];
@@ -1445,7 +1461,10 @@ function findOrCreateOperationResultBlocks(
         resultIndex: index,
         resultCount: input.count,
         sourceExecutionId: input.executionId,
+        ...(workflowStepId ? { workflowStepId } : {}),
+        ...(workflowFlowDirection ? { workflowFlowDirection } : {}),
       };
+      outputSlot.parentGroupId = input.operationBlock.parentGroupId;
       outputSlot.position = {
         x: baseX + index * (input.resultSize.width + imageResultColumnGap),
         y: baseY,
@@ -1475,7 +1494,10 @@ function findOrCreateOperationResultBlocks(
         resultIndex: index,
         resultCount: input.count,
         sourceExecutionId: input.executionId,
+        ...(workflowStepId ? { workflowStepId } : {}),
+        ...(workflowFlowDirection ? { workflowFlowDirection } : {}),
       },
+      parentGroupId: input.operationBlock.parentGroupId,
       createdAt: input.createdAt,
       updatedAt: input.createdAt,
     };
@@ -1484,6 +1506,26 @@ function findOrCreateOperationResultBlocks(
   }
 
   return resultBlocks;
+}
+
+function createImageExecutionResultGroup(
+  snapshot: BoardSnapshot,
+  input: {
+    executionId: string;
+    operationBlock: BlockRecord;
+    resultBlocks: readonly BlockRecord[];
+  },
+): void {
+  const parentGroup = input.operationBlock.parentGroupId
+    ? snapshot.blocks.find(
+        (block) => block.blockId === input.operationBlock.parentGroupId && block.type === 'group',
+      )
+    : undefined;
+  if (parentGroup?.data.groupKind === 'workflow') {
+    for (const block of input.resultBlocks) block.parentGroupId = parentGroup.blockId;
+    return;
+  }
+  createExecutionResultGroup(snapshot, input);
 }
 
 function imageGenerationProfileSnapshot(

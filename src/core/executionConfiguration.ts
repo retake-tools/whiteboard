@@ -93,7 +93,10 @@ export function currentOperationConfiguration(
     imageInputs,
     prompt: operationBlock.data.adapter === 'local_canvas'
       ? ''
-      : promptTextFromInputs(connectedInputBlocks(snapshot, operationBlock.blockId)) || operationBlock.data.body || '',
+      : operationBlock.data.executionAdjustmentInstruction?.trim()
+        || promptTextFromInputs(connectedInputBlocks(snapshot, operationBlock.blockId))
+        || operationBlock.data.body
+        || '',
   });
 }
 
@@ -484,7 +487,11 @@ function readInputBindings(value: unknown): ExecutionConfigurationInputSnapshot[
 }
 
 function sortRecord(value: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right)));
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, entryValue]) => entryValue !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right)),
+  );
 }
 
 function stableStringify(value: unknown): string {

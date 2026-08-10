@@ -182,6 +182,7 @@ const [
   composerSource,
   historySource,
   appSource,
+  uiPreferencesSource,
   topBarSource,
 ] = await Promise.all([
   readFile(new URL('../src/components/AgentWorkspace.tsx', import.meta.url), 'utf8'),
@@ -190,6 +191,7 @@ const [
   readFile(new URL('../src/components/SkillQuickInputComposer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentSessionHistoryMenu.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/core/uiPreferences.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/TopBar.tsx', import.meta.url), 'utf8'),
 ]);
 assert.match(workspaceSource, /role="log"/);
@@ -215,6 +217,17 @@ assert.match(composerSource, /autoFocus=\{autoFocus\}/);
 assert.match(composerSource, /skillComposer\.keyboardHint/);
 assert.match(historySource, /triggerRef\.current\?\.focus/);
 assert.match(appSource, /agentWorkspaceButtonRef\.current\?\.focus/);
+assert.match(
+  appSource,
+  /useState\(\s*\(\) => initialUiPreferences\.current\.isAgentWorkspaceOpen,?\s*\)/,
+);
+assert.match(appSource, /saveUiPreferences\(\{ isAgentWorkspaceOpen \}\)/);
+assert.match(
+  appSource,
+  /if \(!isAgentWorkspaceOpen\) return;\s*agentWorkspaceController\.ensureDefaultSession\(\)/,
+);
+assert.match(uiPreferencesSource, /isAgentWorkspaceOpen: boolean/);
+assert.match(uiPreferencesSource, /isAgentWorkspaceOpen: false/);
 assert.match(
   topBarSource,
   /<TooltipIconButton\s+buttonRef=\{agentWorkspaceButtonRef\}[\s\S]{0,180}label=\{t\('agentWorkspace\.open'\)\}/,

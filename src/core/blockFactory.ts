@@ -41,7 +41,7 @@ function dataForType(type: BlockType, projectId: string): BlockRecord['data'] {
   if (type === 'operation') {
     const imageSelection = resolveExecutionConnectionPreference({
       capabilityId: imageGenerateCapabilityId,
-      initialConnectionId: 'codex-managed',
+      initialConnectionId: 'codex-app-server',
       projectId,
       useCase: 'image',
     });

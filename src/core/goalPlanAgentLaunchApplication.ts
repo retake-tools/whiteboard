@@ -1,5 +1,6 @@
 import {
   createAgentRunForGoalPlan,
+  supersedeIdleAgentRunForLaunch,
   startAgentRun,
 } from './agentRuntime';
 import {
@@ -84,6 +85,8 @@ export function stageGoalPlanAgentLaunch(
   if (!source) throw new Error('Goal Plan launch source message is missing.');
   assertCurrentGoalPlanCommand(stagedSnapshot, source, stagedProposal.proposedCommand);
 
+  supersedeIdleAgentRunForLaunch(stagedSnapshot, session.activeAgentRunId);
+
   const group = requireGoalDraftGroup(stagedSnapshot, stagedProposal);
   assertGoalDraftLock(group, stagedProposal);
   const existingRunId = stringValue(group.data.workflowRunId);
@@ -102,6 +105,9 @@ export function stageGoalPlanAgentLaunch(
     sourceChangeProposalId: stagedProposal.proposalId,
     workflowRunId: workflow.record.workflowRunId,
   });
+  if (stagedProposal.workflowInteractionMode) {
+    created.record.interactionMode = stagedProposal.workflowInteractionMode;
+  }
   if (command.agentPresetSelection) {
     applyAgentPresetToRun(stagedSnapshot, {
       agentRunId: created.record.agentRunId,

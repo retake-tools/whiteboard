@@ -69,7 +69,10 @@ export function GroupToolbar({
   const color = group.data.groupColor ?? 'neutral';
   const positionLocked = group.data.groupPositionLocked === true;
   const contentsLocked = group.data.groupContentsLocked === true;
-  const structureLocked = inheritedLocked || positionLocked || contentsLocked;
+  const structureLocked = inheritedLocked
+    || positionLocked
+    || contentsLocked
+    || group.data.groupKind === 'workflow';
   const layoutMode = group.data.groupLayoutMode ?? 'free';
 
   useEffect(() => {
