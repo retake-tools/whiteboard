@@ -33,6 +33,7 @@ import {
 } from '../core/canvasProjectionViewState';
 import {
   blockLockedByGroup,
+  blockManagedByWorkflowGroup,
   findGroupDropTarget,
   groupAncestorIds,
 } from '../core/grouping';
@@ -40,10 +41,9 @@ import { loadCollapsedGroupIds } from '../core/groupViewState';
 import { connectedWorkflowBlockIds } from '../core/workflowSelection';
 import {
   compatibleInputSlotIdsFor,
-  suggestedInputSlotId,
 } from '../core/capabilities';
 import { createId, nowIso } from '../core/id';
-import { suggestedTextInputSlotId } from '../core/textOperations';
+import { suggestedExecutionInputSlotId } from '../core/operationInputSlots';
 import { moveBlockGroupToNearestFreeArea } from '../core/workflowPlacement';
 import type {
   BlockRecord,
@@ -55,6 +55,7 @@ import type {
 import type { CanvasTool } from '../components/FloatingToolbar';
 import type { useI18n } from '../i18n';
 import {
+  absoluteFlowNodeBounds,
   absoluteFlowNodePositions,
   flowNodeSize,
   isEditableNodeTarget,
@@ -330,7 +331,11 @@ export function useCanvasController(options: CanvasControllerOptions) {
     updateSnapshot((current) => {
       const removedEdgeIds = new Set(removeChanges
         .map((change) => current.edges.find((edge) => edge.edgeId === change.id))
-        .filter((edge): edge is BoardEdgeRecord => Boolean(edge) && !blockLockedByGroup(current, edge!.sourceBlockId) && !blockLockedByGroup(current, edge!.targetBlockId))
+        .filter((edge): edge is BoardEdgeRecord => Boolean(edge)
+          && !blockLockedByGroup(current, edge!.sourceBlockId)
+          && !blockLockedByGroup(current, edge!.targetBlockId)
+          && !blockManagedByWorkflowGroup(current, edge!.sourceBlockId)
+          && !blockManagedByWorkflowGroup(current, edge!.targetBlockId))
         .map((edge) => edge.edgeId));
       current.edges = current.edges.filter((edge) => !removedEdgeIds.has(edge.edgeId));
       return touchBoard(current);
@@ -409,15 +414,17 @@ export function useCanvasController(options: CanvasControllerOptions) {
     const sourceBlock = snapshotRef.current.blocks.find((block) => block.blockId === connection.source);
     const targetBlock = snapshotRef.current.blocks.find((block) => block.blockId === connection.target);
     if (blockLockedByGroup(snapshotRef.current, connection.source) || blockLockedByGroup(snapshotRef.current, connection.target)) return;
+    if (
+      blockManagedByWorkflowGroup(snapshotRef.current, connection.source)
+      || blockManagedByWorkflowGroup(snapshotRef.current, connection.target)
+    ) return;
     const kind = connectionKindForBlocks(sourceBlock, targetBlock);
     const edgeId = createId('edge');
     const compatibleInputSlotIds = kind === 'execution_input' && sourceBlock && targetBlock
       ? compatibleInputSlotIdsFor(sourceBlock, targetBlock)
       : [];
     const inputSlotId = kind === 'execution_input' && sourceBlock && targetBlock
-      ? sourceBlock.type === 'text' && targetBlock.type === 'operation'
-        ? suggestedTextInputSlotId(snapshotRef.current, targetBlock, sourceBlock)
-        : suggestedInputSlotId(snapshotRef.current, sourceBlock, targetBlock)
+      ? suggestedExecutionInputSlotId(snapshotRef.current, sourceBlock, targetBlock)
       : undefined;
     const nextEdges = addEdge({ ...connection, id: edgeId, source: connection.source, target: connection.target, type: 'default', label: kind, data: { kind, inputSlotId } } satisfies RetakeEdge, edges);
     setEdges(nextEdges);
@@ -582,15 +589,16 @@ export function useCanvasController(options: CanvasControllerOptions) {
   }
 
   function locateBlock(blockId: string): void {
-    if (!snapshotRef.current.blocks.some((block) => block.blockId === blockId)) return;
+    const block = snapshotRef.current.blocks.find((candidate) => candidate.blockId === blockId);
+    if (!block) return;
     selectBlock(blockId);
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
-        const node = reactFlowRef.current?.getNode(blockId);
-        if (!node) return;
-        const width = node.measured?.width ?? node.width ?? 280;
-        const height = node.measured?.height ?? node.height ?? 180;
-        void reactFlowRef.current?.setCenter(node.position.x + width / 2, node.position.y + height / 2, {
+        const reactFlow = reactFlowRef.current;
+        if (!reactFlow) return;
+        const bounds = absoluteFlowNodeBounds(reactFlow.getNodes(), block);
+        if (!bounds) return;
+        void reactFlow.setCenter(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2, {
           zoom: Math.max(currentViewportRef.current.zoom, 0.85),
           duration: 260,
         });
@@ -737,10 +745,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
       snapshotRef.current.board.boardId,
       next,
     );
-    const retainedSelection = selectedBlockIdsRef.current.filter((blockId) => (
-      snapshotRef.current.blocks.find((block) => block.blockId === blockId)?.type !== 'operation'
-    ));
-    setSelectedBlocks(snapshotRef.current, retainedSelection);
+    setSelectedBlocks(snapshotRef.current, selectedBlockIdsRef.current);
   }
 
   function restoreViewport(

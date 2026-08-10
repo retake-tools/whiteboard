@@ -5,14 +5,22 @@ import {
   cancelAgentRun,
   createAgentRunForOperation,
   createAgentRunForWorkflowRun,
+  markAgentRunNeedsAttention,
   nextAgentRunExecutionAction,
+  nextAgentRunExecutionActions,
   pauseAgentRun,
   reconcileAgentRuntime,
+  retryAgentRunAfterMissingExecution,
   startAgentRun,
 } from '../src/core/agentRuntime';
 import { textDocumentCapabilityIds } from '../src/core/capabilityRegistry';
 import type { ExecutionConnectionSummary } from '../src/core/executionProviders';
-import { createDraftSkillOperation, executeExistingTextGenerationOperation, type TextGenerationLabels } from '../src/core/textOperations';
+import {
+  createDraftSkillOperation,
+  createDraftTextGenerationOperation,
+  executeExistingTextGenerationOperation,
+  type TextGenerationLabels,
+} from '../src/core/textOperations';
 import type { AssetRecord, BlockRecord, BoardSnapshot, ExecutionRecord } from '../src/core/types';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import { storyToStoryboardWorkflow } from './studio-domain-test-fixtures';
@@ -44,9 +52,17 @@ const [agentRuntimeSource, controllerSource, groupInspectorSource] = await Promi
 ]);
 assert.doesNotMatch(agentRuntimeSource, /AgentSession|conversationId|Chat/);
 assert.doesNotMatch(agentRuntimeSource, /createBlockRecord|projectWorkflowDraft/);
-assert.match(controllerSource, /nextAgentRunExecutionAction/);
+assert.match(controllerSource, /nextAgentRunExecutionActions/);
 assert.match(controllerSource, /runOperationRef\.current\(action\.operationBlockId\)/);
 assert.match(controllerSource, /attachAgentRunExecution\(current, action\.agentRunId, execution\.executionId\)/);
+assert.match(controllerSource, /inFlightActionsRef\.current\.has\(action\.agentRunId\)/);
+const operationInputControllerSource = await readFile(
+  new URL('../src/app/useOperationInputController.ts', import.meta.url),
+  'utf8',
+);
+assert.match(operationInputControllerSource, /inFlightOperationBlockIdsRef\.current\.has\(blockId\)/);
+assert.match(operationInputControllerSource, /inFlightOperationBlockIdsRef\.current\.add\(blockId\)/);
+assert.match(operationInputControllerSource, /inFlightOperationBlockIdsRef\.current\.delete\(blockId\)/);
 assert.match(groupInspectorSource, /agentRuntime\.startSelectedTarget/);
 assert.match(groupInspectorSource, /latestAgentRunForWorkflowRun/);
 
@@ -89,22 +105,75 @@ action = nextAgentRunExecutionAction(snapshot);
 assert.equal(action?.stepRunId, stepFor(snapshot, workflowRun.workflowRunId, 'character_define').stepRunId);
 
 execution = queueStep(snapshot, blockFor(snapshot, action!.operationBlockId));
+attachAgentRunExecution(snapshot, agent.record.agentRunId, execution.executionId);
 completeStep(snapshot, execution, '# Character Bible\n\nOrange courier cat.');
 reconcileAgentRuntime(snapshot);
 action = nextAgentRunExecutionAction(snapshot);
 assert.equal(action?.stepRunId, stepFor(snapshot, workflowRun.workflowRunId, 'scene_define').stepRunId);
 execution = queueStep(snapshot, blockFor(snapshot, action!.operationBlockId));
+attachAgentRunExecution(snapshot, agent.record.agentRunId, execution.executionId);
 completeStep(snapshot, execution, '# Scene Bible\n\nA cinema and a sunrise bridge.');
 reconcileAgentRuntime(snapshot);
 action = nextAgentRunExecutionAction(snapshot);
 assert.equal(action?.stepRunId, stepFor(snapshot, workflowRun.workflowRunId, 'storyboard_plan').stepRunId);
 execution = queueStep(snapshot, blockFor(snapshot, action!.operationBlockId));
+attachAgentRunExecution(snapshot, agent.record.agentRunId, execution.executionId);
 completeStep(snapshot, execution, '# Storyboard Plan\n\nShot 01: the courier enters frame.');
 reconcileAgentRuntime(snapshot);
 assert.equal(agent.record.status, 'succeeded');
 assert.equal(agent.record.stopReason, 'workflow_terminal');
 assert.equal(agent.record.executionIds.length, 4);
 assert.equal(nextAgentRunExecutionAction(snapshot), undefined);
+
+const cascadingRetrySnapshot = await workflowSnapshot('A courier cat reaches the harbor.');
+const cascadingRetryWorkflow = (cascadingRetrySnapshot.workflowRuns ?? [])[0];
+assert.ok(cascadingRetryWorkflow);
+const cascadingRetryAgent = createAgentRunForWorkflowRun(
+  cascadingRetrySnapshot,
+  cascadingRetryWorkflow.workflowRunId,
+);
+startAgentRun(cascadingRetrySnapshot, cascadingRetryAgent.record.agentRunId);
+let cascadingAction = nextAgentRunExecutionAction(cascadingRetrySnapshot);
+assert.ok(cascadingAction);
+let cascadingExecution = queueStep(
+  cascadingRetrySnapshot,
+  blockFor(cascadingRetrySnapshot, cascadingAction.operationBlockId),
+);
+attachAgentRunExecution(
+  cascadingRetrySnapshot,
+  cascadingRetryAgent.record.agentRunId,
+  cascadingExecution.executionId,
+);
+completeStep(cascadingRetrySnapshot, cascadingExecution, '# Screenplay\n\nThe courier reaches the harbor.');
+reconcileAgentRuntime(cascadingRetrySnapshot);
+cascadingAction = nextAgentRunExecutionAction(cascadingRetrySnapshot);
+assert.ok(cascadingAction);
+cascadingExecution = queueStep(
+  cascadingRetrySnapshot,
+  blockFor(cascadingRetrySnapshot, cascadingAction.operationBlockId),
+);
+attachAgentRunExecution(
+  cascadingRetrySnapshot,
+  cascadingRetryAgent.record.agentRunId,
+  cascadingExecution.executionId,
+);
+completeStep(cascadingRetrySnapshot, cascadingExecution, '# Character Bible\n\nOrange courier cat.');
+const cascadingBrief = cascadingRetrySnapshot.blocks.find(
+  (block) => block.data.workflowInputSlotId === 'brief',
+);
+assert.ok(cascadingBrief);
+cascadingBrief.data.body = 'A courier cat and dog reach the harbor together.';
+reconcileAgentRuntime(cascadingRetrySnapshot);
+assert.equal(cascadingRetryAgent.record.status, 'running');
+assert.equal(
+  nextAgentRunExecutionAction(cascadingRetrySnapshot)?.stepRunId,
+  stepFor(
+    cascadingRetrySnapshot,
+    cascadingRetryWorkflow.workflowRunId,
+    'screenplay_generate',
+  ).stepRunId,
+  'An active whole-Workflow Agent must refresh an outdated prerequisite and then keep progressing.',
+);
 
 await saveSnapshot(snapshot);
 const recovered = await loadSnapshot(snapshot.project.projectId, snapshot.board.boardId);
@@ -138,6 +207,119 @@ assert.ok(nextAgentRunExecutionAction(waitingSnapshot));
 cancelAgentRun(waitingSnapshot, waitingAgent.record.agentRunId);
 assert.equal(waitingAgent.record.stopReason, 'user_canceled');
 assert.equal(nextAgentRunExecutionAction(waitingSnapshot), undefined);
+
+const needsAttentionSnapshot = await workflowSnapshot('A valid brief.');
+const needsAttentionWorkflow = (needsAttentionSnapshot.workflowRuns ?? [])[0];
+assert.ok(needsAttentionWorkflow);
+const needsAttentionAgent = createAgentRunForWorkflowRun(
+  needsAttentionSnapshot,
+  needsAttentionWorkflow.workflowRunId,
+);
+startAgentRun(needsAttentionSnapshot, needsAttentionAgent.record.agentRunId);
+markAgentRunNeedsAttention(
+  needsAttentionSnapshot,
+  needsAttentionAgent.record.agentRunId,
+  'Operation returned without creating an Execution.',
+);
+assert.equal(needsAttentionAgent.record.status, 'needs_attention');
+cancelAgentRun(needsAttentionSnapshot, needsAttentionAgent.record.agentRunId);
+await saveSnapshot(needsAttentionSnapshot);
+const recoveredCancellation = await loadSnapshot(
+  needsAttentionSnapshot.project.projectId,
+  needsAttentionSnapshot.board.boardId,
+);
+assert.equal(
+  (recoveredCancellation.agentRuns ?? [])[0]?.status,
+  'canceled',
+  'Stopping a needs_attention AgentRun must persist its canonical canceled state.',
+);
+
+const missingExecutionSnapshot = await emptySnapshot();
+const missingExecutionDraft = createDraftTextGenerationOperation(
+  missingExecutionSnapshot,
+  generationLabels('Generate test document', 'Test brief'),
+);
+missingExecutionDraft.promptBlock.data.body = 'A valid brief.';
+const missingExecutionAgent = createAgentRunForOperation(
+  missingExecutionSnapshot,
+  missingExecutionDraft.operationBlock.blockId,
+);
+startAgentRun(missingExecutionSnapshot, missingExecutionAgent.record.agentRunId);
+markAgentRunNeedsAttention(
+  missingExecutionSnapshot,
+  missingExecutionAgent.record.agentRunId,
+  'Operation returned without creating an Execution.',
+);
+reconcileAgentRuntime(missingExecutionSnapshot);
+assert.equal(
+  missingExecutionAgent.record.status,
+  'needs_attention',
+  'A missing Execution must stay needs_attention until an explicit user action.',
+);
+assert.equal(missingExecutionAgent.record.stopReason, 'operation_execution_missing');
+assert.equal(
+  nextAgentRunExecutionAction(missingExecutionSnapshot),
+  undefined,
+  'A needs_attention AgentRun must not redispatch the same Operation automatically.',
+);
+const retiredDefinitionSnapshot = structuredClone(missingExecutionSnapshot);
+const retiredDefinitionAgent = retiredDefinitionSnapshot.agentRuns?.[0];
+assert.ok(retiredDefinitionAgent);
+markAgentRunNeedsAttention(
+  retiredDefinitionSnapshot,
+  retiredDefinitionAgent.agentRunId,
+  'This retired image-editing flow is read-only.',
+  'retired_definition',
+);
+reconcileAgentRuntime(retiredDefinitionSnapshot);
+assert.equal(retiredDefinitionAgent.status, 'needs_attention');
+assert.equal(retiredDefinitionAgent.stopReason, 'retired_definition');
+assert.equal(
+  nextAgentRunExecutionAction(retiredDefinitionSnapshot),
+  undefined,
+  'A retired definition must stay read-only and must never redispatch.',
+);
+retryAgentRunAfterMissingExecution(
+  missingExecutionSnapshot,
+  missingExecutionAgent.record.agentRunId,
+);
+assert.equal(missingExecutionAgent.record.status, 'running');
+assert.equal(missingExecutionAgent.record.stopReason, undefined);
+assert.equal(
+  nextAgentRunExecutionAction(missingExecutionSnapshot)?.operationBlockId,
+  missingExecutionDraft.operationBlock.blockId,
+  'An explicit retry must resume the same Agent Run and redispatch its bound Operation.',
+);
+
+const workflowMissingExecutionSnapshot = await workflowSnapshot('A valid workflow brief.');
+const workflowMissingExecutionRun = workflowMissingExecutionSnapshot.workflowRuns?.[0];
+assert.ok(workflowMissingExecutionRun);
+const workflowMissingExecutionAgent = createAgentRunForWorkflowRun(
+  workflowMissingExecutionSnapshot,
+  workflowMissingExecutionRun.workflowRunId,
+);
+startAgentRun(
+  workflowMissingExecutionSnapshot,
+  workflowMissingExecutionAgent.record.agentRunId,
+);
+const workflowMissingExecutionAction = nextAgentRunExecutionAction(
+  workflowMissingExecutionSnapshot,
+);
+assert.ok(workflowMissingExecutionAction);
+markAgentRunNeedsAttention(
+  workflowMissingExecutionSnapshot,
+  workflowMissingExecutionAgent.record.agentRunId,
+  'Operation returned without creating an Execution.',
+);
+retryAgentRunAfterMissingExecution(
+  workflowMissingExecutionSnapshot,
+  workflowMissingExecutionAgent.record.agentRunId,
+);
+assert.equal(
+  nextAgentRunExecutionAction(workflowMissingExecutionSnapshot)?.operationBlockId,
+  workflowMissingExecutionAction.operationBlockId,
+  'A Workflow retry must stay inside the same Agent Run scope and resume its current Step.',
+);
 
 const invalidScopeSnapshot = await workflowSnapshot('A valid brief.');
 const invalidWorkflow = (invalidScopeSnapshot.workflowRuns ?? [])[0];
@@ -190,20 +372,68 @@ reconcileAgentRuntime(capabilitySnapshot);
 assert.equal(capabilityAgent.record.status, 'succeeded');
 assert.equal(capabilityAgent.record.stopReason, 'capability_completed');
 
+const concurrentSnapshot = await emptySnapshot();
+const concurrentRunA = projectWorkflowInto(concurrentSnapshot, 'Design courier A.');
+const concurrentRunB = projectWorkflowInto(concurrentSnapshot, 'Design courier B.');
+const concurrentAgentA = createAgentRunForWorkflowRun(
+  concurrentSnapshot,
+  concurrentRunA.workflowRunId,
+);
+const concurrentAgentB = createAgentRunForWorkflowRun(
+  concurrentSnapshot,
+  concurrentRunB.workflowRunId,
+);
+startAgentRun(concurrentSnapshot, concurrentAgentA.record.agentRunId);
+startAgentRun(concurrentSnapshot, concurrentAgentB.record.agentRunId);
+const concurrentActions = nextAgentRunExecutionActions(concurrentSnapshot);
+assert.equal(concurrentActions.length, 2);
+assert.deepEqual(
+  new Set(concurrentActions.map((candidate) => candidate.agentRunId)),
+  new Set([concurrentAgentA.record.agentRunId, concurrentAgentB.record.agentRunId]),
+);
+assert.throws(
+  () => createAgentRunForWorkflowRun(concurrentSnapshot, concurrentRunA.workflowRunId),
+  /Workflow Run already has an active Agent Run/,
+);
+const operationConflictSnapshot = await emptySnapshot();
+const operationConflictDraft = createDraftTextGenerationOperation(
+  operationConflictSnapshot,
+  generationLabels('Generate conflict fixture', 'Test brief'),
+);
+operationConflictDraft.promptBlock.data.body = 'Ready.';
+createAgentRunForOperation(
+  operationConflictSnapshot,
+  operationConflictDraft.operationBlock.blockId,
+);
+assert.throws(
+  () => createAgentRunForOperation(
+    operationConflictSnapshot,
+    operationConflictDraft.operationBlock.blockId,
+  ),
+  /Operation scope already has an active Agent Run/,
+);
+
 console.log(JSON.stringify({
   ok: true,
   typedTargets: ['capability', 'workflow_run', 'workflow_slice'],
   exactScopeFrozen: true,
   workflowAutoProgressionPlanned: true,
+  outdatedPrerequisiteAutoRetry: true,
   waitingInputRecovered: true,
   pauseAndCancelBounded: true,
   invalidScopeRejected: true,
   durableRecovery: true,
+  concurrentAgentRuns: true,
   noSessionOrChat: true,
 }));
 
 async function workflowSnapshot(briefBody: string): Promise<BoardSnapshot> {
   const snapshot = await emptySnapshot();
+  projectWorkflowInto(snapshot, briefBody);
+  return snapshot;
+}
+
+function projectWorkflowInto(snapshot: BoardSnapshot, briefBody: string) {
   const projection = projectWorkflowDraft(snapshot, {
     workflowId: storyToStoryboardWorkflow.workflowId,
     workflowTitle: 'Story to storyboard plan',
@@ -212,8 +442,7 @@ async function workflowSnapshot(briefBody: string): Promise<BoardSnapshot> {
     connectionIdForCapability: () => readyTextConnection.connectionId,
   });
   blockFor(snapshot, projection.workflowInputBlockIds[0]).data.body = briefBody;
-  createWorkflowRunForGroup(snapshot, projection.groupBlock.blockId);
-  return snapshot;
+  return createWorkflowRunForGroup(snapshot, projection.groupBlock.blockId).record;
 }
 
 async function emptySnapshot(): Promise<BoardSnapshot> {

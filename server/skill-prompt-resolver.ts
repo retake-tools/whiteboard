@@ -14,6 +14,15 @@ export async function resolveTextExecutionPrompt(
     if (!prompt) throw new Error('Text generation requires a non-empty prompt.');
     return `${prompt}\n\nReturn only the requested Markdown document. Do not call tools and do not add process commentary.`;
   }
+  return resolveBoundSkillPrompt(execution, snapshot, skill);
+}
+
+export async function resolveBoundSkillPrompt(
+  execution: ExecutionRecord,
+  snapshot: BoardSnapshot,
+  skill = fullSkillSnapshot(execution.skillSnapshot),
+): Promise<string> {
+  if (!skill) throw new Error('Execution does not contain a full Skill snapshot.');
   const sections: string[] = [];
   for (const binding of skill.inputBindings) {
     const contents = await Promise.all(binding.values.map((value) => resolveBindingValue(value, snapshot)));
@@ -37,7 +46,21 @@ function fullSkillSnapshot(input: ExecutionRecord['skillSnapshot']): RetakeSkill
 
 async function resolveBindingValue(value: CapabilityBindingValue, snapshot: BoardSnapshot): Promise<string> {
   if (value.kind === 'inline') return typeof value.value === 'string' ? value.value : JSON.stringify(value.value);
-  if (value.kind === 'artifact_revision') throw new Error('Artifact revision text resolution is not available in Skill V0.');
+  if (value.kind === 'artifact_revision') {
+    if (!value.blockId) {
+      throw new Error(`Artifact revision text binding is missing its projected Block: ${value.artifactRevisionId}`);
+    }
+    const block = snapshot.blocks.find((candidate) => candidate.blockId === value.blockId);
+    if (!block) throw new Error(`Artifact revision projected Block not found: ${value.artifactRevisionId}`);
+    if (block.type === 'document' && typeof block.data.assetId === 'string') {
+      return readDocumentAsset(snapshot.project.projectId, block.data.assetId);
+    }
+    if (block.type === 'text') return typeof block.data.body === 'string' ? block.data.body : '';
+    if (block.type === 'image' || block.type === 'video') {
+      return `Attached ${block.type} Artifact Revision: ${value.artifactRevisionId}`;
+    }
+    throw new Error(`Artifact revision binding is not a readable Skill input: ${value.artifactRevisionId}`);
+  }
   if (value.kind === 'block') {
     const block = snapshot.blocks.find((candidate) => candidate.blockId === value.blockId);
     if (!block) throw new Error(`Skill input block not found: ${value.blockId}`);
@@ -45,9 +68,16 @@ async function resolveBindingValue(value: CapabilityBindingValue, snapshot: Boar
     if (block.type === 'document' && typeof block.data.assetId === 'string') {
       return readDocumentAsset(snapshot.project.projectId, block.data.assetId);
     }
+    if (block.type === 'image' || block.type === 'video') {
+      return `Attached ${block.type} Block: ${block.blockId}`;
+    }
     throw new Error(`Skill input block is not readable text: ${value.blockId}`);
   }
-  return readDocumentAsset(snapshot.project.projectId, value.assetId);
+  const asset = snapshot.assets.find((candidate) => candidate.assetId === value.assetId);
+  if (!asset) throw new Error(`Skill input Asset not found: ${value.assetId}`);
+  return asset.kind === 'document'
+    ? readDocumentAsset(snapshot.project.projectId, value.assetId)
+    : `Attached ${asset.kind} Asset: ${value.assetId}`;
 }
 
 async function readDocumentAsset(projectId: string, assetId: string): Promise<string> {

@@ -14,7 +14,10 @@ import {
   operationReadinessFor,
   operationReadinessMessageKey,
 } from '../core/capabilities';
-import { capabilityDefinitionFor } from '../core/capabilityRegistry';
+import {
+  capabilityDefinitionFor,
+  isTextDocumentCapability,
+} from '../core/capabilityRegistry';
 import { blockLockedByGroup, expandGroupToContents } from '../core/grouping';
 import { imageOperationDefaultPrompt } from '../core/imageOperationText';
 import type {
@@ -102,6 +105,7 @@ export function useOperationInputController(options: OperationInputControllerOpt
     updateSnapshot,
   } = options;
   const [inputReferencePicker, setInputReferencePicker] = useState<InputReferencePickerState>();
+  const inFlightOperationBlockIdsRef = useRef(new Set<string>());
 
   function operationInputBlockPosition(
     current: BoardSnapshot,
@@ -324,40 +328,48 @@ export function useOperationInputController(options: OperationInputControllerOpt
     queuedConfigurationStale = false,
     revealOnStart = false,
   ): Promise<void> {
+    if (inFlightOperationBlockIdsRef.current.has(blockId)) return;
     const block = snapshotRef.current.blocks.find((candidate) => candidate.blockId === blockId && candidate.type === 'operation');
     if (!block || blockLockedByGroup(snapshotRef.current, block.blockId) || block.data.status === 'running') return;
-    if (block.data.capabilityId === domainVideoGenerationCapabilityId) {
-      window.dispatchEvent(new CustomEvent('retake:open-domain-video-launch-review', {
-        detail: { blockId: block.blockId },
-      }));
-      return;
-    }
-    const isTextDocument = block.data.capabilityId === 'text.generate'
-      || (typeof block.data.capabilityId === 'string' && block.data.capabilityId.startsWith('story.screenplay.'));
-    if (isTextDocument && block.data.status === 'queued') return;
-    if (block.data.status === 'queued') {
-      const connection = executionConnection(
-        typeof block.data.connectionId === 'string' ? block.data.connectionId : 'codex-managed',
-        snapshotRef.current.project.projectId,
-      );
-      if (connection?.connectorId !== 'codex-managed') return;
-      await (queuedConfigurationStale ? refreshQueuedOperationPrompt(block) : copyQueuedOperationPrompt(block));
-      return;
-    }
-    const readiness = operationReadinessFor(snapshotRef.current, block);
-    if (!readiness.canRun) {
-      const issue = readiness.issues[0];
-      setOperationToast({ id: `operation-input:${block.blockId}`, title: t('feedback.inputRequired'), body: issue ? t(operationReadinessMessageKey(issue)) : undefined, tone: 'error' });
-      return;
-    }
-    if (isTextDocument) {
-      await startTextGenerationOperation(block);
-    } else {
-      await startExistingOperationBlock({
-        block,
-        operation: operationModeFromBlock(block, snapshotRef.current),
-        revealOnStart,
-      });
+    inFlightOperationBlockIdsRef.current.add(blockId);
+    try {
+      if (block.data.capabilityId === domainVideoGenerationCapabilityId) {
+        window.dispatchEvent(new CustomEvent('retake:open-domain-video-launch-review', {
+          detail: { blockId: block.blockId },
+        }));
+        return;
+      }
+      const capabilityId = typeof block.data.capabilityId === 'string'
+        ? block.data.capabilityId
+        : '';
+      const isTextDocument = isTextDocumentCapability(capabilityId);
+      if (isTextDocument && block.data.status === 'queued') return;
+      if (block.data.status === 'queued') {
+        const connection = executionConnection(
+          typeof block.data.connectionId === 'string' ? block.data.connectionId : 'codex-managed',
+          snapshotRef.current.project.projectId,
+        );
+        if (connection?.connectorId !== 'codex-managed') return;
+        await (queuedConfigurationStale ? refreshQueuedOperationPrompt(block) : copyQueuedOperationPrompt(block));
+        return;
+      }
+      const readiness = operationReadinessFor(snapshotRef.current, block);
+      if (!readiness.canRun) {
+        const issue = readiness.issues[0];
+        setOperationToast({ id: `operation-input:${block.blockId}`, title: t('feedback.inputRequired'), body: issue ? t(operationReadinessMessageKey(issue)) : undefined, tone: 'error' });
+        return;
+      }
+      if (isTextDocument) {
+        await startTextGenerationOperation(block);
+      } else {
+        await startExistingOperationBlock({
+          block,
+          operation: operationModeFromBlock(block, snapshotRef.current),
+          revealOnStart,
+        });
+      }
+    } finally {
+      inFlightOperationBlockIdsRef.current.delete(blockId);
     }
   }
 

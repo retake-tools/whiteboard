@@ -27,6 +27,7 @@ import {
 import { operationDisplayState } from '../core/operationDisplay';
 import { pluginCapabilityDefinitionFor } from '../core/pluginCapabilityDefinitions';
 import { resolvedSkillUiDefinitionFor, skillsForCapability } from '../core/skillRegistry';
+import { listPackageEntryPoints } from '../core/packageRegistry';
 import {
   normalizeStoryboardSheetGenerationParameters,
   storyboardSheetCapabilityId,
@@ -114,7 +115,8 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
   const operation = operationModeFromCapability(data);
   const capabilityId = capabilityIdForOperationMode(operation, data);
   const isTextGeneration = isTextDocumentCapability(capabilityId);
-  const compatibleSkills = skillsForCapability(capabilityId);
+  const compatibleSkills = userSelectableSkillsForCapability(capabilityId);
+  const skillSelectionAvailable = operationSkillSelectionAvailable(data);
   const selectedSkill = typeof data.skillId === 'string'
     ? compatibleSkills.find((skill) => skill.skillId === data.skillId)
     : undefined;
@@ -128,13 +130,17 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
   const compatibleConnections = operationExecutionConnections(providerSettings?.connections ?? [], capabilityId);
   const selectedConnection = typeof data.connectionId === 'string'
     ? providerSettings?.connections.find((connection) => connection.connectionId === data.connectionId)
-    : compatibleConnections.find((connection) => connection.connectionId === 'codex-managed') ?? compatibleConnections[0];
+    : compatibleConnections.find((connection) => connection.connectionId === 'codex-app-server') ?? compatibleConnections[0];
   const selectedConnectionCompatible = Boolean(selectedConnection && compatibleConnections.some(
     (connection) => connection.connectionId === selectedConnection.connectionId,
   ));
   const usesPromptHandoff = selectedConnection
     ? selectedConnection.connectorId === 'codex-managed'
-    : (data.connectionId ?? 'codex-managed') === 'codex-managed';
+    : data.connectionId === 'codex-managed'
+      || (
+        data.connectionId === undefined
+        && data.generationProfileId === 'codex-managed'
+      );
   const parameterProfile = generationProfileForConnection(profile, selectedConnection);
   const sourceAspectRatio = operation === 'image_to_image'
     ? finiteNumber(data.operationSourceAspectRatio)
@@ -225,15 +231,6 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
 
   return (
     <div ref={controlsRef} className="operation-inline-controls" aria-label={t('operationToolbar.title')}>
-      {data.workflowStepRunStatus ? (
-        <div className="operation-option-row is-read-only">
-          <span>{t('workflowRuntime.step')}</span>
-          <strong>
-            {t(workflowStepStatusKey(data.workflowStepRunStatus))}
-            {data.workflowStepRunFreshness === 'outdated' ? ` · ${t('workflowRuntime.outdated')}` : ''}
-          </strong>
-        </div>
-      ) : null}
       {storyboardSheetParameters ? (
         <>
           <div className="operation-option-row is-read-only">
@@ -306,7 +303,7 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
           </label>
         </div>
       ) : null}
-      {compatibleSkills.length > 0 ? (
+      {skillSelectionAvailable && compatibleSkills.length > 0 ? (
         <div className="operation-option-popover-wrap">
           <button
             type="button"
@@ -582,8 +579,11 @@ function GenerationOperationInlineControls({ blockId, data }: { blockId: string;
   );
 }
 
-function workflowStepStatusKey(status: NonNullable<BlockData['workflowStepRunStatus']>) {
-  return `workflowRuntime.stepStatus.${status}` as const;
+export function operationSkillSelectionAvailable(data: BlockData): boolean {
+  return !(
+    typeof data.workflowProjectionId === 'string'
+    && typeof data.workflowStepId === 'string'
+  );
 }
 
 function localCanvasParameters(
@@ -986,6 +986,20 @@ function isAspectPreset(value: unknown): value is AspectPreset {
 
 function isResolutionPreset(value: unknown): value is ResolutionPreset {
   return typeof value === 'string' && imageComposerResolutions.includes(value as ImageComposerResolution);
+}
+
+function userSelectableSkillsForCapability(capabilityId: string) {
+  const compatibleSkills = skillsForCapability(capabilityId);
+  if (capabilityId !== 'image.generate') return compatibleSkills;
+  const publicSkillIds = new Set(
+    listPackageEntryPoints().flatMap(({ entrypoint }) => (
+      entrypoint.kind === 'skill'
+      && entrypoint.ref.capabilityId === capabilityId
+        ? [entrypoint.ref.skillId]
+        : []
+    )),
+  );
+  return compatibleSkills.filter((skill) => publicSkillIds.has(skill.skillId));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

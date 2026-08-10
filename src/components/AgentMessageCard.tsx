@@ -21,10 +21,7 @@ export function AgentMessageCard({
   const [isCopied, setIsCopied] = useState(false);
   const copiedTimerRef = useRef<number | undefined>(undefined);
   const visibleContextRefs = message.contextRefs.filter(
-    (ref) =>
-      ref.kind !== 'operation_receipt'
-      && ref.kind !== 'canvas_image_selection'
-      && ref.kind !== 'agent_preferences',
+    (ref) => ref.kind === 'image_reference_setting',
   );
 
   useEffect(() => () => {
@@ -96,6 +93,17 @@ function contextRefLabel(
       : t('skillComposer.referenceModeReference');
   }
   if (ref.kind === 'agent_preferences') return 'Preferences';
+  if (ref.kind === 'agent_suggestion_action') return 'Suggestion action';
+  if (ref.kind === 'workflow_execution_mode') {
+    return ref.mode === 'run_now'
+      ? t('skillComposer.runNow')
+      : t('skillComposer.planFirst');
+  }
+  if (ref.kind === 'workflow_interaction_mode') {
+    return ref.mode === 'automatic'
+      ? t('skillComposer.workflowAutomatic')
+      : t('skillComposer.workflowManual');
+  }
   if (ref.kind === 'agent_run') return `Run ${ref.agentRunId.slice(-8)}`;
   if (ref.kind === 'operation') return `Operation ${ref.operationBlockId.slice(-8)}`;
   if (ref.kind === 'canvas_image_selection') {

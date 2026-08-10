@@ -75,7 +75,12 @@ export function useGroupController(options: GroupControllerOptions) {
       const { blockId, position, size } = detail;
       updateSnapshot((current) => {
         const group = current.blocks.find((block) => block.blockId === blockId && block.type === 'group');
-        if (!group || group.data.groupPositionLocked || blockLockedByGroup(current, blockId)) return current;
+        if (
+          !group
+          || group.data.groupKind === 'workflow'
+          || group.data.groupPositionLocked
+          || blockLockedByGroup(current, blockId)
+        ) return current;
         const parent = group.parentGroupId ? current.blocks.find((block) => block.blockId === group.parentGroupId && block.type === 'group') : undefined;
         group.position = { x: position.x + (parent?.position.x ?? 0), y: position.y + (parent?.position.y ?? 0) };
         group.size = { ...size };
@@ -135,7 +140,7 @@ export function useGroupController(options: GroupControllerOptions) {
   function fitSelectedGroup(groupId: string): void {
     updateSnapshot((current) => {
       const group = current.blocks.find((block) => block.blockId === groupId && block.type === 'group');
-      if (!group || group.data.groupPositionLocked || blockLockedByGroup(current, groupId)) return current;
+      if (!group || groupStructureLocked(current, groupId)) return current;
       fitGroupToChildren(current, groupId);
       return touchBoard(current);
     }, { persist: true, history: true });

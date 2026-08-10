@@ -1,4 +1,5 @@
 export interface RetakeUiPreferences {
+  isAgentWorkspaceOpen: boolean;
   isBoardMenuOpen: boolean;
   isBoardMenuPinned: boolean;
   isMiniMapVisible: boolean;
@@ -10,6 +11,7 @@ export interface RetakeUiPreferences {
 const uiPreferencesKey = 'retake.whiteboard.uiPreferences';
 
 const defaultUiPreferences: RetakeUiPreferences = {
+  isAgentWorkspaceOpen: false,
   isBoardMenuOpen: false,
   isBoardMenuPinned: false,
   isMiniMapVisible: true,

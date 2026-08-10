@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, Maximize2, ZoomIn, ZoomOut } from 'lucide-react';
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type PointerEvent,
@@ -28,6 +29,18 @@ const minimumZoom = 1;
 const maximumZoom = 5;
 const zoomStep = 1.2;
 
+function imageTransform(
+  pan: { x: number; y: number },
+  zoom: number,
+): string {
+  if (
+    Math.abs(pan.x) < 0.01
+    && Math.abs(pan.y) < 0.01
+    && Math.abs(zoom - minimumZoom) < 0.001
+  ) return 'none';
+  return `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`;
+}
+
 export function ExecutionImageViewer({
   hasSiblings,
   image,
@@ -37,31 +50,67 @@ export function ExecutionImageViewer({
   const { t } = useI18n();
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(minimumZoom);
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const panRef = useRef(pan);
   const panGestureRef = useRef<PanGesture | undefined>(undefined);
+  const transformFrameRef = useRef<number | undefined>(undefined);
+
+  function applyImageTransform(
+    nextPan = panRef.current,
+    nextZoom = zoom,
+  ): void {
+    panRef.current = nextPan;
+    if (transformFrameRef.current !== undefined) {
+      window.cancelAnimationFrame(transformFrameRef.current);
+    }
+    transformFrameRef.current = window.requestAnimationFrame(() => {
+      transformFrameRef.current = undefined;
+      if (!imageRef.current) return;
+      imageRef.current.style.transform = imageTransform(nextPan, nextZoom);
+    });
+  }
 
   function resetView(): void {
     panGestureRef.current = undefined;
-    setPan({ x: 0, y: 0 });
+    const nextPan = { x: 0, y: 0 };
+    panRef.current = nextPan;
+    setPan(nextPan);
     setZoom(minimumZoom);
   }
 
   function updateZoom(nextZoom: number): void {
     const clamped = Math.min(maximumZoom, Math.max(minimumZoom, nextZoom));
     setZoom(clamped);
-    if (clamped <= minimumZoom) setPan({ x: 0, y: 0 });
+    if (clamped <= minimumZoom) {
+      const nextPan = { x: 0, y: 0 };
+      panRef.current = nextPan;
+      setPan(nextPan);
+    }
   }
 
   function finishPan(event: PointerEvent<HTMLDivElement>): void {
     if (panGestureRef.current?.pointerId !== event.pointerId) return;
     panGestureRef.current = undefined;
+    event.currentTarget.classList.remove('is-panning');
+    setPan(panRef.current);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     resetView();
   }, [image?.asset.assetId]);
+
+  useLayoutEffect(() => {
+    panRef.current = pan;
+  }, [pan.x, pan.y]);
+
+  useEffect(() => () => {
+    if (transformFrameRef.current !== undefined) {
+      window.cancelAnimationFrame(transformFrameRef.current);
+    }
+  }, []);
 
   return (
     <div
@@ -78,6 +127,7 @@ export function ExecutionImageViewer({
         event.preventDefault();
         event.stopPropagation();
         event.currentTarget.setPointerCapture(event.pointerId);
+        event.currentTarget.classList.add('is-panning');
         panGestureRef.current = {
           pointerId: event.pointerId,
           x: event.clientX,
@@ -89,10 +139,10 @@ export function ExecutionImageViewer({
         if (!gesture || gesture.pointerId !== event.pointerId) return;
         event.preventDefault();
         event.stopPropagation();
-        setPan((current) => ({
-          x: current.x + event.clientX - gesture.x,
-          y: current.y + event.clientY - gesture.y,
-        }));
+        applyImageTransform({
+          x: panRef.current.x + event.clientX - gesture.x,
+          y: panRef.current.y + event.clientY - gesture.y,
+        });
         panGestureRef.current = { ...gesture, x: event.clientX, y: event.clientY };
       }}
       onPointerUp={finishPan}
@@ -105,9 +155,10 @@ export function ExecutionImageViewer({
       {image ? (
         <img
           draggable={false}
+          ref={imageRef}
           src={image.asset.previewUrl}
           alt={image.title}
-          style={{ transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})` }}
+          style={{ transform: imageTransform(pan, zoom) }}
         />
       ) : null}
       {!image ? (

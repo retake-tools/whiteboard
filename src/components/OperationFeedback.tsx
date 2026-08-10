@@ -1,5 +1,5 @@
 import { Check, Clipboard, X } from 'lucide-react';
-import { useEffect, type ReactElement } from 'react';
+import { useEffect, useRef, type ReactElement } from 'react';
 import { useI18n } from '../i18n';
 import { TooltipIconButton } from './Tooltip';
 
@@ -37,27 +37,31 @@ export function OperationFeedback({
 }: OperationFeedbackProps): ReactElement {
   const { t } = useI18n();
   const isPromptCopied = Boolean(promptPreview?.copyKey && promptPreview.copyKey === copiedPromptKey);
+  const onClosePromptPreviewRef = useRef(onClosePromptPreview);
+  const onCloseToastRef = useRef(onCloseToast);
+  onClosePromptPreviewRef.current = onClosePromptPreview;
+  onCloseToastRef.current = onCloseToast;
 
   useEffect(() => {
     if (!promptPreview) return;
 
     function onKeyDown(event: KeyboardEvent): void {
-      if (event.key === 'Escape') onClosePromptPreview();
+      if (event.key === 'Escape') onClosePromptPreviewRef.current();
     }
 
     window.addEventListener('keydown', onKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
-  }, [onClosePromptPreview, promptPreview]);
+  }, [promptPreview]);
 
   useEffect(() => {
     if (!toast) return;
 
     const timer = window.setTimeout(() => {
-      onCloseToast();
+      onCloseToastRef.current();
     }, toast.tone === 'error' ? 6500 : 4200);
 
     return () => window.clearTimeout(timer);
-  }, [onCloseToast, toast]);
+  }, [toast]);
 
   return (
     <>

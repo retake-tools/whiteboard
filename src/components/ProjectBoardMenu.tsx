@@ -24,7 +24,17 @@ import {
   PinOff,
   Plus,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactElement,
+  type RefObject,
+} from 'react';
+import { createPortal } from 'react-dom';
 import type { WorkspaceBoardSummary, WorkspaceProjectSummary, WorkspaceSummary } from '../core/types';
 import { useI18n } from '../i18n';
 import { TooltipIconButton, TooltipWrapper } from './Tooltip';
@@ -90,10 +100,10 @@ export function ProjectBoardMenu({
   useEffect(() => {
     function onPointerDown(event: PointerEvent): void {
       const target = event.target as Element;
+      if (target.closest('.project-board-action-menu')) return;
       if (rootRef.current?.contains(target)) {
         if (
           openActionKey &&
-          !target.closest('.project-board-action-menu') &&
           !target.closest('.project-board-action-trigger')
         ) {
           setOpenActionKey(undefined);
@@ -372,6 +382,7 @@ function ProjectRow({
   const canDragProject = mode === 'projects';
   const sortable = useSortable({ id: sortableProjectId(project.projectId), disabled: !canDragProject });
   const style = sortableStyle(sortable.transform, sortable.transition);
+  const actionAnchorRef = useRef<HTMLDivElement | null>(null);
 
   return (
     <div
@@ -399,7 +410,7 @@ function ProjectRow({
           </TooltipWrapper>
           <span>{project.boards.length}</span>
         </div>
-        <div className="project-board-row-actions">
+        <div ref={actionAnchorRef} className="project-board-row-actions">
           <TooltipIconButton className="project-board-icon-button" label={t('projectBoard.addBoard')} onClick={() => onCreateBoard(project.projectId)}>
             <Plus size={14} />
           </TooltipIconButton>
@@ -415,6 +426,7 @@ function ProjectRow({
                 { label: t('projectBoard.addBoard'), onClick: () => onCreateBoard(project.projectId) },
                 { label: t('projectBoard.delete'), tone: 'danger', onClick: () => onDeleteProject(project.projectId) },
               ]}
+              anchorRef={actionAnchorRef}
               onClose={() => setOpenActionKey(undefined)}
             />
           ) : null}
@@ -473,6 +485,7 @@ function BoardRow({
   const isActive = currentProjectId === projectId && currentBoardId === board.boardId;
   const sortable = useSortable({ id: sortableBoardId(projectId, board.boardId) });
   const style = sortableStyle(sortable.transform, sortable.transition);
+  const actionAnchorRef = useRef<HTMLDivElement | null>(null);
 
   return (
     <div
@@ -507,7 +520,10 @@ function BoardRow({
         </TooltipWrapper>
         {isActive ? <Check size={14} /> : null}
       </button>
-      <div className={isActionsOpen ? 'project-board-row-actions is-open' : 'project-board-row-actions'}>
+      <div
+        ref={actionAnchorRef}
+        className={isActionsOpen ? 'project-board-row-actions is-open' : 'project-board-row-actions'}
+      >
         <ActionButton isOpen={isActionsOpen} label={t('projectBoard.boardActions')} onClick={onToggleActions} />
         {isActionsOpen ? (
           <ActionMenu
@@ -516,6 +532,7 @@ function BoardRow({
               { label: t('projectBoard.copyBoard'), onClick: () => onDuplicateBoard(projectId, board.boardId) },
               { label: t('projectBoard.delete'), tone: 'danger', onClick: () => onDeleteBoard(projectId, board.boardId) },
             ]}
+            anchorRef={actionAnchorRef}
             onClose={onCloseActions}
           />
         ) : null}
@@ -537,14 +554,59 @@ function ActionButton({ isOpen, label, onClick }: { isOpen: boolean; label: stri
 }
 
 function ActionMenu({
+  anchorRef,
   items,
   onClose,
 }: {
+  anchorRef: RefObject<HTMLDivElement | null>;
   items: Array<{ label: string; tone?: 'danger'; onClick: () => void }>;
   onClose: () => void;
 }): ReactElement {
-  return (
-    <div className="project-board-action-menu">
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState<{ left: number; top: number }>();
+
+  useLayoutEffect(() => {
+    function updatePosition(): void {
+      const anchor = anchorRef.current;
+      const menu = menuRef.current;
+      if (!anchor || !menu) return;
+      const anchorRect = anchor.getBoundingClientRect();
+      const menuRect = menu.getBoundingClientRect();
+      const viewportMargin = 8;
+      const gap = 5;
+      const maxLeft = Math.max(
+        viewportMargin,
+        window.innerWidth - menuRect.width - viewportMargin,
+      );
+      const left = Math.min(
+        Math.max(viewportMargin, anchorRect.right - menuRect.width),
+        maxLeft,
+      );
+      const below = anchorRect.bottom + gap;
+      const top = below + menuRect.height <= window.innerHeight - viewportMargin
+        ? below
+        : Math.max(viewportMargin, anchorRect.top - menuRect.height - gap);
+      setPosition((current) => (
+        current?.left === left && current.top === top ? current : { left, top }
+      ));
+    }
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [anchorRef, items.length]);
+
+  if (typeof document === 'undefined') return <></>;
+  return createPortal(
+    <div
+      ref={menuRef}
+      className="project-board-action-menu"
+      style={position ? { left: position.left, top: position.top } : { visibility: 'hidden' }}
+    >
       {items.map((item) => (
         <button
           key={item.label}
@@ -558,7 +620,8 @@ function ActionMenu({
           {item.label}
         </button>
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

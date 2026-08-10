@@ -50,6 +50,9 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
     && typeof data.artifactRevisionId === 'string'
     && typeof data.artifactType === 'string';
   const [isHeadingHovered, setIsHeadingHovered] = useState(false);
+  const workflowFlowDirection = data.workflowFlowDirection === 'reverse' ? 'reverse' : 'forward';
+  const targetPosition = workflowFlowDirection === 'reverse' ? Position.Right : Position.Left;
+  const sourcePosition = workflowFlowDirection === 'reverse' ? Position.Left : Position.Right;
 
   if (blockType === 'group') {
     const color = typeof data.groupColor === 'string' ? data.groupColor : 'neutral';
@@ -58,7 +61,7 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
     return (
       <div className={`group-node is-${color} ${selected ? 'is-selected' : ''} ${data.groupCollapsed ? 'is-collapsed' : ''} ${data.groupDropTarget ? 'is-drop-target' : ''} ${data.groupDropDetach ? 'is-drop-detach' : ''} ${data.groupScopeSelected ? 'is-group-scope-selected' : ''} ${isHeadingHovered ? 'is-heading-hovered' : ''}`}>
         <NodeResizer
-          isVisible={selected && !data.groupCollapsed && !data.groupContentLocked && !data.groupPositionLocked}
+          isVisible={selected && !data.groupCollapsed && !data.groupContentLocked && !data.groupPositionLocked && !data.groupStructureLocked}
           minWidth={typeof data.groupMinWidth === 'number' ? data.groupMinWidth : 260}
           minHeight={typeof data.groupMinHeight === 'number' ? data.groupMinHeight : 180}
           onResizeEnd={(_event, params) => dispatchResizeGroup(id, params)}
@@ -70,7 +73,7 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
         >
           <Icon size={16} />
           <span>{title}</span>
-          {data.groupPositionLocked || data.groupContentsLocked || data.groupContentLocked ? <LockKeyhole size={12} /> : null}
+          {data.groupPositionLocked || data.groupContentsLocked || data.groupContentLocked || data.groupStructureLocked ? <LockKeyhole size={12} /> : null}
           <small>{executionSummary ? `${executionSummary} · ` : ''}{memberCount} {t('group.items')}</small>
         </div>
         {data.groupCollapsed ? (
@@ -102,10 +105,67 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
         title={`${title} · ${resultCount} ${t('group.items')}${changeLabel ? ` · ${changeLabel}` : ''}`}
       >
         <Handle type="target" position={Position.Left} />
+        {typeof data.workflowFlowDirection === 'string' ? (
+          <Handle
+            className="workflow-routing-handle"
+            id="workflow-target-top"
+            isConnectable={false}
+            position={Position.Top}
+            type="target"
+          />
+        ) : null}
         <span className="operation-compact-status">
           {changeLabel ? <Clock size={14} /> : <Check size={14} />}
         </span>
         <Handle type="source" position={Position.Right} />
+        {typeof data.workflowFlowDirection === 'string' ? (
+          <Handle
+            className="workflow-routing-handle"
+            id="workflow-source-bottom"
+            isConnectable={false}
+            position={Position.Bottom}
+            type="source"
+          />
+        ) : null}
+      </div>
+    );
+  }
+
+  if (blockType !== 'operation' && data.workflowResultSummary) {
+    return (
+      <div
+        className={`workflow-result-summary-node is-${blockType}${selected ? ' is-selected' : ''}`}
+        aria-label={`${title} · ${t('status.succeeded')}`}
+        title={`${title} · ${t('status.succeeded')}`}
+      >
+        <Handle type="target" position={targetPosition} />
+        {typeof data.workflowFlowDirection === 'string' ? (
+          <Handle
+            className="workflow-routing-handle"
+            id="workflow-target-top"
+            isConnectable={false}
+            position={Position.Top}
+            type="target"
+          />
+        ) : null}
+        <span className="workflow-result-summary-preview">
+          {hasImagePreview ? <img src={data.previewUrl} alt="" /> : <Icon size={18} />}
+        </span>
+        <span className="workflow-result-summary-copy">
+          <small><Check size={12} />{t('status.succeeded')}</small>
+          <strong>{title}</strong>
+          {typeof data.artifactType === 'string' ? <span>{data.artifactType}</span> : null}
+        </span>
+        <Handle type="source" position={sourcePosition} />
+        {typeof data.workflowFlowDirection === 'string' ? (
+          <Handle
+            className="workflow-routing-handle"
+            id="workflow-source-bottom"
+            isConnectable={false}
+            position={Position.Bottom}
+            type="source"
+          />
+        ) : null}
       </div>
     );
   }
@@ -120,6 +180,7 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
         selected ? 'is-selected' : '',
         data.groupScopeSelected ? 'is-group-scope-selected' : '',
         data.groupContentLocked ? 'is-group-content-locked' : '',
+        data.workflowHistoricalResult ? 'is-workflow-historical-result' : '',
         isHeadingHovered ? 'is-heading-hovered' : '',
       ]
         .filter(Boolean)
@@ -138,7 +199,16 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
         event.stopPropagation();
       }}
     >
-      <Handle type="target" position={Position.Left} />
+      <Handle type="target" position={targetPosition} />
+      {typeof data.workflowFlowDirection === 'string' ? (
+        <Handle
+          className="workflow-routing-handle"
+          id="workflow-target-top"
+          isConnectable={false}
+          position={Position.Top}
+          type="target"
+        />
+      ) : null}
       {blockType === 'operation'
         && !isLocalCanvasOperation
         && !isStoryboardSheetOperation
@@ -186,6 +256,15 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
             className={`block-heading-status status-${operationDisplay.executionBadge.status} ${operationDisplay.executionBadge.historical ? 'is-history' : 'is-active'}`}
           >
             {t(operationDisplay.executionBadge.labelKey)}
+          </span>
+        ) : null}
+        {blockType === 'operation' && data.workflowStepRunStatus ? (
+          <span
+            className={`block-heading-status workflow-step-status status-${data.workflowStepRunStatus}`}
+            title={t('workflowRuntime.step')}
+          >
+            {t(workflowStepStatusKey(data.workflowStepRunStatus))}
+            {data.workflowStepRunFreshness === 'outdated' ? ` · ${t('workflowRuntime.outdated')}` : ''}
           </span>
         ) : null}
         {blockType === 'operation' && !isLocalCanvasOperation && data.operationQueuedConfigurationStale ? (
@@ -281,7 +360,16 @@ export function BlockNode({ data, id, type, selected }: NodeProps<RetakeNode>): 
         selected={selected}
         type={blockType}
       />
-      <Handle type="source" position={Position.Right} />
+      <Handle type="source" position={sourcePosition} />
+      {typeof data.workflowFlowDirection === 'string' ? (
+        <Handle
+          className="workflow-routing-handle"
+          id="workflow-source-bottom"
+          isConnectable={false}
+          position={Position.Bottom}
+          type="source"
+        />
+      ) : null}
     </div>
   );
 }
@@ -323,6 +411,10 @@ function isInteractiveDoubleClickTarget(target: Element): boolean {
       ].join(','),
     ),
   );
+}
+
+function workflowStepStatusKey(status: NonNullable<BlockData['workflowStepRunStatus']>) {
+  return `workflowRuntime.stepStatus.${status}` as const;
 }
 
 function OperationCapabilityControl({

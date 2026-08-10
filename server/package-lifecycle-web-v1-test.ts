@@ -59,7 +59,7 @@ try {
   const versionOne = await createPackage('1.0.0');
   const versionTwo = await createPackage('1.1.0');
   const service = new PackageLifecycleService({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     workspaceRoot,
   });
 
@@ -67,7 +67,7 @@ try {
   assert.equal(initial.schemaVersion, 1);
   assert.equal(initial.packages.length, 1);
   const runtimeService = new PluginRuntimeService({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     workspaceRoot,
   });
   await runtimeService.setSafeMode(true);
@@ -250,7 +250,7 @@ try {
   const repairWorkspace = path.join(temporaryRoot, 'repair-workspace');
   const repairSource = await createPackage('2.0.0');
   const repairService = new PackageLifecycleService({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     workspaceRoot: repairWorkspace,
   });
   const repairInstalled = await repairService.mutate({

@@ -11,10 +11,14 @@ import type {
 } from './goalPlanContracts';
 import type { AgentBoardReadModelV1 } from './agentBoardReadModelContracts';
 import type {
+  CapabilityDataType,
+} from './capabilityContracts';
+import type {
   ComposerImageReferenceMode,
   ImageReferenceBindingKind,
   ReferenceIntentV1,
 } from './referenceIntent';
+import type { WorkflowInteractionMode } from './agentRuntimeContracts';
 
 export type AgentSessionStatus = 'active' | 'archived';
 
@@ -22,7 +26,7 @@ export interface AgentSessionWorkingOperationBinding {
   boundAt: string;
   capabilityId: string;
   operationBlockId: string;
-  source: 'agent_created' | 'user_explicit';
+  source: 'agent_created' | 'user_explicit' | 'workflow_scope';
 }
 
 export interface AgentSessionRecord {
@@ -45,6 +49,9 @@ export type AgentMessageRole = 'assistant' | 'system' | 'tool' | 'user';
 
 export type AgentMessageContextRef =
   | { agentRunId: string; kind: 'agent_run' }
+  | { action: 'run'; kind: 'agent_suggestion_action'; sourceMessageId: string }
+  | { kind: 'workflow_execution_mode'; mode: 'plan_first' | 'run_now' }
+  | { kind: 'workflow_interaction_mode'; mode: WorkflowInteractionMode }
   | {
       aspectRatioPreset?: string;
       connectionId?: string;
@@ -115,11 +122,24 @@ export type ChangeProposalStatus =
 
 export type ChangeProposalKind =
   | 'instantiate_entrypoint'
+  | 'plan_skill'
   | 'plan_goal'
   | 'expand_permissions'
   | 'install_package'
   | 'modify_workflow'
   | 'out_of_scope';
+
+export interface AgentSkillEntrypointOptionV1 {
+  capabilityId: string;
+  description: string;
+  entrypointId: string;
+  instructionInputSlotId: string;
+  name: string;
+  outputDataTypes: CapabilityDataType[];
+  packageId: string;
+  packageVersion: string;
+  skillId: string;
+}
 
 export type PackageEntryPointMentionLock =
   | {
@@ -300,6 +320,8 @@ export interface ChangeProposalRecord {
   boardId: string;
   createdAt: string;
   instruction: string;
+  workflowInteractionMode?: WorkflowInteractionMode;
+  workflowLaunchParameters?: Record<string, unknown>;
   kind: ChangeProposalKind;
   proposedCommand: ChangeProposalCommand;
   projectId: string;
@@ -314,6 +336,15 @@ export interface ChangeProposalRecord {
   applyError?: string;
   changeDecisionId?: string;
   updatedAt: string;
+}
+
+export interface WorkflowLaunchPreferences {
+  aspectRatioPreset?: string;
+  conceptStepId?: string;
+  conceptVariationCount?: 1 | 2 | 3 | 4;
+  connectionId?: string;
+  interactionMode: WorkflowInteractionMode;
+  targetResolution?: string;
 }
 
 export interface ChangeDecisionRecord {
@@ -355,7 +386,12 @@ export type AgentRuntimeTurnDecision = (
       sourceImageBlockId?: string;
     }
   | {
-      bindingSource: 'message_explicit' | 'session_working';
+      bindingSource: 'message_explicit' | 'session_working' | 'workflow_scope';
+      generationParams?: {
+        aspectRatioPreset?: string;
+        targetResolution?: string;
+        variationCount?: number;
+      };
       kind: 'operation_execute';
       message: string;
       operationBlockId: string;
@@ -382,6 +418,12 @@ export type AgentRuntimeTurnDecision = (
       summary: string;
       workflowEntryPointId: string;
     }
+  | {
+      kind: 'skill_entrypoint_proposal';
+      message: string;
+      skillEntryPointId: string;
+      summary: string;
+    }
 ) & { suggestions?: string[] };
 
 export interface AgentRuntimeTurnContext {
@@ -400,6 +442,15 @@ export interface AgentRuntimeTurnContext {
     allowedActions: AgentRunControlAction[];
     status: string;
     targetKind: string;
+    workflowSteps?: Array<{
+      freshness: 'current' | 'outdated';
+      label: string;
+      operationBlockId: string;
+      outputAssetIds: string[];
+      status: string;
+      stepId: string;
+      stepRunId: string;
+    }>;
   };
   availableAgentRuns: Array<{
     agentRunId: string;
@@ -420,6 +471,7 @@ export interface AgentRuntimeTurnContext {
   history: Array<{ content: string; role: AgentMessageRole }>;
   inlineValues: PackageComposerInlineValue[];
   goalPlanOptions: GoalPlanWorkflowOptionV1[];
+  skillEntrypointOptions: AgentSkillEntrypointOptionV1[];
   mentions: PackageComposerMention[];
   parameters: Record<string, unknown>;
   projectId: string;

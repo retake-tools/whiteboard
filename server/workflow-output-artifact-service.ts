@@ -6,6 +6,7 @@ import {
   type CreateOrAdvanceArtifactResult,
 } from '../src/core/artifactContracts';
 import type { BoardSnapshot, ExecutionRecord } from '../src/core/types';
+import { reconcileAgentRuntime } from '../src/core/agentRuntime';
 import { workflowDefinitionFor } from '../src/core/workflowRegistry';
 import type {
   WorkflowOutputSlotLock,
@@ -79,6 +80,7 @@ export async function materializeWorkflowOutputArtifacts(
 ): Promise<MaterializeWorkflowOutputArtifactsResult> {
   return withMaterializationLock(`${input.projectId}:${input.boardId}`, async () => {
     const initial = await loadSnapshot(input.projectId, input.boardId);
+    if (reconcileAgentRuntime(initial)) await saveSnapshot(initial);
     const scope = resolveTriggerScope(initial, input.trigger);
     if (!scope) return { bindings: [], snapshot: initial };
     const candidates = materializationCandidates(initial, scope.workflowRun, scope.step);
@@ -344,7 +346,14 @@ function resolveTriggerScope(
     && (
       execution?.workflowRunId !== workflowRun.workflowRunId
       || execution.stepRunId !== step.stepRunId
-      || step.outputAcceptancePolicy !== 'automatic'
+      || (
+        step.outputAcceptancePolicy !== 'automatic'
+        && !(
+          step.acceptedBy === 'agent'
+          && step.acceptanceReason === 'automatic_single_candidate'
+          && step.acceptedOutputAssetIds.length > 0
+        )
+      )
       || step.executionIds.at(-1) !== execution.executionId
     )
   ) return undefined;
@@ -409,7 +418,10 @@ function materializationCandidates(
 
 function workflowOutputLocks(workflowRun: WorkflowRunRecord): WorkflowOutputSlotLock[] {
   if (workflowRun.outputSlotLocks.length > 0) return workflowRun.outputSlotLocks;
-  const workflow = workflowDefinitionFor(workflowRun.workflowDefinitionLock.workflowId);
+  const workflow = workflowDefinitionFor(workflowRun.workflowDefinitionLock.workflowId, {
+    definitionHash: workflowRun.workflowDefinitionLock.definitionHash,
+    version: workflowRun.workflowDefinitionLock.version,
+  });
   if (
     workflow.version !== workflowRun.workflowDefinitionLock.version
     || workflow.definitionHash !== workflowRun.workflowDefinitionLock.definitionHash

@@ -18,10 +18,13 @@ export function currentOperationConfiguration(
   snapshot: BoardSnapshot,
   operationBlock: BlockRecord,
 ): ExecutionConfigurationSnapshot {
+  const resolvedInputsByBlockId = new Map(
+    connectedInputBlocks(snapshot, operationBlock.blockId).map((block) => [block.blockId, block]),
+  );
   const imageInputs = snapshot.edges
     .filter((edge) => edge.targetBlockId === operationBlock.blockId && edge.kind === 'execution_input')
     .flatMap((edge): ExecutionConfigurationInputSnapshot[] => {
-      const block = snapshot.blocks.find((candidate) => candidate.blockId === edge.sourceBlockId);
+      const block = resolvedInputsByBlockId.get(edge.sourceBlockId);
       if (block?.type !== 'image') return [];
       return [{
         assetId: typeof block.data.assetId === 'string' ? block.data.assetId : undefined,
@@ -90,7 +93,10 @@ export function currentOperationConfiguration(
     imageInputs,
     prompt: operationBlock.data.adapter === 'local_canvas'
       ? ''
-      : promptTextFromInputs(connectedInputBlocks(snapshot, operationBlock.blockId)) || operationBlock.data.body || '',
+      : operationBlock.data.executionAdjustmentInstruction?.trim()
+        || promptTextFromInputs(connectedInputBlocks(snapshot, operationBlock.blockId))
+        || operationBlock.data.body
+        || '',
   });
 }
 
@@ -157,10 +163,9 @@ export function recordExecutionConfiguration(
       (typeof operationBlock.data.connectionId === 'string' ? operationBlock.data.connectionId : undefined),
     generationParams,
     generationProfileId:
-      execution.generationProfile?.generationProfileId ??
-      (typeof operationBlock.data.generationProfileId === 'string'
+      typeof operationBlock.data.generationProfileId === 'string'
         ? operationBlock.data.generationProfileId
-        : undefined),
+        : execution.generationProfile?.generationProfileId,
     imageInputs,
     prompt: execution.prompt ?? '',
   });
@@ -482,7 +487,11 @@ function readInputBindings(value: unknown): ExecutionConfigurationInputSnapshot[
 }
 
 function sortRecord(value: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right)));
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, entryValue]) => entryValue !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right)),
+  );
 }
 
 function stableStringify(value: unknown): string {

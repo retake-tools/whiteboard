@@ -6,7 +6,8 @@
   cursor: grabbing;
 }
 
-.execution-result-stage > img {
+.execution-result-stage.is-zoomed > img,
+.execution-result-stage.is-panning > img {
   transform-origin: center;
   will-change: transform;
 }
@@ -24,7 +25,6 @@
   border-radius: 8px;
   background: rgb(255 255 255 / 92%);
   box-shadow: 0 8px 22px rgb(0 0 0 / 20%);
-  backdrop-filter: blur(10px);
 }
 
 .execution-image-zoom-controls > span {

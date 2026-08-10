@@ -2,6 +2,7 @@ import { capabilityDefinitionFor } from './capabilityRegistry';
 import type { CapabilityBindingValue } from './capabilityContracts';
 import { createBlockRecord, touchBoard } from './blockFactory';
 import { createGroupAroundBlocks } from './grouping';
+import { arrangeWorkflowGroup } from './workflowGroupLayout';
 import { createId } from './id';
 import type { PackageInvocationContext } from './packageContracts';
 import type {
@@ -15,8 +16,10 @@ import { storyboardSheetCapabilityId } from './storyboardSheetContracts';
 import {
   validateWorkflowDefinition,
   workflowDefinitionFor,
+  type WorkflowCapabilityStepDefinition,
   type WorkflowDefinition,
 } from './workflowRegistry';
+import type { WorkflowProjectionTemplateV1 } from './workflowAuthoringContracts';
 import {
   createDraftGenerationPreparationOperation,
 } from './generationPreparationOperations';
@@ -25,6 +28,11 @@ import {
   domainVideoGenerationCapabilityId,
 } from './domainVideoGenerationContracts';
 import { createDraftDomainVideoGenerationOperation } from './domainVideoGenerationOperations';
+import {
+  imageGenerateCapabilityId,
+  validateImageGenerateParametersV1,
+  type ImageGenerateParametersV1,
+} from './imageGenerateContracts';
 
 export interface WorkflowDraftProjectionLabels {
   labelsForSkill: (skillId: string) => TextGenerationLabels;
@@ -52,14 +60,28 @@ export function projectWorkflowDraft(
       parameters?: Record<string, unknown>;
     };
     packageContext?: PackageInvocationContext;
+    projectionTemplate?: WorkflowProjectionTemplateV1;
+    projectRevisionId?: string;
+    workflowDefinition?: WorkflowDefinition;
     workflowId: string;
   },
 ): WorkflowDraftProjection {
-  const workflow = workflowDefinitionFor(input.workflowId);
+  const workflow = input.workflowDefinition
+    ? structuredClone(input.workflowDefinition)
+    : workflowDefinitionFor(input.workflowId);
+  if (workflow.workflowId !== input.workflowId) {
+    throw new Error(`Workflow Definition ID does not match projection input: ${input.workflowId}`);
+  }
+  if (input.projectionTemplate) {
+    assertProjectionTemplateMatchesWorkflow(input.projectionTemplate, workflow);
+  }
   const validationIssues = validateWorkflowDefinition(workflow);
   if (validationIssues.length > 0) throw new Error(validationIssues.join('\n'));
   const projectionId = createId('workflow_projection');
-  const metadata = workflowMetadata(workflow, projectionId, input.packageContext);
+  const metadata = {
+    ...workflowMetadata(workflow, projectionId, input.packageContext),
+    ...(input.projectRevisionId ? { workflowRevisionId: input.projectRevisionId } : {}),
+  };
   const workflowInputs = new Map<string, BlockRecord[]>();
   const workflowInputBindings = new Map<string, CapabilityBindingValue[]>();
   const stepOutputs = new Map<string, BlockRecord>();
@@ -169,6 +191,12 @@ export function projectWorkflowDraft(
           } => Boolean(value.blockId))
     ));
     const domainVideoGeneration = step.capabilityLock.capabilityId === domainVideoGenerationCapabilityId;
+    const imageStepSettings = step.capabilityLock.capabilityId === imageGenerateCapabilityId
+      ? workflowImageStepProjectionSettings(
+          input.composerInput?.parameters,
+          step,
+        )
+      : undefined;
     const draft = generationPreparation
       ? createDraftGenerationPreparationOperation(snapshot, {
           connectionId: input.connectionIdForCapability(step.capabilityLock.capabilityId),
@@ -196,9 +224,13 @@ export function projectWorkflowDraft(
       : mediaOutput
         ? createDraftMediaCapabilityOperation(snapshot, {
             capabilityId: step.capabilityLock.capabilityId,
-            connectionId: input.connectionIdForCapability(step.capabilityLock.capabilityId),
+            connectionId: imageStepSettings?.connectionId
+              ?? input.connectionIdForCapability(step.capabilityLock.capabilityId),
             explicitInputBindings: explicitGenerationInputs,
             labels,
+            parameters: imageStepSettings?.generationParameters
+              ? { ...imageStepSettings.generationParameters }
+              : input.composerInput?.parameters,
             skillId: step.skillLock.skillId,
           })
       : createDraftSkillOperation(snapshot, {
@@ -224,7 +256,7 @@ export function projectWorkflowDraft(
               }].filter((value): value is Extract<CapabilityBindingValue, { kind: 'block' }> => Boolean(value.blockId)),
         })),
       ),
-      workflowParameters: structuredClone(input.composerInput?.parameters ?? {}),
+      workflowParameters: workflowParametersFromOperation(draft.operationBlock),
       workflowStepId: step.stepId,
     };
     operationBlocks.set(step.stepId, draft.operationBlock);
@@ -268,7 +300,13 @@ export function projectWorkflowDraft(
     }
   }
 
-  layoutWorkflowProjection(workflow, workflowInputs, operationBlocks, stepOutputs);
+  layoutWorkflowProjection(
+    workflow,
+    workflowInputs,
+    operationBlocks,
+    stepOutputs,
+    input.projectionTemplate,
+  );
   const groupBlock = createGroupAroundBlocks(snapshot, createdBlocks.map((block) => block.blockId), {
     color: 'blue',
     kind: 'workflow',
@@ -283,6 +321,7 @@ export function projectWorkflowDraft(
       values: structuredClone(values),
     })),
   };
+  if (!input.projectionTemplate) arrangeWorkflowGroup(snapshot, groupBlock.blockId);
   touchBoard(snapshot);
 
   return {
@@ -306,6 +345,7 @@ function createDraftMediaCapabilityOperation(
       kind: 'block';
     }>;
     labels: TextGenerationLabels;
+    parameters?: Record<string, unknown>;
     skillId: string;
   },
 ): { operationBlock: BlockRecord; inputBlocks: BlockRecord[] } {
@@ -315,6 +355,9 @@ function createDraftMediaCapabilityOperation(
     return block;
   });
   const usesCodexAppServer = input.connectionId === 'codex-app-server';
+  const generationParams = input.capabilityId === imageGenerateCapabilityId
+    ? imageGenerateParametersFromInvocation(input.parameters)
+    : undefined;
   const operationBlock = createBlockRecord(snapshot, 'operation');
   operationBlock.data = {
     ...operationBlock.data,
@@ -326,6 +369,8 @@ function createDraftMediaCapabilityOperation(
     ...(usesCodexAppServer ? { agentHost: 'codex' as const } : {}),
     triggerMode: usesCodexAppServer ? 'agent_bridge' : 'server_worker',
     ...(input.connectionId ? { connectionId: input.connectionId } : {}),
+    ...(generationParams ? { generationParams } : {}),
+    workflowParameters: structuredClone(generationParams ?? {}),
   };
   snapshot.blocks.push(operationBlock);
   for (const binding of input.explicitInputBindings) {
@@ -339,6 +384,84 @@ function createDraftMediaCapabilityOperation(
   }
   touchBoard(snapshot);
   return { operationBlock, inputBlocks };
+}
+
+function imageGenerateParametersFromInvocation(
+  parameters: Record<string, unknown> | undefined,
+): ImageGenerateParametersV1 | undefined {
+  if (!parameters) return undefined;
+  const portableKeys = [
+    'aspectRatioPreset',
+    'targetAspectRatio',
+    'targetHeight',
+    'targetResolution',
+    'targetWidth',
+    'variationCount',
+  ] as const;
+  const resolved = Object.fromEntries(portableKeys.flatMap((key) => (
+    parameters[key] === undefined ? [] : [[key, structuredClone(parameters[key])]]
+  ))) as ImageGenerateParametersV1;
+  if (Object.keys(resolved).length === 0) return undefined;
+  const issues = validateImageGenerateParametersV1(resolved);
+  if (issues.length > 0) {
+    throw new Error(`Workflow image generation parameters are invalid: ${issues.join('; ')}`);
+  }
+  return resolved;
+}
+
+function workflowImageStepProjectionSettings(
+  workflowDefaults: Record<string, unknown> | undefined,
+  step: WorkflowCapabilityStepDefinition,
+): {
+  connectionId?: string;
+  generationParameters?: ImageGenerateParametersV1;
+} {
+  const defaults = step.defaultParameters ?? {};
+  const explicit = step.parameters ?? {};
+  const stepOverrides = workflowStepParameterOverrides(workflowDefaults, step.stepId);
+  const connectionValue = explicit.connectionId
+    ?? stepOverrides.connectionId
+    ?? workflowDefaults?.connectionId
+    ?? defaults.connectionId;
+  if (
+    connectionValue !== undefined
+    && (typeof connectionValue !== 'string' || !connectionValue.trim())
+  ) {
+    throw new Error(`Workflow image connection is invalid: ${step.stepId}`);
+  }
+  const stepDefaults = imageGenerateParametersFromInvocation(defaults);
+  const workflowGenerationDefaults = imageGenerateParametersFromInvocation(workflowDefaults);
+  const runStepOverrides = imageGenerateParametersFromInvocation(stepOverrides);
+  const stepGenerationParameters = imageGenerateParametersFromInvocation(explicit);
+  const generationParameters = {
+    ...stepDefaults,
+    ...workflowGenerationDefaults,
+    ...runStepOverrides,
+    ...stepGenerationParameters,
+  };
+  return {
+    ...(typeof connectionValue === 'string' ? { connectionId: connectionValue } : {}),
+    ...(Object.keys(generationParameters).length > 0 ? { generationParameters } : {}),
+  };
+}
+
+function workflowStepParameterOverrides(
+  workflowDefaults: Record<string, unknown> | undefined,
+  stepId: string,
+): Record<string, unknown> {
+  const raw = workflowDefaults?.stepParameterOverrides;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const value = (raw as Record<string, unknown>)[stepId];
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? structuredClone(value as Record<string, unknown>)
+    : {};
+}
+
+function workflowParametersFromOperation(operationBlock: BlockRecord): Record<string, unknown> {
+  const value = operationBlock.data.workflowParameters;
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? structuredClone(value as Record<string, unknown>)
+    : {};
 }
 
 function createWorkflowInputBlock(
@@ -460,7 +583,33 @@ function layoutWorkflowProjection(
   workflowInputs: Map<string, BlockRecord[]>,
   operationBlocks: Map<string, BlockRecord>,
   stepOutputs: Map<string, BlockRecord>,
+  projectionTemplate?: WorkflowProjectionTemplateV1,
 ): void {
+  if (projectionTemplate) {
+    const positions = new Map(
+      projectionTemplate.positions.map((position) => [position.stepId, position]),
+    );
+    const minX = Math.min(...projectionTemplate.positions.map((position) => position.x));
+    const minY = Math.min(...projectionTemplate.positions.map((position) => position.y));
+    for (const step of workflow.steps) {
+      const hint = positions.get(step.stepId);
+      const operation = operationBlocks.get(step.stepId);
+      if (!hint || !operation) continue;
+      operation.position = {
+        x: 420 + (hint.x - minX) * (760 / 340),
+        y: 80 + (hint.y - minY) * 2,
+      };
+      for (const outputSlotId of step.outputSlots) {
+        const output = stepOutputs.get(stepOutputKey(step.stepId, outputSlotId));
+        if (output) output.position = {
+          x: operation.position.x + operation.size.width + 80,
+          y: operation.position.y - 24,
+        };
+      }
+    }
+    layoutWorkflowInputs(workflow, workflowInputs, operationBlocks);
+    return;
+  }
   const depthByStepId = new Map<string, number>();
   for (const step of topologicalSteps(workflow)) {
     const depth = step.dependsOn.length === 0
@@ -486,7 +635,73 @@ function layoutWorkflowProjection(
       }
     });
   }
-  [...workflowInputs.values()].flat().forEach((block, index) => {
-    block.position = { x: 40, y: 270 + index * (block.size.height + 36) };
+  layoutWorkflowInputs(workflow, workflowInputs, operationBlocks);
+}
+
+function layoutWorkflowInputs(
+  workflow: WorkflowDefinition,
+  workflowInputs: Map<string, BlockRecord[]>,
+  operationBlocks: Map<string, BlockRecord>,
+): void {
+  const inputsByConsumerStep = new Map<string, BlockRecord[]>();
+  const unboundInputs: BlockRecord[] = [];
+  for (const slot of workflow.inputSlots) {
+    const blocks = workflowInputs.get(slot.slotId) ?? [];
+    const consumer = topologicalSteps(workflow).find((step) =>
+      step.inputBindings.some(
+        (binding) => binding.source.kind === 'workflow_input'
+          && binding.source.slotId === slot.slotId,
+      ));
+    if (!consumer) {
+      unboundInputs.push(...blocks);
+      continue;
+    }
+    inputsByConsumerStep.set(
+      consumer.stepId,
+      [...(inputsByConsumerStep.get(consumer.stepId) ?? []), ...blocks],
+    );
+  }
+  for (const [stepId, blocks] of inputsByConsumerStep) {
+    const operation = operationBlocks.get(stepId);
+    if (!operation) {
+      unboundInputs.push(...blocks);
+      continue;
+    }
+    const gap = 28;
+    const totalHeight = blocks.reduce(
+      (height, block, index) => height + block.size.height + (index > 0 ? gap : 0),
+      0,
+    );
+    let y = operation.position.y + operation.size.height / 2 - totalHeight / 2;
+    for (const block of blocks) {
+      block.position = {
+        x: operation.position.x - block.size.width - 80,
+        y,
+      };
+      y += block.size.height + gap;
+    }
+  }
+  unboundInputs.forEach((block, index) => {
+    block.position = { x: 40, y: 80 + index * (block.size.height + 36) };
   });
+}
+
+function assertProjectionTemplateMatchesWorkflow(
+  template: WorkflowProjectionTemplateV1,
+  workflow: WorkflowDefinition,
+): void {
+  const stepIds = new Set(workflow.steps.map((step) => step.stepId));
+  const positioned = new Set<string>();
+  for (const position of template.positions) {
+    if (
+      !stepIds.has(position.stepId)
+      || positioned.has(position.stepId)
+      || !Number.isFinite(position.x)
+      || !Number.isFinite(position.y)
+    ) throw new Error(`Workflow Projection Template is invalid: ${position.stepId}.`);
+    positioned.add(position.stepId);
+  }
+  if (positioned.size !== stepIds.size) {
+    throw new Error('Workflow Projection Template must position every Step exactly once.');
+  }
 }

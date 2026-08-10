@@ -33,6 +33,8 @@ export interface InsertArtifactReferenceInput {
 
 export const artifactPromotionOptions: ArtifactPromotionOption[] = [
   { artifactType: 'character_reference', dataKinds: ['image'] },
+  { artifactType: 'character_sheet', dataKinds: ['image'] },
+  { artifactType: 'ip_application_board', dataKinds: ['image'] },
   { artifactType: 'scene_reference', dataKinds: ['image'] },
   { artifactType: 'prop_reference', dataKinds: ['image'] },
   { artifactType: 'style_reference', dataKinds: ['image'] },

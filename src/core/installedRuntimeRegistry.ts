@@ -23,6 +23,12 @@ import {
   listInstalledPluginCapabilityDefinitions,
   replaceInstalledPluginCapabilityDefinitions,
 } from './pluginCapabilityDefinitions';
+import {
+  retiredGuidedImageAgentPresetId,
+  retiredGuidedImageSkillId,
+  retiredGuidedImageWorkflowId,
+  withoutRetiredPackageDefinitions,
+} from './retiredDefinitions';
 import { sha256Hex } from './sha256';
 
 let configuredSnapshotDigest = '';
@@ -44,7 +50,9 @@ export interface InstalledRuntimeRegistrySnapshotV1 {
 export function configureInstalledRuntimeRegistry(
   input: unknown,
 ): InstalledRuntimeRegistrySnapshotV1 {
-  const snapshot = parseInstalledRuntimeRegistrySnapshot(input);
+  const snapshot = withoutRetiredRuntimeDefinitions(
+    parseInstalledRuntimeRegistrySnapshot(input),
+  );
   const previous = currentRuntimeRegistrySnapshot('retake.runtime.previous', -1);
   try {
     replaceInstalledPluginCapabilityDefinitions(snapshot.capabilities);
@@ -63,6 +71,27 @@ export function configureInstalledRuntimeRegistry(
     for (const listener of configuredSnapshotListeners) listener();
   }
   return structuredClone(snapshot);
+}
+
+function withoutRetiredRuntimeDefinitions(
+  snapshot: InstalledRuntimeRegistrySnapshotV1,
+): InstalledRuntimeRegistrySnapshotV1 {
+  return withSnapshotDigest({
+    agentPresets: snapshot.agentPresets.filter(
+      (definition) => definition.agentPresetId !== retiredGuidedImageAgentPresetId,
+    ),
+    capabilities: snapshot.capabilities,
+    lockRevision: snapshot.lockRevision,
+    packages: withoutRetiredPackageDefinitions(snapshot.packages),
+    profileId: snapshot.profileId,
+    schemaVersion: 1,
+    skills: snapshot.skills.filter(
+      (definition) => definition.skillId !== retiredGuidedImageSkillId,
+    ),
+    workflows: snapshot.workflows.filter(
+      (definition) => definition.workflowId !== retiredGuidedImageWorkflowId,
+    ),
+  });
 }
 
 export function currentInstalledRuntimeRegistryRevision(): number {

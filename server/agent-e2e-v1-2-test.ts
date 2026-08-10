@@ -7,6 +7,7 @@ import {
 } from '../src/core/agentRuntime';
 import type { ExecutionConnectionSummary } from '../src/core/executionProviders';
 import type { BoardSnapshot } from '../src/core/types';
+import { createBlockRecord } from '../src/core/blockFactory';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import { storyToStoryboardWorkflow } from './studio-domain-test-fixtures';
 import { createWorkflowRunForGroup } from '../src/core/workflowRuntime';
@@ -107,14 +108,108 @@ assert.equal(waitingApproval?.kind, 'approval');
 assert.equal(waitingApproval?.targetLabel, '剧本审阅');
 assert.equal(waitingApproval?.locateBlockId, firstStep.operationBlockId);
 
+const reviewRecoverySnapshot = structuredClone(snapshot);
+reviewRecoverySnapshot.workflowGateEvaluations = [];
+reviewRecoverySnapshot.workflowApprovalRequests = [];
+const reviewRecoveryRun = reviewRecoverySnapshot.agentRuns?.find(
+  (candidate) => candidate.agentRunId === agent.record.agentRunId,
+);
+const reviewRecoveryWorkflowRun = reviewRecoverySnapshot.workflowRuns?.find(
+  (candidate) => candidate.workflowRunId === workflowRun.workflowRunId,
+);
+const reviewRecoveryStep = reviewRecoverySnapshot.workflowStepRuns?.find(
+  (candidate) => candidate.stepRunId === firstStep.stepRunId,
+);
+assert.ok(reviewRecoveryRun && reviewRecoveryWorkflowRun && reviewRecoveryStep);
+reviewRecoveryWorkflowRun.gateEvaluationIds = [];
+reviewRecoveryStep.status = 'succeeded';
+reviewRecoveryStep.freshness = 'current';
+reviewRecoveryStep.outputAcceptancePolicy = 'manual_single';
+reviewRecoveryStep.outputAssetIds = ['asset_review_recovery'];
+reviewRecoveryStep.acceptedOutputAssetIds = ['asset_review_recovery'];
+reviewRecoveryRun.status = 'needs_attention';
+reviewRecoveryRun.currentOperationBlockId = undefined;
+const reviewRecovery = agentRunInterventionFor(reviewRecoverySnapshot, reviewRecoveryRun);
+assert.equal(reviewRecovery?.attentionReason, 'review_not_ready');
+assert.equal(reviewRecovery?.prepareReviewStepRunId, reviewRecoveryStep.stepRunId);
+assert.equal(reviewRecovery?.locateBlockId, reviewRecoveryStep.operationBlockId);
+assert.equal(reviewRecovery?.targetLabel, '剧本审阅');
+
 firstStep.status = 'failed';
 firstStep.error = 'Fixture execution failed.';
 agent.record.status = 'needs_attention';
 agent.record.error = firstStep.error;
+agent.record.currentOperationBlockId = firstStep.operationBlockId;
+const failedResultBlocks = [0, 1].map((index) => {
+  const block = createBlockRecord(snapshot, 'image');
+  block.blockId = `block_agent_e2e_failed_result_${index}`;
+  block.data = {
+    ...block.data,
+    sourceExecutionId: 'execution_agent_e2e_failed_images',
+    status: 'failed',
+    title: `Failed image ${index + 1}`,
+  };
+  return block;
+});
+snapshot.blocks.push(...failedResultBlocks);
+snapshot.executions.push({
+  adapter: 'codex_app_server',
+  boardId: snapshot.board.boardId,
+  capabilityId: 'image.generate',
+  completedAt: '2026-07-24T00:01:00.000Z',
+  connectionId: 'codex-app-server',
+  errorMessage: 'stream disconnected before completion',
+  executionId: 'execution_agent_e2e_failed_images',
+  inputBlockIds: [],
+  outputAssetIds: [],
+  outputBlockIds: failedResultBlocks.map((block) => block.blockId),
+  params: { operationBlockId: firstStep.operationBlockId },
+  projectId: snapshot.project.projectId,
+  startedAt: '2026-07-24T00:00:30.000Z',
+  status: 'failed',
+  stepRunId: firstStep.stepRunId,
+  workflowRunId: workflowRun.workflowRunId,
+});
+agent.record.executionIds = [];
 const needsAttention = agentRunInterventionFor(snapshot, agent.record);
 assert.equal(needsAttention?.kind, 'attention');
+assert.equal(needsAttention?.attentionReason, 'execution_failed');
 assert.equal(needsAttention?.detail, firstStep.error);
 assert.equal(needsAttention?.locateBlockId, firstStep.operationBlockId);
+assert.equal(needsAttention?.retryExecutionId, 'execution_agent_e2e_failed_images');
+assert.deepEqual(
+  needsAttention?.retryableResultBlockIds,
+  failedResultBlocks.map((block) => block.blockId),
+);
+assert.equal(
+  snapshot.executions.at(-1)?.agentRunId,
+  undefined,
+  'Workflow Step recovery must not depend on a redundant direct AgentRun assignment.',
+);
+
+snapshot.blocks = snapshot.blocks.filter((block) => !failedResultBlocks.includes(block));
+snapshot.executions = snapshot.executions.filter(
+  (execution) => execution.executionId !== 'execution_agent_e2e_failed_images',
+);
+agent.record.executionIds = [];
+
+agent.record.stopReason = 'operation_execution_missing';
+assert.equal(
+  agentRunInterventionFor(snapshot, agent.record)?.attentionReason,
+  'execution_missing',
+);
+agent.record.stopReason = 'retired_definition';
+assert.equal(
+  agentRunInterventionFor(snapshot, agent.record)?.attentionReason,
+  'retired_definition',
+);
+agent.record.stopReason = undefined;
+firstStep.status = 'ready';
+firstStep.freshness = 'outdated';
+assert.equal(
+  agentRunInterventionFor(snapshot, agent.record)?.attentionReason,
+  'outdated',
+);
 
 const snapshotBeforeProjection = JSON.stringify(snapshot);
 agentRunInterventionFor(snapshot, agent.record);
@@ -129,8 +224,10 @@ console.log(JSON.stringify({
   waitingInputReason: true,
   waitingSelectionReason: true,
   waitingApprovalGate: true,
+  reviewRecoveryAction: true,
   providerAuthorizationBoundary: true,
   needsAttentionReason: true,
+  retiredDefinitionReason: true,
   canvasLocator: true,
   readOnlyProjection: true,
 }));

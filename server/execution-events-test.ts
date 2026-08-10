@@ -41,9 +41,12 @@ assert.match(chunks.join(''), /"type":"text.delta"/);
 
 publishExecutionEvent('exec_sse_test', {
   type: 'execution.progress',
-  message: 'Generating image 1 of 1',
+  current: 1,
+  phase: 'provider_generating',
+  total: 1,
 });
-assert.match(chunks.join(''), /Generating image 1 of 1/);
+assert.match(chunks.join(''), /provider_generating/);
+assert.match(chunks.join(''), /"current":1/);
 request.emit('close');
 
 console.log(JSON.stringify({ ok: true, replayed: 2, liveEvents: 1 }));

@@ -38,6 +38,17 @@ export function flowNodeSize(node: RetakeNode | undefined, block: BlockRecord): 
   };
 }
 
+export function absoluteFlowNodeBounds(
+  flowNodes: readonly RetakeNode[],
+  block: BlockRecord,
+): { height: number; width: number; x: number; y: number } | undefined {
+  const node = flowNodes.find((candidate) => candidate.id === block.blockId);
+  if (!node) return undefined;
+  const position = absoluteFlowNodePositions(flowNodes).get(node.id);
+  if (!position) return undefined;
+  return { ...position, ...flowNodeSize(node, block) };
+}
+
 export function downloadAsset(asset: AssetRecord, title?: unknown): void {
   const link = document.createElement('a');
   link.href = asset.previewUrl;

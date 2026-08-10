@@ -4,6 +4,7 @@ import { defaultSnapshot } from '../../src/core/sampleBoard';
 import { migrateBoardSnapshot } from '../../src/core/snapshotMigration';
 import { executionRecordVersion } from '../../src/core/executionRecordVersion';
 import type { BoardRecord, BoardSnapshot, ProjectRecord } from '../../src/core/types';
+import { supersedeResolvedAgentRunBlockerProposals } from '../../src/core/agentChangeApplication';
 import { reconcileAgentRuntime } from '../../src/core/agentRuntime';
 import { reconcileWorkflowRuntime } from '../../src/core/workflowRuntime';
 import {
@@ -76,6 +77,7 @@ async function saveSnapshotNow(snapshot: BoardSnapshot): Promise<void> {
   if (previousSnapshot) protectDurableSnapshotState(normalizedSnapshot, previousSnapshot);
   reconcileWorkflowRuntime(normalizedSnapshot);
   reconcileAgentRuntime(normalizedSnapshot);
+  supersedeResolvedAgentRunBlockerProposals(normalizedSnapshot);
 
   await mkdir(boardDir, { recursive: true });
   await mkdir(path.join(projectDir, 'assets'), { recursive: true });
@@ -87,7 +89,14 @@ async function saveSnapshotNow(snapshot: BoardSnapshot): Promise<void> {
   await writeJsonAtomic(snapshotPath, normalizedSnapshot);
 }
 
-export async function resetWorkspace(): Promise<BoardSnapshot> {
+export async function resetWorkspace(options?: {
+  allowDefaultWorkspaceReset?: boolean;
+}): Promise<BoardSnapshot> {
+  if (!process.env.RETAKE_WORKSPACE_DIR && !options?.allowDefaultWorkspaceReset) {
+    throw new Error(
+      'Refusing to reset the default Retake Workspace without explicit user-facing authorization.',
+    );
+  }
   await rm(retakeRoot, { recursive: true, force: true });
   const snapshot = createDefaultWorkspaceSnapshot();
   await saveSnapshot(snapshot);
@@ -235,6 +244,14 @@ function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSna
 
   // Assets, executions, and history are durable lineage. Ordinary board saves
   // may update them but must not silently erase records that already exist.
+  // Provider completions can start from different in-memory snapshots of the
+  // same Board. Preserve the newer version of Blocks that still exist in the
+  // incoming snapshot so one completion cannot overwrite another Operation's
+  // result. Missing incoming IDs remain deletions; this is not an append-only
+  // Block collection.
+  const activeRunBlockIds = activeAgentRunBlockIds(previous);
+  incoming.blocks = mergeUpdatedBlocks(incoming.blocks, previous.blocks, activeRunBlockIds);
+  incoming.edges = mergeProtectedEdges(incoming.edges, previous.edges, activeRunBlockIds);
   incoming.assets = mergeRecords(incoming.assets, previous.assets, (asset) => asset.assetId);
   incoming.executions = mergeExecutionRecords(
     incoming.executions,
@@ -336,6 +353,84 @@ function mergeRecords<T>(incoming: T[], previous: T[], idFor: (record: T) => str
   for (const record of previous) {
     if (knownIds.has(idFor(record))) continue;
     merged.push(record);
+  }
+  return merged;
+}
+
+function mergeUpdatedBlocks(
+  incoming: BoardSnapshot['blocks'],
+  previous: BoardSnapshot['blocks'],
+  protectedBlockIds: ReadonlySet<string>,
+): BoardSnapshot['blocks'] {
+  const previousById = new Map(previous.map((block) => [block.blockId, block]));
+  const merged = incoming.map((block) => {
+    const prior = previousById.get(block.blockId);
+    previousById.delete(block.blockId);
+    if (!prior) return block;
+    return Date.parse(prior.updatedAt) > Date.parse(block.updatedAt) ? prior : block;
+  });
+  for (const block of previousById.values()) {
+    if (protectedBlockIds.has(block.blockId)) merged.push(block);
+  }
+  return merged;
+}
+
+function activeAgentRunBlockIds(snapshot: BoardSnapshot): Set<string> {
+  const activeRunStatuses = new Set([
+    'needs_attention',
+    'paused',
+    'queued',
+    'running',
+    'waiting_approval',
+    'waiting_input',
+    'waiting_selection',
+  ]);
+  const protectedIds = new Set(
+    (snapshot.agentRuns ?? [])
+      .filter((run) => activeRunStatuses.has(run.status))
+      .flatMap((run) => run.scope.allowedOperationBlockIds),
+  );
+  const blocksById = new Map(snapshot.blocks.map((block) => [block.blockId, block]));
+  for (const operationBlockId of [...protectedIds]) {
+    const groupId = blocksById.get(operationBlockId)?.parentGroupId;
+    if (!groupId) continue;
+    protectedIds.add(groupId);
+    for (const block of snapshot.blocks) {
+      if (block.parentGroupId === groupId) protectedIds.add(block.blockId);
+    }
+  }
+  let expanded = true;
+  while (expanded) {
+    expanded = false;
+    for (const edge of snapshot.edges) {
+      if (!protectedIds.has(edge.sourceBlockId) && !protectedIds.has(edge.targetBlockId)) continue;
+      if (!protectedIds.has(edge.sourceBlockId)) {
+        protectedIds.add(edge.sourceBlockId);
+        expanded = true;
+      }
+      if (!protectedIds.has(edge.targetBlockId)) {
+        protectedIds.add(edge.targetBlockId);
+        expanded = true;
+      }
+    }
+  }
+  return protectedIds;
+}
+
+function mergeProtectedEdges(
+  incoming: BoardSnapshot['edges'],
+  previous: BoardSnapshot['edges'],
+  protectedBlockIds: ReadonlySet<string>,
+): BoardSnapshot['edges'] {
+  const merged = [...incoming];
+  const knownIds = new Set(incoming.map((edge) => edge.edgeId));
+  for (const edge of previous) {
+    if (
+      knownIds.has(edge.edgeId)
+      || !protectedBlockIds.has(edge.sourceBlockId)
+      || !protectedBlockIds.has(edge.targetBlockId)
+    ) continue;
+    merged.push(edge);
   }
   return merged;
 }

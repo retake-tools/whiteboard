@@ -30,6 +30,7 @@ import type {
   ResolvedWorkspacePackage,
   WorkspacePackageLock,
 } from './workspace-package-lock';
+import { PackageActivationGuardStore } from './package-activation-guard-store';
 
 export const defaultBootstrapProfileId = 'retake.default-studios';
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -61,27 +62,51 @@ export interface DeclarativePackageBootstrapProfileV3 {
 }
 
 export interface DeclarativePackageBootstrapResult {
+  distributionFailures: PackageBootstrapDistributionFailureV1[];
   installed: boolean;
   packageFailures: InstalledPackageLoadFailure[];
   pluginRuntime: PluginRuntimeSnapshotV1;
   snapshot: InstalledRuntimeRegistrySnapshotV1;
 }
 
+export interface PackageBootstrapDistributionFailureV1 {
+  digest: string | null;
+  error: string;
+  packageId: string | null;
+  stage: 'activation_recovery' | 'candidate' | 'install' | 'profile';
+  version: string | null;
+}
+
 let defaultBootstrapPromise: Promise<DeclarativePackageBootstrapResult> | undefined;
+let defaultActivationRecoveryComplete = false;
 
 export async function ensureDefaultDeclarativePackageBootstrap(input: {
   hostVersion: string;
   workspaceRoot: string;
 }): Promise<DeclarativePackageBootstrapResult> {
-  defaultBootstrapPromise ??= bootstrapDeclarativePackages({
-    activateRuntime: true,
-    hostVersion: input.hostVersion,
-    ...(process.env.RETAKE_PLUGIN_SAFE_MODE === '1'
-      ? { pluginSafeMode: true }
-      : {}),
-    profilePath: defaultBootstrapProfilePath,
-    workspaceRoot: input.workspaceRoot,
-  });
+  if (!defaultBootstrapPromise) {
+    const recoverPendingActivations = !defaultActivationRecoveryComplete;
+    defaultBootstrapPromise = bootstrapDeclarativePackages({
+      activateRuntime: true,
+      hostVersion: input.hostVersion,
+      ...(process.env.RETAKE_PLUGIN_SAFE_MODE === '1'
+        ? { pluginSafeMode: true }
+        : {}),
+      profilePath: defaultBootstrapProfilePath,
+      recoverPendingActivations,
+      workspaceRoot: input.workspaceRoot,
+    }).then((result) => {
+      if (
+        recoverPendingActivations
+        && !result.distributionFailures.some(
+          (failure) => failure.stage === 'activation_recovery',
+        )
+      ) {
+        defaultActivationRecoveryComplete = true;
+      }
+      return result;
+    });
+  }
   try {
     return await defaultBootstrapPromise;
   } catch (error) {
@@ -99,6 +124,7 @@ export async function bootstrapDeclarativePackages(input: {
   hostVersion: string;
   pluginSafeMode?: boolean;
   profilePath: string;
+  recoverPendingActivations?: boolean;
   workspaceRoot: string;
 }): Promise<DeclarativePackageBootstrapResult> {
   parsePackageVersion(input.hostVersion);
@@ -106,72 +132,70 @@ export async function bootstrapDeclarativePackages(input: {
     hostVersion: input.hostVersion,
     workspaceRoot: input.workspaceRoot,
   });
+  const activationRecoveryFailures = input.recoverPendingActivations === false
+    ? []
+    : await recoverUnconfirmedActivations(manager);
   const hadLockfile = await manager.hasLockfile();
-  let validated: Awaited<
-    ReturnType<typeof validateBootstrapProfileArchives>
-  >;
+  let profile: DeclarativePackageBootstrapProfileV3;
   try {
-    validated = await validateBootstrapProfileArchives(
-      input.profilePath,
-      input.hostVersion,
-    );
-  } catch (error) {
-    if (!hadLockfile || !isNodeError(error, 'ENOENT')) throw error;
-    const [lockfile, installed] = await Promise.all([
-      manager.list(),
-      manager.loadRegistryTolerant(),
-    ]);
-    const snapshot = projectInstalledRuntimeRegistry(
-      lockfile,
-      installed.registry,
-    );
-    const pluginRuntime = await new PluginRuntimeService({
-      hostVersion: input.hostVersion,
-      workspaceRoot: input.workspaceRoot,
-    }).reconcile(
-      input.pluginSafeMode === undefined
-        ? {}
-        : { safeMode: input.pluginSafeMode },
-    );
-    if (input.activateRuntime !== false) {
-      configureInstalledRuntimeRegistry(snapshot);
+    profile = await readBootstrapProfile(input.profilePath);
+    if (!packageVersionSatisfies(input.hostVersion, profile.hostCompatibility)) {
+      throw new Error(
+        `Bootstrap profile is incompatible with Retake ${input.hostVersion}.`,
+      );
     }
-    return {
-      installed: false,
-      packageFailures: installed.failures,
-      pluginRuntime,
-      snapshot,
-    };
+  } catch (error) {
+    return recoverAvailablePackageRuntime({
+      activateRuntime: input.activateRuntime,
+      distributionFailures: [
+        ...activationRecoveryFailures,
+        distributionFailure({
+          error,
+          stage: 'profile',
+        }),
+      ],
+      hostVersion: input.hostVersion,
+      manager,
+      pluginSafeMode: input.pluginSafeMode,
+      workspaceRoot: input.workspaceRoot,
+    });
   }
-  const { archivePaths, profile } = validated;
+  const candidates = await Promise.all(profile.packages.map(
+    async (reference) => {
+      try {
+        return {
+          archivePath: await validateBootstrapArchive(
+            input.profilePath,
+            reference,
+          ),
+          failure: null,
+        };
+      } catch (error) {
+        return {
+          archivePath: null,
+          failure: distributionFailure({
+            error,
+            reference,
+            stage: 'candidate',
+          }),
+        };
+      }
+    },
+  ));
+  const distributionFailures = [
+    ...activationRecoveryFailures,
+    ...candidates.flatMap((candidate) => (
+      candidate.failure ? [candidate.failure] : []
+    )),
+  ];
   const preferences = new OfficialPackagePreferenceStore(manager.packagesRoot);
   const preferenceState = await preferences.read();
   let changed = false;
   let lockfile = await manager.list();
   const initialInstalled = await manager.loadRegistryTolerant();
-  if (initialInstalled.failures.length > 0) {
-    const snapshot = projectInstalledRuntimeRegistry(
-      lockfile,
-      initialInstalled.registry,
-    );
-    const pluginRuntime = await new PluginRuntimeService({
-      hostVersion: input.hostVersion,
-      workspaceRoot: input.workspaceRoot,
-    }).reconcile(
-      input.pluginSafeMode === undefined
-        ? {}
-        : { safeMode: input.pluginSafeMode },
-    );
-    if (input.activateRuntime !== false) {
-      configureInstalledRuntimeRegistry(snapshot);
-    }
-    return {
-      installed: false,
-      packageFailures: initialInstalled.failures,
-      pluginRuntime,
-      snapshot,
-    };
-  }
+  const initiallyFailedPackageIds = new Set(
+    initialInstalled.failures.map((failure) => failure.packageId),
+  );
   const activeRoots = () => new Map(
     lockfile.roots.map((root) => [root.packageId, root]),
   );
@@ -195,6 +219,8 @@ export async function bootstrapDeclarativePackages(input: {
     preferenceState.removedPackageIds.sort(compareText);
   }
   for (const [index, packagePolicy] of profile.packages.entries()) {
+    const archivePath = candidates[index]?.archivePath;
+    if (!archivePath) continue;
     if (preferenceState.removedPackageIds.includes(packagePolicy.packageId)) {
       continue;
     }
@@ -206,6 +232,7 @@ export async function bootstrapDeclarativePackages(input: {
       if (
         active?.version === packagePolicy.version
         && active.digest === packagePolicy.digest
+        && !initiallyFailedPackageIds.has(packagePolicy.packageId)
       ) {
         continue;
       }
@@ -214,9 +241,27 @@ export async function bootstrapDeclarativePackages(input: {
         activeRoot.installationId,
         input.profilePath,
       )) {
-        const result = await manager.install(archivePaths[index]!);
-        lockfile = result.lockfile;
-        changed = changed || result.changed;
+        if (
+          active?.version !== packagePolicy.version
+          || active.digest !== packagePolicy.digest
+        ) {
+          // Existing Workspaces keep their last-known-good bundled root.
+          // The new official candidate is reviewed through the explicit
+          // Package update flow, where browser module activation can either
+          // confirm the candidate or roll back to this installation.
+          continue;
+        }
+        try {
+          const result = await manager.install(archivePath);
+          lockfile = result.lockfile;
+          changed = changed || result.changed;
+        } catch (error) {
+          distributionFailures.push(distributionFailure({
+            error,
+            reference: packagePolicy,
+            stage: 'install',
+          }));
+        }
         continue;
       }
       // A non-default active source is a user version pin. Do not replace it
@@ -237,9 +282,17 @@ export async function bootstrapDeclarativePackages(input: {
       lockfile = await manager.remove(legacyStoryPackageId);
       changed = true;
     }
-    const result = await manager.install(archivePaths[index]!);
-    lockfile = result.lockfile;
-    changed = changed || result.changed;
+    try {
+      const result = await manager.install(archivePath);
+      lockfile = result.lockfile;
+      changed = changed || result.changed;
+    } catch (error) {
+      distributionFailures.push(distributionFailure({
+        error,
+        reference: packagePolicy,
+        stage: 'install',
+      }));
+    }
   }
   const [currentLockfile, installed] = await Promise.all([
     manager.list(),
@@ -267,10 +320,116 @@ export async function bootstrapDeclarativePackages(input: {
   });
   if (input.activateRuntime !== false) configureInstalledRuntimeRegistry(snapshot);
   return {
+    distributionFailures,
     installed: !hadLockfile || changed,
     packageFailures: installed.failures,
     pluginRuntime,
     snapshot,
+  };
+}
+
+async function recoverUnconfirmedActivations(
+  manager: LocalPackageManagerService,
+): Promise<PackageBootstrapDistributionFailureV1[]> {
+  const store = new PackageActivationGuardStore(manager.packagesRoot);
+  const failures: PackageBootstrapDistributionFailureV1[] = [];
+  let guards: Awaited<ReturnType<PackageActivationGuardStore['list']>>;
+  try {
+    guards = await store.list();
+  } catch (error) {
+    return [{
+      digest: null,
+      error: errorMessage(error),
+      packageId: null,
+      stage: 'activation_recovery',
+      version: null,
+    }];
+  }
+  for (const guard of guards) {
+    try {
+      const lockfile = await manager.list();
+      const active = lockfile.resolvedPackages.find(
+        (entry) => entry.packageId === guard.packageId,
+      );
+      if (
+        active?.installationId === guard.candidateInstallationId
+        && active.digest === guard.candidateDigest
+      ) {
+        await manager.activate({
+          digest: guard.previousDigest,
+          packageId: guard.packageId,
+        });
+      }
+      await new PluginRuntimeService({
+        hostVersion: manager.hostVersion,
+        workspaceRoot: manager.workspaceRoot,
+      }).restorePackageRuntime({
+        digest: guard.previousDigest,
+        installationId: guard.previousInstallationId,
+        modules: guard.previousPluginModules,
+        packageId: guard.packageId,
+      });
+      await store.clear(guard.packageId);
+    } catch (error) {
+      failures.push({
+        digest: guard.candidateDigest,
+        error: errorMessage(error),
+        packageId: guard.packageId,
+        stage: 'activation_recovery',
+        version: null,
+      });
+    }
+  }
+  return failures;
+}
+
+async function recoverAvailablePackageRuntime(input: {
+  activateRuntime?: boolean;
+  distributionFailures: PackageBootstrapDistributionFailureV1[];
+  hostVersion: string;
+  manager: LocalPackageManagerService;
+  pluginSafeMode?: boolean;
+  workspaceRoot: string;
+}): Promise<DeclarativePackageBootstrapResult> {
+  const [lockfile, installed] = await Promise.all([
+    input.manager.list(),
+    input.manager.loadRegistryTolerant(),
+  ]);
+  const snapshot = projectInstalledRuntimeRegistry(
+    lockfile,
+    installed.registry,
+  );
+  const pluginRuntime = await new PluginRuntimeService({
+    hostVersion: input.hostVersion,
+    workspaceRoot: input.workspaceRoot,
+  }).reconcile(
+    input.pluginSafeMode === undefined
+      ? {}
+      : { safeMode: input.pluginSafeMode },
+  );
+  if (input.activateRuntime !== false) {
+    configureInstalledRuntimeRegistry(snapshot);
+  }
+  return {
+    distributionFailures: input.distributionFailures,
+    installed: false,
+    packageFailures: installed.failures,
+    pluginRuntime,
+    snapshot,
+  };
+}
+
+function distributionFailure(input: {
+  error: unknown;
+  reference?: BootstrapPackageReference;
+  stage: PackageBootstrapDistributionFailureV1['stage'];
+}): PackageBootstrapDistributionFailureV1 {
+  return {
+    digest: input.reference?.digest ?? null,
+    error: errorMessage(input.error),
+    packageId: input.reference?.packageId ?? null,
+    stage: input.stage,
+    version: input.reference?.version ?? null,
   };
 }
 
@@ -641,8 +800,4 @@ function compareText(left: string, right: string): number {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function isNodeError(error: unknown, code: string): boolean {
-  return error instanceof Error && 'code' in error && error.code === code;
 }

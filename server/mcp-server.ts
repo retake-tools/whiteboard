@@ -343,7 +343,7 @@ server.registerTool(
     inputSchema: {},
   },
   async () => {
-    const snapshot = await resetWorkspace();
+    const snapshot = await resetWorkspace({ allowDefaultWorkspaceReset: true });
     return toJsonToolResult({
       project: snapshot.project,
       board: snapshot.board,

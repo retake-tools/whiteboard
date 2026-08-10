@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createBlockRecord } from '../src/core/blockFactory';
-import { operationReadinessFor } from '../src/core/capabilities';
 import {
   codexAppServerImageAdapterDefinition,
 } from '../src/core/capabilityRegistry';
@@ -11,12 +9,7 @@ import {
   configureAgentPresetRegistry,
   listAgentPresets,
 } from '../src/core/agentPresetRegistry';
-import {
-  packageComposerDependencyIssue,
-} from '../src/core/packageComposer';
-import type {
-  RetakePackageManifest,
-} from '../src/core/packageContracts';
+import type { RetakePackageManifest } from '../src/core/packageContracts';
 import {
   configurePackageRegistry,
   listPackages,
@@ -31,70 +24,65 @@ import {
   listWorkflows,
   type WorkflowDefinition,
 } from '../src/core/workflowRegistry';
-import type {
-  AgentPresetDefinition,
-} from '../src/core/agentPresetContracts';
+import {
+  listInstalledPluginCapabilityDefinitions,
+  replaceInstalledPluginCapabilityDefinitions,
+} from '../src/core/pluginCapabilityDefinitions';
+import { readInstalledPackageCapabilityDefinitions } from './installed-plugin-capability-definitions';
 import {
   readMaterializedPackageArchive,
   validateDeclarativePackage,
 } from './declarative-package-service';
-import { defaultSnapshot } from '../src/core/sampleBoard';
-import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
 import {
-  createWorkflowRunForGroup,
-  reconcileWorkflowRuntime,
-} from '../src/core/workflowRuntime';
+  retiredGuidedImageSkillId,
+  retiredGuidedImageWorkflowId,
+} from '../src/core/retiredDefinitions';
+import { compatibleSkillsForWorkflowStep } from '../src/core/workflowAuthoringGraph';
 
-const repositoryRoot = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '..',
-);
+const retiredAgentPresetId = 'retake.agent.guided-image-operator';
+const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const packageArchive = path.join(
   repositoryRoot,
   'packages',
   'bootstrap',
-  'image-studio-0.11.0.retakepkg',
+  'image-studio-0.12.3.retakepkg',
 );
-const entrypointId = 'workflow:retake.workflow.guided-image-review';
+const publicEntrypointId = 'workflow:retake.workflow.ip-character-design';
 const original = {
   agents: listAgentPresets(),
   packages: listPackages(),
   skills: listSkills(),
   workflows: listWorkflows(),
+  capabilities: listInstalledPluginCapabilityDefinitions(),
 };
 
 try {
   const inspected = await validateDeclarativePackage(packageArchive);
   const materialized = await readMaterializedPackageArchive(packageArchive);
   assert.deepEqual(inspected.components, {
-    agentPresets: 1,
+    agentPresets: 0,
     pluginModules: 1,
-    skills: 1,
+    skills: 4,
     workflows: 1,
   });
   assert.deepEqual(inspected.manifest.dependencies, []);
+  assert.equal(materialized.definitions.skills.has(retiredGuidedImageSkillId), false);
+  assert.equal(materialized.definitions.workflows.has(retiredGuidedImageWorkflowId), false);
+  assert.equal(materialized.definitions.agentPresets.has(retiredAgentPresetId), false);
+  assert.equal(
+    [...materialized.files.keys()].some((file) => file.includes('guided-image')),
+    false,
+  );
 
-  const skill = materialized.definitions.skills.get(
-    'retake.image.guided-edit',
-  );
-  const workflow = materialized.definitions.workflows.get(
-    'retake.workflow.guided-image-review',
-  );
-  const agent = materialized.definitions.agentPresets.get(
-    'retake.agent.guided-image-operator',
-  );
-  assert.ok(skill && workflow && agent);
-  assert.equal(materialized.files.has('definitions/image.guided_edit.json'), false);
-  const capability = imageGenerateCapabilityDefinition;
+  const packageSkills = [...materialized.definitions.skills.values()]
+    .map((definition) => definition as unknown as RetakeSkillDefinition);
+  const packageWorkflows = [...materialized.definitions.workflows.values()]
+    .map((definition) => definition as unknown as WorkflowDefinition);
   const manifest = inspected.manifest;
   const runtimePackage: RetakePackageManifest = {
     components: {
       adapterPlugins: [],
-      agentPresets: manifest.components.agentPresets.map((entry) => ({
-        agentPresetId: entry.agentPresetId,
-        definitionHash: entry.definitionHash,
-        version: entry.version,
-      })),
+      agentPresets: [],
       capabilityPlugins: [],
       skills: manifest.components.skills.map((entry) => ({
         definitionHash: entry.definitionHash,
@@ -116,28 +104,60 @@ try {
     schemaVersion: 1,
     source: {
       archiveDigest: inspected.archiveDigest,
-      installationId: 'test-fixture-image-studio-0.11.0',
+      installationId: 'test-fixture-image-studio-0.12.3',
       kind: 'installed',
     },
     version: manifest.version,
   };
 
-  configureSkillRegistry([skill as unknown as RetakeSkillDefinition]);
-  configureWorkflowRegistry([workflow as unknown as WorkflowDefinition]);
-  configureAgentPresetRegistry([agent as unknown as AgentPresetDefinition]);
+  configureSkillRegistry(packageSkills);
+  configureWorkflowRegistry(packageWorkflows);
+  configureAgentPresetRegistry([]);
+  replaceInstalledPluginCapabilityDefinitions([
+    ...readInstalledPackageCapabilityDefinitions(
+      materialized.definitions.pluginModules.values(),
+      materialized.files,
+    ).values(),
+  ]);
   configurePackageRegistry([runtimePackage]);
 
-  assert.equal(packageComposerDependencyIssue(entrypointId), undefined);
-  assert.equal(capability.version, '0.1.0');
   assert.equal(
-    capability.outputSlots.find((slot) => slot.slotId === 'images')
-      ?.artifactType,
+    runtimePackage.entrypoints.some((entry) => entry.entrypointId === publicEntrypointId),
+    true,
+  );
+  assert.equal(
+    runtimePackage.entrypoints.some((entry) => (
+      entry.entrypointId.includes('guided-image')
+      || (entry.kind === 'skill' && entry.ref.skillId === retiredGuidedImageSkillId)
+    )),
+    false,
+  );
+  assert.equal(listSkills().some((skill) => skill.skillId === retiredGuidedImageSkillId), false);
+  assert.equal(
+    listWorkflows().some((workflow) => workflow.workflowId === retiredGuidedImageWorkflowId),
+    false,
+  );
+  assert.equal(listAgentPresets().some((preset) => preset.agentPresetId === retiredAgentPresetId), false);
+  const imageWorkflowStep = packageWorkflows[0]?.steps.find(
+    (step) => step.capabilityLock.capabilityId === 'image.generate',
+  );
+  assert.ok(imageWorkflowStep);
+  assert.equal(
+    compatibleSkillsForWorkflowStep(imageWorkflowStep).some(
+      (skill) => skill.skillId === retiredGuidedImageSkillId,
+    ),
+    false,
+    'Workflow Editor must not discover the retired Skill through its active authoring catalog.',
+  );
+
+  const capability = imageGenerateCapabilityDefinition;
+  assert.equal(capability.version, '0.2.0');
+  assert.equal(
+    capability.outputSlots.find((slot) => slot.slotId === 'images')?.artifactType,
     'image',
   );
   assert.ok(
-    codexAppServerImageAdapterDefinition.supportedCapabilityIds.includes(
-      'image.generate',
-    ),
+    codexAppServerImageAdapterDefinition.supportedCapabilityIds.includes('image.generate'),
   );
   assert.deepEqual(
     codexAppServerImageAdapterDefinition.inputProfiles.find(
@@ -151,112 +171,6 @@ try {
     },
   );
 
-  const projectionSnapshot = structuredClone(defaultSnapshot);
-  const sourceBlock = createBlockRecord(projectionSnapshot, 'image');
-  sourceBlock.data = {
-    ...sourceBlock.data,
-    assetId: 'asset_pf8_source',
-    previewUrl: '/api/local/assets/proj_demo_retake/asset_pf8_source/original.jpg',
-    title: 'PF8 source',
-  };
-  projectionSnapshot.assets.unshift({
-    assetId: 'asset_pf8_source',
-    createdAt: new Date().toISOString(),
-    kind: 'image',
-    mimeType: 'image/jpeg',
-    previewUrl: sourceBlock.data.previewUrl,
-    projectId: projectionSnapshot.project.projectId,
-    storageKey: 'assets/asset_pf8_source/original.jpg',
-    storageProvider: 'local',
-  });
-  projectionSnapshot.blocks.push(sourceBlock);
-  const referenceBlock = createBlockRecord(projectionSnapshot, 'image');
-  referenceBlock.data = {
-    ...referenceBlock.data,
-    assetId: 'asset_pf8_reference',
-    previewUrl: '/api/local/assets/proj_demo_retake/asset_pf8_reference/original.jpg',
-    title: 'PF8 lighting reference',
-  };
-  projectionSnapshot.assets.unshift({
-    assetId: 'asset_pf8_reference',
-    createdAt: new Date().toISOString(),
-    kind: 'image',
-    mimeType: 'image/jpeg',
-    previewUrl: referenceBlock.data.previewUrl,
-    projectId: projectionSnapshot.project.projectId,
-    storageKey: 'assets/asset_pf8_reference/original.jpg',
-    storageProvider: 'local',
-  });
-  projectionSnapshot.blocks.push(referenceBlock);
-  const projection = projectWorkflowDraft(projectionSnapshot, {
-    composerInput: {
-      instruction: {
-        body: 'Warm the light while preserving the subject.',
-        slotId: 'prompt',
-      },
-      mentions: [
-        {
-          blockId: sourceBlock.blockId,
-          kind: 'block',
-          slotId: 'source_image',
-        },
-        {
-          blockId: referenceBlock.blockId,
-          kind: 'block',
-          slotId: 'references',
-        },
-      ],
-    },
-    connectionIdForCapability: () => 'codex-app-server',
-    labelsForSkill: () => ({
-      operationTitle: 'Guided image edit',
-      promptPlaceholder: 'Describe the edit.',
-      promptTitle: 'Edit instruction',
-      resultTitle: 'Edited image',
-      waitingBody: 'Waiting for image.',
-    }),
-    outputPlaceholder: 'Waiting for image.',
-    workflowId: 'retake.workflow.guided-image-review',
-    workflowTitle: 'Guided image edit and review',
-  });
-  const projectedOperation = projectionSnapshot.blocks.find(
-    (block) => block.blockId === projection.operationBlockIds[0],
-  );
-  assert.equal(projectedOperation?.data.capabilityId, 'image.generate');
-  assert.equal(projectedOperation?.data.skillId, 'retake.image.guided-edit');
-  assert.equal(projectedOperation?.data.storyboardSheetParameters, undefined);
-  assert.deepEqual(
-    operationReadinessFor(projectionSnapshot, projectedOperation!),
-    { canRun: true, issues: [] },
-  );
-  assert.deepEqual(
-    projectionSnapshot.edges
-      .filter((edge) => edge.targetBlockId === projectedOperation?.blockId)
-      .map((edge) => edge.inputSlotId)
-      .sort(),
-    ['prompt', 'references', 'source_image'],
-  );
-  assert.equal(
-    projectionSnapshot.blocks.find(
-      (block) => block.blockId === projection.resultBlockIds[0],
-    )?.type,
-    'image',
-  );
-  const workflowRun = createWorkflowRunForGroup(
-    projectionSnapshot,
-    projection.groupBlock.blockId,
-  );
-  assert.equal(workflowRun.steps[0]?.status, 'ready');
-
-  reconcileWorkflowRuntime(projectionSnapshot);
-  assert.equal(projectionSnapshot.workflowStepRuns?.[0]?.status, 'ready');
-  assert.equal(packageComposerDependencyIssue(entrypointId), undefined);
-
-  configureSkillRegistry([skill as unknown as RetakeSkillDefinition]);
-  configureWorkflowRegistry([workflow as unknown as WorkflowDefinition]);
-  configureAgentPresetRegistry([agent as unknown as AgentPresetDefinition]);
-  assert.equal(packageComposerDependencyIssue(entrypointId), undefined);
-
   console.log(JSON.stringify({
     ok: true,
     packageComponents: inspected.components,
@@ -264,14 +178,14 @@ try {
     optionalGuidance: capability.inputSlots.find(
       (slot) => slot.slotId === 'references',
     )?.required === false,
-    genericMediaProjection: true,
     coreCapabilityShared: true,
-    agentBounded: true,
-    duplicateGuidedCapabilityRemoved: true,
+    retiredGuidedDefinitionsAbsent: true,
+    currentAuthoringRegistryClean: true,
   }));
 } finally {
   configureSkillRegistry(original.skills);
   configureWorkflowRegistry(original.workflows);
   configureAgentPresetRegistry(original.agents);
+  replaceInstalledPluginCapabilityDefinitions(original.capabilities);
   configurePackageRegistry(original.packages);
 }

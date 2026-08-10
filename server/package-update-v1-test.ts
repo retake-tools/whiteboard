@@ -25,7 +25,10 @@ import {
 } from './declarative-package-service';
 import { LocalPackageManagerService } from './local-package-manager-service';
 import { PackageUpdateService } from './package-update-service';
-import { PackageUpdateBanner } from '../src/components/TopBar';
+import {
+  PackageFailureBanner,
+  PackageUpdateBanner,
+} from '../src/components/TopBar';
 import type {
   PackageLifecycleControllerV1,
 } from '../src/core/packageLifecycleClient';
@@ -44,13 +47,13 @@ try {
   const resolveGitSource = gitResolverFixture(profile);
   const workspaceRoot = path.join(temporaryRoot, 'workspace');
   await bootstrapDeclarativePackages({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     profilePath: defaultBootstrapProfilePath,
     workspaceRoot,
   });
   const service = new PackageUpdateService({
     clock: () => '2026-07-28T16:00:00.000Z',
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     resolveGitSource,
     workspaceRoot,
   });
@@ -64,7 +67,7 @@ try {
     })),
     [
       {
-        candidate: '0.11.0',
+        candidate: '0.13.0',
         packageId: 'design.retake.image-studio',
         status: 'available',
       },
@@ -73,7 +76,7 @@ try {
   const pinnedSource = path.join(temporaryRoot, 'pinned-image-studio');
   await createPinnedPackageSource(pinnedSource);
   await new LocalPackageManagerService({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     workspaceRoot,
   }).install(pinnedSource);
   const pinned = await service.check();
@@ -86,13 +89,13 @@ try {
 
   const updateWorkspace = path.join(temporaryRoot, 'update-workspace');
   await bootstrapDeclarativePackages({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     profilePath: defaultBootstrapProfilePath,
     workspaceRoot: updateWorkspace,
   });
   let installedSource: string | null = null;
   const updateService = new PackageUpdateService({
-    hostVersion: '0.1.3',
+    hostVersion: '0.1.4',
     installSource: async (source) => {
       installedSource = source;
     },
@@ -111,11 +114,14 @@ try {
   );
 
   let dismissalValue: string | null = null;
+  let localeValue = 'en';
   const localStorageFixture = {
     getItem: (key: string) => (
       key === 'retake.package-update-dismissals.v1'
         ? dismissalValue
-        : 'en'
+        : key === 'retake.locale'
+          ? localeValue
+          : null
     ),
     setItem: (_key: string, value: string) => {
       dismissalValue = value;
@@ -135,6 +141,41 @@ try {
   });
   const controller = updateController(available);
   assert.match(renderUpdateBanner(controller), /Plugin updates available/);
+  const candidateFailureBanner = renderFailureBanner([{
+    error: 'Unknown Workflow semantic key.',
+    packageId: 'design.retake.image-studio',
+    source: 'distribution',
+    stage: 'candidate',
+    version: '0.13.0',
+  }]);
+  assert.match(
+    candidateFailureBanner,
+    /1 Package update\(s\) not enabled; the current version remains available/,
+  );
+  assert.doesNotMatch(candidateFailureBanner, /were isolated/);
+  assert.match(candidateFailureBanner, /View reason/);
+  localeValue = 'zh';
+  assert.match(
+    renderFailureBanner([{
+      error: 'Workflow 参数不受支持。',
+      packageId: 'design.retake.image-studio',
+      source: 'distribution',
+      stage: 'candidate',
+      version: '0.13.0',
+    }]),
+    /1个 Package 更新暂未启用，当前版本仍可使用/,
+  );
+  localeValue = 'en';
+  assert.match(
+    renderFailureBanner([{
+      error: 'Installed Package cannot be loaded.',
+      packageId: 'design.retake.image-studio',
+      source: 'active',
+      stage: 'load',
+      version: '0.12.3',
+    }]),
+    /1 Package\(s\) failed to load and were isolated; Whiteboard remains available/,
+  );
   const imageCandidate = available.checks[0]!.candidate!;
   dismissalValue = JSON.stringify([
     `${available.checks[0]!.packageId}:${
@@ -146,6 +187,7 @@ try {
   process.stdout.write(`${JSON.stringify({
     currentDetected: true,
     dismissibleTopBannerRendered: true,
+    isolatedFailureBannerRendered: true,
     githubUpstreamCandidateProjected: true,
     officialUpdatePinsExactGitCommit: true,
     updateAvailableDetected: true,
@@ -166,6 +208,18 @@ function renderUpdateBanner(
         controller,
         onOpen: () => {},
       }),
+    ),
+  );
+}
+
+function renderFailureBanner(
+  failures: Parameters<typeof PackageFailureBanner>[0]['failures'],
+): string {
+  return renderToStaticMarkup(
+    createElement(
+      I18nProvider,
+      null,
+      createElement(PackageFailureBanner, { failures }),
     ),
   );
 }
@@ -223,7 +277,7 @@ function gitResolverFixture(
       ? 'https://github.com/retake-tools/image-studio.git'
       : 'https://github.com/retake-tools/video-studio.git';
     const subdirectory = isImage ? 'plugin' : 'package';
-    const version = isImage ? '0.11.0' : reference.version;
+    const version = isImage ? '0.13.0' : reference.version;
     const digest = isImage ? `sha256:${'1'.repeat(64)}` : reference.digest;
     return {
       materialized: {

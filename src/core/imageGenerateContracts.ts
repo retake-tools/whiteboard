@@ -1,8 +1,8 @@
 import type { CapabilityDefinition } from './capabilityContracts';
 
 export const imageGenerateCapabilityId = 'image.generate';
-export const imageGenerateCapabilityVersion = '0.1.0';
-export const imageGenerateDefinitionHash = 'sha256:retake-image-generate-v1';
+export const imageGenerateCapabilityVersion = '0.2.0';
+export const imageGenerateDefinitionHash = 'sha256:retake-image-generate-document-prompt-v2';
 export const imageGenerateParametersSchemaRef = 'retake.params.image.generate/v1';
 
 export const imageGenerateAspectRatioPresets = [
@@ -42,11 +42,11 @@ export const imageGenerateCapabilityDefinition: CapabilityDefinition = {
     {
       slotId: 'prompt',
       semanticRole: 'prompt',
-      dataTypes: ['text'],
-      artifactTypes: [],
+      dataTypes: ['text', 'document'],
+      artifactTypes: ['character_bible'],
       cardinality: 'one',
       required: true,
-      bindingKinds: ['inline', 'block'],
+      bindingKinds: ['inline', 'block', 'asset', 'artifact_revision'],
     },
     {
       slotId: 'source_image',

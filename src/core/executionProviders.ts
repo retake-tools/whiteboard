@@ -3,6 +3,7 @@ import {
   textDocumentCapabilityIds,
 } from './capabilityRegistry';
 import { imageGenerateCapabilityId } from './imageGenerateContracts';
+import { listInstalledPluginCapabilityDefinitions } from './pluginCapabilityDefinitions';
 
 export type ExecutionConnectionKind = 'model_provider' | 'agent_host' | 'provider_cli' | 'local';
 
@@ -323,12 +324,12 @@ const connectionTemplates: ExecutionConnectionTemplate[] = [
 ];
 
 export function listExecutionConnectorDefinitions(): ExecutionConnectorDefinition[] {
-  return connectors.map(cloneConnector);
+  return connectors.map(connectorWithInstalledPluginCapabilities);
 }
 
 export function executionConnectorDefinition(connectorId: string): ExecutionConnectorDefinition | undefined {
   const definition = connectors.find((candidate) => candidate.connectorId === connectorId);
-  return definition ? cloneConnector(definition) : undefined;
+  return definition ? connectorWithInstalledPluginCapabilities(definition) : undefined;
 }
 
 export function listExecutionConnectionTemplates(): ExecutionConnectionTemplate[] {
@@ -347,6 +348,38 @@ function cloneConnector(definition: ExecutionConnectorDefinition): ExecutionConn
     defaultUseCases: [...definition.defaultUseCases],
     ...(definition.defaultModelId ? { defaultModelId: definition.defaultModelId } : {}),
   };
+}
+
+function connectorWithInstalledPluginCapabilities(
+  definition: ExecutionConnectorDefinition,
+): ExecutionConnectorDefinition {
+  const adapterClass = pluginTextAdapterClassForConnector(definition.connectorId);
+  if (!adapterClass) return cloneConnector(definition);
+  const installedCapabilityIds = listInstalledPluginCapabilityDefinitions()
+    .filter((capability) => capability.outputSlots.some((slot) => slot.dataType === 'document'))
+    .filter((capability) => capability.supportedAdapterClasses.includes(adapterClass))
+    .map((capability) => capability.capabilityId);
+  return {
+    ...cloneConnector(definition),
+    supportedCapabilityIds: [
+      ...new Set([
+        ...definition.supportedCapabilityIds,
+        ...installedCapabilityIds,
+      ]),
+    ],
+  };
+}
+
+function pluginTextAdapterClassForConnector(
+  connectorId: string,
+): 'agent_runtime.text' | 'text.document' | undefined {
+  if (connectorId === 'codex-app-server') return 'agent_runtime.text';
+  if (
+    connectorId === 'openai-compatible'
+    || connectorId === 'anthropic-native'
+    || connectorId === 'google-native'
+  ) return 'text.document';
+  return undefined;
 }
 
 function cloneTemplate(template: ExecutionConnectionTemplate): ExecutionConnectionTemplate {

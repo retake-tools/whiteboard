@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState, type ReactElement } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { Loader2, RefreshCw, TriangleAlert } from 'lucide-react';
 import { BoardHistoryPanel } from './components/BoardHistoryPanel';
 import { AgentWorkspace } from './components/AgentWorkspace';
@@ -27,7 +27,7 @@ import { createId, nowIso } from './core/id';
 import type { BlockRecord, BoardSnapshot } from './core/types';
 import { executionConnection } from './core/executionProviderPreferences';
 import { blockLockedByGroup, groupMediaItems } from './core/grouping';
-import { loadUiPreferences } from './core/uiPreferences';
+import { loadUiPreferences, saveUiPreferences } from './core/uiPreferences';
 import { setBoardBackground } from './core/boardBackground';
 import { loadExecutionProviderSettings } from './core/executionProviderClient';
 import { useI18n } from './i18n';
@@ -82,6 +82,11 @@ import type {
 import type {
   PackageLifecycleControllerV1,
 } from './core/packageLifecycleClient';
+import type {
+  PackageBootstrapNoticeV1,
+} from './core/installedRuntimeRegistryClient';
+import { loadProjectWorkflowAuthoring } from './core/workflowAuthoringClient';
+import { configureProjectWorkflowRegistry } from './core/workflowRegistry';
 
 const DocumentReviewWorkspace = lazy(() => import('./components/DocumentReviewWorkspace').then((module) => ({
   default: module.DocumentReviewWorkspace,
@@ -92,6 +97,9 @@ const ArtifactLibraryPanel = lazy(() => import('./components/ArtifactLibraryPane
 const DomainVideoLaunchReviewDialog = lazy(() => import('./components/DomainVideoLaunchReviewDialog').then((module) => ({
   default: module.DomainVideoLaunchReviewDialog,
 })));
+const WorkflowWorkspace = lazy(() => import('./components/WorkflowWorkspace').then((module) => ({
+  default: module.WorkflowWorkspace,
+})));
 
 export function App({
   onPluginContributionFatalFailure,
@@ -101,6 +109,7 @@ export function App({
   onPluginHostScopeChange,
   onPluginManagerOpenChange,
   pluginContributionRegistry,
+  packageBootstrapFailures = [],
   packageLifecycleController,
   pluginRuntimeController,
 }: {
@@ -125,6 +134,7 @@ export function App({
     snapshot: PluginHostEnvironmentSnapshotV2,
   ) => void;
   pluginContributionRegistry?: PluginContributionRegistryV1;
+  packageBootstrapFailures?: PackageBootstrapNoticeV1[];
   packageLifecycleController?: PackageLifecycleControllerV1;
   pluginRuntimeController?: PluginRuntimeControllerV1;
 } = {}): ReactElement {
@@ -154,6 +164,7 @@ export function App({
       onPluginHostScopeChange={onPluginHostScopeChange}
       onPluginManagerOpenChange={onPluginManagerOpenChange}
       pluginContributionRegistry={pluginContributionRegistry}
+      packageBootstrapFailures={packageBootstrapFailures}
       packageLifecycleController={packageLifecycleController}
       pluginRuntimeController={pluginRuntimeController}
     />
@@ -169,6 +180,7 @@ function ReadyApp({
   onPluginHostScopeChange,
   onPluginManagerOpenChange,
   pluginContributionRegistry,
+  packageBootstrapFailures,
   packageLifecycleController,
   pluginRuntimeController,
 }: {
@@ -194,6 +206,7 @@ function ReadyApp({
     snapshot: PluginHostEnvironmentSnapshotV2,
   ) => void;
   pluginContributionRegistry?: PluginContributionRegistryV1;
+  packageBootstrapFailures: PackageBootstrapNoticeV1[];
   packageLifecycleController?: PackageLifecycleControllerV1;
   pluginRuntimeController?: PluginRuntimeControllerV1;
 }): ReactElement {
@@ -220,8 +233,11 @@ function ReadyApp({
   const [isMiniMapVisible, setIsMiniMapVisible] = useState(() => initialUiPreferences.current.isMiniMapVisible);
   const [showGrid, setShowGrid] = useState(() => initialUiPreferences.current.showGrid);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isAgentWorkspaceOpen, setIsAgentWorkspaceOpen] = useState(false);
+  const [isAgentWorkspaceOpen, setIsAgentWorkspaceOpen] = useState(
+    () => initialUiPreferences.current.isAgentWorkspaceOpen,
+  );
   const [isArtifactLibraryOpen, setIsArtifactLibraryOpen] = useState(false);
+  const [workflowWorkspaceRunId, setWorkflowWorkspaceRunId] = useState<string>();
   const [reviewDocumentBlockId, setReviewDocumentBlockId] = useState<string | undefined>();
   const [operationFromImagePicker, setOperationFromImagePicker] = useState<{
     anchor: { x: number; y: number };
@@ -253,6 +269,20 @@ function ReadyApp({
     void loadExecutionProviderSettings(snapshot.project.projectId).catch(() => undefined);
   }, [snapshot.project.projectId]);
   useEffect(() => {
+    const controller = new AbortController();
+    const projectId = snapshot.project.projectId;
+    configureProjectWorkflowRegistry(projectId, []);
+    void loadProjectWorkflowAuthoring(projectId, controller.signal)
+      .then((authoring) => configureProjectWorkflowRegistry(
+        projectId,
+        authoring.revisions
+          .filter((revision) => !authoring.archivedRevisionIds.includes(revision.revisionId))
+          .map((revision) => revision.definition),
+      ))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [snapshot.project.projectId]);
+  useEffect(() => {
     const openDocumentReview = (event: Event) => {
       const detail = (event as CustomEvent<{ blockId?: string }>).detail;
       if (detail?.blockId) setReviewDocumentBlockId(detail.blockId);
@@ -265,7 +295,12 @@ function ReadyApp({
     setInspectorBlockId(undefined);
     setIsHistoryOpen(false);
     setIsArtifactLibraryOpen(false);
+    setWorkflowWorkspaceRunId(undefined);
   }, [snapshot.board.boardId, snapshot.project.projectId]);
+  const closeWorkflowWorkspace = useCallback(
+    () => setWorkflowWorkspaceRunId(undefined),
+    [],
+  );
   const canvasController = useCanvasController({
     connectSessionPorts: connectPorts,
     onPluginContributionFatalFailure,
@@ -629,6 +664,7 @@ function ReadyApp({
     updateSnapshot,
   });
   const agentWorkspaceController = useAgentWorkspaceController({
+    centerBlockGroup,
     focusWorkflowBlocks,
     layoutImageComposerWorkflow,
     locale,
@@ -640,6 +676,17 @@ function ReadyApp({
     t,
     updateSnapshot,
   });
+  useEffect(() => {
+    saveUiPreferences({ isAgentWorkspaceOpen });
+  }, [isAgentWorkspaceOpen]);
+  useEffect(() => {
+    if (!isAgentWorkspaceOpen) return;
+    agentWorkspaceController.ensureDefaultSession();
+  }, [
+    isAgentWorkspaceOpen,
+    snapshot.board.boardId,
+    snapshot.project.projectId,
+  ]);
   const agentAttachmentController = useAgentAttachmentController({
     centeredBlockPosition,
     persistSnapshot,
@@ -720,6 +767,28 @@ function ReadyApp({
   function closeAgentWorkspace(): void {
     setIsAgentWorkspaceOpen(false);
     requestAnimationFrame(() => agentWorkspaceButtonRef.current?.focus());
+  }
+
+  function showAgentRun(agentRunId: string): void {
+    agentWorkspaceController.focusAgentRun(agentRunId);
+    setWorkflowWorkspaceRunId(undefined);
+    setIsAgentWorkspaceOpen(true);
+  }
+
+  function startWorkflowFromWorkspace(workflowRunId: string): void {
+    const agentRunId = agentRuntimeController.createWorkflowAgentRun(workflowRunId);
+    if (agentRunId) showAgentRun(agentRunId);
+  }
+
+  function startWorkflowStepFromWorkspace(
+    workflowRunId: string,
+    stepRunId: string,
+  ): void {
+    const agentRunId = agentRuntimeController.createWorkflowSliceAgentRun(
+      workflowRunId,
+      stepRunId,
+    );
+    if (agentRunId) showAgentRun(agentRunId);
   }
 
   function toggleArtifactLibrary(): void {
@@ -848,6 +917,7 @@ function ReadyApp({
       />
       <TopBar
         agentWorkspaceButtonRef={agentWorkspaceButtonRef}
+        packageBootstrapFailures={packageBootstrapFailures}
         packageLifecycleController={packageLifecycleController}
         onPluginManagerOpenChange={onPluginManagerOpenChange}
         pluginRuntimeController={pluginRuntimeController}
@@ -1084,6 +1154,7 @@ function ReadyApp({
           onCancelAgentRun={agentRuntimeController.cancelAgentRun}
           onClose={closeAgentWorkspace}
           onCreateSession={(connectionId) => agentWorkspaceController.newSession(connectionId)}
+          onDecideWorkflowApproval={workflowRuntimeController.decideWorkflowGate}
           onDecideProposal={agentWorkspaceController.decideProposal}
           onLaunchProposal={(proposalId, expectedProposalVersion, target, agentPresetEntryPointId) =>
             void agentWorkspaceController.launchProposal(
@@ -1093,19 +1164,69 @@ function ReadyApp({
               agentPresetEntryPointId,
             )}
           onLocateBlock={locateBlock}
+          onOpenWorkflowRun={setWorkflowWorkspaceRunId}
           onPauseAgentRun={agentRuntimeController.pauseAgentRun}
+          onPrepareWorkflowReview={(stepRunId) => workflowRuntimeController.prepareWorkflowReview({
+            boardId: snapshot.board.boardId,
+            projectId: snapshot.project.projectId,
+            stepRunId,
+          })}
           onResumeAgentRun={agentRuntimeController.resumeAgentRun}
           onRequestCanvasMode={closeAgentWorkspace}
           onRenameSession={agentWorkspaceController.renameSession}
+          onRerunOperation={(operationBlockId) => runOperation(
+            operationBlockId,
+            false,
+            true,
+          )}
+          onRetryAgentRun={async (agentRunId, retryExecutionId) => {
+            if (!retryExecutionId) {
+              await agentRuntimeController.retryAgentRun(agentRunId);
+              return;
+            }
+            try {
+              await imageOperationController.retryFailedImageExecution(retryExecutionId);
+            } catch {
+              setOperationToast({
+                id: `retry-execution:${retryExecutionId}`,
+                title: t('agentRuntime.actionFailed'),
+                body: t('feedback.codexImageFailed'),
+                tone: 'error',
+              });
+            }
+          }}
           onSelectLaunchConnection={
             imageOperationController.updateOperationConnection
           }
           onSelectAgentRun={agentWorkspaceController.selectAgentRun}
           onSelectSession={agentWorkspaceController.selectSession}
+          onSelectWorkflowOutput={workflowRuntimeController.acceptWorkflowOutput}
           onSubmitMessage={(input) => void agentWorkspaceController.submitMessage(input)}
           onViewProposalEffect={agentWorkspaceController.focusProposalEffect}
           onViewProposalRun={agentWorkspaceController.focusProposalRun}
         />
+      ) : null}
+      {workflowWorkspaceRunId ? (
+        <Suspense fallback={null}>
+          <WorkflowWorkspace
+            activeAgentRun={agentWorkspaceController.selectedSession?.activeAgentRunId
+              ? snapshot.agentRuns?.find((run) => (
+                run.agentRunId
+                  === agentWorkspaceController.selectedSession?.activeAgentRunId
+              ))
+              : undefined}
+            initialWorkflowRunId={workflowWorkspaceRunId}
+            onClose={closeWorkflowWorkspace}
+            onCreateWorkflowRun={workflowRuntimeController.createWorkflowRun}
+            onLocateBlock={locateBlock}
+            onOpenAgentRun={showAgentRun}
+            onProjectWorkflowRevision={workflowDraftController.projectPublishedWorkflowRevision}
+            onStartWorkflowRun={startWorkflowFromWorkspace}
+            onStartWorkflowStep={startWorkflowStepFromWorkspace}
+            selectedBlockIds={selectedBlockIds}
+            snapshot={snapshot}
+          />
+        </Suspense>
       ) : null}
       {reviewDocumentBlock ? (
         <Suspense fallback={null}>
@@ -1138,6 +1259,7 @@ function ReadyApp({
         setHistoryOpen={setIsHistoryOpen}
         setInspectorBlockId={setInspectorBlockId}
         setMiniMapVisible={setIsMiniMapVisible}
+        onOpenWorkflowRun={setWorkflowWorkspaceRunId}
         showGrid={showGrid}
         snapshot={snapshot}
         t={t}

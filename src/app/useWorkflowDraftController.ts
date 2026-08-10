@@ -4,9 +4,13 @@ import type { BoardSnapshot } from '../core/types';
 import { projectWorkflowDraft } from '../core/workflowDraftProjection';
 import type { ResolvedPackageEntryPointTarget } from '../core/packageRegistry';
 import type { ResolvedPackageComposerInvocation } from '../core/packageComposer';
-import { resolvedWorkflowUiDefinitionFor } from '../core/workflowRegistry';
+import {
+  resolvedWorkflowUiDefinitionFor,
+  upsertProjectWorkflowDefinition,
+} from '../core/workflowRegistry';
 import type { useI18n } from '../i18n';
 import { textGenerationLabelsForSkill } from './skillTextLabels';
+import type { ProjectWorkflowRevisionV1 } from '../core/workflowAuthoringContracts';
 
 interface WorkflowDraftControllerOptions {
   centerBlockGroup: (snapshot: BoardSnapshot, blockIds: string[]) => void;
@@ -18,6 +22,12 @@ interface WorkflowDraftControllerOptions {
     updater: (current: BoardSnapshot) => BoardSnapshot,
     options?: { history?: boolean; persist?: boolean; syncFlow?: boolean },
   ) => BoardSnapshot;
+}
+
+export interface ProjectedWorkflowRevisionResult {
+  blockIds: string[];
+  groupBlockId: string;
+  revisionId: string;
 }
 
 export function useWorkflowDraftController(options: WorkflowDraftControllerOptions) {
@@ -77,5 +87,55 @@ export function useWorkflowDraftController(options: WorkflowDraftControllerOptio
     focusWorkflowBlocks(workflowBlockIds);
   }
 
-  return { createWorkflowDraft };
+  function projectPublishedWorkflowRevision(
+    revision: ProjectWorkflowRevisionV1,
+  ): ProjectedWorkflowRevisionResult {
+    let workflowBlockIds: string[] = [];
+    let workflowGroupId = '';
+    const nextSnapshot = updateSnapshot((current) => {
+      if (current.project.projectId !== revision.projectId) {
+        throw new Error(
+          `Project Workflow Revision belongs to another Project: ${revision.projectId}`,
+        );
+      }
+      upsertProjectWorkflowDefinition(revision.projectId, revision.definition);
+      const projection = projectWorkflowDraft(current, {
+        connectionIdForCapability: (capabilityId) => {
+          const definition = capabilityDefinitionFor(capabilityId);
+          const useCase = definition.outputSlots.some((slot) => slot.dataType === 'image')
+            ? 'image'
+            : 'text';
+          return resolveExecutionConnectionPreference({
+            capabilityId,
+            initialConnectionId: 'codex-app-server',
+            projectId: current.project.projectId,
+            useCase,
+          }).connectionId;
+        },
+        labelsForSkill: (skillId) => textGenerationLabelsForSkill(skillId, locale, t),
+        outputPlaceholder: t('workflowDraft.outputPending'),
+        projectionTemplate: revision.projectionTemplate,
+        projectRevisionId: revision.revisionId,
+        workflowDefinition: revision.definition,
+        workflowId: revision.definition.workflowId,
+        workflowTitle: revision.definition.name,
+      });
+      workflowBlockIds = projection.blockIds;
+      workflowGroupId = projection.groupBlock.blockId;
+      centerBlockGroup(current, workflowBlockIds);
+      return current;
+    }, { history: true, persist: true });
+    if (workflowBlockIds.length === 0 || !workflowGroupId) {
+      throw new Error(`Project Workflow Revision projection created no Workflow Group: ${revision.revisionId}`);
+    }
+    setSelectedBlocks(nextSnapshot, workflowGroupId ? [workflowGroupId] : workflowBlockIds);
+    focusWorkflowBlocks(workflowBlockIds);
+    return {
+      blockIds: workflowBlockIds,
+      groupBlockId: workflowGroupId,
+      revisionId: revision.revisionId,
+    };
+  }
+
+  return { createWorkflowDraft, projectPublishedWorkflowRevision };
 }

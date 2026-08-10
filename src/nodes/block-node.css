@@ -50,6 +50,78 @@
   background: var(--retake-success);
 }
 
+.workflow-result-summary-node {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--retake-success) 34%, var(--retake-border));
+  border-radius: 10px;
+  background: var(--retake-surface);
+  box-shadow: 0 5px 16px rgb(16 24 40 / 9%);
+  color: var(--retake-text-primary);
+  cursor: pointer;
+}
+
+.workflow-result-summary-node.is-selected {
+  border-color: var(--retake-accent);
+  box-shadow: 0 0 0 2px var(--retake-accent-ring), 0 7px 20px rgb(16 24 40 / 12%);
+}
+
+.workflow-result-summary-preview {
+  display: grid;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--retake-success-soft);
+  color: var(--retake-success);
+}
+
+.workflow-result-summary-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.workflow-result-summary-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.workflow-result-summary-copy small {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--retake-success);
+  font-size: 10px;
+  font-weight: 720;
+}
+
+.workflow-result-summary-copy strong,
+.workflow-result-summary-copy > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-result-summary-copy strong { font-size: 12px; }
+.workflow-result-summary-copy > span { color: var(--retake-text-muted); font-size: 10px; }
+
+.workflow-result-summary-node .react-flow__handle {
+  width: 7px;
+  height: 7px;
+  border: 1px solid white;
+  background: var(--retake-success);
+}
+
 .block-node-text {
   cursor: text;
 }
@@ -84,6 +156,15 @@
   box-shadow:
     0 0 0 2px var(--retake-accent-ring),
     0 10px 26px rgb(16 24 40 / 13%);
+}
+
+.block-node.is-workflow-historical-result {
+  opacity: 0.52;
+}
+
+.block-node.is-workflow-historical-result:hover,
+.block-node.is-workflow-historical-result.is-selected {
+  opacity: 1;
 }
 
 .block-node .react-flow__handle {
@@ -144,6 +225,29 @@
 
 .react-flow__edge.is-connected-to-selection .react-flow__edge-text {
   fill: var(--retake-accent);
+}
+
+.react-flow__edge.is-workflow-edge .react-flow__edge-path {
+  stroke: color-mix(in srgb, var(--retake-accent) 68%, var(--retake-text-muted));
+  stroke-width: 1.8;
+}
+
+.react-flow__edge.is-workflow-edge.is-execution-output .react-flow__edge-path {
+  stroke-width: 2;
+}
+
+.react-flow__edge.is-workflow-edge.is-visual-note .react-flow__edge-path {
+  stroke: var(--retake-text-subtle);
+  stroke-dasharray: 5 4;
+}
+
+.react-flow__edge.is-workflow-edge.is-connected-to-selection .react-flow__edge-path {
+  stroke: var(--retake-accent);
+}
+
+.react-flow__handle.workflow-routing-handle {
+  opacity: 0;
+  pointer-events: none;
 }
 
 
@@ -344,6 +448,39 @@
 .operation-dirty-status {
   background: #fff7ed;
   color: #c2410c;
+}
+
+.workflow-step-status {
+  max-width: 116px;
+  overflow: hidden;
+  background: var(--retake-surface-subtle);
+  color: var(--retake-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-step-status.status-ready,
+.workflow-step-status.status-queued,
+.workflow-step-status.status-running {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.workflow-step-status.status-waiting_input,
+.workflow-step-status.status-waiting_selection {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.workflow-step-status.status-succeeded {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.workflow-step-status.status-blocked,
+.workflow-step-status.status-failed {
+  background: #fef2f2;
+  color: #b91c1c;
 }
 
 .operation-capability-control {

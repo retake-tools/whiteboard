@@ -117,6 +117,7 @@ export interface WorkflowRunRecord {
   recordVersion: number;
   status: WorkflowRunStatus;
   sourcePackageLock?: PackageLock;
+  sourceWorkflowRevisionId?: string;
   sourceChangeProposalId?: string;
   sourceDraftLaunchIdempotencyKey?: string;
   stageDefinitionLocks?: WorkflowStageDefinitionLock[];
@@ -129,7 +130,8 @@ export interface WorkflowRunRecord {
 
 export interface WorkflowStepRunRecord {
   acceptedAt?: string;
-  acceptedBy?: 'user';
+  acceptedBy?: 'agent' | 'user';
+  acceptanceReason?: string;
   acceptedOutputAssetIds: string[];
   capabilityLock: CapabilityDefinitionLock;
   createdAt: string;

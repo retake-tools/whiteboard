@@ -507,6 +507,7 @@ export async function saveAgentRuntimeDefault(input: {
 export async function resolveExecutionConnection(connectionId: string): Promise<{
   connectionId: string;
   connectorId: string;
+  templateId?: string;
   providerLabel: string;
   apiKey: string;
   baseUrl: string;
@@ -521,6 +522,7 @@ export async function resolveExecutionConnection(connectionId: string): Promise<
   return {
     connectionId,
     connectorId: connection.connectorId,
+    ...(connection.templateId ? { templateId: connection.templateId } : {}),
     providerLabel: connection.providerLabel,
     apiKey,
     baseUrl: connection.baseUrl.replace(/\/$/, ''),

@@ -240,8 +240,28 @@ export async function reconcilePluginWebModules(input: {
   const retainedKeys = new Set(
     resolved.flatMap((entry) => entry.ok ? [entry.cacheKey] : []),
   );
+  const resolvedModuleIds = new Set(
+    resolved.flatMap((entry) => (
+      entry.ok ? [entry.session.record.pluginModuleId] : []
+    )),
+  );
+  const awaitingReplacement = input.snapshot.modules
+    .filter((record) => (
+      record.desiredState === 'enabled'
+      && !resolvedModuleIds.has(record.pluginModuleId)
+    ))
+    .map((record) => ({
+      candidateKey: moduleCacheKey(record),
+      pluginModuleId: record.pluginModuleId,
+    }));
   const stale = [...activatedModules.entries()].filter(
-    ([key]) => !retainedKeys.has(key),
+    ([key]) => (
+      !retainedKeys.has(key)
+      && !awaitingReplacement.some((candidate) => (
+        key !== candidate.candidateKey
+        && key.startsWith(`${candidate.pluginModuleId}@`)
+      ))
+    ),
   );
   await Promise.all(stale.map(async ([key, activation]) => {
     activatedModules.delete(key);

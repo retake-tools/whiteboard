@@ -76,7 +76,7 @@ export function buildGoalPlanInstantiationCommand(
       packageInstallCount: 0,
     },
     coverage: input.coverage,
-    goal: source.content.trim(),
+    goal: goalPlanGoalForSource(snapshot, source),
     goalPlanId: `goal_plan_${input.proposalId}`,
     limitations: normalizeLimitations(input.limitations),
     selectedWorkflow: {
@@ -97,6 +97,7 @@ export function buildGoalPlanInstantiationCommand(
   };
   const draftSource: AgentMessageRecord = {
     ...structuredClone(source),
+    content: goalPlan.goal,
     contextRefs: [
       {
         entrypointId: resolution.target.entrypoint.entrypointId,
@@ -157,6 +158,31 @@ export function assertCurrentGoalPlanCommand(
   if (JSON.stringify(expected) !== JSON.stringify(command)) {
     throw new Error('Goal Plan command no longer matches its source message and installed Workflow.');
   }
+}
+
+function goalPlanGoalForSource(
+  snapshot: BoardSnapshot,
+  source: AgentMessageRecord,
+): string {
+  const content = source.content.trim();
+  if (!isContinuationMessage(content)) return content;
+  const messages = (snapshot.agentMessages ?? [])
+    .filter((message) => message.agentSessionId === source.agentSessionId)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  const sourceIndex = messages.findIndex(
+    (message) => message.agentMessageId === source.agentMessageId,
+  );
+  if (sourceIndex < 1) return content;
+  const context = messages
+    .slice(Math.max(0, sourceIndex - 4), sourceIndex + 1)
+    .filter((message) => message.role === 'user' || message.role === 'assistant')
+    .map((message) => `${message.role === 'user' ? '用户' : 'Agent'}：${message.content.trim()}`)
+    .filter((value) => !value.endsWith('：'));
+  return context.length > 1 ? context.join('\n') : content;
+}
+
+function isContinuationMessage(content: string): boolean {
+  return /^(?:好的?[，,。\s]*)?(?:继续|开始|开始吧|继续吧|可以|确认)(?:了?[。！!\s]*)$/u.test(content);
 }
 
 export function goalSourceMessageFingerprint(source: AgentMessageRecord): string {

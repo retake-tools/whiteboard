@@ -155,12 +155,73 @@ assert.equal(gateSlice.record.status, 'succeeded');
 assert.equal(gateSlice.record.stopReason, 'slice_target_satisfied');
 assert.notEqual(workflowRunViewForId(gateSnapshot, gateWorkflow.workflowRunId)?.status, 'succeeded');
 
+const retrySnapshot = await workflowSnapshot();
+const retryWorkflow = requiredWorkflowRun(retrySnapshot);
+const retryStep = stepFor(retrySnapshot, retryWorkflow.workflowRunId, 'screenplay_generate');
+const firstFailedExecution = queueStep(
+  retrySnapshot,
+  blockFor(retrySnapshot, retryStep.operationBlockId),
+);
+firstFailedExecution.status = 'failed';
+firstFailedExecution.errorMessage = 'Provider returned an empty result.';
+reconcileWorkflowRuntime(retrySnapshot);
+assert.equal(retryStep.status, 'failed');
+
+const retrySlice = createAgentRunForWorkflowSlice(
+  retrySnapshot,
+  retryWorkflow.workflowRunId,
+  retryStep.stepRunId,
+);
+startAgentRun(retrySnapshot, retrySlice.record.agentRunId);
+reconcileAgentRuntime(retrySnapshot);
+assert.equal(retrySlice.record.status, 'running');
+assert.deepEqual(
+  retrySlice.record.executionIds,
+  [],
+  'A new Agent Run must not inherit a previous Agent Run or manual Execution.',
+);
+action = nextAgentRunExecutionAction(retrySnapshot);
+assert.equal(action?.stepRunId, retryStep.stepRunId);
+
+const secondFailedExecution = queueStep(
+  retrySnapshot,
+  blockFor(retrySnapshot, action!.operationBlockId),
+);
+attachAgentRunExecution(retrySnapshot, retrySlice.record.agentRunId, secondFailedExecution.executionId);
+assert.deepEqual(retryStep.executionIds, [
+  firstFailedExecution.executionId,
+  secondFailedExecution.executionId,
+]);
+retryStep.executionIds = [firstFailedExecution.executionId];
+reconcileWorkflowRuntime(retrySnapshot);
+reconcileAgentRuntime(retrySnapshot);
+assert.equal(retrySlice.record.status, 'running');
+assert.deepEqual(
+  retrySlice.record.executionIds,
+  [secondFailedExecution.executionId],
+  'AgentRun ownership must remain observable while a concurrent save temporarily drops StepRun lineage.',
+);
+assert.equal(
+  nextAgentRunExecutionAction(retrySnapshot),
+  undefined,
+  'An owned active Execution must prevent automatic redispatch when StepRun lineage is temporarily stale.',
+);
+retryStep.executionIds = [firstFailedExecution.executionId, secondFailedExecution.executionId];
+secondFailedExecution.status = 'failed';
+secondFailedExecution.errorMessage = 'Retry also failed.';
+reconcileAgentRuntime(retrySnapshot);
+assert.equal(retrySlice.record.status, 'needs_attention');
+assert.deepEqual(retrySlice.record.executionIds, [secondFailedExecution.executionId]);
+assert.equal(nextAgentRunExecutionAction(retrySnapshot), undefined);
+
 console.log(JSON.stringify({
   ok: true,
   target: 'workflow_slice.until_step',
   dependencyClosureFrozen: true,
   outsideParallelStepIgnored: true,
   requiredHumanGateEnforced: true,
+  failedStepRetryCreatesNewExecution: true,
+  staleLineageDoesNotRedispatch: true,
   workflowStatusPreserved: true,
 }));
 

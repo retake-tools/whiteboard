@@ -3,6 +3,10 @@ import {
   tryCapabilityDefinitionFor,
 } from './capabilityRegistry';
 import type { CapabilityCardinality, CapabilityDataType } from './capabilityContracts';
+import {
+  imageGenerateCapabilityId,
+  validateImageGenerateParametersV1,
+} from './imageGenerateContracts';
 import { skillDefinitionFor } from './skillRegistry';
 
 export type WorkflowStepType = 'capability';
@@ -36,10 +40,12 @@ export interface WorkflowCapabilityStepDefinition {
     version: string;
   };
   dependsOn: string[];
+  defaultParameters?: Record<string, unknown>;
   inputBindings: WorkflowStepInputBinding[];
   optional: boolean;
   outputAcceptancePolicy?: WorkflowOutputAcceptancePolicy;
   outputSlots: string[];
+  parameters?: Record<string, unknown>;
   runPolicy: WorkflowRunPolicy;
   skillLock: {
     definitionHash: string;
@@ -52,6 +58,7 @@ export interface WorkflowCapabilityStepDefinition {
 }
 
 export interface WorkflowOutputSlotDefinition {
+  artifactType?: string;
   exposedAsIntermediate: boolean;
   slotId: string;
   source: Extract<WorkflowBindingSource, { kind: 'step_output' }>;
@@ -114,6 +121,10 @@ export interface ResolvedWorkflowUiDefinition {
 }
 
 let activeWorkflows: WorkflowDefinition[] = [];
+let activeProjectWorkflowScope: {
+  definitions: WorkflowDefinition[];
+  projectId: string;
+} | undefined;
 
 export function listWorkflows(): WorkflowDefinition[] {
   return structuredClone(activeWorkflows);
@@ -134,8 +145,61 @@ export function configureWorkflowRegistry(
   activeWorkflows = structuredClone(definitions);
 }
 
-export function workflowDefinitionFor(workflowId: string): WorkflowDefinition {
-  const definition = activeWorkflows.find((candidate) => candidate.workflowId === workflowId);
+export function configureProjectWorkflowRegistry(
+  projectId: string,
+  definitions: WorkflowDefinition[],
+): void {
+  const installedIds = new Set(activeWorkflows.map((definition) => definition.workflowId));
+  const identities = new Set<string>();
+  for (const definition of definitions) {
+    if (installedIds.has(definition.workflowId)) {
+      throw new Error(`Project Workflow cannot override Installed Workflow: ${definition.workflowId}`);
+    }
+    const identity = `${definition.workflowId}\u0000${definition.version}\u0000${definition.definitionHash}`;
+    if (identities.has(identity)) {
+      throw new Error(`Duplicate Project Workflow definition: ${definition.workflowId}@${definition.version}`);
+    }
+    identities.add(identity);
+    const issues = validateWorkflowDefinition(definition);
+    if (issues.length > 0) throw new Error(issues.join('\n'));
+  }
+  activeProjectWorkflowScope = {
+    definitions: structuredClone(definitions),
+    projectId,
+  };
+}
+
+export function upsertProjectWorkflowDefinition(
+  projectId: string,
+  definition: WorkflowDefinition,
+): void {
+  const current = activeProjectWorkflowScope?.projectId === projectId
+    ? activeProjectWorkflowScope.definitions
+    : [];
+  configureProjectWorkflowRegistry(projectId, [
+    ...current.filter((candidate) => !(
+      candidate.workflowId === definition.workflowId
+      && candidate.version === definition.version
+      && candidate.definitionHash === definition.definitionHash
+    )),
+    definition,
+  ]);
+}
+
+export function workflowDefinitionFor(
+  workflowId: string,
+  lock?: { definitionHash?: string; version?: string },
+): WorkflowDefinition {
+  const matches = [
+    ...activeWorkflows,
+    ...(activeProjectWorkflowScope?.definitions ?? []),
+  ].filter((candidate) => (
+    candidate.workflowId === workflowId
+    && (!lock?.version || candidate.version === lock.version)
+    && (!lock?.definitionHash || candidate.definitionHash === lock.definitionHash)
+  ));
+  if (matches.length > 1) throw new Error(`Workflow definition is ambiguous: ${workflowId}`);
+  const definition = matches[0];
   if (!definition) throw new Error(`Workflow definition not found: ${workflowId}`);
   return structuredClone(definition);
 }
@@ -224,6 +288,24 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
     )) {
       issues.push(`Skill does not bind Workflow capability: ${step.stepId}.${skill.skillId}`);
     }
+    for (const [parameterKind, parameters] of [
+      ['default parameters', step.defaultParameters],
+      ['parameters', step.parameters],
+    ] as const) {
+      if (parameters === undefined) continue;
+      if (!isWorkflowStepParameters(parameters)) {
+        issues.push(`Workflow Step ${parameterKind} must be an object: ${step.stepId}`);
+      } else if (step.capabilityLock.capabilityId === imageGenerateCapabilityId) {
+        const connectionId = parameters.connectionId;
+        if (connectionId !== undefined && (typeof connectionId !== 'string' || !connectionId.trim())) {
+          issues.push(`Workflow image Step ${parameterKind} connectionId is invalid: ${step.stepId}`);
+        }
+        const { connectionId: _connectionId, ...generationParameters } = parameters;
+        for (const issue of validateImageGenerateParametersV1(generationParameters)) {
+          issues.push(`Workflow image Step ${parameterKind} are invalid: ${step.stepId}.${issue}`);
+        }
+      }
+    }
     for (const dependencyId of step.dependsOn) {
       if (dependencyId === step.stepId || !stepById.has(dependencyId)) {
         issues.push(`Invalid Workflow dependency: ${step.stepId}.${dependencyId}`);
@@ -258,6 +340,7 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
         }
         if (
           targetSlot.artifactTypes.length > 0
+          && sourceSlot.artifactTypes.length > 0
           && !sourceSlot.artifactTypes.some((artifactType) => targetSlot.artifactTypes.includes(artifactType))
         ) {
           issues.push(`Workflow input artifact type mismatch: ${step.stepId}.${binding.inputSlotId}`);
@@ -323,8 +406,15 @@ export function validateWorkflowDefinition(workflow: WorkflowDefinition): string
     if (!step?.outputSlots.includes(output.source.outputSlotId)) {
       issues.push(`Workflow output uses unknown step output: ${output.slotId}`);
     }
+    if (output.artifactType !== undefined && !output.artifactType.trim()) {
+      issues.push(`Workflow output artifactType is empty: ${output.slotId}`);
+    }
   }
   return issues;
+}
+
+function isWorkflowStepParameters(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 function validateWorkflowStages(

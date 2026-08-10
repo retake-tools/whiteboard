@@ -25,6 +25,7 @@ import { App } from './App';
 import { I18nProvider } from './i18n';
 import {
   bootstrapInstalledRuntimeRegistry,
+  confirmPluginActivation,
   reportPluginFatalFailure,
 } from './core/installedRuntimeRegistryClient';
 import {
@@ -62,7 +63,9 @@ import {
 import {
   resolveCandidateActivationDecision,
 } from './core/pluginDevelopmentActivation';
+import { installResizeObserverErrorGuard } from './core/resizeObserverErrorGuard';
 
+installResizeObserverErrorGuard();
 installPluginHostExternals();
 const root = createRoot(document.getElementById('root')!);
 const pluginContributionRegistry = createPluginContributionRegistry();
@@ -172,12 +175,9 @@ async function applyPluginRuntimeSnapshot(
       record.pluginModuleId,
       record.manifest.permissions,
     ),
-    onFatalFailure: async (pluginModuleId, message) => {
+    onFatalFailure: async (pluginModuleId) => {
       pluginContributionRegistry.removeModule(pluginModuleId);
       pluginHostReadStore.abortModuleExecutions(pluginModuleId);
-      if (!candidateModuleIds.has(pluginModuleId)) {
-        await reportPluginFatalFailure(pluginModuleId, message);
-      }
     },
     snapshot: effectiveSnapshot,
     validateSessions: (sessions) => (
@@ -187,6 +187,37 @@ async function applyPluginRuntimeSnapshot(
   if (pluginModules.failures.length > 0) {
     console.error('Retake Plugin activation failed.', pluginModules.failures);
   }
+  await Promise.all([
+    ...pluginModules.fallbacks
+      .filter((fallback) => !candidateModuleIds.has(fallback.pluginModuleId))
+      .map((fallback) => reportPluginFatalFailure(
+        fallback.pluginModuleId,
+        fallback.error,
+        {
+          rejectedDigest: fallback.rejectedDigest,
+          retainedDigest: fallback.retainedDigest,
+        },
+      )),
+    ...pluginModules.failures
+      .filter((failure) => !candidateModuleIds.has(failure.pluginModuleId))
+      .map((failure) => reportPluginFatalFailure(
+        failure.pluginModuleId,
+        failure.error,
+      )),
+  ]);
+  const fallbackModuleIds = new Set(
+    pluginModules.fallbacks.map((fallback) => fallback.pluginModuleId),
+  );
+  await Promise.all(pluginModules.sessions
+    .filter((session) => (
+      !candidateModuleIds.has(session.record.pluginModuleId)
+      && !fallbackModuleIds.has(session.record.pluginModuleId)
+    ))
+    .map((session) => confirmPluginActivation({
+      packageDigest: session.record.packageLock.digest,
+      packageId: session.record.packageLock.packageId,
+      pluginModuleId: session.record.pluginModuleId,
+    })));
   const rejectedCandidate = await resolveLinkedDevelopmentCandidates(
     development,
     effectiveSnapshot,
@@ -200,7 +231,9 @@ async function applyPluginRuntimeSnapshot(
         pluginModuleId: entry.pluginModuleId,
       })),
   );
-  return pluginModules.failures.length > 0 || rejectedCandidate
+  return pluginModules.failures.length > 0
+    || pluginModules.fallbacks.length > 0
+    || rejectedCandidate
     ? loadPluginRuntimeSnapshot()
     : baseSnapshot;
 }
@@ -257,7 +290,7 @@ async function resolveLinkedDevelopmentCandidates(
 }
 
 void bootstrapInstalledRuntimeRegistry()
-  .then(async ({ pluginRuntime }) => {
+  .then(async ({ packageFailures, pluginRuntime }) => {
     const profile = await loadPluginProfile();
     pluginContributionRegistry.setCommandExperience(
       (await loadPluginExperience()).commandOverrides,
@@ -278,6 +311,7 @@ void bootstrapInstalledRuntimeRegistry()
       <StrictMode>
         <I18nProvider>
           <App
+            packageBootstrapFailures={packageFailures}
             onPluginContributionFatalFailure={(pluginModuleId, message) => {
               pluginContributionRegistry.failModule(pluginModuleId, message);
               pluginHostReadStore.abortModuleExecutions(pluginModuleId);

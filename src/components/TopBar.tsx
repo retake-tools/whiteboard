@@ -24,6 +24,7 @@ import {
   Settings,
   Sparkles,
   Trash2,
+  TriangleAlert,
   Undo2,
   X,
 } from 'lucide-react';
@@ -31,6 +32,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExtern
 import type { BoardBackgroundV1, BoardSnapshot, WorkspaceSummary } from '../core/types';
 import type { PluginRuntimeControllerV1 } from '../core/pluginRuntimeManagementClient';
 import type { PackageLifecycleControllerV1 } from '../core/packageLifecycleClient';
+import type { PackageBootstrapNoticeV1 } from '../core/installedRuntimeRegistryClient';
 import { loadUiPreferences, saveUiPreferences } from '../core/uiPreferences';
 import { useI18n, type Locale } from '../i18n';
 import { ProjectBoardMenu } from './ProjectBoardMenu';
@@ -92,6 +94,7 @@ interface TopBarProps {
   pluginRuntimeController?: PluginRuntimeControllerV1;
   packageLifecycleController?: PackageLifecycleControllerV1;
   onPluginManagerOpenChange?: (open: boolean) => void;
+  packageBootstrapFailures?: PackageBootstrapNoticeV1[];
 }
 
 export function TopBar({
@@ -127,6 +130,7 @@ export function TopBar({
   onUndo,
   onRedo,
   pluginRuntimeController,
+  packageBootstrapFailures = [],
   packageLifecycleController,
   onPluginManagerOpenChange,
   isHistoryOpen,
@@ -498,7 +502,9 @@ export function TopBar({
           <Bot size={16} strokeWidth={1.75} />
         </TooltipIconButton>
       ) : null}
-      {packageLifecycleController ? (
+      {packageBootstrapFailures.length > 0 ? (
+        <PackageFailureBanner failures={packageBootstrapFailures} />
+      ) : packageLifecycleController ? (
         <PackageUpdateBanner
           controller={packageLifecycleController}
           onOpen={() => setIsPluginManagerOpen(true)}
@@ -569,6 +575,93 @@ export function TopBar({
 
 const packageUpdateDismissalsKey =
   'retake.package-update-dismissals.v1';
+
+export function PackageFailureBanner({
+  failures,
+}: {
+  failures: PackageBootstrapNoticeV1[];
+}): ReactElement | null {
+  const { locale, t } = useI18n();
+  const [dismissed, setDismissed] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  if (dismissed || failures.length === 0) return null;
+  const candidateFailureCount = failures.filter(
+    (failure) => failure.source === 'distribution',
+  ).length;
+  const activeFailureCount = failures.length - candidateFailureCount;
+  const messages = [
+    candidateFailureCount > 0
+      ? countedPackageMessage(
+          candidateFailureCount,
+          t('packageLibrary.candidateFailuresBanner'),
+          locale,
+        )
+      : null,
+    activeFailureCount > 0
+      ? countedPackageMessage(
+          activeFailureCount,
+          t('packageLibrary.failuresIsolatedBanner'),
+          locale,
+        )
+      : null,
+  ].filter((message): message is string => Boolean(message));
+  const details = failures.map((failure) => (
+    `${failure.packageId ?? 'bootstrap'}${failure.version ? `@${failure.version}` : ''}: ${failure.error}`
+  )).join('\n');
+  return (
+    <aside
+      className="package-update-banner is-failure"
+      role="status"
+      title={details}
+    >
+      <div className="package-update-banner-main">
+        <span>
+          <TriangleAlert size={15} />
+          {messages.join(locale === 'zh' ? '；' : '; ')}
+        </span>
+        <div className="package-update-banner-actions">
+          <button
+            type="button"
+            className="package-update-banner-details-toggle"
+            aria-expanded={detailsOpen}
+            onClick={() => setDetailsOpen((current) => !current)}
+          >
+            {detailsOpen
+              ? t('packageLibrary.hideFailureDetails')
+              : t('packageLibrary.viewFailureDetails')}
+          </button>
+          <button
+            type="button"
+            className="package-update-banner-dismiss"
+            aria-label={t('packageLibrary.dismissFailures')}
+            onClick={() => setDismissed(true)}
+          >
+            <X size={15} />
+          </button>
+        </div>
+      </div>
+      {detailsOpen ? (
+        <ul className="package-update-banner-failure-details">
+          {failures.map((failure, index) => (
+            <li key={`${failure.source}:${failure.packageId}:${failure.version}:${index}`}>
+              {failure.packageId ?? 'bootstrap'}
+              {failure.version ? `@${failure.version}` : ''}
+              {' · '}{failure.error}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </aside>
+  );
+}
+
+function countedPackageMessage(
+  count: number,
+  message: string,
+  locale: Locale,
+): string {
+  return locale === 'zh' ? `${count}${message}` : `${count} ${message}`;
+}
 
 export function PackageUpdateBanner({
   controller,

@@ -16,6 +16,10 @@
   pointer-events: auto;
 }
 
+.plugin-panel-host__panel:empty {
+  display: none;
+}
+
 .plugin-panel-host__fallback {
   align-items: flex-start;
   background: color-mix(in srgb, var(--retake-surface) 94%, transparent);

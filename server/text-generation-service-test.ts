@@ -385,7 +385,56 @@ assert.equal(completedStoryboardExecution?.capabilityId, 'previs.storyboard.plan
 assert.equal(completedStoryboardExecution?.skillId, 'retake.storyboard-plan.from-production-design');
 assert.equal(storyboardResultBlock?.data.documentKind, 'storyboard_plan');
 
+const emptyDraft = createDraftTextGenerationOperation(completed, {
+  ...labels,
+  connectionId: readyOpenAIConnection!.connectionId,
+});
+emptyDraft.promptBlock.data.body = 'Return a non-empty Markdown document.';
+const emptyRun = executeExistingTextGenerationOperation(completed, {
+  connection: readyOpenAIConnection!,
+  labels,
+  operationBlockId: emptyDraft.operationBlock.blockId,
+});
+await saveSnapshot(completed);
+const emptyStarted = await startTextGeneration({
+  projectId: completed.project.projectId,
+  boardId: completed.board.boardId,
+  executionId: emptyRun.execution.executionId,
+  connectionId: readyOpenAIConnection!.connectionId,
+}, {
+  generateOpenAICompatible: async () => ({
+    text: '',
+    finishReason: 'length',
+    usage: {
+      outputTokenDetails: { reasoningTokens: 4_096 },
+      outputTokens: 4_096,
+    },
+  }),
+});
+await assert.rejects(
+  emptyStarted.completion,
+  /empty text result \(finishReason=length, reasoningTokens=4096\)/,
+);
+completed = await loadSnapshot(completed.project.projectId, completed.board.boardId);
+const emptyExecution = completed.executions.find(
+  (execution) => execution.executionId === emptyRun.execution.executionId,
+);
+assert.equal(emptyExecution?.status, 'failed');
+assert.equal(emptyExecution?.params?.textGeneration && typeof emptyExecution.params.textGeneration === 'object'
+  ? (emptyExecution.params.textGeneration as { finishReason?: string }).finishReason
+  : undefined, 'length');
+assert.deepEqual(
+  emptyExecution?.params?.textGeneration && typeof emptyExecution.params.textGeneration === 'object'
+    ? (emptyExecution.params.textGeneration as { usage?: Record<string, unknown> }).usage
+    : undefined,
+  {
+    outputTokenDetails: { reasoningTokens: 4_096 },
+    outputTokens: 4_096,
+  },
+);
+
 console.log(JSON.stringify({
+  emptyResultDiagnosticsPreserved: true,
   ok: true,
   capabilityId: completedSkillExecution?.capabilityId,
   frozenSkillSnapshot: true,

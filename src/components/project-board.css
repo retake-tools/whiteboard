@@ -255,10 +255,8 @@
 }
 
 .project-board-action-menu {
-  position: absolute;
-  top: calc(100% + 5px);
-  right: 0;
-  z-index: 90;
+  position: fixed;
+  z-index: 120;
   display: grid;
   min-width: 128px;
   padding: 5px;

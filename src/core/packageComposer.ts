@@ -51,6 +51,29 @@ export interface PackageComposerParametersValue {
   value: Record<string, unknown>;
 }
 
+export function packageComposerParametersWithAgentPreferences(
+  parameters: Record<string, unknown> | undefined,
+  preferences: {
+    aspectRatioPreset?: string;
+    connectionId?: string;
+    targetResolution?: string;
+    variationCount?: 1 | 2 | 3 | 4;
+  },
+): Record<string, unknown> {
+  const resolved = structuredClone(parameters ?? {});
+  for (const key of [
+    'aspectRatioPreset',
+    'connectionId',
+    'targetResolution',
+    'variationCount',
+  ] as const) {
+    if (resolved[key] === undefined && preferences[key] !== undefined) {
+      resolved[key] = preferences[key];
+    }
+  }
+  return resolved;
+}
+
 export type PackageComposerMentionOption = PackageComposerMention & {
   artifactType?: string;
   dataType: Extract<CapabilityDataType, 'document' | 'image' | 'text'>;

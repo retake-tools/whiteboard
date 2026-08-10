@@ -10,7 +10,13 @@ import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
 import { useUnifiedComposerDraft } from './UnifiedComposerProvider';
 
-export function AgentComposerPreferencesControls(): ReactElement {
+export function AgentComposerPreferencesControls({
+  compact = false,
+  workflowSelected = false,
+}: {
+  compact?: boolean;
+  workflowSelected?: boolean;
+}): ReactElement {
   const { t } = useI18n();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -22,18 +28,27 @@ export function AgentComposerPreferencesControls(): ReactElement {
   );
   const { agentPreferences, setAgentPreferences } = useUnifiedComposerDraft();
   const availableModes = useMemo(() => listAvailableComposerModes(settings), [settings]);
+  const hasMediaMode = availableModes.some(
+    (mode) => mode.mode === 'image' || mode.mode === 'video',
+  );
+  const effectiveOutputType = workflowSelected ? 'image' : agentPreferences.outputType;
   const mediaConnections = useMemo(() => settings?.connections.filter(
     (connection) =>
       connection.enabled
       && connection.status === 'ready'
       && connection.connectorId !== 'codex-managed'
-      && agentPreferences.outputType !== 'auto'
-      && connection.enabledUseCases.includes(agentPreferences.outputType),
-  ) ?? [], [agentPreferences.outputType, settings]);
+      && effectiveOutputType !== 'auto'
+      && connection.enabledUseCases.includes(effectiveOutputType),
+  ) ?? [], [effectiveOutputType, settings]);
   const selectedConnection = mediaConnections.find(
     (connection) => connection.connectionId === agentPreferences.connectionId,
   );
-  const preferenceSummary = agentPreferences.outputType === 'auto' ? [] : [
+  const preferenceSummary = workflowSelected ? [
+    selectedConnection?.displayName,
+    agentPreferences.aspectRatioPreset,
+    agentPreferences.targetResolution,
+    agentPreferences.variationCount ? `${agentPreferences.variationCount}x` : undefined,
+  ].filter((value): value is string => Boolean(value)) : agentPreferences.outputType === 'auto' ? [] : [
     agentPreferences.outputType === 'image'
       ? t('skillComposer.modeImage')
       : agentPreferences.outputType === 'video'
@@ -59,17 +74,33 @@ export function AgentComposerPreferencesControls(): ReactElement {
         type="button"
         className="agent-composer-preferences-trigger"
         aria-expanded={open}
+        aria-label={t(workflowSelected
+          ? 'skillComposer.workflowImageDefaults'
+          : 'skillComposer.outputPreferences')}
+        title={t(workflowSelected
+          ? 'skillComposer.workflowImageDefaults'
+          : 'skillComposer.outputPreferences')}
         onClick={() => setOpen((current) => !current)}
       >
         <SlidersHorizontal size={14} strokeWidth={1.75} />
         <span>{preferenceSummary.length
           ? preferenceSummary.join(' · ')
-          : t('skillComposer.taskPreferences')}</span>
+          : t(workflowSelected
+            ? compact
+              ? 'skillComposer.workflowImageSettings'
+              : 'skillComposer.workflowImageDefaults'
+            : 'skillComposer.outputPreferences')}</span>
         <ChevronDown size={12} strokeWidth={1.75} />
       </button>
       {open ? (
-        <div className="agent-composer-preferences-popover" role="dialog" aria-label={t('skillComposer.taskPreferences')}>
-          {availableModes.length > 2 ? (
+        <div
+          className="agent-composer-preferences-popover"
+          role="dialog"
+          aria-label={t(workflowSelected
+            ? 'skillComposer.workflowImageDefaults'
+            : 'skillComposer.outputPreferences')}
+        >
+          {!workflowSelected && hasMediaMode ? (
             <PreferenceOptionGroup
               label={t('skillComposer.outputType')}
               options={[
@@ -87,15 +118,15 @@ export function AgentComposerPreferencesControls(): ReactElement {
               }))}
             />
           ) : null}
-          {agentPreferences.outputType !== 'auto' ? (
+          {effectiveOutputType !== 'auto' ? (
             <>
               <PreferenceOptionGroup
                 isWide
-                label={agentPreferences.outputType === 'image'
+                label={effectiveOutputType === 'image'
                   ? t('skillComposer.imageExecutionConnection')
                   : t('skillComposer.videoExecutionConnection')}
                 options={[
-                  mediaDefaultOption(settings, agentPreferences.outputType, t),
+                  mediaDefaultOption(settings, effectiveOutputType, t),
                   ...mediaConnections.map((connection) => ({
                     description: connection.modelId,
                     label: connection.displayName,
@@ -132,19 +163,21 @@ export function AgentComposerPreferencesControls(): ReactElement {
                   targetResolution: value || undefined,
                 }))}
               />
-              <PreferenceOptionGroup
-                label={t('skillComposer.candidateCount')}
-                options={[
-                  { label: t('skillComposer.useDefaultValue'), value: '' },
-                  ...[1, 2, 3, 4].map((value) => ({ label: `${value}x`, value: String(value) })),
-                ]}
-                selected={agentPreferences.variationCount ? String(agentPreferences.variationCount) : ''}
-                onSelect={(value) => setAgentPreferences((current) => ({
-                  ...current,
-                  variationCount: value ? Number(value) as 1 | 2 | 3 | 4 : undefined,
-                }))}
-              />
             </>
+          ) : null}
+          {effectiveOutputType !== 'auto' ? (
+            <PreferenceOptionGroup
+              label={t('skillComposer.candidateCount')}
+              options={[
+                { label: t('skillComposer.useDefaultValue'), value: '' },
+                ...[1, 2, 3, 4].map((value) => ({ label: `${value}x`, value: String(value) })),
+              ]}
+              selected={agentPreferences.variationCount ? String(agentPreferences.variationCount) : ''}
+              onSelect={(value) => setAgentPreferences((current) => ({
+                ...current,
+                variationCount: value ? Number(value) as 1 | 2 | 3 | 4 : undefined,
+              }))}
+            />
           ) : null}
         </div>
       ) : null}

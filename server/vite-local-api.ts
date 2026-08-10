@@ -28,6 +28,13 @@ import {
   saveSnapshot,
   ArtifactWriteConflictError,
   SnapshotWriteConflictError,
+  WorkflowAuthoringConflictError,
+  WorkflowAuthoringValidationError,
+  archiveProjectWorkflowRevision,
+  forkProjectWorkflowDraft,
+  publishProjectWorkflowDraft,
+  readProjectWorkflowAuthoring,
+  saveProjectWorkflowDraft,
   setCodexProjectBinding,
   updateImageResultBlock,
   validateCodexProjectBinding,
@@ -38,6 +45,8 @@ import {
   readProjectArtifactLibrary,
 } from './artifact-library-service';
 import type { BoardSnapshot } from '../src/core/types';
+import type { WorkflowDefinition } from '../src/core/workflowRegistry';
+import type { WorkflowProjectionTemplateV1 } from '../src/core/workflowAuthoringContracts';
 import { seedanceModelArkAvailability } from './seedance-modelark-client';
 import { cancelSeedanceVideoGeneration, startSeedanceVideoGeneration } from './seedance-video-service';
 import { dreaminaCliAvailability } from './dreamina-cli-client';
@@ -71,6 +80,7 @@ import {
   ensureDefaultDeclarativePackageBootstrap,
   invalidateDefaultDeclarativePackageBootstrap,
 } from './declarative-package-bootstrap-service';
+import { PackageActivationGuardStore } from './package-activation-guard-store';
 import { PluginRuntimeService } from './plugin-runtime-service';
 import { pluginHostExternalModuleSource } from './plugin-host-external-modules';
 import {
@@ -89,6 +99,10 @@ import {
 import {
   handlePluginFoundationConfigRequest,
 } from './plugin-foundation-config-api';
+import {
+  captureWorkflowSelection,
+  workflowSelectionCaptureProposal,
+} from './workflow-selection-capture-service';
 import {
   PluginProfileStore,
 } from './plugin-profile-store';
@@ -144,7 +158,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
           }
 
           if (method === 'POST' && url.pathname === '/reset') {
-            const snapshot = await resetWorkspace();
+            const snapshot = await resetWorkspace({ allowDefaultWorkspaceReset: true });
             invalidateDefaultDeclarativePackageBootstrap();
             await ensurePackageBootstrap();
             sendJson(res, snapshot);
@@ -271,20 +285,77 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
             /^\/plugin-runtime\/modules\/([^/]+)\/fail$/,
           );
           if (method === 'POST' && pluginFailureMatch) {
-            const body = (await readJson(req)) as { message?: string };
+            const body = (await readJson(req)) as {
+              message?: string;
+              rejectedDigest?: string;
+              retainedDigest?: string;
+            };
             if (!body.message) {
               sendJson(res, { error: 'Plugin fatal failure message is required.' }, 400);
               return;
             }
-            sendJson(
-              res,
-              await new PluginRuntimeService({
+            const activationGuardStore = new PackageActivationGuardStore(
+              path.join(retakeRoot, 'packages'),
+            );
+            const activationGuard = body.rejectedDigest
+              ? (await activationGuardStore.list()).find((guard) => (
+                  guard.candidateDigest === body.rejectedDigest
+                  && guard.pendingPluginModuleIds.includes(
+                    decodeURIComponent(pluginFailureMatch[1]!),
+                  )
+                ))
+              : undefined;
+            const failure = await new PluginRuntimeService({
                 hostVersion: packageMetadata.version,
                 workspaceRoot: retakeRoot,
-              }).fail(
-                decodeURIComponent(pluginFailureMatch[1]!),
-                body.message,
-              ),
+              }).failActivation({
+                message: body.message,
+                pluginModuleId: decodeURIComponent(pluginFailureMatch[1]!),
+                ...(body.rejectedDigest && body.retainedDigest
+                  ? {
+                      rejectedDigest: body.rejectedDigest,
+                      ...(activationGuard
+                        ? {
+                            retainedModules:
+                              activationGuard.previousPluginModules,
+                          }
+                        : {}),
+                      retainedDigest: body.retainedDigest,
+                    }
+                  : {}),
+              });
+            if (failure.rolledBack) {
+              await activationGuardStore.clear(
+                failure.record.packageLock.packageId,
+              );
+              invalidateDefaultDeclarativePackageBootstrap();
+            }
+            sendJson(res, failure);
+            return;
+          }
+
+          if (
+            method === 'POST'
+            && url.pathname === '/plugin-runtime/activations/confirm'
+          ) {
+            const body = (await readJson(req)) as {
+              packageDigest?: string;
+              packageId?: string;
+              pluginModuleId?: string;
+            };
+            if (!body.packageDigest || !body.packageId || !body.pluginModuleId) {
+              sendJson(res, { error: 'Plugin activation confirmation is invalid.' }, 400);
+              return;
+            }
+            sendJson(
+              res,
+              await new PackageActivationGuardStore(
+                path.join(retakeRoot, 'packages'),
+              ).confirm({
+                candidateDigest: body.packageDigest,
+                packageId: body.packageId,
+                pluginModuleId: body.pluginModuleId,
+              }),
             );
             return;
           }
@@ -625,6 +696,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               boardId?: string;
               connectionId?: string;
               resultBlockId?: string;
+              resultBlockIds?: string[];
             };
             if (!body.projectId || !body.boardId || !body.connectionId) {
               sendJson(res, { error: 'projectId, boardId, and connectionId are required' }, 400);
@@ -636,6 +708,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               executionId,
               connectionId: body.connectionId,
               resultBlockId: body.resultBlockId,
+              resultBlockIds: body.resultBlockIds,
             });
             sendJson(res, { snapshot: started.snapshot, execution: started.execution }, 202);
             return;
@@ -649,6 +722,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               boardId?: string;
               connectionId?: string;
               resultBlockId?: string;
+              resultBlockIds?: string[];
             };
             if (!body.projectId || !body.boardId || !body.connectionId) {
               sendJson(res, { error: 'projectId, boardId, and connectionId are required' }, 400);
@@ -660,6 +734,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               executionId,
               connectionId: body.connectionId,
               resultBlockId: body.resultBlockId,
+              resultBlockIds: body.resultBlockIds,
             });
             sendJson(res, { snapshot: started.snapshot, execution: started.execution }, 202);
             return;
@@ -795,6 +870,145 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
 
           if (method === 'GET' && url.pathname === '/workspace') {
             sendJson(res, await listWorkspace());
+            return;
+          }
+
+          if (method === 'GET' && url.pathname === '/workflow-authoring') {
+            const projectId = url.searchParams.get('projectId');
+            if (!projectId) {
+              sendJson(res, { error: 'projectId is required' }, 400);
+              return;
+            }
+            sendJson(res, await readProjectWorkflowAuthoring(projectId));
+            return;
+          }
+
+          if (method === 'POST' && url.pathname === '/workflow-authoring/capture/proposal') {
+            const body = (await readJson(req)) as {
+              blockIds?: string[];
+              boardId?: string;
+              projectId?: string;
+            };
+            if (!body.projectId || !body.boardId || !Array.isArray(body.blockIds)) {
+              sendJson(res, { error: 'projectId, boardId, and blockIds are required' }, 400);
+              return;
+            }
+            sendJson(res, await workflowSelectionCaptureProposal({
+              blockIds: body.blockIds,
+              boardId: body.boardId,
+              projectId: body.projectId,
+            }));
+            return;
+          }
+
+          if (method === 'POST' && url.pathname === '/workflow-authoring/capture') {
+            const body = (await readJson(req)) as {
+              blockIds?: string[];
+              boardId?: string;
+              expectedFingerprint?: string;
+              projectId?: string;
+            };
+            if (
+              !body.projectId
+              || !body.boardId
+              || !body.expectedFingerprint
+              || !Array.isArray(body.blockIds)
+            ) {
+              sendJson(res, { error: 'projectId, boardId, blockIds, and expectedFingerprint are required' }, 400);
+              return;
+            }
+            sendJson(res, await captureWorkflowSelection({
+              blockIds: body.blockIds,
+              boardId: body.boardId,
+              expectedFingerprint: body.expectedFingerprint,
+              projectId: body.projectId,
+            }), 201);
+            return;
+          }
+
+          if (method === 'POST' && url.pathname === '/workflow-authoring/drafts/fork') {
+            const body = (await readJson(req)) as {
+              projectId?: string;
+              source?:
+                | { kind: 'installed'; workflowId: string }
+                | { kind: 'project_revision'; revisionId: string };
+            };
+            if (!body.projectId || !body.source) {
+              sendJson(res, { error: 'projectId and source are required' }, 400);
+              return;
+            }
+            sendJson(res, await forkProjectWorkflowDraft({
+              projectId: body.projectId,
+              source: body.source,
+            }), 201);
+            return;
+          }
+
+          const authoringDraftMatch = url.pathname.match(
+            /^\/workflow-authoring\/drafts\/([^/]+)$/,
+          );
+          if (method === 'PUT' && authoringDraftMatch) {
+            const [, draftId] = authoringDraftMatch;
+            const body = (await readJson(req)) as {
+              definition?: WorkflowDefinition;
+              expectedRecordVersion?: number;
+              projectId?: string;
+              projectionTemplate?: WorkflowProjectionTemplateV1;
+            };
+            if (
+              !body.projectId
+              || !body.definition
+              || !body.projectionTemplate
+              || !Number.isInteger(body.expectedRecordVersion)
+            ) {
+              sendJson(res, { error: 'projectId, definition, projectionTemplate, and expectedRecordVersion are required' }, 400);
+              return;
+            }
+            sendJson(res, await saveProjectWorkflowDraft({
+              definition: body.definition,
+              draftId,
+              expectedRecordVersion: body.expectedRecordVersion!,
+              projectId: body.projectId,
+              projectionTemplate: body.projectionTemplate,
+            }));
+            return;
+          }
+
+          const authoringPublishMatch = url.pathname.match(
+            /^\/workflow-authoring\/drafts\/([^/]+)\/publish$/,
+          );
+          if (method === 'POST' && authoringPublishMatch) {
+            const [, draftId] = authoringPublishMatch;
+            const body = (await readJson(req)) as {
+              expectedRecordVersion?: number;
+              projectId?: string;
+            };
+            if (!body.projectId || !Number.isInteger(body.expectedRecordVersion)) {
+              sendJson(res, { error: 'projectId and expectedRecordVersion are required' }, 400);
+              return;
+            }
+            sendJson(res, await publishProjectWorkflowDraft({
+              draftId,
+              expectedRecordVersion: body.expectedRecordVersion!,
+              projectId: body.projectId,
+            }));
+            return;
+          }
+
+          const authoringArchiveMatch = url.pathname.match(
+            /^\/workflow-authoring\/revisions\/([^/]+)\/archive$/,
+          );
+          if (method === 'POST' && authoringArchiveMatch) {
+            const [, revisionId] = authoringArchiveMatch;
+            const body = (await readJson(req)) as { projectId?: string };
+            if (!body.projectId) {
+              sendJson(res, { error: 'projectId is required' }, 400);
+              return;
+            }
+            sendJson(res, await archiveProjectWorkflowRevision({
+              projectId: body.projectId,
+              revisionId,
+            }));
             return;
           }
 
@@ -1210,8 +1424,12 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
             {
               error: error instanceof Error ? error.message : 'Unknown local API error',
             },
-            error instanceof SnapshotWriteConflictError || error instanceof ArtifactWriteConflictError
+            error instanceof SnapshotWriteConflictError
+              || error instanceof ArtifactWriteConflictError
+              || error instanceof WorkflowAuthoringConflictError
               ? 409
+              : error instanceof WorkflowAuthoringValidationError
+                ? 400
               : isFileNotFoundError(error)
                 ? 404
                 : 500,

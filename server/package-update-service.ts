@@ -5,6 +5,7 @@ import {
   type WorkspacePackageLock,
 } from '@retake-tools/package-sdk';
 import { comparePackageVersions } from '@retake-tools/package-contracts';
+import path from 'node:path';
 import type {
   PackageUpdateCandidateV1,
   PackageUpdateCheckV1,
@@ -75,8 +76,11 @@ export class PackageUpdateService {
           }
           if (officialProfile) {
             if (
-              installation.version !== officialProfile.version
-              || installation.digest !== officialProfile.digest
+              (
+                installation.version !== officialProfile.version
+                || installation.digest !== officialProfile.digest
+              )
+              && !isBundledOfficialInstallation(installation)
             ) {
               return baseCheck(installation, {
                 detail: 'User version pin is active.',
@@ -184,6 +188,14 @@ export class PackageUpdateService {
       this.manager.packagesRoot,
     ).setPackageUpstreamManaged(installation.packageId, true);
   }
+}
+
+function isBundledOfficialInstallation(
+  installation: PackageInstallationRecord,
+): boolean {
+  return installation.source.kind === 'local_archive'
+    && path.dirname(path.resolve(installation.source.path))
+      === path.dirname(path.resolve(defaultBootstrapProfilePath));
 }
 
 async function checkGitUpdate(

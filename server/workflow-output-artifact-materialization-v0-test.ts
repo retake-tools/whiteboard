@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { capabilityDefinitionFor, textDocumentCapabilityIds } from '../src/core/capabilityRegistry';
 import type { ExecutionConnectionSummary } from '../src/core/executionProviders';
 import { syncExecutionOutputContractSnapshot } from '../src/core/executionContractSnapshot';
+import { createAgentRunForWorkflowRun, startAgentRun } from '../src/core/agentRuntime';
 import { executeExistingTextGenerationOperation, type TextGenerationLabels } from '../src/core/textOperations';
 import type { AssetRecord, BlockRecord, BoardSnapshot, ExecutionRecord } from '../src/core/types';
 import { projectWorkflowDraft } from '../src/core/workflowDraftProjection';
@@ -227,6 +228,95 @@ const acceptedArtifacts = await readProjectArtifacts(manual.project.projectId);
 assert.equal(acceptedArtifacts.revisions[0].createdByActor.actorType, 'user');
 assert.equal(acceptedArtifacts.artifacts[0].libraryVisibility, 'hidden');
 
+const agentAutomatic = await emptySnapshot();
+const agentAutomaticProjection = projectWorkflowDraft(agentAutomatic, projectionInput());
+blockFor(agentAutomatic, agentAutomaticProjection.workflowInputBlockIds[0]).data.body = 'Automatically accept one candidate.';
+const agentAutomaticRegistry = structuredClone(originalWorkflowRegistry);
+const agentAutomaticDefinition = agentAutomaticRegistry.find(
+  (definition) => definition.workflowId === storyToStoryboardWorkflow.workflowId,
+);
+assert.ok(agentAutomaticDefinition);
+const agentAutomaticDefinitionStep = agentAutomaticDefinition.steps.find(
+  (step) => step.stepId === 'screenplay_generate',
+);
+assert.ok(agentAutomaticDefinitionStep);
+agentAutomaticDefinitionStep.outputAcceptancePolicy = 'manual_single';
+configureWorkflowRegistry(agentAutomaticRegistry);
+const agentAutomaticRun = createWorkflowRunForGroup(
+  agentAutomatic,
+  agentAutomaticProjection.groupBlock.blockId,
+);
+agentAutomaticRun.record.gateDefinitionLocks = [{
+  definitionHash: 'sha256:auto-single-review-gate',
+  gateId: 'auto_single_review',
+  kind: 'human_approval',
+  name: 'Automatic single candidate review',
+  required: true,
+  subject: {
+    artifactScope: 'workflow_run',
+    artifactType: 'screenplay_master',
+    kind: 'artifact_revision',
+    outputSlotId: 'screenplay',
+    semanticKey: 'workflow_output:screenplay',
+    stepId: 'screenplay_generate',
+    workflowOutputSlotId: 'screenplay',
+  },
+}];
+configureWorkflowRegistry(originalWorkflowRegistry);
+const agentAutomaticAgent = createAgentRunForWorkflowRun(
+  agentAutomatic,
+  agentAutomaticRun.record.workflowRunId,
+);
+agentAutomaticAgent.record.interactionMode = 'automatic';
+startAgentRun(agentAutomatic, agentAutomaticAgent.record.agentRunId);
+const agentAutomaticStep = stepFor(
+  agentAutomatic,
+  agentAutomaticRun.record.workflowRunId,
+  'screenplay_generate',
+);
+const agentAutomaticExecution = queueStep(agentAutomatic, agentAutomaticStep);
+await saveSnapshot(agentAutomatic);
+const agentAutomaticStarted = await markExecutionRunning({
+  projectId: agentAutomatic.project.projectId,
+  boardId: agentAutomatic.board.boardId,
+  executionId: agentAutomaticExecution.executionId,
+});
+const agentAutomaticAsset = await generatedDocument(
+  agentAutomaticStarted.snapshot,
+  agentAutomaticStarted.execution,
+  '# Automatically accepted screenplay',
+);
+const agentAutomaticCompleted = await updateDocumentResultBlock({
+  projectId: agentAutomatic.project.projectId,
+  boardId: agentAutomatic.board.boardId,
+  executionId: agentAutomaticExecution.executionId,
+  assetId: agentAutomaticAsset.assetId,
+  resultBlockId: agentAutomaticExecution.outputBlockIds[0],
+  title: 'Generate screenplay',
+  documentKind: 'screenplay_master',
+  markdown: '# Automatically accepted screenplay',
+});
+const agentAutomaticallyAcceptedStep = stepFor(
+  agentAutomaticCompleted.snapshot,
+  agentAutomaticRun.record.workflowRunId,
+  'screenplay_generate',
+);
+assert.deepEqual(agentAutomaticallyAcceptedStep.acceptedOutputAssetIds, [agentAutomaticAsset.assetId]);
+assert.equal(agentAutomaticallyAcceptedStep.acceptedBy, 'agent');
+assert.equal(agentAutomaticallyAcceptedStep.acceptanceReason, 'automatic_single_candidate');
+assert.equal(agentAutomaticallyAcceptedStep.outputArtifactBindings.length, 1);
+assert.equal(
+  agentAutomaticCompleted.snapshot.workflowGateEvaluations?.some(
+    (evaluation) => (
+      evaluation.workflowRunId === agentAutomaticRun.record.workflowRunId
+      && evaluation.gateId === 'auto_single_review'
+      && evaluation.status === 'waiting_approval'
+      && evaluation.freshness === 'current'
+    ),
+  ),
+  true,
+);
+
 const interrupted = await emptySnapshot();
 const interruptedProjection = projectWorkflowDraft(interrupted, projectionInput());
 blockFor(interrupted, interruptedProjection.workflowInputBlockIds[0]).data.body = 'Recover an interrupted binding write.';
@@ -300,6 +390,8 @@ console.log(JSON.stringify({
   rerunAdvancesRevisionAndPreservesHistory: true,
   manualSelectionWaitsForAcceptance: true,
   acceptedOutputMaterialized: true,
+  agentAutomaticSingleCandidateMaterialized: true,
+  agentAutomaticReviewGateCreated: true,
   resultBlockPinsArtifactRevision: true,
   interruptedBindingWriteRecoverable: true,
   idempotentRetryDoesNotDuplicateRevision: true,

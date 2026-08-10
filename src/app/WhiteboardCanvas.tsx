@@ -25,6 +25,7 @@ import { CanvasViewportControls } from '../components/CanvasViewportControls';
 import { BoardBackgroundLayer } from '../components/BoardBackgroundLayer';
 import { ContextToolbar } from '../components/ContextToolbar';
 import { ExecutionOutputEdge } from '../components/ExecutionOutputEdge';
+import { WorkflowEdge } from '../components/WorkflowEdge';
 import { GroupDrawOverlay } from '../components/GroupDrawOverlay';
 import { GroupToolbar } from '../components/GroupToolbar';
 import {
@@ -60,7 +61,7 @@ import type { useWorkflowRuntimeController } from './useWorkflowRuntimeControlle
 import { workflowRunViewForGroup } from '../core/workflowRuntime';
 
 const nodeTypes = { text: BlockNode, document: BlockNode, image: BlockNode, video: BlockNode, operation: BlockNode, group: BlockNode } satisfies NodeTypes;
-const edgeTypes = { executionOutput: ExecutionOutputEdge } satisfies EdgeTypes;
+const edgeTypes = { executionOutput: ExecutionOutputEdge, workflow: WorkflowEdge } satisfies EdgeTypes;
 
 interface WhiteboardCanvasProps {
   blockActions: ReturnType<typeof useBlockActions>;
@@ -69,6 +70,7 @@ interface WhiteboardCanvasProps {
   groups: ReturnType<typeof useGroupController>;
   imageOperations: ReturnType<typeof useImageOperationController>;
   isMiniMapVisible: boolean;
+  onOpenWorkflowRun: (workflowRunId: string) => void;
   onPluginContributionFatalFailure?: (
     pluginModuleId: string,
     message: string,
@@ -98,6 +100,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
     groups,
     imageOperations,
     isMiniMapVisible,
+    onOpenWorkflowRun,
     onPluginContributionFatalFailure,
     pendingDirectImageImportBlockIdRef,
     pluginContributionRegistry,
@@ -540,9 +543,12 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
               onUngroup={() => groups.ungroupSelectedGroup(selectedBlock.blockId)}
               onUpdate={(updates) => groups.updateGroup(selectedBlock.blockId, updates)}
               onWorkflowRun={() => {
-                if (workflowRunViewForGroup(snapshot, selectedBlock.blockId)) {
-                  setHistoryOpen(false);
-                  setInspectorBlockId(selectedBlock.blockId);
+                const currentRun = workflowRunViewForGroup(
+                  snapshot,
+                  selectedBlock.blockId,
+                );
+                if (currentRun) {
+                  onOpenWorkflowRun(currentRun.record.workflowRunId);
                 } else {
                   workflowRuntime.createWorkflowRun(selectedBlock.blockId);
                 }
@@ -554,8 +560,6 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
         {isMiniMapVisible ? <CanvasMiniMap onSelectBlock={canvas.selectBlock} /> : null}
         <CanvasViewportControls
           isMiniMapVisible={isMiniMapVisible}
-          projectionMode={canvas.projectionMode}
-          onChangeProjectionMode={canvas.changeProjectionMode}
           onToggleMiniMap={() => setMiniMapVisible((current) => !current)}
         />
         </ReactFlow>

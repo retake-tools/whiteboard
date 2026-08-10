@@ -146,13 +146,15 @@ async function executeTextGeneration(
       apiKey: resolved.apiKey,
       baseUrl: resolved.baseUrl,
       model: resolved.model,
+      ...(resolved.templateId ? { templateId: resolved.templateId } : {}),
     };
     result = resolved.connectorId === 'openai-compatible'
       ? await (dependencies.generateOpenAICompatible ?? generateOpenAICompatibleText)(config, { prompt: providerPrompt, maxOutputTokens })
       : await (dependencies.generateNative ?? generateNativeText)(resolved.connectorId, config, { prompt: providerPrompt, maxOutputTokens });
   }
+  await recordProviderResult(execution, result);
   const markdown = result.text.trim();
-  if (!markdown) throw new Error('The provider returned an empty text result.');
+  if (!markdown) throw new Error(emptyTextResultMessage(result));
   if (execution.capabilityId === generationPreparationCapabilityId) {
     const parameters = execution.params?.generationPreparation;
     const parameterRecord = parameters && typeof parameters === 'object' && !Array.isArray(parameters)
@@ -165,7 +167,6 @@ async function executeTextGeneration(
     assertGenerationPackageMarkdown(markdown, maxPromptChars);
   }
 
-  await recordProviderResult(execution, result);
   const asset = await createAssetFromDataUrl({
     projectId: execution.projectId,
     sourceExecutionId: execution.executionId,
@@ -186,6 +187,35 @@ async function executeTextGeneration(
     markdown,
   });
   publishExecutionEvent(execution.executionId, { type: 'execution.snapshot', snapshot: completed.snapshot });
+}
+
+function emptyTextResultMessage(result: TextGenerationResult): string {
+  const facts = [`finishReason=${result.finishReason}`];
+  const reasoningTokens = numericUsageValue(result.usage, [
+    ['outputTokenDetails', 'reasoningTokens'],
+    ['completionTokensDetails', 'reasoningTokens'],
+    ['completion_tokens_details', 'reasoning_tokens'],
+  ]);
+  if (reasoningTokens !== undefined) facts.push(`reasoningTokens=${reasoningTokens}`);
+  return `The provider returned an empty text result (${facts.join(', ')}).`;
+}
+
+function numericUsageValue(
+  usage: Record<string, unknown>,
+  paths: readonly (readonly string[])[],
+): number | undefined {
+  for (const path of paths) {
+    let value: unknown = usage;
+    for (const key of path) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        value = undefined;
+        break;
+      }
+      value = (value as Record<string, unknown>)[key];
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  }
+  return undefined;
 }
 
 async function recordProviderResult(execution: ExecutionRecord, result: TextGenerationResult): Promise<void> {

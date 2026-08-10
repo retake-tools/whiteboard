@@ -1,0 +1,541 @@
+import assert from 'node:assert/strict';
+import {
+  agentConversationTimeline,
+  workflowTaskSummary,
+} from '../src/core/agentConversationTimeline';
+import type { AgentRunRecord } from '../src/core/agentRuntimeContracts';
+import {
+  agentRuntimeTurnContext,
+  appendAgentUserMessage,
+  createAgentSession,
+  workflowRunIdsForAgentSession,
+} from '../src/core/agentSession';
+import type { BoardSnapshot } from '../src/core/types';
+import { workflowRunExperienceFor } from '../src/core/workflowRunExperience';
+
+const now = '2026-08-01T10:00:00.000Z';
+const snapshot = fixtureSnapshot();
+const before = JSON.stringify(snapshot);
+
+const withoutActiveAgent = workflowRunExperienceFor(snapshot);
+assert.equal(withoutActiveAgent.defaultWorkflowRunId, 'workflow_attention');
+assert.equal(withoutActiveAgent.attentionCount, 1);
+assert.equal(withoutActiveAgent.activeCount, 1);
+
+const activeAgentRun = fixtureAgentRun('workflow_history');
+const experience = workflowRunExperienceFor(snapshot, activeAgentRun);
+assert.equal(experience.defaultWorkflowRunId, 'workflow_history');
+assert.equal(experience.runs[0]?.isActiveAgentRunTarget, true);
+assert.deepEqual(
+  workflowRunExperienceFor(snapshot, activeAgentRun, {
+    workflowRunIds: ['workflow_history'],
+  }).runs.map((run) => run.workflowRunId),
+  ['workflow_history'],
+  'An Agent Session must be able to project only its bound Workflow Run.',
+);
+assert.deepEqual(
+  workflowRunExperienceFor(snapshot, undefined, { workflowRunIds: [] }),
+  { activeCount: 0, attentionCount: 0, runs: [] },
+  'An unbound Agent Session must not fall back to Board-global Workflow Runs.',
+);
+
+const sessionHistorySnapshot = structuredClone(snapshot);
+const sessionHistory = createAgentSession(sessionHistorySnapshot, { model: 'test-model' }).session;
+const historicalAgentRun = {
+  ...fixtureAgentRun('workflow_history'),
+  agentRunId: 'agent_run_history',
+};
+const currentAgentRun = {
+  ...fixtureAgentRun('workflow_attention'),
+  agentRunId: 'agent_run_current',
+};
+sessionHistorySnapshot.agentRuns = [historicalAgentRun, currentAgentRun];
+sessionHistory.activeAgentRunId = currentAgentRun.agentRunId;
+sessionHistorySnapshot.agentMessages = [{
+  agentMessageId: 'message_historical_run',
+  agentSessionId: sessionHistory.agentSessionId,
+  boardId: sessionHistorySnapshot.board.boardId,
+  content: 'Earlier Workflow completed.',
+  contextRefs: [{ kind: 'agent_run', agentRunId: historicalAgentRun.agentRunId }],
+  createdAt: now,
+  projectId: sessionHistorySnapshot.project.projectId,
+  recordVersion: 1,
+  role: 'assistant',
+}];
+assert.deepEqual(
+  new Set(workflowRunIdsForAgentSession(sessionHistorySnapshot, sessionHistory.agentSessionId)),
+  new Set(['workflow_history', 'workflow_attention']),
+  'The Agent overview must retain current and historical Workflow Runs from the same Session.',
+);
+assert.deepEqual(
+  workflowRunIdsForAgentSession(sessionHistorySnapshot, 'another_session'),
+  [],
+  'Workflow history must not leak across Agent Sessions.',
+);
+
+const attention = experience.runs.find((run) => run.workflowRunId === 'workflow_attention');
+assert.equal(attention?.label, 'Fixture image workflow');
+assert.equal(attention?.completedStepCount, 1);
+assert.equal(attention?.currentStepCount, 1);
+assert.equal(attention?.nextStepCount, 1);
+assert.equal(attention?.blockedStepCount, 1);
+assert.equal(attention?.executionCount, 2);
+assert.equal(attention?.artifactRevisionCount, 1);
+assert.equal(attention?.gateCount, 1);
+assert.equal(attention?.gateWaitingCount, 1);
+assert.deepEqual(attention?.gates.map((gate) => [gate.label, gate.status, gate.subjectLabel]), [
+  ['Review', 'waiting_approval', 'Generate image · image'],
+]);
+assert.deepEqual(attention?.artifacts.map((artifact) => [
+  artifact.artifactRevisionId,
+  artifact.artifactType,
+  artifact.outputSlotId,
+]), [['revision_image', 'image', 'image']]);
+assert.deepEqual(attention?.executions.map((execution) => [
+  execution.executionId,
+  execution.status,
+  execution.providerLabel,
+]), [
+  ['execution_prepare', 'succeeded', 'fixture-provider · fixture-model'],
+  ['execution_generate', 'unavailable', undefined],
+]);
+assert.deepEqual(
+  attention?.steps.map((step) => [step.label, step.role]),
+  [
+    ['Prepare prompt', 'done'],
+    ['Generate image', 'current'],
+    ['Review result', 'next'],
+    ['publish', 'blocked'],
+  ],
+);
+assert.deepEqual(
+  attention?.timelineEvents.map((event) => [event.kind, event.label, event.status]),
+  [
+    ['gate', 'Review', 'waiting_approval'],
+    ['run', 'workflow.fixture-image', 'waiting_input'],
+    ['artifact', 'image', 'ready'],
+    ['execution', 'Prepare prompt', 'succeeded'],
+    ['run', 'workflow.fixture-image', 'created'],
+    ['step', 'Generate image', 'waiting_input'],
+    ['step', 'Prepare prompt', 'succeeded'],
+    ['step', 'publish', 'blocked'],
+    ['step', 'Review result', 'ready'],
+  ],
+  'The Agent timeline must be a curated projection of canonical Run records.',
+);
+assert.equal(
+  attention?.timelineEvents.some((event) => event.eventId.includes('gate_outdated')),
+  false,
+  'Outdated Gate evaluations must not reappear as current Agent timeline events.',
+);
+
+const conversationMessages = [{
+  agentMessageId: 'message_launch',
+  agentSessionId: 'session_workflow',
+  boardId: 'board_test',
+  content: '为蛋炒饭设计一套亲切、容易记住的 IP 形象。',
+  contextRefs: [{ kind: 'entrypoint' as const, entrypointId: 'workflow:ip-design' }],
+  createdAt: '2026-08-01T07:00:00.000Z',
+  projectId: 'project_test',
+  recordVersion: 1,
+  role: 'user' as const,
+}, {
+  agentMessageId: 'message_feedback',
+  agentSessionId: 'session_workflow',
+  boardId: 'board_test',
+  content: '饭粒太密了，减少一些。',
+  contextRefs: [],
+  createdAt: '2026-08-01T08:45:00.000Z',
+  projectId: 'project_test',
+  recordVersion: 1,
+  role: 'user' as const,
+}];
+assert.ok(attention);
+assert.deepEqual(
+  agentConversationTimeline({
+    messages: conversationMessages,
+    run: attention,
+    stepRuns: snapshot.workflowStepRuns ?? [],
+  }).map((item) => [item.kind, item.kind === 'message' ? item.messageId : item.stepRunId]),
+  [
+    ['message', 'message_launch'],
+    ['message', 'message_feedback'],
+    ['workflow_step', 'step_generate'],
+    ['workflow_step', 'step_prepare'],
+    ['workflow_step', 'step_review'],
+  ],
+  'Reached Workflow steps must be interleaved with messages by canonical timestamps.',
+);
+assert.deepEqual(
+  agentConversationTimeline({
+    intervention: {
+      agentRunId: 'agent_attention',
+      kind: 'attention',
+      occurredAt: '2026-08-01T08:30:00.000Z',
+    },
+    messages: conversationMessages,
+    stepRuns: [],
+  }).map((item) => (
+    item.kind === 'message'
+      ? [item.kind, item.messageId]
+      : item.kind === 'intervention'
+        ? [item.kind, item.agentRunId]
+        : [item.kind, item.stepRunId]
+  )),
+  [
+    ['message', 'message_launch'],
+    ['intervention', 'agent_attention'],
+    ['message', 'message_feedback'],
+  ],
+  'A current intervention must stay at its canonical time instead of being pinned below later Agent replies.',
+);
+assert.equal(
+  workflowTaskSummary(conversationMessages, fixtureAgentRun('workflow_attention')),
+  '为蛋炒饭设计一套亲切、容易记住的 IP 形象。',
+);
+const repeatedWorkflowMessages = [
+  ...conversationMessages,
+  {
+    ...conversationMessages[0]!,
+    agentMessageId: 'message_latest_same_workflow',
+    content: '为雨燕快递设计一套新的 IP 形象。',
+    createdAt: '2026-08-01T09:00:00.000Z',
+  },
+];
+assert.equal(
+  workflowTaskSummary(repeatedWorkflowMessages, fixtureAgentRun('workflow_attention')),
+  '为雨燕快递设计一套新的 IP 形象。',
+  'Repeated launches of the same Workflow must show the latest task brief.',
+);
+
+const history = experience.runs.find((run) => run.workflowRunId === 'workflow_history');
+assert.equal(history?.label, 'workflow.removed-package');
+assert.equal(history?.steps[0]?.label, 'archived-step');
+assert.equal(JSON.stringify(snapshot), before, 'Run Experience projection must not mutate the Board Snapshot.');
+
+const runtimeContextSnapshot = structuredClone(snapshot);
+const runtimeWorkflowAgent = fixtureAgentRun('workflow_attention');
+runtimeWorkflowAgent.status = 'waiting_input';
+runtimeWorkflowAgent.entrypointId = 'workflow:ip-design';
+runtimeWorkflowAgent.scope.allowedOperationBlockIds = [
+  'operation_prepare',
+  'operation_generate',
+  'operation_review',
+  'operation_publish',
+];
+runtimeContextSnapshot.agentRuns = [runtimeWorkflowAgent];
+const runtimeSession = createAgentSession(runtimeContextSnapshot, {
+  agentRunId: runtimeWorkflowAgent.agentRunId,
+}).session;
+const runtimeUserMessage = appendAgentUserMessage(
+  runtimeContextSnapshot,
+  runtimeSession.agentSessionId,
+  { content: '饭粒太密了，减少一些。' },
+);
+const workflowRuntimeContext = agentRuntimeTurnContext(
+  runtimeContextSnapshot,
+  runtimeSession.agentSessionId,
+  runtimeUserMessage.agentMessageId,
+);
+assert.deepEqual(
+  workflowRuntimeContext.agentRun?.workflowSteps?.map((step) => [
+    step.label,
+    step.operationBlockId,
+    step.status,
+  ]),
+  [
+    ['Prepare prompt', 'operation_prepare', 'succeeded'],
+    ['Generate image', 'operation_generate', 'waiting_input'],
+    ['Review result', 'operation_review', 'ready'],
+    ['publish', 'operation_publish', 'blocked'],
+  ],
+  'The Runtime must receive exact user-facing Workflow step scope for natural-language corrections.',
+);
+
+const emptySnapshot = structuredClone(snapshot);
+emptySnapshot.workflowRuns = [];
+emptySnapshot.workflowStepRuns = [];
+assert.deepEqual(workflowRunExperienceFor(emptySnapshot), {
+  activeCount: 0,
+  attentionCount: 0,
+  runs: [],
+});
+
+const manyRunsSnapshot = structuredClone(snapshot);
+const historyTemplate = manyRunsSnapshot.workflowRuns?.find(
+  (run) => run.workflowRunId === 'workflow_history',
+);
+assert.ok(historyTemplate);
+manyRunsSnapshot.workflowRuns?.push(...Array.from({ length: 40 }, (_, index) => ({
+  ...structuredClone(historyTemplate),
+  stepRunIds: [],
+  updatedAt: '2026-07-01T00:00:00.000Z',
+  workflowProjectionId: `projection_bulk_${String(index).padStart(2, '0')}`,
+  workflowRunId: `workflow_bulk_${String(index).padStart(2, '0')}`,
+})));
+const manyRunsExperience = workflowRunExperienceFor(manyRunsSnapshot);
+assert.equal(manyRunsExperience.runs.length, 42, 'Large Run lists must not silently drop historical runs.');
+assert.deepEqual(
+  manyRunsExperience.runs.slice(-40).map((run) => run.workflowRunId),
+  Array.from({ length: 40 }, (_, index) => `workflow_bulk_${String(index).padStart(2, '0')}`),
+  'Same-time terminal Runs must use stable workflowRunId ordering.',
+);
+
+console.log(JSON.stringify({
+  ok: true,
+  activeAgentTargetPriority: true,
+  canonicalSummaryProjection: true,
+  canonicalDetailProjection: true,
+  canonicalTimelineProjection: true,
+  emptyBoardStable: true,
+  historicalDefinitionFallback: true,
+  largeRunListStable: true,
+  snapshotImmutable: true,
+}));
+
+function fixtureSnapshot(): BoardSnapshot {
+  const gateDefinitionLock = {
+    definitionHash: 'sha256:gate',
+    gateId: 'gate.review',
+    kind: 'human_approval' as const,
+    name: 'Review',
+    required: true as const,
+    subject: { kind: 'step_output' as const, outputSlotId: 'image', stepId: 'generate' },
+  };
+  const snapshot = {
+    schemaVersion: 1,
+    project: {
+      projectId: 'project_test',
+      name: 'Project',
+      defaultBoardId: 'board_test',
+      createdAt: now,
+      updatedAt: now,
+    },
+    board: {
+      boardId: 'board_test',
+      projectId: 'project_test',
+      name: 'Board',
+      createdAt: now,
+      updatedAt: now,
+    },
+    layers: [],
+    blocks: [
+      fixtureBlock('group_attention', 'group', 'Fixture image workflow', { workflowProjectionId: 'projection_attention' }),
+      fixtureBlock('operation_prepare', 'operation', 'Prepare prompt'),
+      fixtureBlock('operation_generate', 'operation', 'Generate image'),
+      fixtureBlock('operation_review', 'operation', 'Review result'),
+      fixtureBlock('operation_publish', 'operation'),
+      fixtureBlock('operation_archived', 'operation'),
+    ],
+    edges: [],
+    assets: [],
+    executions: [{
+      adapter: 'direct_api' as const,
+      boardId: 'board_test',
+      capabilityId: 'capability.test',
+      completedAt: now,
+      executionId: 'execution_prepare',
+      inputBlockIds: [],
+      model: 'fixture-model',
+      outputAssetIds: [],
+      outputBlockIds: [],
+      projectId: 'project_test',
+      provider: 'fixture-provider',
+      startedAt: now,
+      status: 'succeeded' as const,
+    }],
+    workflowRuns: [
+      {
+        boardId: 'board_test',
+        createdAt: now,
+        createdBy: 'user' as const,
+        currentStepIds: ['generate', 'review'],
+        gateDefinitionLocks: [gateDefinitionLock],
+        gateEvaluationIds: ['gate_current'],
+        inputBindings: [],
+        outputSlotLocks: [],
+        projectId: 'project_test',
+        recordVersion: 1,
+        status: 'waiting_input' as const,
+        stepRunIds: ['step_prepare', 'step_generate', 'step_review', 'step_publish'],
+        updatedAt: '2026-08-01T09:00:00.000Z',
+        workflowDefinitionLock: {
+          definitionHash: 'sha256:workflow-attention',
+          version: '0.11.0',
+          workflowId: 'workflow.fixture-image',
+        },
+        workflowProjectionId: 'projection_attention',
+        workflowRunId: 'workflow_attention',
+      },
+      {
+        boardId: 'board_test',
+        createdAt: now,
+        createdBy: 'user' as const,
+        currentStepIds: [],
+        gateDefinitionLocks: [],
+        gateEvaluationIds: [],
+        inputBindings: [],
+        outputSlotLocks: [],
+        projectId: 'project_test',
+        recordVersion: 1,
+        status: 'succeeded' as const,
+        stepRunIds: ['step_archived'],
+        updatedAt: '2026-08-01T09:30:00.000Z',
+        workflowDefinitionLock: {
+          definitionHash: 'sha256:removed',
+          version: '0.1.0',
+          workflowId: 'workflow.removed-package',
+        },
+        workflowProjectionId: 'projection_removed',
+        workflowRunId: 'workflow_history',
+      },
+    ],
+    workflowStepRuns: [
+      fixtureStep('step_prepare', 'workflow_attention', 'prepare', 'operation_prepare', 'succeeded', ['execution_prepare']),
+      fixtureStep('step_generate', 'workflow_attention', 'generate', 'operation_generate', 'waiting_input', ['execution_generate'], true),
+      fixtureStep('step_review', 'workflow_attention', 'review', 'operation_review', 'ready'),
+      fixtureStep('step_publish', 'workflow_attention', 'publish', 'operation_publish', 'blocked'),
+      fixtureStep('step_archived', 'workflow_history', 'archived-step', 'operation_archived', 'succeeded'),
+    ],
+    workflowGateEvaluations: [
+      {
+        approvalRequestId: 'approval_current',
+        boardId: 'board_test',
+        createdAt: now,
+        freshness: 'current' as const,
+        gateDefinitionLock,
+        gateEvaluationId: 'gate_current',
+        gateId: 'gate.review',
+        projectId: 'project_test',
+        recordVersion: 1,
+        status: 'waiting_approval' as const,
+        subjectAssetIds: [],
+        subjectExecutionIds: [],
+        subjectFingerprint: 'current',
+        updatedAt: '2026-08-01T08:00:00.000Z',
+        workflowRunId: 'workflow_attention',
+      },
+      {
+        approvalRequestId: 'approval_outdated',
+        boardId: 'board_test',
+        createdAt: now,
+        freshness: 'outdated' as const,
+        gateDefinitionLock,
+        gateEvaluationId: 'gate_outdated',
+        gateId: 'gate.review',
+        projectId: 'project_test',
+        recordVersion: 2,
+        status: 'failed' as const,
+        subjectAssetIds: [],
+        subjectExecutionIds: [],
+        subjectFingerprint: 'outdated',
+        updatedAt: '2026-08-01T09:00:00.000Z',
+        workflowRunId: 'workflow_attention',
+      },
+    ],
+  } as BoardSnapshot;
+  return snapshot;
+}
+
+function fixtureBlock(
+  blockId: string,
+  type: 'group' | 'operation',
+  title?: string,
+  extra: Record<string, unknown> = {},
+) {
+  return {
+    blockId,
+    boardId: 'board_test',
+    createdAt: now,
+    data: { ...(title ? { title } : {}), ...extra },
+    layerId: 'layer_default',
+    position: { x: 0, y: 0 },
+    size: { height: 100, width: 100 },
+    type,
+    updatedAt: now,
+    zIndex: 1,
+  };
+}
+
+function fixtureStep(
+  stepRunId: string,
+  workflowRunId: string,
+  stepId: string,
+  operationBlockId: string,
+  status: 'blocked' | 'ready' | 'succeeded' | 'waiting_input',
+  executionIds: string[] = [],
+  withArtifact = false,
+) {
+  return {
+    acceptedOutputAssetIds: [],
+    capabilityLock: { capabilityId: 'capability.test', definitionHash: 'sha256:capability', version: '1.0.0' },
+    createdAt: now,
+    dependsOn: [],
+    executionIds,
+    freshness: 'current' as const,
+    operationBlockId,
+    outputAcceptancePolicy: 'automatic' as const,
+    outputArtifactBindings: withArtifact ? [{
+      artifactId: 'artifact_image',
+      artifactRevisionId: 'revision_image',
+      artifactType: 'image',
+      assetIds: ['asset_image'],
+      boundAt: now,
+      executionIds,
+      outputSlotId: 'image',
+      primaryAssetId: 'asset_image',
+      workflowOutputSlotId: 'image',
+    }] : [],
+    outputAssetIds: [],
+    outputBlockIds: [],
+    outputSlotIds: [],
+    recordVersion: 1,
+    resolvedInputBindings: [],
+    skillLock: { definitionHash: 'sha256:skill', skillId: 'skill.test', version: '1.0.0' },
+    status,
+    stepId,
+    stepRunId,
+    updatedAt: now,
+    workflowRunId,
+  };
+}
+
+function fixtureAgentRun(workflowRunId: string): AgentRunRecord {
+  return {
+    agentRunId: 'agent_run_active',
+    boardId: 'board_test',
+    createdAt: now,
+    createdBy: 'user',
+    executionIds: [],
+    permissions: {
+      allowedToolPermissions: ['retake.read'],
+      canCreateBlocks: false,
+      canDeleteAssets: false,
+      canInstallPackages: false,
+      canModifyWorkflow: false,
+    },
+    projectId: 'project_test',
+    recordVersion: 1,
+    runtimeKind: 'retake_orchestrator',
+    scope: {
+      allowedCapabilityIds: [],
+      allowedOperationBlockIds: [],
+      allowedStepRunIds: [],
+      boardId: 'board_test',
+      projectId: 'project_test',
+      workflowRunId,
+    },
+    status: 'succeeded',
+    stopPolicy: { kind: 'workflow_terminal' },
+    target: {
+      kind: 'workflow_run',
+      workflowDefinitionLock: {
+        definitionHash: 'sha256:removed',
+        version: '0.1.0',
+        workflowId: 'workflow.removed-package',
+      },
+      workflowRunId,
+    },
+    updatedAt: now,
+  };
+}

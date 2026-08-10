@@ -33,6 +33,16 @@ export {
   SnapshotWriteConflictError,
 } from './local-store/snapshot-store';
 export {
+  archiveProjectWorkflowRevision,
+  createProjectWorkflowDraftFromSelection,
+  forkProjectWorkflowDraft,
+  publishProjectWorkflowDraft,
+  readProjectWorkflowAuthoring,
+  saveProjectWorkflowDraft,
+  WorkflowAuthoringConflictError,
+  WorkflowAuthoringValidationError,
+} from './local-store/workflow-authoring-store';
+export {
   createBoard,
   createCodexBindingPrompt,
   createProject,
