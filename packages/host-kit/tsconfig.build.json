@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "noEmit": false,
+    "outDir": "./dist-types",
+    "rootDir": "../../src"
+  },
+  "include": [
+    "../../src/vite-env.d.ts",
+    "../../src/host-kit/**/*.ts",
+    "../../src/host-kit/**/*.tsx"
+  ],
+  "exclude": [
+    "../../src/host-kit/testing/**"
+  ]
+}

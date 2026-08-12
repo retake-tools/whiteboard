@@ -318,6 +318,78 @@ export function markAgentRuntimeFailure(
   touchSession(session);
 }
 
+export function appendAgentRuntimeRecovery(
+  snapshot: BoardSnapshot,
+  input: {
+    agentSessionId: string;
+    content: string;
+    error: string;
+    externalThreadId?: string;
+    kind: 'operation_application' | 'runtime_unavailable';
+    runtimeModel?: string;
+    runtimeTurnId?: string;
+    sourceMessageId: string;
+    suggestions: string[];
+  },
+): AgentMessageRecord {
+  const session = requireActiveSession(snapshot, input.agentSessionId);
+  const source = requireMessage(snapshot, input.sourceMessageId);
+  if (source.agentSessionId !== session.agentSessionId || source.role !== 'user') {
+    throw new Error('Agent recovery source message is invalid.');
+  }
+  const existing = (snapshot.agentMessages ?? []).find(
+    (message) =>
+      message.role === 'assistant'
+      && message.sourceMessageId === source.agentMessageId
+      && message.recovery?.kind === input.kind,
+  );
+  if (existing) {
+    if (
+      existing.content !== input.content
+      || existing.recovery?.error !== input.error
+      || existing.recovery?.runtimeTurnId !== input.runtimeTurnId
+      || JSON.stringify(existing.suggestions ?? []) !== JSON.stringify(input.suggestions)
+    ) throw new Error('Agent recovery conflicts with another persisted result.');
+    return existing;
+  }
+  const binding = requireSessionBinding(snapshot, session);
+  if (input.kind === 'runtime_unavailable') {
+    binding.status = 'failed';
+    binding.lastError = input.error;
+  } else {
+    binding.status = 'active';
+    delete binding.lastError;
+    if (input.externalThreadId) {
+      binding.externalThreadId = input.externalThreadId;
+      binding.externalSessionId = input.externalThreadId;
+    }
+    if (input.runtimeModel) binding.model = input.runtimeModel;
+  }
+  touchVersioned(binding);
+  const message: AgentMessageRecord = {
+    agentMessageId: createId('agmsg'),
+    agentSessionId: session.agentSessionId,
+    boardId: snapshot.board.boardId,
+    content: input.content.trim(),
+    contextRefs: [],
+    createdAt: nowIso(),
+    projectId: snapshot.project.projectId,
+    recordVersion: 1,
+    recovery: {
+      error: input.error,
+      kind: input.kind,
+      ...(input.runtimeTurnId ? { runtimeTurnId: input.runtimeTurnId } : {}),
+    },
+    role: 'assistant',
+    sourceMessageId: source.agentMessageId,
+    suggestions: [...input.suggestions],
+  };
+  snapshot.agentMessages ??= [];
+  snapshot.agentMessages.push(message);
+  touchSession(session);
+  return message;
+}
+
 export function archiveAgentSession(snapshot: BoardSnapshot, agentSessionId: string): AgentSessionRecord {
   const session = requireSession(snapshot, agentSessionId);
   session.status = 'archived';

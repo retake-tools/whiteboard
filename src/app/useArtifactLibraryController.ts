@@ -3,10 +3,7 @@ import type {
   ProjectArtifactLibraryItem,
   ProjectArtifactLibrarySnapshot,
 } from '../core/artifactContracts';
-import {
-  artifactSemanticKey,
-  insertArtifactReference,
-} from '../core/artifactLibrary';
+import { artifactSemanticKey } from '../core/artifactLibrary';
 import {
   loadProjectArtifactLibrary,
   promoteProjectAsset,
@@ -14,20 +11,21 @@ import {
 import type { OperationToast } from '../components/OperationFeedback';
 import type { BoardSnapshot } from '../core/types';
 import type { useI18n } from '../i18n';
+import type { WhiteboardProductCommandsV1 } from '../whiteboard/application/whiteboardProductCommands';
 
 interface ArtifactLibraryControllerOptions {
   centeredBlockPosition: (size: { width: number; height: number }) => { x: number; y: number };
   isOpen: boolean;
   projectId: string;
+  runProductCommand?: <Result>(
+    operation: (commands: WhiteboardProductCommandsV1) => Promise<Result>,
+    options?: { history?: boolean; syncFlow?: boolean },
+  ) => Promise<Result>;
   selectedBlockId?: string;
   setOperationToast: (toast: OperationToast | undefined) => void;
   setSelectedBlock: (snapshot: BoardSnapshot, blockId: string) => void;
   snapshotRef: RefObject<BoardSnapshot>;
   t: ReturnType<typeof useI18n>['t'];
-  updateSnapshot: (
-    updater: (current: BoardSnapshot) => BoardSnapshot,
-    options?: { history?: boolean; persist?: boolean; syncFlow?: boolean },
-  ) => BoardSnapshot;
 }
 
 interface PendingPromotion {
@@ -40,12 +38,12 @@ export function useArtifactLibraryController(options: ArtifactLibraryControllerO
     centeredBlockPosition,
     isOpen,
     projectId,
+    runProductCommand,
     selectedBlockId,
     setOperationToast,
     setSelectedBlock,
     snapshotRef,
     t,
-    updateSnapshot,
   } = options;
   const [library, setLibrary] = useState<ProjectArtifactLibrarySnapshot>();
   const [error, setError] = useState<string>();
@@ -146,36 +144,39 @@ export function useArtifactLibraryController(options: ArtifactLibraryControllerO
     }
   }
 
-  function insertReference(item: ProjectArtifactLibraryItem, targetSlotId?: string): void {
-    let insertedBlockId = '';
-    let boundToOperation = false;
+  async function insertReference(
+    item: ProjectArtifactLibraryItem,
+    targetSlotId?: string,
+  ): Promise<void> {
     try {
-      const next = updateSnapshot((current) => {
-        const targetOperation = targetSlotId && selectedBlockId
-          ? current.blocks.find((block) => block.blockId === selectedBlockId && block.type === 'operation')
-          : undefined;
-        const position = targetOperation
-          ? {
-              x: targetOperation.position.x - 360,
-              y: targetOperation.position.y,
-            }
-          : centeredBlockPosition({ width: 300, height: item.primaryAsset.kind === 'video' ? 180 : 230 });
-        const block = insertArtifactReference(current, {
+      if (!runProductCommand) {
+        throw new Error('Whiteboard Artifact command facade is unavailable.');
+      }
+      const targetOperationId = targetSlotId && selectedBlockId
+        && snapshotRef.current.blocks.some(
+          (block) => block.blockId === selectedBlockId && block.type === 'operation',
+        )
+        ? selectedBlockId
+        : undefined;
+      const inserted = await runProductCommand(
+        (commands) => commands.artifact.insertReference({
+          fallbackPosition: centeredBlockPosition({
+            width: 300,
+            height: item.primaryAsset.kind === 'video' ? 180 : 230,
+          }),
           item,
-          position,
-          targetOperationId: targetOperation?.blockId,
+          targetOperationId,
           targetSlotId,
-        });
-        insertedBlockId = block.blockId;
-        boundToOperation = Boolean(targetOperation && targetSlotId);
-        return current;
-      }, { history: true, persist: true });
-      if (!insertedBlockId) return;
-      if (!boundToOperation) setSelectedBlock(next, insertedBlockId);
+        }),
+        { history: true },
+      );
+      if (!inserted.boundToOperation) {
+        setSelectedBlock(snapshotRef.current, inserted.blockId);
+      }
       setOperationToast({
-        body: t(boundToOperation ? 'artifactLibrary.boundBody' : 'artifactLibrary.insertedBody'),
+        body: t(inserted.boundToOperation ? 'artifactLibrary.boundBody' : 'artifactLibrary.insertedBody'),
         id: `artifact-inserted:${Date.now()}`,
-        title: t(boundToOperation ? 'artifactLibrary.boundTitle' : 'artifactLibrary.insertedTitle'),
+        title: t(inserted.boundToOperation ? 'artifactLibrary.boundTitle' : 'artifactLibrary.insertedTitle'),
         tone: 'success',
       });
     } catch (insertError) {

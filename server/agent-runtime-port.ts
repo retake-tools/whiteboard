@@ -722,11 +722,16 @@ export function parseAgentRuntimeDecision(
       ? ['ready', 'waiting_input', 'waiting_selection', 'succeeded', 'failed', 'canceled']
         .includes(workflowStep.status)
       : false;
+    const workingOperation = operationBlockId === context.workingOperation?.operationBlockId
+      ? context.workingOperation
+      : undefined;
     const bindingSource = operationBlockId
       && context.explicitOperationBlockIds.includes(operationBlockId)
       ? 'message_explicit'
-      : operationBlockId === context.workingOperation?.operationBlockId
-        ? 'session_working'
+      : workingOperation?.source === 'workflow_scope'
+        ? 'workflow_scope'
+        : workingOperation
+          ? 'session_working'
         : context.agentRun?.targetKind !== 'capability' && workflowStepEligible
           ? 'workflow_scope'
         : undefined;

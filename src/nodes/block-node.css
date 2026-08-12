@@ -289,9 +289,7 @@
 }
 
 .block-node.has-status-queued::before,
-.block-node.has-status-running::before,
-.block-node.has-status-succeeded::before,
-.block-node.has-status-failed::before {
+.block-node.has-status-running::before {
   content: '';
   position: absolute;
   z-index: 4;
@@ -670,13 +668,12 @@
   padding: 4px 7px;
   border: 1px solid rgb(255 255 255 / 28%);
   border-radius: 999px;
-  background: rgb(15 23 42 / 68%);
+  background: rgb(15 23 42 / 82%);
   color: #ffffff;
   font-size: 11px;
   font-weight: 780;
   line-height: 1;
   box-shadow: 0 4px 12px rgb(15 23 42 / 18%);
-  backdrop-filter: blur(8px);
 }
 
 .image-empty-state .image-result-batch-badge {

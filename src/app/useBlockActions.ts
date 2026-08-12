@@ -2,27 +2,37 @@ import type { RefObject } from 'react';
 import type { CanvasTool } from '../components/FloatingToolbar';
 import type { OperationToast } from '../components/OperationFeedback';
 import { localizedBlockData } from '../core/blockLocalization';
-import { createBlockRecord, maxZIndex, touchBoard } from '../core/blockFactory';
-import { activeExecutionsForBlockIds, cancelExecution, executionCancellationRequiresConfirmation } from '../core/executionLifecycle';
+import { activeExecutionsForBlockIds, executionCancellationRequiresConfirmation } from '../core/executionLifecycle';
 import {
   blockLockedByGroup,
   blockManagedByWorkflowGroup,
-  createGroupAroundBlocks,
   descendantBlockIds,
-  expandGroupToContents,
-  fitGroupToChildren,
   groupStructureLocked,
 } from '../core/grouping';
 import { saveCollapsedGroupIds } from '../core/groupViewState';
-import { createId, nowIso } from '../core/id';
-import type { BlockType, BoardSnapshot, ExecutionRecord } from '../core/types';
+import type { BlockType, BoardSnapshot } from '../core/types';
 import type { useI18n } from '../i18n';
+import type { CanvasHostCommandsV1 } from '../host-kit';
+import { defaultBlockSize } from '../core/blockSizing';
+import type { WhiteboardProductCommandsV1 } from '../whiteboard/application/whiteboardProductCommands';
 
 interface BlockActionsOptions {
   centeredBlockPosition: (size: { width: number; height: number }) => { x: number; y: number };
   collapsedGroupIdsRef: RefObject<string[]>;
   selectedBlockIds: string[];
   selectedBlockIdsRef: RefObject<string[]>;
+  runHostCommand?: <Result>(
+    operation: (commands: CanvasHostCommandsV1) => Promise<Result>,
+    options?: { history?: boolean; syncFlow?: boolean },
+  ) => Promise<Result>;
+  runProductCommand?: <Result>(
+    operation: (commands: WhiteboardProductCommandsV1) => Promise<Result>,
+    options?: {
+      history?: boolean;
+      shouldKeepHistory?: (result: Result) => boolean;
+      syncFlow?: boolean;
+    },
+  ) => Promise<Result>;
   setActiveCanvasTool: (value: CanvasTool | ((current: CanvasTool) => CanvasTool)) => void;
   setCollapsedGroupIds: (ids: string[]) => void;
   setOperationToast: (toast: OperationToast | undefined) => void;
@@ -30,10 +40,6 @@ interface BlockActionsOptions {
   setSelectedBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
   snapshotRef: RefObject<BoardSnapshot>;
   t: ReturnType<typeof useI18n>['t'];
-  updateSnapshot: (
-    updater: (current: BoardSnapshot) => BoardSnapshot,
-    options?: { history?: boolean; persist?: boolean; syncFlow?: boolean },
-  ) => BoardSnapshot;
 }
 
 export function useBlockActions(options: BlockActionsOptions) {
@@ -42,6 +48,8 @@ export function useBlockActions(options: BlockActionsOptions) {
     collapsedGroupIdsRef,
     selectedBlockIds,
     selectedBlockIdsRef,
+    runHostCommand,
+    runProductCommand,
     setActiveCanvasTool,
     setCollapsedGroupIds,
     setOperationToast,
@@ -49,7 +57,6 @@ export function useBlockActions(options: BlockActionsOptions) {
     setSelectedBlocks,
     snapshotRef,
     t,
-    updateSnapshot,
   } = options;
 
   function addBlock(type: BlockType): void {
@@ -57,24 +64,52 @@ export function useBlockActions(options: BlockActionsOptions) {
       setActiveCanvasTool((current) => (current === 'group' ? 'pan' : 'group'));
       return;
     }
-    let newBlockId = '';
-    const nextSnapshot = updateSnapshot((current) => {
-      if (type === 'group' && selectedBlockIdsRef.current.length > 0) {
-        const group = createGroupAroundBlocks(current, selectedBlockIdsRef.current, { color: 'neutral', kind: 'manual', layoutMode: 'free', title: t('group.defaultTitle') });
-        if (!group) return current;
-        newBlockId = group.blockId;
-        return touchBoard(current);
-      }
-      const block = createBlockRecord(current, type);
-      block.position = centeredBlockPosition(block.size);
-      block.data = { ...block.data, ...localizedBlockData(type, t) };
-      newBlockId = block.blockId;
-      current.blocks.push(block);
-      return touchBoard(current);
-    }, { persist: true, history: true });
-    if (!newBlockId) return;
-    setActiveCanvasTool(type === 'group' ? 'pan' : 'select');
-    setSelectedBlock(nextSnapshot, newBlockId);
+    const executeHostCommand = requireHostCommands(runHostCommand);
+    if (type === 'group') {
+      setActiveCanvasTool('pan');
+      void executeHostCommand(
+        (commands) => commands.createGroup({
+          blockIds: selectedBlockIdsRef.current,
+          color: 'neutral',
+          layoutMode: 'free',
+          title: t('group.defaultTitle'),
+        }),
+        { history: true },
+      ).then((group) => {
+        setSelectedBlock(snapshotRef.current, group.blockId);
+      }).catch((error: unknown) => {
+        console.error('Canvas Group creation failed.', error);
+        setOperationToast({
+          body: error instanceof Error ? error.message : String(error),
+          id: `group-create-failed:${Date.now()}`,
+          title: t('feedback.handoffUnavailable'),
+          tone: 'error',
+        });
+      });
+      return;
+    }
+    const size = defaultBlockSize(type);
+    const position = centeredBlockPosition(size);
+    setActiveCanvasTool('select');
+    void executeHostCommand(
+      (commands) => commands.createBlock({
+        data: localizedBlockData(type, t),
+        position,
+        size,
+        type,
+      }),
+      { history: true },
+    ).then((block) => {
+      setSelectedBlock(snapshotRef.current, block.blockId);
+    }).catch((error: unknown) => {
+      console.error('Canvas Block creation failed.', error);
+      setOperationToast({
+        body: error instanceof Error ? error.message : String(error),
+        id: `block-create-failed:${Date.now()}`,
+        title: t('feedback.handoffUnavailable'),
+        tone: 'error',
+      });
+    });
   }
 
   function deletableRootBlockIds(current: BoardSnapshot, blockIds: readonly string[]): string[] {
@@ -98,50 +133,57 @@ export function useBlockActions(options: BlockActionsOptions) {
     const activeExecutions = activeExecutionsForBlockIds(initialSnapshot, [...mutableRootIds, ...descendantBlockIds(initialSnapshot, groupIds)]);
     const hasRunningExecution = executionCancellationRequiresConfirmation(activeExecutions);
     if (hasRunningExecution && !window.confirm(t('feedback.runningExecutionCancelConfirm'))) return;
-    let deletedBlockIds: string[] = [];
-    let canceledExecutionCount = 0;
-    updateSnapshot((current) => {
-      const canceledRemovedIds = new Set<string>();
-      for (const execution of activeExecutions) {
-        const cancellation = cancelExecution(current, execution.executionId);
-        if (cancellation.execution?.status !== 'canceled') continue;
-        canceledExecutionCount += 1;
-        for (const blockId of cancellation.removedBlockIds) canceledRemovedIds.add(blockId);
+    const canUseSimpleHostRemoval = Boolean(
+      runHostCommand
+      && groupIds.length === 0
+      && activeExecutions.length === 0
+      && mutableRootIds.every((blockId) => {
+        const block = initialSnapshot.blocks.find((candidate) => candidate.blockId === blockId);
+        return block && !block.parentGroupId;
+      }),
+    );
+    if (canUseSimpleHostRemoval && runHostCommand) {
+      void runHostCommand(
+        (commands) => commands.removeBlocks({ blockIds: mutableRootIds }),
+        { history: true },
+      ).then(() => {
+        setSelectedBlocks(snapshotRef.current, []);
+      }).catch((error: unknown) => {
+        console.error('Canvas Block removal failed.', error);
+        setOperationToast({
+          body: error instanceof Error ? error.message : String(error),
+          id: `block-remove-failed:${Date.now()}`,
+          title: t('feedback.handoffUnavailable'),
+          tone: 'error',
+        });
+      });
+      return;
+    }
+    void requireProductCommands(runProductCommand)(
+      (commands) => commands.block.delete({
+        blockIds: mutableRootIds,
+        expectedScope: scopeFor(initialSnapshot),
+      }),
+      { history: true, shouldKeepHistory: (result) => result.committed },
+    ).then((result) => {
+      for (const execution of result.canceledExecutions) {
+        if (execution.adapterId !== 'retake.video.seedance-modelark'
+          && execution.adapterId !== 'retake.video.dreamina-cli') continue;
+        window.dispatchEvent(new CustomEvent('retake:cancel-provider-execution', {
+          detail: execution,
+        }));
       }
-      const mutableBlockIds = deletableRootBlockIds(current, mutableRootIds);
-      const remainingGroupIds = mutableBlockIds.filter((blockId) => current.blocks.find((block) => block.blockId === blockId)?.type === 'group');
-      const selectedIds = new Set([...mutableBlockIds, ...descendantBlockIds(current, remainingGroupIds)]);
-      deletedBlockIds = [...new Set([...canceledRemovedIds, ...selectedIds])];
-      if (selectedIds.size === 0) return current;
-      const affectedParentIds = new Set(current.blocks.filter((block) => selectedIds.has(block.blockId) && block.parentGroupId && !selectedIds.has(block.parentGroupId)).map((block) => block.parentGroupId as string));
-      current.blocks = current.blocks.filter((block) => !selectedIds.has(block.blockId));
-      current.edges = current.edges.filter((edge) => !selectedIds.has(edge.sourceBlockId) && !selectedIds.has(edge.targetBlockId));
-      for (const parentGroupId of affectedParentIds) fitGroupToChildren(current, parentGroupId);
-      return touchBoard(current);
-    }, { persist: true, history: true });
-    for (const execution of activeExecutions) {
-      if (execution.adapterSnapshot?.adapterId !== 'retake.video.seedance-modelark'
-        && execution.adapterSnapshot?.adapterId !== 'retake.video.dreamina-cli') continue;
-      window.dispatchEvent(new CustomEvent('retake:cancel-provider-execution', {
-        detail: {
-          projectId: execution.projectId,
-          boardId: execution.boardId,
-          executionId: execution.executionId,
-          adapterId: execution.adapterSnapshot.adapterId,
-          providerTaskIds: providerTaskIds(execution),
-        },
-      }));
-    }
-    if (canceledExecutionCount > 0) setOperationToast({ id: `execution-canceled:${Date.now()}`, title: t('feedback.executionCanceled'), body: t(hasRunningExecution ? 'feedback.runningExecutionCanceled' : 'feedback.queuedExecutionCanceled'), tone: 'success' });
-    if (deletedBlockIds.length === 0) return;
-    const deletedIdSet = new Set(deletedBlockIds);
-    const nextCollapsedGroupIds = collapsedGroupIdsRef.current.filter((groupId) => !deletedIdSet.has(groupId));
-    if (nextCollapsedGroupIds.length !== collapsedGroupIdsRef.current.length) {
-      collapsedGroupIdsRef.current = nextCollapsedGroupIds;
-      setCollapsedGroupIds(nextCollapsedGroupIds);
-      saveCollapsedGroupIds(snapshotRef.current.project.projectId, snapshotRef.current.board.boardId, nextCollapsedGroupIds);
-    }
-    setSelectedBlocks(snapshotRef.current, []);
+      if (result.canceledExecutions.length > 0) setOperationToast({ id: `execution-canceled:${Date.now()}`, title: t('feedback.executionCanceled'), body: t(hasRunningExecution ? 'feedback.runningExecutionCanceled' : 'feedback.queuedExecutionCanceled'), tone: 'success' });
+      if (result.deletedBlockIds.length === 0) return;
+      const deletedIdSet = new Set(result.deletedBlockIds);
+      const nextCollapsedGroupIds = collapsedGroupIdsRef.current.filter((groupId) => !deletedIdSet.has(groupId));
+      if (nextCollapsedGroupIds.length !== collapsedGroupIdsRef.current.length) {
+        collapsedGroupIdsRef.current = nextCollapsedGroupIds;
+        setCollapsedGroupIds(nextCollapsedGroupIds);
+        saveCollapsedGroupIds(snapshotRef.current.project.projectId, snapshotRef.current.board.boardId, nextCollapsedGroupIds);
+      }
+      setSelectedBlocks(snapshotRef.current, []);
+    }).catch((error: unknown) => reportBlockCommandFailure('delete', error));
   }
 
   function deleteSelection(): void { deleteBlockIds(selectedBlockIds); }
@@ -149,46 +191,50 @@ export function useBlockActions(options: BlockActionsOptions) {
   function duplicateSelection(): void {
     if (selectedBlockIds.length === 0) return;
     if (selectedBlockIds.some((blockId) => blockManagedByWorkflowGroup(snapshotRef.current, blockId))) return;
-    const newBlockIds: string[] = [];
-    const nextSnapshot = updateSnapshot((current) => {
-      const selectedGroupIds = selectedBlockIds.filter((blockId) => current.blocks.find((block) => block.blockId === blockId)?.type === 'group');
-      const copiedIds = new Set([...selectedBlockIds, ...descendantBlockIds(current, selectedGroupIds)]);
-      const selectedBlocks = current.blocks.filter((block) => copiedIds.has(block.blockId));
-      const nextZ = maxZIndex(current.blocks) + 1;
-      const idMap = new Map(selectedBlocks.map((block) => [block.blockId, createId('block')]));
-      const workflowProjectionIdMap = new Map<string, string>();
-      const externalParentGroupIds = new Set<string>();
-      selectedBlocks.forEach((block, index) => {
-        const blockId = idMap.get(block.blockId)!;
-        if (selectedBlockIds.includes(block.blockId)) newBlockIds.push(blockId);
-        const nextParentGroupId = block.parentGroupId ? idMap.get(block.parentGroupId) ?? block.parentGroupId : undefined;
-        if (nextParentGroupId && !idMap.has(block.parentGroupId ?? '')) externalParentGroupIds.add(nextParentGroupId);
-        const clonedData = { ...structuredClone(block.data) };
-        if (block.type === 'group' && clonedData.groupKind === 'execution_results') { clonedData.groupKind = 'manual'; delete clonedData.groupExecutionId; }
-        if (typeof clonedData.workflowProjectionId === 'string') {
-          const nextProjectionId = workflowProjectionIdMap.get(clonedData.workflowProjectionId) ?? createId('workflow_projection');
-          workflowProjectionIdMap.set(clonedData.workflowProjectionId, nextProjectionId);
-          clonedData.workflowProjectionId = nextProjectionId;
-        }
-        delete clonedData.workflowRunId;
-        current.blocks.push({ ...structuredClone(block), blockId, parentGroupId: nextParentGroupId, position: { x: block.position.x + 36, y: block.position.y + 36 }, zIndex: nextZ + index, data: clonedData, createdAt: nowIso(), updatedAt: nowIso() });
-      });
-      for (const parentGroupId of externalParentGroupIds) expandGroupToContents(current, parentGroupId);
-      current.edges.push(...current.edges.flatMap((edge) => {
-        const sourceBlockId = idMap.get(edge.sourceBlockId); const targetBlockId = idMap.get(edge.targetBlockId);
-        return sourceBlockId && targetBlockId ? [{ ...structuredClone(edge), edgeId: createId('edge'), sourceBlockId, targetBlockId }] : [];
-      }));
-      return touchBoard(current);
-    }, { persist: true, history: true });
-    setSelectedBlocks(nextSnapshot, newBlockIds);
+    const current = snapshotRef.current;
+    void requireProductCommands(runProductCommand)(
+      (commands) => commands.block.duplicate({
+        blockIds: selectedBlockIds,
+        expectedScope: scopeFor(current),
+      }),
+      { history: true, shouldKeepHistory: (result) => result.committed },
+    ).then((result) => {
+      if (result.duplicatedBlockIds.length > 0) {
+        setSelectedBlocks(snapshotRef.current, result.duplicatedBlockIds);
+      }
+    }).catch((error: unknown) => reportBlockCommandFailure('duplicate', error));
+  }
+
+  function reportBlockCommandFailure(action: string, error: unknown): void {
+    console.error(`Canvas Block ${action} failed.`, error);
+    setOperationToast({
+      body: error instanceof Error ? error.message : String(error),
+      id: `block-${action}-failed:${Date.now()}`,
+      title: t('feedback.handoffUnavailable'),
+      tone: 'error',
+    });
   }
 
   return { addBlock, deleteBlockIds, deleteSelection, duplicateSelection };
 }
 
-function providerTaskIds(execution: ExecutionRecord): string[] {
-  const modelArk = execution.params?.modelArk;
-  if (!modelArk || typeof modelArk !== 'object' || Array.isArray(modelArk)) return [];
-  const taskIds = (modelArk as Record<string, unknown>).providerTaskIds;
-  return Array.isArray(taskIds) ? taskIds.filter((value): value is string => typeof value === 'string') : [];
+function requireHostCommands(
+  runHostCommand: BlockActionsOptions['runHostCommand'],
+): NonNullable<BlockActionsOptions['runHostCommand']> {
+  if (!runHostCommand) throw new Error('Canvas Host command facade is unavailable.');
+  return runHostCommand;
+}
+
+function requireProductCommands(
+  runProductCommand: BlockActionsOptions['runProductCommand'],
+): NonNullable<BlockActionsOptions['runProductCommand']> {
+  if (!runProductCommand) throw new Error('Whiteboard product command facade is unavailable.');
+  return runProductCommand;
+}
+
+function scopeFor(snapshot: BoardSnapshot) {
+  return {
+    boardId: snapshot.board.boardId,
+    projectId: snapshot.project.projectId,
+  };
 }

@@ -20,10 +20,18 @@ export async function loadBoardSnapshot(input?: { projectId?: string; boardId?: 
   return snapshot;
 }
 
-export async function saveBoardSnapshot(snapshot: BoardSnapshot): Promise<void> {
+export async function saveBoardSnapshot(
+  snapshot: BoardSnapshot,
+  options: { expectedUpdatedAt?: string } = {},
+): Promise<void> {
   const response = await fetch('/api/local/snapshot', {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.expectedUpdatedAt
+        ? { 'X-Retake-Expected-Board-Updated-At': options.expectedUpdatedAt }
+        : {}),
+    },
     body: JSON.stringify(snapshot),
   });
   if (!response.ok) throw await localApiError(response, 'Failed to save board snapshot');

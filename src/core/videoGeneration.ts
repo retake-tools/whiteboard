@@ -123,6 +123,24 @@ export async function runMockVideoGeneration(
   return run;
 }
 
+export function runDeterministicMockVideoGeneration(
+  snapshot: BoardSnapshot,
+  input: VideoGenerationInput,
+): VideoGenerationRun {
+  const run = createVideoGenerationExecution(snapshot, input);
+  completeMockVideoGeneration(
+    snapshot,
+    run.execution,
+    run.resultBlocks,
+    Array.from({ length: input.outputCount }, (_, index) => ({
+      duration: input.durationSeconds,
+      mimeType: 'video/mp4',
+      sourcePath: `local-mock://video/${run.execution.executionId}/${index + 1}.mp4`,
+    })),
+  );
+  return run;
+}
+
 export function createVideoGenerationExecution(
   snapshot: BoardSnapshot,
   input: VideoGenerationInput,

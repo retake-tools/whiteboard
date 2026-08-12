@@ -8,7 +8,8 @@ import { pluginCapabilityDefinitionFor } from '../core/pluginCapabilityDefinitio
 import { managedResultStatusMessageKey } from '../core/resultStatus';
 import { storyboardSheetCapabilityId } from '../core/storyboardSheetContracts';
 import { generationPreparationCapabilityId } from '../core/generationPreparationContracts';
-import type { BlockData, BlockType, ExecutionConfigurationChangeKind, RetakeNode } from '../core/types';
+import type { RetakeNode } from '../canvas/reactFlowTypes';
+import type { BlockData, BlockType, ExecutionConfigurationChangeKind } from '../core/types';
 import { useI18n } from '../i18n';
 import { TooltipIconButton } from '../components/Tooltip';
 import { PluginBlockRendererSlot } from '../components/PluginBlockRendererHost';

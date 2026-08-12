@@ -11,10 +11,9 @@
   padding: 6px;
   border: 1px solid #d8dee8;
   border-radius: 8px;
-  background: rgb(255 255 255 / 92%);
+  background: #ffffff;
   box-shadow: 0 10px 26px rgb(16 24 40 / 12%);
   transform: translateY(-50%);
-  backdrop-filter: blur(12px);
 }
 
 .skill-composer {
@@ -31,7 +30,6 @@
   background: transparent;
   box-shadow: none;
   transform: translateX(-50%);
-  backdrop-filter: blur(14px);
 }
 
 .skill-composer:not(.is-agent-workspace) .skill-composer-form:focus-within {
@@ -1059,9 +1057,8 @@
   padding: 6px;
   border: 1px solid #d8dee8;
   border-radius: 8px;
-  background: rgb(255 255 255 / 92%);
+  background: #ffffff;
   box-shadow: 0 10px 26px rgb(16 24 40 / 12%);
-  backdrop-filter: blur(12px);
 }
 
 .image-context-toolbar-bridge {
@@ -1076,9 +1073,8 @@
   padding: 10px;
   border: 1px solid #99f6e4;
   border-radius: 8px;
-  background: rgb(248 255 253 / 96%);
+  background: #f8fffd;
   box-shadow: 0 12px 28px rgb(15 118 110 / 14%);
-  backdrop-filter: blur(12px);
 }
 
 .operation-toolbar-row,
@@ -1281,10 +1277,9 @@
   padding: 6px;
   border: 1px solid #d8dee8;
   border-radius: 8px;
-  background: rgb(255 255 255 / 96%);
+  background: #ffffff;
   box-shadow: 0 16px 34px rgb(16 24 40 / 16%);
   transform: translateY(-50%);
-  backdrop-filter: blur(12px);
 }
 
 .floating-toolbar-menu:focus-within .floating-toolbar-submenu,

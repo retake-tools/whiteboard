@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { stat } from 'node:fs/promises';
+import path from 'node:path';
 import { createAgentSession } from '../src/core/agentSession';
 import { createId, nowIso } from '../src/core/id';
 import { loadBoardSnapshot, saveBoardSnapshot } from '../src/core/boardStore';
@@ -6,18 +8,37 @@ import { defaultSnapshot } from '../src/core/sampleBoard';
 import { migrateBoardSnapshot } from '../src/core/snapshotMigration';
 import type { AssetRecord, BoardHistoryEvent, ExecutionRecord } from '../src/core/types';
 import {
+  createAssetFromDataUrl,
   getBoardSnapshot,
   listWorkspace,
   resetWorkspace,
   saveSnapshot,
   SnapshotWriteConflictError,
 } from './local-store';
+import { projectsRoot } from './local-store/context';
 import {
   markExecutionRunning,
   recordExecutionRequestPrompts,
 } from './local-store/execution-store';
 
 const sessionOnly = await resetWorkspace();
+const defaultSnapshotPath = path.join(
+  projectsRoot,
+  sessionOnly.project.projectId,
+  'boards',
+  sessionOnly.board.boardId,
+  'snapshot.json',
+);
+const snapshotInodeBeforeReads = (await stat(defaultSnapshotPath)).ino;
+await Promise.all(Array.from({ length: 12 }, () => getBoardSnapshot({
+  boardId: sessionOnly.board.boardId,
+  projectId: sessionOnly.project.projectId,
+})));
+assert.equal(
+  (await stat(defaultSnapshotPath)).ino,
+  snapshotInodeBeforeReads,
+  'loading a migrated Snapshot must not enqueue a stale write',
+);
 const session = createAgentSession(sessionOnly, {
   model: 'test-model',
   title: 'Default conversation',
@@ -116,6 +137,62 @@ assert(afterRejectedFallback.blocks.some((block) => block.blockId === 'block_use
 assert.equal(afterRejectedFallback.executions.length, 1);
 assert.equal(afterRejectedFallback.assets.length, 1);
 assert.equal(afterRejectedFallback.historyEvents?.length, 1);
+
+const authorizedInitial = migrateBoardSnapshot(structuredClone(defaultSnapshot));
+authorizedInitial.project.projectId = 'project_authorized_replacement';
+authorizedInitial.project.defaultBoardId = 'board_authorized_replacement';
+authorizedInitial.board.projectId = authorizedInitial.project.projectId;
+authorizedInitial.board.boardId = authorizedInitial.project.defaultBoardId;
+authorizedInitial.board.updatedAt = '2030-01-01T00:00:01.000Z';
+for (const layer of authorizedInitial.layers) layer.boardId = authorizedInitial.board.boardId;
+for (const block of authorizedInitial.blocks) block.boardId = authorizedInitial.board.boardId;
+authorizedInitial.blocks.push({
+  ...structuredClone(authorizedInitial.blocks[0]),
+  blockId: 'block_authorized_user_content',
+  boardId: authorizedInitial.board.boardId,
+});
+authorizedInitial.blocks[0]!.data.title = 'Newer timestamp before CAS replacement';
+authorizedInitial.blocks[0]!.updatedAt = '2030-01-01T00:00:05.000Z';
+await saveSnapshot(authorizedInitial);
+const authorizedFallbackShape = structuredClone(authorizedInitial);
+authorizedFallbackShape.blocks = authorizedFallbackShape.blocks.filter(
+  (block) => block.blockId !== 'block_authorized_user_content',
+);
+authorizedFallbackShape.board.updatedAt = '2030-01-01T00:00:02.000Z';
+authorizedFallbackShape.blocks[0]!.data.title = 'CAS authoritative replacement';
+authorizedFallbackShape.blocks[0]!.updatedAt = '2029-01-01T00:00:00.000Z';
+await assert.rejects(
+  () => saveSnapshot(authorizedFallbackShape, {
+    expectedRevision: {
+      boardId: authorizedInitial.board.boardId,
+      projectId: authorizedInitial.project.projectId,
+      updatedAt: '2030-01-01T00:00:00.000Z',
+    },
+  }),
+  (error) => error instanceof SnapshotWriteConflictError,
+  'an authorized replacement must still reject a stale expected revision',
+);
+await saveSnapshot(authorizedFallbackShape, {
+  expectedRevision: {
+    boardId: authorizedInitial.board.boardId,
+    projectId: authorizedInitial.project.projectId,
+    updatedAt: authorizedInitial.board.updatedAt,
+  },
+});
+const afterAuthorizedFallbackShape = await getBoardSnapshot({
+  projectId: authorizedInitial.project.projectId,
+  boardId: authorizedInitial.board.boardId,
+});
+assert.equal(
+  afterAuthorizedFallbackShape.blocks.some((block) => block.blockId === 'block_authorized_user_content'),
+  false,
+  'a compare-and-swap authorized command may intentionally return a Board to its fallback Block shape',
+);
+assert.equal(
+  afterAuthorizedFallbackShape.blocks[0]?.data.title,
+  'CAS authoritative replacement',
+  'a compare-and-swap authorized transaction owns same-ID Block facts even when restoring an older snapshot',
+);
 
 const missingDurableHistory = structuredClone(afterRejectedFallback);
 missingDurableHistory.historyEvents = [];
@@ -244,6 +321,32 @@ const running = await markExecutionRunning({
 assert.equal(running.execution.status, 'running');
 assert.equal(running.execution.recordVersion, 2);
 
+const deferredAsset = await createAssetFromDataUrl({
+  dataUrl: 'data:image/png;base64,iVBORw0KGgo=',
+  deferSnapshotRegistration: true,
+  fileName: 'deferred-host-asset.png',
+  projectId: executionRaceSnapshot.project.projectId,
+  sourceExecutionId: raceExecutionId,
+});
+const afterDeferredAssetPersistence = await getBoardSnapshot({
+  boardId: executionRaceSnapshot.board.boardId,
+  projectId: executionRaceSnapshot.project.projectId,
+});
+assert.equal(
+  afterDeferredAssetPersistence.assets.some(
+    (candidate) => candidate.assetId === deferredAsset.assetId,
+  ),
+  false,
+  'Host-owned Asset persistence must defer Board registration to the Host command commit.',
+);
+assert.equal(
+  afterDeferredAssetPersistence.historyEvents?.some(
+    (event) => event.assetIds?.includes(deferredAsset.assetId),
+  ),
+  false,
+  'Host-owned Asset persistence must not create a competing legacy history write.',
+);
+
 await saveSnapshot(staleQueuedSnapshot);
 const promptRecorded = await recordExecutionRequestPrompts({
   projectId: executionRaceSnapshot.project.projectId,
@@ -301,10 +404,13 @@ assert.equal(
 console.log({
   agentSessionDoesNotLookLikeBootstrap: true,
   apiConflictSurfaced: true,
+  authorizedFallbackShapePersisted: true,
   bootstrapOverwriteRejected: true,
   durableHistoryPreserved: true,
+  hostAssetPersistenceDefersSnapshotRegistration: true,
   concurrentAgentBlocksPreserved: true,
   pluginOperationModePreserved: true,
+  snapshotLoadsAreReadOnly: true,
   staleQueuedExecutionRejected: true,
   staleSelectionRecoveredFromServer: true,
   testWorkspace: process.env.RETAKE_WORKSPACE_DIR,

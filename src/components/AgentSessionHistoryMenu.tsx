@@ -14,7 +14,7 @@ export function AgentSessionHistoryMenu({
   sessions,
   snapshot,
 }: {
-  onArchiveSession: () => void;
+  onArchiveSession: () => Promise<void>;
   onSelectSession: (agentSessionId: string) => void;
   selectedSession?: AgentSessionRecord;
   sessions: AgentSessionRecord[];
@@ -127,11 +127,11 @@ export function AgentSessionHistoryMenu({
             <button
               type="button"
               disabled={!selectedSession}
-              onClick={() => {
-                onArchiveSession();
+              onClick={() => void (async () => {
+                await onArchiveSession();
                 setIsOpen(false);
                 requestAnimationFrame(() => triggerRef.current?.focus());
-              }}
+              })()}
             >
               <Archive size={14} />
               {t('agentWorkspace.archiveSession')}

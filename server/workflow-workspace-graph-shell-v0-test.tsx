@@ -244,6 +244,7 @@ assert.match(runInspectorMarkup, /Rerun with last inputs/);
 const repositoryRoot = path.resolve(process.cwd());
 const [
   agentRuntimeControllerSource,
+  whiteboardProductCommandsSource,
   agentWorkspaceSource,
   appSource,
   canvasSource,
@@ -262,6 +263,7 @@ const [
   workspaceStyles,
 ] = await Promise.all([
   readFile(path.join(repositoryRoot, 'src/app/useAgentRuntimeController.ts'), 'utf8'),
+  readFile(path.join(repositoryRoot, 'src/whiteboard/application/whiteboardProductCommands.ts'), 'utf8'),
   readFile(path.join(repositoryRoot, 'src/components/AgentWorkspace.tsx'), 'utf8'),
   readFile(path.join(repositoryRoot, 'src/App.tsx'), 'utf8'),
   readFile(path.join(repositoryRoot, 'src/app/WhiteboardCanvas.tsx'), 'utf8'),
@@ -288,10 +290,11 @@ assert.match(appSource, /agentWorkspaceController\.focusAgentRun\(agentRunId\)/)
 assert.match(agentWorkspaceSource, /<CanvasExecutionActivity/);
 assert.doesNotMatch(canvasSource, /<CanvasExecutionActivity/);
 assert.match(
-  agentRuntimeControllerSource,
+  whiteboardProductCommandsSource,
   /Operation returned without creating an Execution\./,
   'Agent dispatch must not remain running when an Operation produces no Execution.',
 );
+assert.match(agentRuntimeControllerSource, /commands\.agent\.settleExecution\(/);
 assert.match(canvasSource, /onOpenWorkflowRun\(currentRun\.record\.workflowRunId\)/);
 assert.match(workspaceSource, /nodesConnectable=\{false\}/);
 assert.match(workspaceSource, /nodesDraggable=\{false\}/);
@@ -355,12 +358,12 @@ assert.match(designStepInspectorSource, /workflow-step-\$\{stepId\}-variation-co
 assert.match(designStepInspectorSource, /workflowInspector\.outputs/);
 assert.match(designStepInspectorSource, /workflowInspector\.validation/);
 assert.match(designWorkspaceSource, /workflowAuthoringChecklistFor/);
-assert.match(designWorkspaceSource, /setProjectedRevision\(onProjectRevision\(revision\)\)/);
+assert.match(designWorkspaceSource, /setProjectedRevision\(await onProjectRevision\(revision\)\)/);
 assert.match(designProjectionResultSource, /workflowRuntime\.create/);
 assert.match(designProjectionResultSource, /onCreateWorkflowRun\(projection\.groupBlockId\)/);
 assert.match(
-  workflowDraftControllerSource,
-  /current\.project\.projectId !== revision\.projectId/,
+  whiteboardProductCommandsSource,
+  /assertProjectScope\(snapshot, input\.revision\.projectId\)/,
   'A Project Revision must not project into another Project.',
 );
 assert.match(designWorkspaceSource, /onLocateStep=\{locateStep\}/);

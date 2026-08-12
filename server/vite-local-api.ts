@@ -863,7 +863,19 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
 
           if (method === 'PUT' && url.pathname === '/snapshot') {
             const snapshot = (await readJson(req)) as BoardSnapshot;
-            await saveSnapshot(snapshot);
+            const expectedUpdatedAtHeader = req.headers['x-retake-expected-board-updated-at'];
+            const expectedUpdatedAt = Array.isArray(expectedUpdatedAtHeader)
+              ? expectedUpdatedAtHeader[0]
+              : expectedUpdatedAtHeader;
+            await saveSnapshot(snapshot, {
+              expectedRevision: expectedUpdatedAt
+                ? {
+                    boardId: snapshot.board.boardId,
+                    projectId: snapshot.project.projectId,
+                    updatedAt: expectedUpdatedAt,
+                  }
+                : undefined,
+            });
             sendJson(res, { ok: true });
             return;
           }
@@ -1186,6 +1198,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
             const body = (await readJson(req)) as {
               projectId?: string;
               dataUrl?: string;
+              deferSnapshotRegistration?: boolean;
               fileName?: string;
               width?: number;
               height?: number;
@@ -1201,6 +1214,7 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
               await createAssetFromDataUrl({
                 projectId: body.projectId,
                 dataUrl: body.dataUrl,
+                deferSnapshotRegistration: body.deferSnapshotRegistration,
                 fileName: body.fileName,
                 width: body.width,
                 height: body.height,

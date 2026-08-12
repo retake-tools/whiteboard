@@ -4,15 +4,10 @@ import type {
   PluginAssetV2,
   PluginExecutionViewV2,
 } from '@retake-tools/package-sdk';
-import { createImageAssetFromDataUrl } from '../core/assetStore';
+import { imageMimeTypeFromDataUrl } from '../core/assetStore';
 import {
   capabilityDefinitionFor,
 } from '../core/capabilityRegistry';
-import {
-  addPluginImageOperation,
-  completePluginImageOperation,
-  failPluginImageOperation,
-} from '../core/imageOperations';
 import type {
   PluginExecutionRunnerRequestV2,
   PluginExecutionRunnerV2,
@@ -21,50 +16,52 @@ import type {
   AssetRecord,
   BoardSnapshot,
 } from '../core/types';
+import type { CanvasHostCommandsV1 } from '../host-kit';
+import type { WhiteboardProductCommandsV1 } from '../whiteboard/application/whiteboardProductCommands';
 import {
   runConnectedPluginExecution,
 } from './runConnectedPluginExecution';
 
 interface PluginExecutionControllerOptions {
-  persistSnapshot: (
-    snapshot: BoardSnapshot,
-    options?: { requireLocalApi?: boolean },
-  ) => Promise<void>;
+  adoptDurableSnapshot: (snapshot: BoardSnapshot) => void;
+  runHostCommand?: <Result>(
+    operation: (commands: CanvasHostCommandsV1) => Promise<Result>,
+    options?: { history?: boolean; syncFlow?: boolean },
+  ) => Promise<Result>;
+  runProductCommand?: <Result>(
+    operation: (commands: WhiteboardProductCommandsV1) => Promise<Result>,
+    options?: { history?: boolean; syncFlow?: boolean },
+  ) => Promise<Result>;
   setSelectedBlock: (
     snapshot: BoardSnapshot,
     blockId: string,
   ) => void;
   snapshotRef: RefObject<BoardSnapshot>;
-  updateSnapshot: (
-    updater: (current: BoardSnapshot) => BoardSnapshot,
-    options?: {
-      history?: boolean;
-      persist?: boolean;
-      syncFlow?: boolean;
-    },
-  ) => BoardSnapshot;
 }
 
 export function usePluginExecutionController({
-  persistSnapshot,
+  adoptDurableSnapshot,
+  runHostCommand,
+  runProductCommand,
   setSelectedBlock,
   snapshotRef,
-  updateSnapshot,
 }: PluginExecutionControllerOptions): PluginExecutionRunnerV2 {
   return useCallback(
     (request: PluginExecutionRunnerRequestV2) => (
       runPluginExecution(request, {
-        persistSnapshot,
+        adoptDurableSnapshot,
+        runHostCommand,
+        runProductCommand,
         setSelectedBlock,
         snapshotRef,
-        updateSnapshot,
       })
     ),
     [
-      persistSnapshot,
+      adoptDurableSnapshot,
+      runHostCommand,
+      runProductCommand,
       setSelectedBlock,
       snapshotRef,
-      updateSnapshot,
     ],
   );
 }
@@ -72,21 +69,28 @@ export function usePluginExecutionController({
 export async function runPluginExecution(
   request: PluginExecutionRunnerRequestV2,
   {
-    persistSnapshot,
+    adoptDurableSnapshot,
+    runHostCommand,
+    runProductCommand,
     setSelectedBlock,
     snapshotRef,
-    updateSnapshot,
   }: PluginExecutionControllerOptions,
 ): Promise<PluginConnectedExecutionViewV2 | PluginExecutionViewV2> {
   if (request.kind === 'connected') {
+    if (!runProductCommand) {
+      throw new Error('Whiteboard product command facade is required for connected Plugin execution.');
+    }
     return runConnectedPluginExecution(
       request.input,
       request.signal,
       {
-        persistSnapshot,
+        adoptDurableSnapshot,
+        runHostCommand: runHostCommand ?? (() => {
+          throw new Error('Canvas Host command facade is required for connected Plugin execution.');
+        }),
+        runProductCommand,
         setSelectedBlock,
         snapshotRef,
-        updateSnapshot,
       },
       request.importedAssets,
     );
@@ -117,23 +121,24 @@ export async function runPluginExecution(
       'Plugin image execution requires a bound Image Block with an Asset.',
     );
   }
+  if (!runHostCommand) {
+    throw new Error('Canvas Host command facade is required for local Plugin execution.');
+  }
 
-  let executionId = '';
-  let operationBlockId = '';
-  let resultBlockId = '';
-  const runningSnapshot = updateSnapshot((current) => {
-    const started = addPluginImageOperation(current, {
+  const started = await runHostCommand(
+    (commands) => commands.startLocalImageExecution({
       body: definition.displayName,
       capabilityId: definition.capabilityId,
       params: parameters,
       sourceBlockId,
       title: definition.displayName,
-    });
-    executionId = started.execution.executionId;
-    operationBlockId = started.operationBlock.blockId;
-    resultBlockId = started.resultBlock.blockId;
-    return current;
-  }, { history: true });
+    }),
+    { history: true },
+  );
+  const executionId = started.execution.executionId;
+  const operationBlockId = started.operationBlock.blockId;
+  const resultBlockId = started.resultBlock.blockId;
+  const runningSnapshot = structuredClone(snapshotRef.current);
   const executionScope = {
     boardId: runningSnapshot.board.boardId,
     projectId: runningSnapshot.project.projectId,
@@ -141,7 +146,6 @@ export async function runPluginExecution(
   setSelectedBlock(runningSnapshot, operationBlockId);
 
   try {
-    await persistSnapshot(runningSnapshot);
     throwIfAborted(signal);
     const output = await input.execute({
       assets: [toPluginAsset(sourceAsset)],
@@ -168,62 +172,50 @@ export async function runPluginExecution(
         'Plugin image output must use an image data URL.',
       );
     }
-    const asset = await createImageAssetFromDataUrl({
-      dataUrl: image.dataUrl,
-      fileName: image.fileName
-        ?? `plugin-result-${executionId}.png`,
-      height: image.height,
-      projectId: runningSnapshot.project.projectId,
-      sourceExecutionId: executionId,
-      width: image.width,
-    });
-    const completedSnapshot = isCurrentExecutionScope(
-      snapshotRef.current,
-      executionScope,
-    )
-      ? updateSnapshot((current) => {
-          completePluginImageOperation(current, { asset, executionId });
-          return current;
-        })
-      : completeDetachedExecution(
-          runningSnapshot,
-          asset,
-          executionId,
-        );
-    await persistSnapshot(completedSnapshot);
+    const fileName = image.fileName ?? `plugin-result-${executionId}.png`;
+    const completed = await runHostCommand(
+      (commands) => commands.completeLocalImageExecution({
+        asset: {
+          fileName,
+          height: image.height,
+          kind: 'image',
+          mimeType: imageMimeTypeFromDataUrl(image.dataUrl),
+          previewUrl: image.dataUrl,
+          storageKey: `plugin-output://${executionId}/${fileName}`,
+          storageProvider: 'custom',
+          width: image.width,
+        },
+        executionId,
+        scope: executionScope,
+      }),
+    );
     if (isCurrentExecutionScope(snapshotRef.current, executionScope)) {
-      setSelectedBlock(completedSnapshot, resultBlockId);
+      setSelectedBlock(snapshotRef.current, resultBlockId);
     }
     return {
       capabilityId: input.capabilityId,
       executionId,
-      outputAssetIds: [asset.assetId],
-      outputBlockIds: [resultBlockId],
+      outputAssetIds: [completed.asset.assetId],
+      outputBlockIds: [completed.resultBlock.blockId],
       status: 'succeeded',
     };
   } catch (error) {
     const message = error instanceof Error
       ? error.message
       : 'Plugin image execution failed.';
-    const failedSnapshot = isCurrentExecutionScope(
-      snapshotRef.current,
-      executionScope,
-    )
-      ? updateSnapshot((current) => {
-          failPluginImageOperation(current, {
-            errorMessage: message,
-            executionId,
-          });
-          return current;
-        })
-      : failDetachedExecution(
-          runningSnapshot,
+    try {
+      await runHostCommand(
+        (commands) => commands.failLocalImageExecution({
+          errorMessage: message,
           executionId,
-          message,
-        );
-    await persistSnapshot(failedSnapshot);
+          scope: executionScope,
+        }),
+      );
+    } catch (writebackError) {
+      console.error('Plugin execution failure writeback failed.', writebackError);
+    }
     if (isCurrentExecutionScope(snapshotRef.current, executionScope)) {
-      setSelectedBlock(failedSnapshot, operationBlockId);
+      setSelectedBlock(snapshotRef.current, operationBlockId);
     }
     throw error;
   }
@@ -297,24 +289,6 @@ function isFiniteJsonValue(
   );
   ancestors.delete(value);
   return valid;
-}
-
-function completeDetachedExecution(
-  snapshot: BoardSnapshot,
-  asset: AssetRecord,
-  executionId: string,
-): BoardSnapshot {
-  completePluginImageOperation(snapshot, { asset, executionId });
-  return snapshot;
-}
-
-function failDetachedExecution(
-  snapshot: BoardSnapshot,
-  executionId: string,
-  errorMessage: string,
-): BoardSnapshot {
-  failPluginImageOperation(snapshot, { errorMessage, executionId });
-  return snapshot;
 }
 
 function isCurrentExecutionScope(

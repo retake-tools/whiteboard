@@ -83,6 +83,7 @@ export async function createImageAssetFromDataUrl(input: {
 export async function createAssetFromDataUrl(input: {
   projectId: string;
   dataUrl: string;
+  deferSnapshotRegistration?: boolean;
   fileName?: string;
   width?: number;
   height?: number;

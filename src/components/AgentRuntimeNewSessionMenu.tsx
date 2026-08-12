@@ -12,7 +12,7 @@ export function AgentRuntimeNewSessionMenu({
   onCreateSession,
   projectId,
 }: {
-  onCreateSession: (connectionId?: string) => void;
+  onCreateSession: (connectionId?: string) => Promise<string>;
   projectId: string;
 }): ReactElement {
   const { t } = useI18n();
@@ -41,8 +41,8 @@ export function AgentRuntimeNewSessionMenu({
     };
   }, [isOpen]);
 
-  function createSession(connectionId?: string): void {
-    onCreateSession(connectionId);
+  async function createSession(connectionId?: string): Promise<void> {
+    await onCreateSession(connectionId);
     setIsOpen(false);
     requestAnimationFrame(() => triggerRef.current?.focus());
   }
@@ -71,7 +71,7 @@ export function AgentRuntimeNewSessionMenu({
             <button
               type="button"
               disabled={!defaultRuntime.isUsable}
-              onClick={() => createSession()}
+              onClick={() => void createSession()}
             >
               <Bot size={15} />
               <span>
@@ -83,7 +83,7 @@ export function AgentRuntimeNewSessionMenu({
               <button
                 key={connection.connectionId}
                 type="button"
-                onClick={() => createSession(connection.connectionId)}
+                onClick={() => void createSession(connection.connectionId)}
               >
                 <Bot size={15} />
                 <span>

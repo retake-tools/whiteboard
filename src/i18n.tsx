@@ -945,7 +945,10 @@ export type TranslationKey =
   | 'agentWorkspace.open'
   | 'agentWorkspace.operationContinued'
   | 'agentWorkspace.operationCreated'
+  | 'agentWorkspace.operationAskAgent'
+  | 'agentWorkspace.operationAskAgentPrompt'
   | 'agentWorkspace.operationPreparing'
+  | 'agentWorkspace.operationRetry'
   | 'agentWorkspace.operationRun'
   | 'agentWorkspace.package'
   | 'agentWorkspace.parameters'
@@ -2229,7 +2232,10 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.open': 'Open Agent Workspace',
     'agentWorkspace.operationContinued': 'Continued the current task',
     'agentWorkspace.operationCreated': 'Created a new task',
+    'agentWorkspace.operationAskAgent': 'Ask Agent',
+    'agentWorkspace.operationAskAgentPrompt': 'This Operation failed. Please inspect the current Operation and Execution, explain what can be preserved, and give me clear next-step choices.',
     'agentWorkspace.operationPreparing': 'Preparing',
+    'agentWorkspace.operationRetry': 'Rerun',
     'agentWorkspace.operationRun': 'Task',
     'agentWorkspace.package': 'Package',
     'agentWorkspace.parameters': 'Parameters',
@@ -3615,7 +3621,10 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.open': '打开 Agent Workspace',
     'agentWorkspace.operationContinued': '继续当前任务',
     'agentWorkspace.operationCreated': '已创建新任务',
+    'agentWorkspace.operationAskAgent': '让 Agent 处理',
+    'agentWorkspace.operationAskAgentPrompt': '这个 Operation 执行失败了。请检查当前 Operation 和 Execution，说明哪些现有结果可以保留，并在 Chat 中给我明确的下一步选择。',
     'agentWorkspace.operationPreparing': '正在准备',
+    'agentWorkspace.operationRetry': '重新执行',
     'agentWorkspace.operationRun': '任务',
     'agentWorkspace.package': 'Package',
     'agentWorkspace.parameters': '参数',

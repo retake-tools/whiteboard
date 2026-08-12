@@ -6,7 +6,7 @@ import {
   targetLeftClearance,
   type EdgeObstacleBounds,
 } from '../core/executionOutputEdgePath';
-import type { RetakeEdge, RetakeNode } from '../core/types';
+import type { RetakeEdge, RetakeNode } from '../canvas/reactFlowTypes';
 
 export function ExecutionOutputEdge(props: EdgeProps<RetakeEdge>): ReactElement {
   const resultHeight = props.data?.resultHeight ?? 0;

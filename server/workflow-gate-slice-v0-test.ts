@@ -48,7 +48,7 @@ const [
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/core/workflowArtifactGateClient.ts', import.meta.url), 'utf8'),
 ]);
-assert.match(controllerSource, /createAgentRunForWorkflowGateSlice/);
+assert.match(controllerSource, /commands\.agent\.createWorkflowGateSlice/);
 assert.match(controllerSource, /createWorkflowGateSliceAgentRun/);
 assert.match(targetPickerSource, /agentRuntime\.untilGate/);
 assert.match(targetPickerSource, /agentRuntime\.gateCompletion/);

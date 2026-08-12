@@ -6,7 +6,6 @@ import type {
 import { referenceInputSlotLabel } from '../components/referenceInputLabels';
 import { getAssetPreviewUrl } from '../core/assetStore';
 import { localizedBlockData } from '../core/blockLocalization';
-import { createBlockRecord, touchBoard } from '../core/blockFactory';
 import {
   compatibleInputSlotIdsFor,
   disabledInputSlotIdsFor,
@@ -18,19 +17,15 @@ import {
   capabilityDefinitionFor,
   isTextDocumentCapability,
 } from '../core/capabilityRegistry';
-import { blockLockedByGroup, expandGroupToContents } from '../core/grouping';
+import { blockLockedByGroup } from '../core/grouping';
 import { imageOperationDefaultPrompt } from '../core/imageOperationText';
 import type {
   ImageGenerationParams,
   SwitchableOperationMode,
 } from '../core/imageOperations';
-import { createId, nowIso } from '../core/id';
 import { executionConnection } from '../core/executionProviderPreferences';
-import {
-  domainVideoGenerationCapabilityId,
-  normalizeDomainVideoGenerationParameters,
-} from '../core/domainVideoGenerationContracts';
-import { resolvedSkillUiDefinitionFor, skillsForCapability } from '../core/skillRegistry';
+import { domainVideoGenerationCapabilityId } from '../core/domainVideoGenerationContracts';
+import { resolvedSkillUiDefinitionFor } from '../core/skillRegistry';
 import type {
   BlockRecord,
   BlockType,
@@ -44,6 +39,9 @@ import {
 } from '../core/referenceIntent';
 import type { OperationToast } from '../components/OperationFeedback';
 import type { useI18n } from '../i18n';
+import type { CanvasHostCommandsV1 } from '../host-kit';
+import type { WhiteboardProductCommandsV1 } from '../whiteboard/application/whiteboardProductCommands';
+import { inputSlotIdForReferenceSetting } from '../whiteboard/application/whiteboardOperationInputCommands';
 import {
   operationAllowsInputType,
   operationModeFromBlock,
@@ -65,6 +63,18 @@ interface OperationInputControllerOptions {
   copyQueuedOperationPrompt: (block: BlockRecord) => Promise<void>;
   locale: string;
   refreshQueuedOperationPrompt: (block: BlockRecord) => Promise<void>;
+  runHostCommand?: <Result>(
+    operation: (commands: CanvasHostCommandsV1) => Promise<Result>,
+    options?: { history?: boolean; syncFlow?: boolean },
+  ) => Promise<Result>;
+  runProductCommand?: <Result>(
+    operation: (commands: WhiteboardProductCommandsV1) => Promise<Result>,
+    options?: {
+      history?: boolean;
+      shouldKeepHistory?: (result: Result) => boolean;
+      syncFlow?: boolean;
+    },
+  ) => Promise<Result>;
   setOperationToast: (toast: OperationToast | undefined) => void;
   setSelectedBlock: (snapshot: BoardSnapshot, blockId: string) => void;
   snapshot: BoardSnapshot;
@@ -80,10 +90,6 @@ interface OperationInputControllerOptions {
   updateOperationConnection: (blockId: string, connectionId: string) => void;
   updateOperationGenerationParams: (blockId: string, params: ImageGenerationParams) => void;
   updateOperationGenerationProfile: (blockId: string, profileId: string) => void;
-  updateSnapshot: (
-    updater: (current: BoardSnapshot) => BoardSnapshot,
-    options?: { history?: boolean; persist?: boolean; syncFlow?: boolean },
-  ) => BoardSnapshot;
 }
 
 export function useOperationInputController(options: OperationInputControllerOptions) {
@@ -91,6 +97,8 @@ export function useOperationInputController(options: OperationInputControllerOpt
     copyQueuedOperationPrompt,
     locale,
     refreshQueuedOperationPrompt,
+    runHostCommand,
+    runProductCommand,
     setOperationToast,
     setSelectedBlock,
     snapshot,
@@ -102,25 +110,9 @@ export function useOperationInputController(options: OperationInputControllerOpt
     updateOperationConnection,
     updateOperationGenerationParams,
     updateOperationGenerationProfile,
-    updateSnapshot,
   } = options;
   const [inputReferencePicker, setInputReferencePicker] = useState<InputReferencePickerState>();
   const inFlightOperationBlockIdsRef = useRef(new Set<string>());
-
-  function operationInputBlockPosition(
-    current: BoardSnapshot,
-    operationBlock: BlockRecord,
-    size: { width: number; height: number },
-  ): { x: number; y: number } {
-    const inputCount = current.edges.filter(
-      (edge) => edge.targetBlockId === operationBlock.blockId && edge.kind === 'execution_input',
-    ).length;
-    const slotOffset = inputCount === 0 ? 0 : inputCount * 54;
-    return {
-      x: operationBlock.position.x - size.width - 90,
-      y: operationBlock.position.y + slotOffset,
-    };
-  }
 
   function operationPlaceholderForBlock(operationBlock: BlockRecord): string {
     if (operationBlock.data.capabilityId === 'text.generate') return t('operationToolbar.promptPlaceholder');
@@ -144,123 +136,84 @@ export function useOperationInputController(options: OperationInputControllerOpt
     operationBlockId: string,
     type: Extract<BlockType, 'image' | 'text' | 'video'>,
   ): void {
-    let newBlockId = '';
-    const nextSnapshot = updateSnapshot((current) => {
-      const operationBlock = current.blocks.find(
-        (block) => block.blockId === operationBlockId && block.type === 'operation',
-      );
-      if (!operationBlock || blockLockedByGroup(current, operationBlockId)) return current;
-      if (!operationAllowsInputType(operationBlock, type)) return current;
-      const block = createBlockRecord(current, type);
-      block.position = operationInputBlockPosition(current, operationBlock, block.size);
-      block.parentGroupId = operationBlock.parentGroupId;
-      block.data = { ...block.data, ...localizedBlockData(type, t) };
-      if (type === 'text') {
-        const slotId = nextRequiredInputSlotId(current, operationBlock);
-        const skillUi = typeof operationBlock.data.skillId === 'string'
-          ? resolvedSkillUiDefinitionFor(operationBlock.data.skillId, locale)
-          : undefined;
-        const slotUi = skillUi?.inputSlots?.find((candidate) => candidate.slotId === slotId);
-        block.data.title = slotUi?.label ?? t('operationToolbar.prompt');
-        block.data.promptRole = 'operation_prompt';
-        block.data.placeholder = operationPlaceholderForBlock(operationBlock);
-      }
-      current.blocks.push(block);
-      if (operationBlock.parentGroupId) expandGroupToContents(current, operationBlock.parentGroupId);
-      current.edges.push({
-        edgeId: createId('edge'),
-        sourceBlockId: block.blockId,
-        targetBlockId: operationBlock.blockId,
-        kind: 'execution_input',
-        inputSlotId: type === 'text' ? nextRequiredInputSlotId(current, operationBlock) : undefined,
+    const current = snapshotRef.current;
+    const operationBlock = current.blocks.find(
+      (block) => block.blockId === operationBlockId && block.type === 'operation',
+    );
+    if (
+      !operationBlock
+      || blockLockedByGroup(current, operationBlockId)
+      || !operationAllowsInputType(operationBlock, type)
+    ) return;
+    const blockData = { ...localizedBlockData(type, t) };
+    if (type === 'text') {
+      const slotId = nextRequiredInputSlotId(current, operationBlock);
+      const skillUi = typeof operationBlock.data.skillId === 'string'
+        ? resolvedSkillUiDefinitionFor(operationBlock.data.skillId, locale)
+        : undefined;
+      const slotUi = skillUi?.inputSlots?.find((candidate) => candidate.slotId === slotId);
+      blockData.title = slotUi?.label ?? t('operationToolbar.prompt');
+      Object.assign(blockData, {
+        placeholder: operationPlaceholderForBlock(operationBlock),
+        promptRole: 'operation_prompt',
       });
-      newBlockId = block.blockId;
-      return touchBoard(current);
-    }, { persist: true, history: true });
-    if (newBlockId) setSelectedBlock(nextSnapshot, newBlockId);
+    }
+    void requireProductCommands(runProductCommand)(
+      (commands) => commands.operationInput.addBlock({
+        blockData,
+        expectedScope: scopeFor(current),
+        operationBlockId,
+        type,
+      }),
+      { history: true, shouldKeepHistory: (result) => result.committed },
+    ).then((result) => {
+      if (result.blockId) setSelectedBlock(snapshotRef.current, result.blockId);
+    }).catch((error: unknown) => reportOperationInputCommandFailure('add', error));
   }
 
   function removeOperationInput(edgeId: string): void {
-    updateSnapshot((current) => {
-      const edge = current.edges.find((candidate) => candidate.edgeId === edgeId);
-      if (edge && (blockLockedByGroup(current, edge.sourceBlockId) || blockLockedByGroup(current, edge.targetBlockId))) return current;
-      const nextEdges = current.edges.filter((edge) => edge.edgeId !== edgeId);
-      if (nextEdges.length === current.edges.length) return current;
-      current.edges = nextEdges;
-      return touchBoard(current);
-    }, { persist: true, history: true });
+    const edge = snapshotRef.current.edges.find((candidate) => candidate.edgeId === edgeId);
+    if (
+      !edge
+      || blockLockedByGroup(snapshotRef.current, edge.sourceBlockId)
+      || blockLockedByGroup(snapshotRef.current, edge.targetBlockId)
+    ) return;
+    void requireHostCommands(runHostCommand)(
+      (commands) => commands.removeConnections({ edgeIds: [edgeId] }),
+      { history: true },
+    ).catch((error: unknown) => {
+      console.error('Operation input removal failed.', error);
+      setOperationToast({
+        body: error instanceof Error ? error.message : String(error),
+        id: `operation-input-remove-failed:${Date.now()}`,
+        title: t('feedback.handoffUnavailable'),
+        tone: 'error',
+      });
+    });
   }
 
   function completeInputReferenceMention(): void {
     const picker = inputReferencePicker;
     if (!picker?.sourceBlockId) return;
-    let selectedOperationId = '';
-    const nextSnapshot = updateSnapshot((current) => {
-      const sourceBlock = current.blocks.find((block) => block.blockId === picker.sourceBlockId && block.type === 'image' && block.data.assetId);
-      const textBlock = picker.textBlockId
-        ? current.blocks.find((block) => block.blockId === picker.textBlockId && block.type === 'text')
-        : undefined;
-      const operationBlock = current.blocks.find((block) => block.blockId === picker.operationBlockId && block.type === 'operation');
-      if (
-        !sourceBlock
-        || !operationBlock
-        || (textBlock && blockLockedByGroup(current, textBlock.blockId))
-        || blockLockedByGroup(current, operationBlock.blockId)
-      ) return current;
-      let inputEdge = picker.edgeId
-        ? current.edges.find((edge) => edge.edgeId === picker.edgeId)
-        : current.edges.find((edge) => edge.sourceBlockId === sourceBlock.blockId && edge.targetBlockId === operationBlock.blockId && edge.kind === 'execution_input');
-      const compatibleSlots = compatibleInputSlotIdsFor(sourceBlock, operationBlock);
-      const disabledSlots = disabledInputSlotIdsFor(
-        current,
-        sourceBlock,
-        operationBlock,
-        inputEdge?.edgeId,
-      );
-      const inputSlotId = inputSlotIdForReferenceSetting(
-        operationBlock,
-        compatibleSlots.filter((slotId) => !disabledSlots.includes(slotId)),
-        picker.setting,
-        picker.inputSlotId,
-      );
-      if (!inputSlotId) return current;
-      if (inputEdge) {
-        inputEdge.inputSlotId = inputSlotId;
-      } else {
-        inputEdge = {
-          edgeId: createId('edge'),
-          sourceBlockId: sourceBlock.blockId,
-          targetBlockId: operationBlock.blockId,
-          kind: 'execution_input',
-          inputSlotId,
-        };
-        current.edges.push(inputEdge);
-      }
-      const referenceIntent = picker.setting.mode === 'source'
-        ? undefined
-        : createReferenceIntent(picker.setting.instruction, 'user');
-      if (referenceIntent) {
-        inputEdge.referenceIntent = referenceIntent;
-      } else {
-        delete inputEdge.referenceIntent;
-      }
-      if (
-        textBlock
-        && typeof picker.body === 'string'
-        && typeof picker.cursorIndex === 'number'
-      ) {
-        const imageTitle = sourceBlock.data.title.trim() || t('block.image.title');
-        const mentionStart = Math.max(0, picker.cursorIndex - 1);
-        const afterMention = picker.body.slice(picker.cursorIndex);
-        const separator = afterMention.length > 0 && !/^\s/.test(afterMention) ? ' ' : '';
-        textBlock.data.body = `${picker.body.slice(0, mentionStart)}@${imageTitle}${separator}${afterMention}`;
-        textBlock.updatedAt = nowIso();
-      }
-      selectedOperationId = operationBlock.blockId;
-      return touchBoard(current);
-    }, { persist: true, history: true });
+    const current = snapshotRef.current;
     setInputReferencePicker(undefined);
-    if (selectedOperationId) setSelectedBlock(nextSnapshot, selectedOperationId);
+    void requireProductCommands(runProductCommand)(
+      (commands) => commands.operationInput.bindImageReference({
+        body: picker.body,
+        cursorIndex: picker.cursorIndex,
+        edgeId: picker.edgeId,
+        expectedScope: scopeFor(current),
+        fallbackImageTitle: t('block.image.title'),
+        inputSlotId: picker.inputSlotId,
+        operationBlockId: picker.operationBlockId,
+        setting: picker.setting,
+        sourceBlockId: picker.sourceBlockId!,
+        textBlockId: picker.textBlockId,
+      }),
+      { history: true, shouldKeepHistory: (result) => result.committed },
+    ).then((result) => {
+      if (result.operationBlockId) setSelectedBlock(snapshotRef.current, result.operationBlockId);
+    }).catch((error: unknown) => reportOperationInputCommandFailure('reference', error));
   }
 
   useEffect(() => {
@@ -413,32 +366,28 @@ export function useOperationInputController(options: OperationInputControllerOpt
         parameters?: Record<string, unknown>;
       }>).detail;
       if (!detail?.blockId || !detail.parameters) return;
-      updateSnapshot((current) => {
-        const operation = current.blocks.find((block) =>
-          block.blockId === detail.blockId
-          && block.type === 'operation'
-          && block.data.capabilityId === domainVideoGenerationCapabilityId,
-        );
-        if (!operation || blockLockedByGroup(current, operation.blockId)) return current;
-        const parameters = normalizeDomainVideoGenerationParameters(detail.parameters);
-        operation.data.domainVideoGenerationParameters = parameters;
-        operation.data.workflowParameters = parameters;
-        operation.updatedAt = nowIso();
-        return touchBoard(current);
-      }, { persist: true, history: true });
+      const current = snapshotRef.current;
+      void requireProductCommands(runProductCommand)(
+        (commands) => commands.operationInput.updateDomainVideoParameters({
+          blockId: detail.blockId!,
+          expectedScope: scopeFor(current),
+          parameters: detail.parameters!,
+        }),
+        { history: true, shouldKeepHistory: (result) => result.committed },
+      ).catch((error: unknown) => reportOperationInputCommandFailure('video-parameters', error));
     }
     function onUpdateSkill(event: Event): void {
       const detail = (event as CustomEvent<{ blockId?: string; skillId?: string }>).detail;
       if (!detail?.blockId || !detail.skillId) return;
-      updateSnapshot((current) => {
-        const operation = current.blocks.find((block) => block.blockId === detail.blockId && block.type === 'operation');
-        if (!operation || blockLockedByGroup(current, operation.blockId)) return current;
-        const capabilityId = typeof operation.data.capabilityId === 'string' ? operation.data.capabilityId : '';
-        if (!skillsForCapability(capabilityId).some((skill) => skill.skillId === detail.skillId)) return current;
-        operation.data.skillId = detail.skillId;
-        operation.updatedAt = nowIso();
-        return touchBoard(current);
-      }, { persist: true, history: true });
+      const current = snapshotRef.current;
+      void requireProductCommands(runProductCommand)(
+        (commands) => commands.operationInput.updateSkill({
+          blockId: detail.blockId!,
+          expectedScope: scopeFor(current),
+          skillId: detail.skillId!,
+        }),
+        { history: true, shouldKeepHistory: (result) => result.committed },
+      ).catch((error: unknown) => reportOperationInputCommandFailure('skill', error));
     }
     function onUpdateCapability(event: Event): void {
       const detail = (event as CustomEvent<{ blockId?: string; operation?: SwitchableOperationMode }>).detail;
@@ -465,6 +414,16 @@ export function useOperationInputController(options: OperationInputControllerOpt
       window.removeEventListener('retake:remove-operation-input', onRemoveInput);
     };
   }, []);
+
+  function reportOperationInputCommandFailure(action: string, error: unknown): void {
+    console.error(`Operation Input ${action} failed.`, error);
+    setOperationToast({
+      body: error instanceof Error ? error.message : String(error),
+      id: `operation-input-${action}-failed:${Date.now()}`,
+      title: t('feedback.handoffUnavailable'),
+      tone: 'error',
+    });
+  }
 
   const referenceImageOptions: ReferenceImageOption[] = snapshot.blocks.flatMap((block) => {
     if (block.type !== 'image' || !block.data.assetId) return [];
@@ -535,23 +494,6 @@ function referenceModesForSlots(
   return [...new Set(modes)];
 }
 
-function inputSlotIdForReferenceSetting(
-  operationBlock: BlockRecord,
-  slotIds: readonly string[],
-  setting: ComposerImageReferenceSetting,
-  selectedSlotId?: string,
-): string | undefined {
-  const semantics = inputSlotSemantics(operationBlock, slotIds);
-  if (selectedSlotId && slotIds.includes(selectedSlotId)) return selectedSlotId;
-  if (setting.mode === 'source') {
-    return semantics.find(({ semanticRole }) => semanticRole === 'source')?.slotId;
-  }
-  return semantics.find(({ semanticRole }) => (
-    semanticRole === 'reference'
-    || semanticRole === 'general_reference'
-  ))?.slotId ?? semantics.find(({ semanticRole }) => semanticRole !== 'source')?.slotId;
-}
-
 function referenceSlotOptions(
   operationBlock: BlockRecord | undefined,
   slotIds: readonly string[],
@@ -602,4 +544,25 @@ function inputSlotSemantics(
   } catch {
     return slotIds.map((slotId) => ({ semanticRole: slotId, slotId }));
   }
+}
+
+function requireHostCommands(
+  runHostCommand: OperationInputControllerOptions['runHostCommand'],
+): NonNullable<OperationInputControllerOptions['runHostCommand']> {
+  if (!runHostCommand) throw new Error('Canvas Host command facade is unavailable.');
+  return runHostCommand;
+}
+
+function requireProductCommands(
+  runProductCommand: OperationInputControllerOptions['runProductCommand'],
+): NonNullable<OperationInputControllerOptions['runProductCommand']> {
+  if (!runProductCommand) throw new Error('Whiteboard product command facade is unavailable.');
+  return runProductCommand;
+}
+
+function scopeFor(snapshot: BoardSnapshot) {
+  return {
+    boardId: snapshot.board.boardId,
+    projectId: snapshot.project.projectId,
+  };
 }

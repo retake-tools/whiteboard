@@ -1,31 +1,17 @@
-import type { RefObject } from 'react';
-import { createAssetFromDataUrl } from '../core/assetStore';
-import { layoutAttachmentBlocks } from '../core/attachmentPlacement';
-import { createBlockRecord, touchBoard } from '../core/blockFactory';
-import { fitImageBlockSize, readFileAsDataUrl, readImageDimensions } from '../core/imageFile';
+import { readFileAsDataUrl, readImageDimensions } from '../core/imageFile';
 import type { PackageComposerMention } from '../core/packageComposer';
-import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
-import { moveBlockGroupToNearestFreeArea } from '../core/workflowPlacement';
+import type { CanvasHostScopeV1 } from '../host-kit';
+import type { WhiteboardProductCommandsV1 } from '../whiteboard/application/whiteboardProductCommands';
 
 const maxAttachmentBytes = 30 * 1024 * 1024;
 
 interface AgentAttachmentControllerOptions {
-  centeredBlockPosition: (size: { height: number; width: number }) => { x: number; y: number };
-  persistSnapshot: (
-    snapshot: BoardSnapshot,
-    options?: { requireLocalApi?: boolean },
-  ) => Promise<void>;
-  snapshotRef: RefObject<BoardSnapshot>;
-  updateSnapshot: (
-    updater: (current: BoardSnapshot) => BoardSnapshot,
-    options?: { history?: boolean; persist?: boolean; syncFlow?: boolean },
-  ) => BoardSnapshot;
-}
-
-interface ImportedAttachment {
-  asset: AssetRecord;
-  block?: BlockRecord;
-  fileName: string;
+  getViewportCenter: () => { x: number; y: number };
+  runProductCommand?: <Result>(
+    operation: (commands: WhiteboardProductCommandsV1) => Promise<Result>,
+    options?: { history?: boolean; syncFlow?: boolean },
+  ) => Promise<Result>;
+  scope: CanvasHostScopeV1;
 }
 
 export function useAgentAttachmentController(
@@ -39,85 +25,31 @@ export function useAgentAttachmentController(
       }
     }
 
-    const projectId = options.snapshotRef.current.project.projectId;
-    const imported = await Promise.all(files.map(async (file): Promise<ImportedAttachment> => {
+    if (!options.runProductCommand) {
+      throw new Error('Whiteboard Agent attachment command facade is unavailable.');
+    }
+    const uploads = await Promise.all(files.map(async (file) => {
       const dataUrl = await readFileAsDataUrl(file);
       const imageSize = file.type.startsWith('image/')
         ? await readImageDimensions(dataUrl)
         : undefined;
-      const asset = await createAssetFromDataUrl({
+      return {
         dataUrl,
         fileName: file.name,
         height: imageSize?.height,
-        projectId,
         width: imageSize?.width,
-      });
-      return {
-        asset,
-        block: attachmentBlock(options.snapshotRef.current, asset, file.name),
-        fileName: file.name,
       };
     }));
-
-    const next = options.updateSnapshot((current) => {
-      const origin = options.centeredBlockPosition({ height: 180, width: 240 });
-      const center = { x: origin.x + 120, y: origin.y + 90 };
-      const attachmentBlocks: BlockRecord[] = [];
-      imported.forEach((item) => {
-        if (!current.assets.some((candidate) => candidate.assetId === item.asset.assetId)) {
-          current.assets.unshift(item.asset);
-        }
-        if (!item.block) return;
-        attachmentBlocks.push(item.block);
-        current.blocks.push(item.block);
-      });
-      layoutAttachmentBlocks(attachmentBlocks, center);
-      moveBlockGroupToNearestFreeArea(current, attachmentBlocks, center);
-      return touchBoard(current);
-    }, { history: true, persist: false, syncFlow: true });
-    await options.persistSnapshot(next, { requireLocalApi: true });
-
-    return imported.map((item): PackageComposerMention => item.block
-      ? { blockId: item.block.blockId, kind: 'block', slotId: 'agent_attachment' }
-      : { assetId: item.asset.assetId, kind: 'asset', slotId: 'agent_attachment' });
+    const result = await options.runProductCommand(
+      (commands) => commands.agentAttachment.attach({
+        placementCenter: options.getViewportCenter(),
+        scope: options.scope,
+        uploads,
+      }),
+      { history: true },
+    );
+    return result.mentions;
   }
 
   return { attachFiles };
-}
-
-function attachmentBlock(
-  snapshot: BoardSnapshot,
-  asset: AssetRecord,
-  fileName: string,
-): BlockRecord | undefined {
-  if (asset.kind === 'image') {
-    const block = createBlockRecord(snapshot, 'image');
-    block.size = fitImageBlockSize(asset.width, asset.height);
-    block.data = {
-      title: fileName,
-      assetId: asset.assetId,
-      composerSourceAssetId: asset.assetId,
-      previewUrl: asset.previewUrl,
-    };
-    return block;
-  }
-  if (asset.kind === 'document') {
-    const block = createBlockRecord(snapshot, 'document');
-    block.data = {
-      ...block.data,
-      title: fileName,
-      assetId: asset.assetId,
-    };
-    return block;
-  }
-  if (asset.kind === 'video') {
-    const block = createBlockRecord(snapshot, 'video');
-    block.data = {
-      title: fileName,
-      assetId: asset.assetId,
-      previewUrl: asset.previewUrl,
-    };
-    return block;
-  }
-  return undefined;
 }

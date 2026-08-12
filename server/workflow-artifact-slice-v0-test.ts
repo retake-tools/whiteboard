@@ -33,7 +33,7 @@ const [controllerSource, groupInspectorSource, targetPickerSource] = await Promi
   readFile(new URL('../src/components/GroupInspector.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/WorkflowAgentTargetPicker.tsx', import.meta.url), 'utf8'),
 ]);
-assert.match(controllerSource, /createAgentRunForWorkflowArtifactSlice/);
+assert.match(controllerSource, /commands\.agent\.createWorkflowArtifactSlice/);
 assert.match(controllerSource, /reconcileAgentArtifactTarget/);
 assert.match(targetPickerSource, /agentRuntime\.untilArtifact/);
 assert.match(groupInspectorSource, /onCreateWorkflowArtifactSliceAgentRun/);

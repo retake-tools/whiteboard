@@ -8,8 +8,13 @@ const canvasSource = await readFile('src/app/useCanvasController.ts', 'utf8');
 
 assert.match(
   boardSessionSource,
-  /useState<BoardLoadState>\(\{ status: 'loading' \}\)/,
-  'the board session must begin in an explicit loading state',
+  /: \{ status: 'loading' \}\);/,
+  'the legacy board session must retain an explicit loading state',
+);
+assert.match(
+  boardSessionSource,
+  /canvasHost\.readModel\.getSnapshot\(\)[\s\S]*?status: 'ready'/,
+  'an already bootstrapped Canvas Host must hydrate the board session from its authoritative read model',
 );
 assert.doesNotMatch(
   boardSessionSource,
@@ -38,8 +43,8 @@ assert.doesNotMatch(
 );
 assert.match(
   boardSessionSource,
-  /hasUnsavedChangesRef\.current[\s\S]*?isPaused: \(\) => pendingPersistCountRef\.current > 0 \|\| hasUnsavedChangesRef\.current/,
-  'failed saves must pause remote polling before it can replace unsaved in-memory changes',
+  /isPaused: \(\) => boardMutationQueueRef\.current\?\.isPending\(\) === true[\s\S]*?pendingPersistCountRef\.current > 0[\s\S]*?hasUnsavedChangesRef\.current/,
+  'queued writes, active persistence, and failed saves must pause remote polling before it can replace local state',
 );
 assert.match(
   boardSessionSource,

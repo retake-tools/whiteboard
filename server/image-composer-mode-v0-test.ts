@@ -32,9 +32,11 @@ import { resetWorkspace } from './local-store/snapshot-store';
 const [
   appSource,
   attachmentControllerSource,
+  attachmentCommandsSource,
   canvasControllerSource,
   composerSource,
   controllerSource,
+  imageCommandsSource,
   controlsSource,
   providerSource,
   referenceEditorSource,
@@ -44,9 +46,11 @@ const [
 ] = await Promise.all([
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/useAgentAttachmentController.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/whiteboard/application/whiteboardAgentAttachmentCommands.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/useCanvasController.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/SkillQuickInputComposer.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/useImageOperationController.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/whiteboard/application/whiteboardImageOperationCommands.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/ImageComposerControls.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/UnifiedComposerProvider.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/ReferenceIntentEditor.tsx', import.meta.url), 'utf8'),
@@ -66,13 +70,16 @@ assert.match(composerSource, /onCreateImage/);
 assert.match(composerSource, /ImageComposerReferenceTray/);
 assert.match(composerSource, /resetImageSubmission/);
 assert.match(appSource, /onCreateImage=\{\(input\) => createAndStartImageComposerOperation/);
-assert.match(controllerSource, /persist: false,\s*reveal: false,/);
-assert.match(controllerSource, /void startExistingOperationBlock\(\{/);
-assert.match(controllerSource, /imageComposerWorkflowLayoutBlockIds/);
+assert.match(controllerSource, /commands\.imageOperation\.createTextToImageDraft/);
+assert.match(controllerSource, /await createTextToImageDraftOperation\(input/);
+assert.match(controllerSource, /await startExistingOperationBlock\(\{/);
+assert.match(imageCommandsSource, /imageComposerWorkflowLayoutBlockIds/);
 assert.match(controllerSource, /focusWorkflowBlocks\(revealBlockIds, \{ maxZoom: 1 \}\)/);
-assert.match(attachmentControllerSource, /composerSourceAssetId: asset\.assetId/);
-assert.match(attachmentControllerSource, /layoutAttachmentBlocks\(attachmentBlocks, center\)/);
-assert.match(attachmentControllerSource, /moveBlockGroupToNearestFreeArea\(current, attachmentBlocks, center\)/);
+assert.match(attachmentControllerSource, /commands\.agentAttachment\.attach/);
+assert.doesNotMatch(attachmentControllerSource, /\b(?:persistSnapshot|updateSnapshot)\b/);
+assert.match(attachmentCommandsSource, /composerSourceAssetId: asset\.assetId/);
+assert.match(attachmentCommandsSource, /layoutAttachmentBlocks\(blocks, input\.placementCenter\)/);
+assert.match(attachmentCommandsSource, /moveBlockGroupToNearestFreeArea\(/);
 assert.match(canvasControllerSource, /block\?\.type === 'image'/);
 assert.match(appSource, /referenceBlockIds: \[sourceBlock\.blockId\]/);
 assert.match(appSource, /maxZoom: 0\.95/);

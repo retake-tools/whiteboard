@@ -75,7 +75,9 @@ export function WorkflowDesignWorkspace({
 }: {
   boardId: string;
   onCreateWorkflowRun: (groupBlockId: string) => void;
-  onProjectRevision: (revision: ProjectWorkflowRevisionV1) => ProjectedWorkflowRevisionResult;
+  onProjectRevision: (
+    revision: ProjectWorkflowRevisionV1,
+  ) => Promise<ProjectedWorkflowRevisionResult>;
   projectId: string;
   selectedBlockIds: string[];
   sourceLabel: string;
@@ -92,7 +94,7 @@ export function WorkflowDesignWorkspace({
   const [stepCreatorContext, setStepCreatorContext] = useState<
     WorkflowAuthoringStepInsertionContextV1
   >();
-  const [busyAction, setBusyAction] = useState<'capture' | 'fork' | 'preview' | 'publish' | 'save'>();
+  const [busyAction, setBusyAction] = useState<'capture' | 'fork' | 'preview' | 'project' | 'publish' | 'save'>();
   const [projectedRevision, setProjectedRevision] = useState<ProjectedWorkflowRevisionResult>();
   const closeStepCreator = useCallback(() => setStepCreatorContext(undefined), []);
 
@@ -285,14 +287,17 @@ export function WorkflowDesignWorkspace({
       setBusyAction(undefined);
     }
   };
-  const projectRevision = (revision: ProjectWorkflowRevisionV1): void => {
+  const projectRevision = async (revision: ProjectWorkflowRevisionV1): Promise<void> => {
+    setBusyAction('project');
     setError(undefined);
     try {
-      setProjectedRevision(onProjectRevision(revision));
+      setProjectedRevision(await onProjectRevision(revision));
     } catch (projectionError) {
       setError(projectionError instanceof Error
         ? projectionError.message
         : String(projectionError));
+    } finally {
+      setBusyAction(undefined);
     }
   };
 

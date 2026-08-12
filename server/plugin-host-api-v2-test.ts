@@ -6,8 +6,8 @@ import {
 } from '@retake-tools/package-sdk';
 import {
   pluginDraftViewsForBlocks,
-  savePluginDraft,
 } from '../src/app/usePluginDraftController';
+import { applyWhiteboardPluginDraft } from '../src/whiteboard/application/whiteboardPluginCommands';
 import {
   createPluginHostReadStore,
   type PluginExecutionRunnerRequestV2,
@@ -114,20 +114,15 @@ assert.equal(
   sourceAsset.assetId,
 );
 
-store.setDraftRunner((request) => savePluginDraft(request, {
-  persistSnapshot: async () => {
+store.setDraftRunner(async (request) => {
+  const staged = structuredClone(current);
+  const applied = applyWhiteboardPluginDraft(staged, request);
+  if (applied.changed) {
+    current = staged;
     persistCount += 1;
-  },
-  snapshotRef: {
-    get current() {
-      return current;
-    },
-  },
-  updateSnapshot(updater) {
-    current = updater(structuredClone(current));
-    return current;
-  },
-}));
+  }
+  return applied.result;
+});
 const historyCount = current.historyEvents?.length ?? 0;
 const saved = await host.drafts.saveBound({
   blockId: sourceBlock.blockId,

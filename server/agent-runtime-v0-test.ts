@@ -52,9 +52,10 @@ const [agentRuntimeSource, controllerSource, groupInspectorSource] = await Promi
 ]);
 assert.doesNotMatch(agentRuntimeSource, /AgentSession|conversationId|Chat/);
 assert.doesNotMatch(agentRuntimeSource, /createBlockRecord|projectWorkflowDraft/);
-assert.match(controllerSource, /nextAgentRunExecutionActions/);
+assert.match(controllerSource, /commands\.agent\.reconcileRuntime\(\)/);
 assert.match(controllerSource, /runOperationRef\.current\(action\.operationBlockId\)/);
-assert.match(controllerSource, /attachAgentRunExecution\(current, action\.agentRunId, execution\.executionId\)/);
+assert.match(controllerSource, /commands\.agent\.settleExecution\(/);
+assert.match(controllerSource, /knownExecutionIds: action\.knownExecutionIds/);
 assert.match(controllerSource, /inFlightActionsRef\.current\.has\(action\.agentRunId\)/);
 const operationInputControllerSource = await readFile(
   new URL('../src/app/useOperationInputController.ts', import.meta.url),

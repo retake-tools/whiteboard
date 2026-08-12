@@ -1,27 +1,33 @@
 import { resolveExecutionConnectionPreference } from '../core/executionProviderPreferences';
 import { capabilityDefinitionFor } from '../core/capabilityRegistry';
-import type { BoardSnapshot } from '../core/types';
-import { projectWorkflowDraft } from '../core/workflowDraftProjection';
 import type { ResolvedPackageEntryPointTarget } from '../core/packageRegistry';
 import type { ResolvedPackageComposerInvocation } from '../core/packageComposer';
 import {
   resolvedWorkflowUiDefinitionFor,
-  upsertProjectWorkflowDefinition,
+  workflowDefinitionFor,
+  type WorkflowDefinition,
 } from '../core/workflowRegistry';
 import type { useI18n } from '../i18n';
 import { textGenerationLabelsForSkill } from './skillTextLabels';
 import type { ProjectWorkflowRevisionV1 } from '../core/workflowAuthoringContracts';
+import type { RefObject } from 'react';
+import type { BoardSnapshot } from '../core/types';
+import type {
+  WhiteboardProductCommandsV1,
+  WhiteboardWorkflowProjectionPresentationV1,
+} from '../whiteboard/application/whiteboardProductCommands';
 
 interface WorkflowDraftControllerOptions {
-  centerBlockGroup: (snapshot: BoardSnapshot, blockIds: string[]) => void;
   focusWorkflowBlocks: (blockIds: string[]) => void;
+  getViewportCenter: () => { x: number; y: number };
   locale: string;
+  runProductCommand?: <Result>(
+    operation: (commands: WhiteboardProductCommandsV1) => Promise<Result>,
+    options?: { history?: boolean; syncFlow?: boolean },
+  ) => Promise<Result>;
   setSelectedBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
+  snapshotRef: RefObject<BoardSnapshot>;
   t: ReturnType<typeof useI18n>['t'];
-  updateSnapshot: (
-    updater: (current: BoardSnapshot) => BoardSnapshot,
-    options?: { history?: boolean; persist?: boolean; syncFlow?: boolean },
-  ) => BoardSnapshot;
 }
 
 export interface ProjectedWorkflowRevisionResult {
@@ -32,27 +38,25 @@ export interface ProjectedWorkflowRevisionResult {
 
 export function useWorkflowDraftController(options: WorkflowDraftControllerOptions) {
   const {
-    centerBlockGroup,
     focusWorkflowBlocks,
+    getViewportCenter,
     locale,
+    runProductCommand,
     setSelectedBlocks,
+    snapshotRef,
     t,
-    updateSnapshot,
   } = options;
 
-  function createWorkflowDraft(
+  async function createWorkflowDraft(
     target: Extract<ResolvedPackageEntryPointTarget, { kind: 'workflow' }>,
     composer?: ResolvedPackageComposerInvocation,
-  ): void {
+  ): Promise<void> {
     const workflowId = target.entrypoint.ref.workflowDefinitionId;
-    let workflowBlockIds: string[] = [];
-    let workflowGroupId = '';
-    const nextSnapshot = updateSnapshot((current) => {
-      const ui = resolvedWorkflowUiDefinitionFor(workflowId, locale);
-      const projection = projectWorkflowDraft(current, {
-        workflowId,
-        workflowTitle: ui.name,
-        outputPlaceholder: t('workflowDraft.outputPending'),
+    const workflow = workflowDefinitionFor(workflowId);
+    const ui = resolvedWorkflowUiDefinitionFor(workflowId, locale);
+    const projectId = snapshotRef.current.project.projectId;
+    const projection = await requireProductCommands(runProductCommand)(
+      (commands) => commands.workflow.projectDraft({
         composerInput: composer ? {
           mentions: composer.invocation.mentions,
           inlineValues: composer.invocation.inlineValues ?? [],
@@ -65,77 +69,79 @@ export function useWorkflowDraftController(options: WorkflowDraftControllerOptio
           entrypointId: target.entrypoint.entrypointId,
           packageLock: target.packageLock,
         },
-        labelsForSkill: (skillId) => textGenerationLabelsForSkill(skillId, locale, t),
-        connectionIdForCapability: (capabilityId) => {
-          const definition = capabilityDefinitionFor(capabilityId);
-          const useCase = definition.outputSlots.some((slot) => slot.dataType === 'image') ? 'image' : 'text';
-          return resolveExecutionConnectionPreference({
-            capabilityId,
-            initialConnectionId: 'codex-app-server',
-            projectId: current.project.projectId,
-            useCase,
-          }).connectionId;
-        },
-      });
-      workflowBlockIds = projection.blockIds;
-      workflowGroupId = projection.groupBlock.blockId;
-      centerBlockGroup(current, workflowBlockIds);
-      return current;
-    }, { history: true, persist: true });
-    if (workflowBlockIds.length === 0) return;
-    setSelectedBlocks(nextSnapshot, workflowGroupId ? [workflowGroupId] : workflowBlockIds);
-    focusWorkflowBlocks(workflowBlockIds);
+        presentation: projectionPresentation(workflow, projectId),
+        projectId,
+        workflowId,
+        workflowTitle: ui.name,
+      }),
+      { history: true },
+    );
+    const nextSnapshot = snapshotRef.current;
+    if (projection.blockIds.length === 0) return;
+    setSelectedBlocks(nextSnapshot, [projection.groupBlockId]);
+    focusWorkflowBlocks(projection.blockIds);
   }
 
-  function projectPublishedWorkflowRevision(
+  async function projectPublishedWorkflowRevision(
     revision: ProjectWorkflowRevisionV1,
-  ): ProjectedWorkflowRevisionResult {
-    let workflowBlockIds: string[] = [];
-    let workflowGroupId = '';
-    const nextSnapshot = updateSnapshot((current) => {
-      if (current.project.projectId !== revision.projectId) {
-        throw new Error(
-          `Project Workflow Revision belongs to another Project: ${revision.projectId}`,
-        );
-      }
-      upsertProjectWorkflowDefinition(revision.projectId, revision.definition);
-      const projection = projectWorkflowDraft(current, {
-        connectionIdForCapability: (capabilityId) => {
-          const definition = capabilityDefinitionFor(capabilityId);
-          const useCase = definition.outputSlots.some((slot) => slot.dataType === 'image')
-            ? 'image'
-            : 'text';
-          return resolveExecutionConnectionPreference({
-            capabilityId,
-            initialConnectionId: 'codex-app-server',
-            projectId: current.project.projectId,
-            useCase,
-          }).connectionId;
-        },
-        labelsForSkill: (skillId) => textGenerationLabelsForSkill(skillId, locale, t),
-        outputPlaceholder: t('workflowDraft.outputPending'),
-        projectionTemplate: revision.projectionTemplate,
-        projectRevisionId: revision.revisionId,
-        workflowDefinition: revision.definition,
-        workflowId: revision.definition.workflowId,
-        workflowTitle: revision.definition.name,
-      });
-      workflowBlockIds = projection.blockIds;
-      workflowGroupId = projection.groupBlock.blockId;
-      centerBlockGroup(current, workflowBlockIds);
-      return current;
-    }, { history: true, persist: true });
-    if (workflowBlockIds.length === 0 || !workflowGroupId) {
+  ): Promise<ProjectedWorkflowRevisionResult> {
+    const projection = await requireProductCommands(runProductCommand)(
+      (commands) => commands.workflow.projectRevision({
+        presentation: projectionPresentation(revision.definition, revision.projectId),
+        revision,
+      }),
+      { history: true },
+    );
+    if (projection.blockIds.length === 0 || !projection.groupBlockId) {
       throw new Error(`Project Workflow Revision projection created no Workflow Group: ${revision.revisionId}`);
     }
-    setSelectedBlocks(nextSnapshot, workflowGroupId ? [workflowGroupId] : workflowBlockIds);
-    focusWorkflowBlocks(workflowBlockIds);
+    setSelectedBlocks(snapshotRef.current, [projection.groupBlockId]);
+    focusWorkflowBlocks(projection.blockIds);
     return {
-      blockIds: workflowBlockIds,
-      groupBlockId: workflowGroupId,
+      blockIds: projection.blockIds,
+      groupBlockId: projection.groupBlockId,
       revisionId: revision.revisionId,
     };
   }
 
   return { createWorkflowDraft, projectPublishedWorkflowRevision };
+
+  function projectionPresentation(
+    workflow: WorkflowDefinition,
+    projectId: string,
+  ): WhiteboardWorkflowProjectionPresentationV1 {
+    const capabilityIds = [...new Set(workflow.steps.map(
+      (step) => step.capabilityLock.capabilityId,
+    ))];
+    const skillIds = [...new Set(workflow.steps.map((step) => step.skillLock.skillId))];
+    return {
+      connectionIdsByCapability: Object.fromEntries(capabilityIds.map((capabilityId) => {
+        const definition = capabilityDefinitionFor(capabilityId);
+        const useCase = definition.outputSlots.some((slot) => slot.dataType === 'image')
+          ? 'image'
+          : 'text';
+        return [capabilityId, resolveExecutionConnectionPreference({
+          capabilityId,
+          initialConnectionId: 'codex-app-server',
+          projectId,
+          useCase,
+        }).connectionId];
+      })),
+      labelsBySkillId: Object.fromEntries(skillIds.map((skillId) => [
+        skillId,
+        textGenerationLabelsForSkill(skillId, locale, t),
+      ])),
+      outputPlaceholder: t('workflowDraft.outputPending'),
+      placementCenter: getViewportCenter(),
+    };
+  }
+}
+
+function requireProductCommands(
+  runProductCommand: WorkflowDraftControllerOptions['runProductCommand'],
+): NonNullable<WorkflowDraftControllerOptions['runProductCommand']> {
+  if (!runProductCommand) {
+    throw new Error('Whiteboard Workflow projection command facade is unavailable.');
+  }
+  return runProductCommand;
 }

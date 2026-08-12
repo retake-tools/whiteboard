@@ -22,7 +22,7 @@ const [controllerSource, groupInspectorSource, targetPickerSource] = await Promi
   readFile(new URL('../src/components/GroupInspector.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/WorkflowAgentTargetPicker.tsx', import.meta.url), 'utf8'),
 ]);
-assert.match(controllerSource, /createAgentRunForWorkflowSlice/);
+assert.match(controllerSource, /commands\.agent\.createWorkflowSlice/);
 assert.match(targetPickerSource, /agentRuntime\.fullWorkflow/);
 assert.match(targetPickerSource, /agentRuntime\.untilStep/);
 assert.match(groupInspectorSource, /onCreateWorkflowSliceAgentRun/);

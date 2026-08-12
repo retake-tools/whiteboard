@@ -24,6 +24,11 @@ assert.match(canvasSource, /nodeDragActiveRef\.current = true/);
 assert.match(canvasSource, /if \(!nodeDragActiveRef\.current\) setNodes\(createFlowNodesForSelection\(remoteSnapshot\)\)/);
 const canvasViewSource = await readFile('src/app/WhiteboardCanvas.tsx', 'utf8');
 const canvasCss = await readFile('src/styles/canvas.css', 'utf8');
+const toolbarCss = await readFile('src/styles/toolbars.css', 'utf8');
+const topBarCss = await readFile('src/components/top-bar.css', 'utf8');
+const groupToolbarCss = await readFile('src/components/group-toolbar.css', 'utf8');
+const boardHistoryCss = await readFile('src/components/board-history-panel.css', 'utf8');
+const artifactLibraryCss = await readFile('src/components/artifact-library-panel.css', 'utf8');
 const canvasImageDoubleTapSource = await readFile('src/app/useCanvasImageDoubleTap.ts', 'utf8');
 const blockNodeSource = await readFile('src/nodes/BlockNode.tsx', 'utf8');
 const executionInspectorSource = await readFile('src/components/ExecutionInspector.tsx', 'utf8');
@@ -84,6 +89,15 @@ assert.match(operationReferenceInputsSource, /<header>[\s\S]*?operationReference
 assert.doesNotMatch(operationReferenceInputsSource, /operation-reference-popover|aria-expanded|useDismissiblePopover/);
 assert.match(blockNodeCss, /\.operation-reference-inputs > div \{[\s\S]*?display: flex;[\s\S]*?overflow-x: auto;/);
 assert.match(canvasCss, /\[data-pointer-moving='true'\] \.react-flow__node:not\(\.dragging\)[\s\S]*?cursor: default !important;/);
+assert.doesNotMatch(
+  [canvasCss, toolbarCss, topBarCss, groupToolbarCss, boardHistoryCss, artifactLibraryCss, blockNodeCss].join('\n'),
+  /backdrop-filter:\s*blur/,
+);
+assert.match(
+  blockNodeCss,
+  /\.block-node\.has-status-queued::before,\s*\.block-node\.has-status-running::before\s*\{/,
+);
+assert.doesNotMatch(blockNodeCss, /\.block-node\.has-status-(?:succeeded|failed)::before/);
 assert.match(blockNodeCss, /\.image-preview img \{[\s\S]*?pointer-events: none;[\s\S]*?-webkit-user-drag: none;/);
 assert.match(blockNodeCss, /\.operation-input-quick-add \{[\s\S]*?pointer-events: none;/);
 assert.match(blockNodeCss, /\.block-node-text \{[\s\S]*?cursor: text;/);
@@ -133,6 +147,11 @@ drawnGroup.data.groupContentsLocked = true;
 assert.equal(blockLockedByGroup(drawSnapshot, drawInside.blockId), true);
 assert.equal(groupStructureLocked(drawSnapshot, drawnGroup.blockId), true);
 const lockedFlowNodes = createFlowNodes(drawSnapshot);
+assert.ok(lockedFlowNodes.length > 0);
+for (const node of lockedFlowNodes) {
+  assert.equal(node.initialWidth, node.style?.width);
+  assert.equal(node.initialHeight, node.style?.height);
+}
 assert.equal(lockedFlowNodes.find((node) => node.id === drawInside.blockId)?.draggable, false);
 assert.equal(lockedFlowNodes.find((node) => node.id === drawOutside.blockId)?.draggable, true);
 assert.equal(lockedFlowNodes.find((node) => node.id === drawInside.blockId)?.deletable, false);

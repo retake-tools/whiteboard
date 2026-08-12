@@ -8,6 +8,8 @@
 /product-screenshots/
 /node_modules/
 /dist/
+/packages/host-kit/dist/
+/packages/host-kit/dist-types/
 /.retake/
 /.retake-test*/
 /coverage/

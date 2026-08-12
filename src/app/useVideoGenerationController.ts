@@ -1,124 +1,100 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import type { OperationToast } from '../components/OperationFeedback';
 import { loadBoardSnapshot } from '../core/boardStore';
-import { blockLockedByGroup } from '../core/grouping';
-import { nowIso } from '../core/id';
-import type { BoardSnapshot } from '../core/types';
 import { cancelDreaminaCliVideo, startDreaminaCliVideo } from '../core/dreaminaCliVideoClient';
 import { cancelSeedanceVideo, startSeedanceVideo } from '../core/seedanceVideoClient';
-import { runMockVideoGeneration } from '../core/videoGeneration';
+import { blockLockedByGroup } from '../core/grouping';
+import type { BoardSnapshot } from '../core/types';
+import type { CanvasHostScopeV1 } from '../host-kit';
 import type { useI18n } from '../i18n';
+import type { WhiteboardProductCommandsV1 } from '../whiteboard/application/whiteboardProductCommands';
+import type { WhiteboardVideoDraftUpdateV1 } from '../whiteboard/application/whiteboardVideoGenerationCommands';
 
 interface VideoGenerationControllerOptions {
+  adoptDurableSnapshot: (snapshot: BoardSnapshot) => void;
+  runProductCommand?: <Result>(
+    operation: (commands: WhiteboardProductCommandsV1) => Promise<Result>,
+    options?: { history?: boolean; syncFlow?: boolean },
+  ) => Promise<Result>;
   setOperationToast: (toast: OperationToast | undefined) => void;
   setSelectedBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
   snapshotRef: RefObject<BoardSnapshot>;
   t: ReturnType<typeof useI18n>['t'];
-  updateSnapshot: (
-    updater: (current: BoardSnapshot) => BoardSnapshot,
-    options?: { history?: boolean; persist?: boolean; syncFlow?: boolean },
-  ) => BoardSnapshot;
-}
-
-interface VideoDraftUpdate {
-  blockId: string;
-  aspectRatio?: string;
-  connectionId?: string | null;
-  durationSeconds?: number;
-  outputCount?: number;
-  prompt?: string;
-  executionProfileId?: string;
 }
 
 export function useVideoGenerationController(options: VideoGenerationControllerOptions): void {
-  const { setOperationToast, setSelectedBlocks, snapshotRef, t, updateSnapshot } = options;
+  const {
+    adoptDurableSnapshot,
+    runProductCommand,
+    setOperationToast,
+    setSelectedBlocks,
+    snapshotRef,
+    t,
+  } = options;
   const inFlightBlockIdsRef = useRef(new Set<string>());
 
-  function updateVideoDraft(input: VideoDraftUpdate): void {
-    updateSnapshot((current) => {
-      const block = current.blocks.find((candidate) => candidate.blockId === input.blockId && candidate.type === 'video');
-      if (!block || blockLockedByGroup(current, block.blockId)) return current;
-      const currentDraft = block.data.executionDraft ?? {
-        schemaVersion: 1 as const,
-        capabilityId: 'video.generate',
-        executionProfileId: 'video-mock',
-        prompt: '',
-        parameters: {},
-      };
-      block.data.executionDraft = {
-        ...currentDraft,
-        executionProfileId: input.executionProfileId ?? currentDraft.executionProfileId,
-        ...connectionField(input.connectionId, currentDraft.connectionId),
-        prompt: input.prompt ?? currentDraft.prompt,
-        parameters: {
-          ...currentDraft.parameters,
-          ...(input.durationSeconds === undefined ? {} : { durationSeconds: input.durationSeconds }),
-          ...(input.outputCount === undefined ? {} : { outputCount: input.outputCount }),
-          ...(input.aspectRatio === undefined ? {} : { aspectRatio: input.aspectRatio }),
-        },
-      };
-      block.updatedAt = nowIso();
-      return current;
-    }, { persist: true });
+  async function updateVideoDraft(input: WhiteboardVideoDraftUpdateV1): Promise<void> {
+    await requireProductCommands(runProductCommand)(
+      (commands) => commands.videoGeneration.updateDraft(input),
+    );
   }
 
   async function generateVideo(blockId: string): Promise<void> {
     if (inFlightBlockIdsRef.current.has(blockId)) return;
     const base = snapshotRef.current;
-    const block = base.blocks.find((candidate) => candidate.blockId === blockId && candidate.type === 'video');
+    const block = base.blocks.find(
+      (candidate) => candidate.blockId === blockId && candidate.type === 'video',
+    );
     if (!block || blockLockedByGroup(base, block.blockId)) return;
     const draft = block.data.executionDraft;
-    const prompt = draft?.prompt ?? '';
-    const durationSeconds = numberParam(draft?.parameters.durationSeconds, 8);
-    const outputCount = numberParam(draft?.parameters.outputCount, 1);
-    const aspectRatio = stringParam(draft?.parameters.aspectRatio, '9:16');
     const executionProfileId = draft?.executionProfileId ?? 'video-mock';
-    const connectionId = draft?.connectionId ?? undefined;
+    const scope = scopeFor(base);
     inFlightBlockIdsRef.current.add(blockId);
     try {
       if (executionProfileId === 'video-seedance-modelark' || executionProfileId === 'video-dreamina-cli') {
         const usesDreaminaCli = executionProfileId === 'video-dreamina-cli';
         const started = await (usesDreaminaCli ? startDreaminaCliVideo : startSeedanceVideo)({
-          projectId: base.project.projectId,
-          boardId: base.board.boardId,
+          ...scope,
           targetBlockId: blockId,
-          prompt,
-          durationSeconds,
-          outputCount,
-          aspectRatio,
-          connectionId,
+          prompt: draft?.prompt ?? '',
+          durationSeconds: numberParam(draft?.parameters.durationSeconds, 8),
+          outputCount: numberParam(draft?.parameters.outputCount, 1),
+          aspectRatio: stringParam(draft?.parameters.aspectRatio, '9:16'),
+          connectionId: draft?.connectionId ?? undefined,
         });
-        const nextSnapshot = updateSnapshot(() => started.snapshot, { persist: false, history: true });
-        setSelectedBlocks(nextSnapshot, started.execution.outputBlockIds);
+        adoptIfCurrent(started.snapshot);
+        if (isCurrentScope(scope)) {
+          setSelectedBlocks(snapshotRef.current, started.execution.outputBlockIds);
+        }
         setOperationToast({
           id: started.execution.executionId,
           title: t(usesDreaminaCli ? 'videoGeneration.dreaminaStarted' : 'videoGeneration.seedanceStarted'),
           body: t(usesDreaminaCli ? 'videoGeneration.dreaminaCostNotice' : 'videoGeneration.seedanceCostNotice'),
           tone: 'success',
         });
-        await pollProviderExecution(started.execution.executionId, started.snapshot, usesDreaminaCli);
+        await pollProviderExecution(started.execution.executionId, scope, usesDreaminaCli);
         return;
       }
 
-      const completedSnapshot = structuredClone(base) as BoardSnapshot;
-      const run = await runMockVideoGeneration(completedSnapshot, {
-        targetBlockId: blockId,
-        prompt,
-        durationSeconds,
-        outputCount,
-        connectionId,
-      });
-      const nextSnapshot = updateSnapshot(() => completedSnapshot, { persist: true, history: true });
-      setSelectedBlocks(nextSnapshot, run.execution.outputBlockIds);
+      const completed = await requireProductCommands(runProductCommand)(
+        (commands) => commands.videoGeneration.generateMock({
+          blockId,
+          expectedScope: scope,
+        }),
+        { history: true },
+      );
+      if (isCurrentScope(completed.scope)) {
+        setSelectedBlocks(snapshotRef.current, completed.outputBlockIds);
+      }
       setOperationToast({
-        id: run.execution.executionId,
+        id: completed.executionId,
         title: t('videoGeneration.mockCompleted'),
         body: t('videoGeneration.mockNotice'),
         tone: 'success',
       });
     } catch (error) {
       setOperationToast({
-        id: `video-mock:${blockId}`,
+        id: `video-generation:${blockId}`,
         title: t('videoGeneration.failed'),
         body: error instanceof Error ? error.message : t('videoGeneration.failed'),
         tone: 'error',
@@ -130,8 +106,15 @@ export function useVideoGenerationController(options: VideoGenerationControllerO
 
   useEffect(() => {
     function onUpdateDraft(event: Event): void {
-      const detail = (event as CustomEvent<VideoDraftUpdate>).detail;
-      if (detail?.blockId) updateVideoDraft(detail);
+      const detail = (event as CustomEvent<WhiteboardVideoDraftUpdateV1>).detail;
+      if (detail?.blockId) {
+        void updateVideoDraft(detail).catch((error) => setOperationToast({
+          id: `video-draft:${detail.blockId}`,
+          title: t('videoGeneration.failed'),
+          body: error instanceof Error ? error.message : t('videoGeneration.failed'),
+          tone: 'error',
+        }));
+      }
     }
     function onGenerate(event: Event): void {
       const blockId = (event as CustomEvent<{ blockId?: string }>).detail?.blockId;
@@ -139,14 +122,16 @@ export function useVideoGenerationController(options: VideoGenerationControllerO
     }
     function onCancelProviderExecution(event: Event): void {
       const detail = (event as CustomEvent<{
+        adapterId?: string;
         boardId?: string;
         executionId?: string;
-        adapterId?: string;
         projectId?: string;
         providerTaskIds?: string[];
       }>).detail;
       if (!detail?.projectId || !detail.boardId || !detail.executionId) return;
-      const cancel = detail.adapterId === 'retake.video.dreamina-cli' ? cancelDreaminaCliVideo : cancelSeedanceVideo;
+      const cancel = detail.adapterId === 'retake.video.dreamina-cli'
+        ? cancelDreaminaCliVideo
+        : cancelSeedanceVideo;
       void cancel({
         projectId: detail.projectId,
         boardId: detail.boardId,
@@ -164,15 +149,18 @@ export function useVideoGenerationController(options: VideoGenerationControllerO
     };
   }, []);
 
-  async function pollProviderExecution(executionId: string, scope: BoardSnapshot, usesDreaminaCli: boolean): Promise<void> {
+  async function pollProviderExecution(
+    executionId: string,
+    scope: CanvasHostScopeV1,
+    usesDreaminaCli: boolean,
+  ): Promise<void> {
     while (true) {
       await delay(1_500);
-      const latest = await loadBoardSnapshot({ projectId: scope.project.projectId, boardId: scope.board.boardId });
+      const latest = await loadBoardSnapshot(scope);
       const execution = latest.executions.find((candidate) => candidate.executionId === executionId);
-      if (snapshotRef.current.project.projectId === scope.project.projectId && snapshotRef.current.board.boardId === scope.board.boardId) {
-        updateSnapshot(() => latest, { persist: false, history: false });
-      }
-      if (!execution || execution.status === 'queued' || execution.status === 'running') continue;
+      adoptIfCurrent(latest);
+      if (!execution) throw new Error(`Video execution disappeared while waiting: ${executionId}`);
+      if (execution.status === 'queued' || execution.status === 'running') continue;
       setOperationToast({
         id: executionId,
         title: t(execution.status === 'succeeded'
@@ -188,11 +176,21 @@ export function useVideoGenerationController(options: VideoGenerationControllerO
       return;
     }
   }
+
+  function adoptIfCurrent(snapshot: BoardSnapshot): boolean {
+    if (!isCurrentScope(scopeFor(snapshot))) return false;
+    adoptDurableSnapshot(snapshot);
+    return true;
+  }
+
+  function isCurrentScope(scope: CanvasHostScopeV1): boolean {
+    return snapshotRef.current.project.projectId === scope.projectId
+      && snapshotRef.current.board.boardId === scope.boardId;
+  }
 }
 
-function connectionField(value: string | null | undefined, fallback: string | null | undefined): { connectionId?: string | null } {
-  if (value === undefined) return fallback ? { connectionId: fallback } : {};
-  return value ? { connectionId: value } : { connectionId: null };
+function scopeFor(snapshot: BoardSnapshot): CanvasHostScopeV1 {
+  return { boardId: snapshot.board.boardId, projectId: snapshot.project.projectId };
 }
 
 function numberParam(value: unknown, fallback: number): number {
@@ -201,6 +199,15 @@ function numberParam(value: unknown, fallback: number): number {
 
 function stringParam(value: unknown, fallback: string): string {
   return typeof value === 'string' && value ? value : fallback;
+}
+
+function requireProductCommands(
+  runProductCommand: VideoGenerationControllerOptions['runProductCommand'],
+): NonNullable<VideoGenerationControllerOptions['runProductCommand']> {
+  if (!runProductCommand) {
+    throw new Error('Whiteboard Video generation command facade is unavailable.');
+  }
+  return runProductCommand;
 }
 
 function delay(milliseconds: number): Promise<void> {

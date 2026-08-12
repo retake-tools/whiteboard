@@ -121,12 +121,12 @@ const entryPointController = usePackageEntryPointController({
   createWorkflowDraft: () => invokedKinds.push('workflow'),
   snapshotRef: { current: controllerSnapshot },
 });
-entryPointController.invokeEntryPoint({
+await entryPointController.invokeEntryPoint({
   entrypointId: 'skill:retake.screenplay.from-brief',
   instruction: 'A cat finishes a screenplay before sunrise.',
   mentions: [],
 });
-entryPointController.invokeEntryPoint({
+await entryPointController.invokeEntryPoint({
   entrypointId: 'workflow:retake.workflow.story-to-storyboard',
   instruction: 'A cat finishes a storyboard before sunrise.',
   mentions: [],

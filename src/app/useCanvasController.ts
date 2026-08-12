@@ -13,7 +13,6 @@ import {
   type Viewport,
 } from '@xyflow/react';
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { touchBoard } from '../core/blockFactory';
 import {
   adaptViewportToBasis,
   defaultBoardViewport,
@@ -49,9 +48,8 @@ import type {
   BlockRecord,
   BoardEdgeRecord,
   BoardSnapshot,
-  RetakeEdge,
-  RetakeNode,
 } from '../core/types';
+import type { RetakeEdge, RetakeNode } from '../canvas/reactFlowTypes';
 import type { CanvasTool } from '../components/FloatingToolbar';
 import type { useI18n } from '../i18n';
 import {
@@ -73,6 +71,8 @@ import type {
   PluginContributionRegistryV1,
   RegisteredPluginCommandV1,
 } from '../core/pluginContributionRegistry';
+import type { CanvasHostCommandsV1 } from '../host-kit';
+import type { WhiteboardProductCommandsV1 } from '../whiteboard/application/whiteboardProductCommands';
 
 const terminalImageStatusDismissDelayMs = 500;
 
@@ -84,16 +84,24 @@ interface CanvasControllerOptions {
   ) => Promise<void> | void;
   pluginContributionRegistry?: PluginContributionRegistryV1;
   redo: () => void;
+  runHostCommand?: <Result>(
+    operation: (commands: CanvasHostCommandsV1) => Promise<Result>,
+    options?: { history?: boolean; syncFlow?: boolean },
+  ) => Promise<Result>;
+  runProductCommand?: <Result>(
+    operation: (commands: WhiteboardProductCommandsV1) => Promise<Result>,
+    options?: {
+      history?: boolean;
+      shouldKeepHistory?: (result: Result) => boolean;
+      syncFlow?: boolean;
+    },
+  ) => Promise<Result>;
   setHistoryOpen: (open: boolean) => void;
   setInspectorBlockId: (blockId: string | undefined) => void;
   snapshot: BoardSnapshot;
   snapshotRef: RefObject<BoardSnapshot>;
   t: ReturnType<typeof useI18n>['t'];
   undo: () => void;
-  updateSnapshot: (
-    updater: (current: BoardSnapshot) => BoardSnapshot,
-    options?: { history?: boolean; persist?: boolean; syncFlow?: boolean },
-  ) => BoardSnapshot;
 }
 
 export function useCanvasController(options: CanvasControllerOptions) {
@@ -102,12 +110,13 @@ export function useCanvasController(options: CanvasControllerOptions) {
     onPluginContributionFatalFailure,
     pluginContributionRegistry,
     redo,
+    runHostCommand,
+    runProductCommand,
     setHistoryOpen,
     setInspectorBlockId,
     snapshot,
     snapshotRef,
     undo,
-    updateSnapshot,
   } = options;
   const canvasAreaRef = useRef<HTMLElement | null>(null);
   const currentViewportRef = useRef<Viewport>(defaultBoardViewport);
@@ -328,18 +337,24 @@ export function useCanvasController(options: CanvasControllerOptions) {
     setEdges((currentEdges) => applyEdgeChanges(changes, currentEdges) as RetakeEdge[]);
     const removeChanges = changes.filter((change) => change.type === 'remove');
     if (removeChanges.length === 0) return;
-    updateSnapshot((current) => {
-      const removedEdgeIds = new Set(removeChanges
-        .map((change) => current.edges.find((edge) => edge.edgeId === change.id))
-        .filter((edge): edge is BoardEdgeRecord => Boolean(edge)
-          && !blockLockedByGroup(current, edge!.sourceBlockId)
-          && !blockLockedByGroup(current, edge!.targetBlockId)
-          && !blockManagedByWorkflowGroup(current, edge!.sourceBlockId)
-          && !blockManagedByWorkflowGroup(current, edge!.targetBlockId))
-        .map((edge) => edge.edgeId));
-      current.edges = current.edges.filter((edge) => !removedEdgeIds.has(edge.edgeId));
-      return touchBoard(current);
-    }, { persist: true, history: true });
+    const removableEdgeIds = removeChanges
+      .map((change) => snapshotRef.current.edges.find((edge) => edge.edgeId === change.id))
+      .filter((edge): edge is BoardEdgeRecord => Boolean(edge)
+        && !blockLockedByGroup(snapshotRef.current, edge!.sourceBlockId)
+        && !blockLockedByGroup(snapshotRef.current, edge!.targetBlockId)
+        && !blockManagedByWorkflowGroup(snapshotRef.current, edge!.sourceBlockId)
+        && !blockManagedByWorkflowGroup(snapshotRef.current, edge!.targetBlockId))
+      .map((edge) => edge.edgeId);
+    if (removableEdgeIds.length > 0) {
+      void requireHostCommands(runHostCommand)(
+        (commands) => commands.removeConnections({ edgeIds: removableEdgeIds }),
+        { history: true },
+      ).catch((error: unknown) => {
+        console.error('Canvas connection removal failed.', error);
+        setEdges(createFlowEdgesForSelection(snapshotRef.current));
+      });
+      return;
+    }
   }
 
   const onNodeDrag: OnNodeDrag<RetakeNode> = (_event, node) => {
@@ -377,36 +392,67 @@ export function useCanvasController(options: CanvasControllerOptions) {
     const draggedBlockIds = new Set([node.id, ...draggedNodes.map((draggedNode) => draggedNode.id)]);
     const topLevelDraggedBlockIds = [...draggedBlockIds].filter((blockId) => !groupAncestorIds(snapshotRef.current, blockId).some((groupId) => draggedBlockIds.has(groupId)));
     setGroupDropFeedback(undefined, undefined);
-    try {
-      updateSnapshot((current) => {
-        const updatedAt = nowIso();
-        for (const block of current.blocks) {
-          const position = absolutePositions.get(block.blockId);
-          if (!position || (block.position.x === position.x && block.position.y === position.y)) continue;
-          block.position = position;
-          block.updatedAt = updatedAt;
-        }
-        for (const blockId of topLevelDraggedBlockIds) {
-          const block = current.blocks.find((candidate) => candidate.blockId === blockId);
-          const position = absolutePositions.get(blockId);
-          if (!block || !position || blockLockedByGroup(current, blockId)) continue;
-          const previousParent = block.parentGroupId ? current.blocks.find((candidate) => candidate.blockId === block.parentGroupId && candidate.type === 'group') : undefined;
-          if (previousParent && previousParent.data.groupLayoutMode !== 'free') {
-            previousParent.data.groupLayoutMode = 'free';
-            previousParent.updatedAt = updatedAt;
-          }
-          const size = flowNodeSize(flowNodeById.get(blockId), block);
-          const parentGroupId = findGroupDropTarget(current, blockId, { ...position, ...size }, collapsedGroupIdsRef.current);
-          if (parentGroupId !== block.parentGroupId) {
-            block.parentGroupId = parentGroupId;
-            block.updatedAt = updatedAt;
-          }
-        }
-        return touchBoard(current);
-      }, { syncFlow: true, persist: true, history: true });
-    } finally {
-      nodeDragActiveRef.current = false;
+    const simpleMoves = topLevelDraggedBlockIds.flatMap((blockId) => {
+      const block = snapshotRef.current.blocks.find((candidate) => candidate.blockId === blockId);
+      const position = absolutePositions.get(blockId);
+      if (
+        !block
+        || !position
+        || block.type === 'group'
+        || block.parentGroupId
+        || blockLockedByGroup(snapshotRef.current, blockId)
+        || findGroupDropTarget(
+          snapshotRef.current,
+          blockId,
+          { ...position, ...flowNodeSize(flowNodeById.get(blockId), block) },
+          collapsedGroupIdsRef.current,
+        )
+      ) return [];
+      return block.position.x === position.x && block.position.y === position.y
+        ? []
+        : [{ blockId, position }];
+    });
+    if (
+      runHostCommand
+      && simpleMoves.length > 0
+      && simpleMoves.length === topLevelDraggedBlockIds.length
+    ) {
+      void runHostCommand(
+        (commands) => commands.moveBlocks({ moves: simpleMoves }),
+        { history: true },
+      ).catch((error: unknown) => {
+        console.error('Canvas Block move failed.', error);
+        setNodes(createFlowNodesForSelection(snapshotRef.current));
+      }).finally(() => {
+        nodeDragActiveRef.current = false;
+      });
+      return;
     }
+    const current = snapshotRef.current;
+    const draggedBlocks = topLevelDraggedBlockIds.flatMap((blockId) => {
+      const block = current.blocks.find((candidate) => candidate.blockId === blockId);
+      const position = absolutePositions.get(blockId);
+      return block && position
+        ? [{ blockId, position, size: flowNodeSize(flowNodeById.get(blockId), block) }]
+        : [];
+    });
+    void requireProductCommands(runProductCommand)(
+      (commands) => commands.canvas.commitDrag({
+        absolutePositions: [...absolutePositions].map(([blockId, position]) => ({ blockId, position })),
+        collapsedGroupIds: collapsedGroupIdsRef.current,
+        draggedBlocks,
+        expectedScope: {
+          boardId: current.board.boardId,
+          projectId: current.project.projectId,
+        },
+      }),
+      { history: true, shouldKeepHistory: (result) => result.committed },
+    ).catch((error: unknown) => {
+      console.error('Canvas complex Block move failed.', error);
+      setNodes(createFlowNodesForSelection(snapshotRef.current));
+    }).finally(() => {
+      nodeDragActiveRef.current = false;
+    });
   }
 
   function onConnect(connection: Connection): void {
@@ -428,19 +474,20 @@ export function useCanvasController(options: CanvasControllerOptions) {
       : undefined;
     const nextEdges = addEdge({ ...connection, id: edgeId, source: connection.source, target: connection.target, type: 'default', label: kind, data: { kind, inputSlotId } } satisfies RetakeEdge, edges);
     setEdges(nextEdges);
-    const nextSnapshot = updateSnapshot((current) => {
-      current.edges = nextEdges.map((edge): BoardEdgeRecord => ({
-        edgeId: edge.id,
-        sourceBlockId: edge.source,
-        targetBlockId: edge.target,
-        kind: edge.data?.kind ?? 'visual_note',
-        inputSlotId: edge.data?.inputSlotId,
-        ...(edge.data?.referenceIntent
-          ? { referenceIntent: structuredClone(edge.data.referenceIntent) }
-          : {}),
-      }));
-      return touchBoard(current);
-    }, { persist: true, history: true });
+    const nextSnapshot = snapshotRef.current;
+    void requireHostCommands(runHostCommand)(
+        (commands) => commands.connectBlocks({
+          edgeId,
+          inputSlotId,
+          kind,
+          sourceBlockId: connection.source!,
+          targetBlockId: connection.target!,
+        }),
+        { history: true },
+      ).catch((error: unknown) => {
+        console.error('Canvas connection creation failed.', error);
+        setEdges(createFlowEdgesForSelection(snapshotRef.current));
+      });
     if (
       kind === 'execution_input'
       && sourceBlock?.type === 'image'
@@ -533,13 +580,12 @@ export function useCanvasController(options: CanvasControllerOptions) {
     if (block?.type !== 'image' || block.data.status !== 'succeeded' || block.data.statusVisualDismissed) return;
     terminalImageStatusDismissTimerRef.current = window.setTimeout(() => {
       terminalImageStatusDismissTimerRef.current = undefined;
-      updateSnapshot((current) => {
-        const targetBlock = current.blocks.find((candidate) => candidate.blockId === blockId);
-        if (targetBlock?.type !== 'image') return current;
-        targetBlock.data.statusVisualDismissed = true;
-        targetBlock.updatedAt = nowIso();
-        return touchBoard(current);
-      }, { persist: true });
+      void requireHostCommands(runHostCommand)((commands) => commands.updateBlock({
+          blockId,
+          data: { statusVisualDismissed: true },
+        })).catch((error: unknown) => {
+          console.error('Canvas image status update failed.', error);
+        });
     }, terminalImageStatusDismissDelayMs);
   }
 
@@ -550,13 +596,15 @@ export function useCanvasController(options: CanvasControllerOptions) {
   }
 
   function updateTextBlockBody(blockId: string, body: string): void {
-    updateSnapshot((current) => {
-      const block = current.blocks.find((candidate) => candidate.blockId === blockId && candidate.type === 'text');
-      if (!block || blockLockedByGroup(current, blockId) || block.data.body === body) return current;
-      block.data = { ...block.data, body };
-      block.updatedAt = nowIso();
-      return touchBoard(current);
-    }, { persist: true, history: true });
+    const current = snapshotRef.current;
+    const block = current.blocks.find((candidate) => candidate.blockId === blockId && candidate.type === 'text');
+    if (!block || blockLockedByGroup(current, blockId) || block.data.body === body) return;
+    void requireHostCommands(runHostCommand)(
+        (commands) => commands.updateBlock({ blockId, body }),
+        { history: true },
+      ).catch((error: unknown) => {
+        console.error('Canvas Text Block update failed.', error);
+      });
   }
 
   function setSelectedBlock(nextSnapshot: BoardSnapshot, blockId: string): void {
@@ -916,6 +964,7 @@ export function useCanvasController(options: CanvasControllerOptions) {
     centerWorkflowBlocks,
     layoutImageComposerWorkflow,
     focusWorkflowBlocks,
+    getViewportCenter: viewportCenter,
     collapsedGroupIds,
     collapsedGroupIdsRef,
     connectActions,
@@ -1017,4 +1066,18 @@ function pluginCommandContextForSelection(
     });
   }
   return null;
+}
+
+function requireHostCommands(
+  runHostCommand: CanvasControllerOptions['runHostCommand'],
+): NonNullable<CanvasControllerOptions['runHostCommand']> {
+  if (!runHostCommand) throw new Error('Canvas Host command facade is unavailable.');
+  return runHostCommand;
+}
+
+function requireProductCommands(
+  runProductCommand: CanvasControllerOptions['runProductCommand'],
+): NonNullable<CanvasControllerOptions['runProductCommand']> {
+  if (!runProductCommand) throw new Error('Whiteboard product command facade is unavailable.');
+  return runProductCommand;
 }

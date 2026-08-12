@@ -26,6 +26,14 @@ export class SnapshotWriteConflictError extends Error {
 
 const snapshotWriteQueues = new Map<string, Promise<void>>();
 
+interface SnapshotSaveOptions {
+  expectedRevision?: {
+    boardId: string;
+    projectId: string;
+    updatedAt: string;
+  };
+}
+
 export async function ensureDefaultSnapshot(): Promise<BoardSnapshot> {
   await ensureWorkspace();
 
@@ -36,8 +44,20 @@ export async function ensureDefaultSnapshot(): Promise<BoardSnapshot> {
   const storedSnapshot = await readStoredSnapshot(snapshotPath);
   if (storedSnapshot) {
     const snapshot = storedSnapshot;
-    ensureSnapshotCodexProjectPath(snapshot);
-    await saveSnapshot(snapshot);
+    if (ensureSnapshotCodexProjectPath(snapshot)) {
+      try {
+        await saveSnapshot(snapshot, {
+          expectedRevision: snapshotRevision(snapshot),
+        });
+      } catch (error) {
+        if (!(error instanceof SnapshotWriteConflictError)) throw error;
+        const latest = await readStoredSnapshot(snapshotPath);
+        if (latest) {
+          ensureSnapshotCodexProjectPath(latest);
+          return latest;
+        }
+      }
+    }
     return snapshot;
   }
 
@@ -51,13 +71,16 @@ export async function getBoardSnapshot(input?: { projectId?: string; boardId?: s
   return loadSnapshot(input.projectId, input.boardId);
 }
 
-export async function saveSnapshot(snapshot: BoardSnapshot): Promise<void> {
+export async function saveSnapshot(
+  snapshot: BoardSnapshot,
+  options: SnapshotSaveOptions = {},
+): Promise<void> {
   const pendingSnapshot = structuredClone(snapshot);
   const key = `${pendingSnapshot.project.projectId}/${pendingSnapshot.board.boardId}`;
   const previousWrite = snapshotWriteQueues.get(key) ?? Promise.resolve();
   const nextWrite = previousWrite
     .catch(() => undefined)
-    .then(() => saveSnapshotNow(pendingSnapshot));
+    .then(() => saveSnapshotNow(pendingSnapshot, options));
   snapshotWriteQueues.set(key, nextWrite);
   try {
     await nextWrite;
@@ -66,7 +89,10 @@ export async function saveSnapshot(snapshot: BoardSnapshot): Promise<void> {
   }
 }
 
-async function saveSnapshotNow(snapshot: BoardSnapshot): Promise<void> {
+async function saveSnapshotNow(
+  snapshot: BoardSnapshot,
+  options: SnapshotSaveOptions,
+): Promise<void> {
   await ensureWorkspace();
 
   const normalizedSnapshot = migrateBoardSnapshot(snapshot);
@@ -74,7 +100,10 @@ async function saveSnapshotNow(snapshot: BoardSnapshot): Promise<void> {
   const boardDir = path.join(projectDir, 'boards', normalizedSnapshot.board.boardId);
   const snapshotPath = path.join(boardDir, 'snapshot.json');
   const previousSnapshot = await readStoredSnapshot(snapshotPath);
-  if (previousSnapshot) protectDurableSnapshotState(normalizedSnapshot, previousSnapshot);
+  if (previousSnapshot) {
+    assertExpectedSnapshotRevision(normalizedSnapshot, previousSnapshot, options.expectedRevision);
+    protectDurableSnapshotState(normalizedSnapshot, previousSnapshot, Boolean(options.expectedRevision));
+  }
   reconcileWorkflowRuntime(normalizedSnapshot);
   reconcileAgentRuntime(normalizedSnapshot);
   supersedeResolvedAgentRunBlockerProposals(normalizedSnapshot);
@@ -110,8 +139,20 @@ export async function loadSnapshot(projectId: string, boardId: string): Promise<
 
   const snapshotPath = path.join(projectsRoot, projectId, 'boards', boardId, 'snapshot.json');
   const snapshot = migrateBoardSnapshot(JSON.parse(await readFile(snapshotPath, 'utf8')) as BoardSnapshot);
-  ensureSnapshotCodexProjectPath(snapshot);
-  await saveSnapshot(snapshot);
+  if (ensureSnapshotCodexProjectPath(snapshot)) {
+    try {
+      await saveSnapshot(snapshot, {
+        expectedRevision: snapshotRevision(snapshot),
+      });
+    } catch (error) {
+      if (!(error instanceof SnapshotWriteConflictError)) throw error;
+      const latest = await readStoredSnapshot(snapshotPath);
+      if (latest) {
+        ensureSnapshotCodexProjectPath(latest);
+        return latest;
+      }
+    }
+  }
   return snapshot;
 }
 
@@ -212,8 +253,18 @@ function createDefaultWorkspaceSnapshot(): BoardSnapshot {
   return snapshot;
 }
 
-function ensureSnapshotCodexProjectPath(snapshot: BoardSnapshot): void {
-  snapshot.project.codexProjectPath ??= workspaceRoot;
+function ensureSnapshotCodexProjectPath(snapshot: BoardSnapshot): boolean {
+  if (snapshot.project.codexProjectPath) return false;
+  snapshot.project.codexProjectPath = workspaceRoot;
+  return true;
+}
+
+function snapshotRevision(snapshot: BoardSnapshot): NonNullable<SnapshotSaveOptions['expectedRevision']> {
+  return {
+    boardId: snapshot.board.boardId,
+    projectId: snapshot.project.projectId,
+    updatedAt: snapshot.board.updatedAt,
+  };
 }
 
 async function readStoredSnapshot(snapshotPath: string): Promise<BoardSnapshot | undefined> {
@@ -224,7 +275,11 @@ async function readStoredSnapshot(snapshotPath: string): Promise<BoardSnapshot |
   }
 }
 
-function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSnapshot): void {
+function protectDurableSnapshotState(
+  incoming: BoardSnapshot,
+  previous: BoardSnapshot,
+  expectedRevisionMatched = false,
+): void {
   if (
     incoming.project.projectId !== previous.project.projectId ||
     incoming.board.boardId !== previous.board.boardId
@@ -236,7 +291,7 @@ function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSna
     incoming.blocks.every((block) => fallbackBlockIds.has(block.blockId)) &&
     !snapshotHasDurableUserData(incoming, fallbackBlockIds);
   const previousHasUserData = snapshotHasDurableUserData(previous, fallbackBlockIds);
-  if (isEmptyFallbackWrite && previousHasUserData) {
+  if (isEmptyFallbackWrite && previousHasUserData && !expectedRevisionMatched) {
     throw new SnapshotWriteConflictError(
       'Refusing to replace a populated board with the empty bootstrap snapshot.',
     );
@@ -244,13 +299,16 @@ function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSna
 
   // Assets, executions, and history are durable lineage. Ordinary board saves
   // may update them but must not silently erase records that already exist.
-  // Provider completions can start from different in-memory snapshots of the
-  // same Board. Preserve the newer version of Blocks that still exist in the
-  // incoming snapshot so one completion cannot overwrite another Operation's
-  // result. Missing incoming IDs remain deletions; this is not an append-only
-  // Block collection.
+  // A compare-and-swap authorized Host transaction owns the same-ID Block
+  // facts because it was based on the exact durable revision. Legacy writes
+  // without an expected revision still merge newer Block versions so one
+  // Provider completion cannot overwrite another Operation's result. Missing
+  // incoming IDs remain deletions except for Blocks protected by an active
+  // Agent Run; this is not a general append-only Block collection.
   const activeRunBlockIds = activeAgentRunBlockIds(previous);
-  incoming.blocks = mergeUpdatedBlocks(incoming.blocks, previous.blocks, activeRunBlockIds);
+  incoming.blocks = expectedRevisionMatched
+    ? preserveMissingProtectedBlocks(incoming.blocks, previous.blocks, activeRunBlockIds)
+    : mergeUpdatedBlocks(incoming.blocks, previous.blocks, activeRunBlockIds);
   incoming.edges = mergeProtectedEdges(incoming.edges, previous.edges, activeRunBlockIds);
   incoming.assets = mergeRecords(incoming.assets, previous.assets, (asset) => asset.assetId);
   incoming.executions = mergeExecutionRecords(
@@ -325,6 +383,25 @@ function protectDurableSnapshotState(incoming: BoardSnapshot, previous: BoardSna
   );
 }
 
+function assertExpectedSnapshotRevision(
+  incoming: BoardSnapshot,
+  previous: BoardSnapshot,
+  expectedRevision: SnapshotSaveOptions['expectedRevision'],
+): void {
+  if (!expectedRevision) return;
+  if (
+    expectedRevision.projectId !== incoming.project.projectId
+    || expectedRevision.boardId !== incoming.board.boardId
+    || expectedRevision.projectId !== previous.project.projectId
+    || expectedRevision.boardId !== previous.board.boardId
+    || expectedRevision.updatedAt !== previous.board.updatedAt
+  ) {
+    throw new SnapshotWriteConflictError(
+      `Board revision changed before save: ${incoming.board.boardId}.`,
+    );
+  }
+}
+
 function snapshotHasDurableUserData(
   snapshot: BoardSnapshot,
   fallbackBlockIds: ReadonlySet<string>,
@@ -371,6 +448,20 @@ function mergeUpdatedBlocks(
   });
   for (const block of previousById.values()) {
     if (protectedBlockIds.has(block.blockId)) merged.push(block);
+  }
+  return merged;
+}
+
+function preserveMissingProtectedBlocks(
+  incoming: BoardSnapshot['blocks'],
+  previous: BoardSnapshot['blocks'],
+  protectedBlockIds: ReadonlySet<string>,
+): BoardSnapshot['blocks'] {
+  const merged = [...incoming];
+  const knownIds = new Set(incoming.map((block) => block.blockId));
+  for (const block of previous) {
+    if (knownIds.has(block.blockId) || !protectedBlockIds.has(block.blockId)) continue;
+    merged.push(block);
   }
   return merged;
 }

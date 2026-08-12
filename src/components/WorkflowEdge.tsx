@@ -1,7 +1,7 @@
 import { BaseEdge, BezierEdge, getSmoothStepPath, type EdgeProps } from '@xyflow/react';
 import type { ReactElement } from 'react';
 import { workflowLongDependencyPath } from '../core/workflowEdgeRouting';
-import type { RetakeEdge } from '../core/types';
+import type { RetakeEdge } from '../canvas/reactFlowTypes';
 
 export function WorkflowEdge(props: EdgeProps<RetakeEdge>): ReactElement {
   if (props.data?.workflowRouteKind === 'result_fanout') {

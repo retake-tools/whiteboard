@@ -1,32 +1,44 @@
 import type { RefObject } from 'react';
 import type { OperationToast } from '../components/OperationFeedback';
-import { restoreExecutionConfiguration } from '../core/restoreExecutionConfiguration';
 import type { BoardSnapshot } from '../core/types';
 import type { useI18n } from '../i18n';
+import type { WhiteboardProductCommandsV1 } from '../whiteboard/application/whiteboardProductCommands';
 
 interface ExecutionConfigurationControllerOptions {
   setOperationToast: (toast: OperationToast | undefined) => void;
   setSelectedBlock: (snapshot: BoardSnapshot, blockId: string) => void;
+  runProductCommand?: <Result>(
+    operation: (commands: WhiteboardProductCommandsV1) => Promise<Result>,
+    options?: {
+      history?: boolean;
+      shouldKeepHistory?: (result: Result) => boolean;
+      syncFlow?: boolean;
+    },
+  ) => Promise<Result>;
   snapshotRef: RefObject<BoardSnapshot>;
   t: ReturnType<typeof useI18n>['t'];
-  updateSnapshot: (
-    updater: (current: BoardSnapshot) => BoardSnapshot,
-    options?: { history?: boolean; persist?: boolean; syncFlow?: boolean },
-  ) => BoardSnapshot;
 }
 
 export function useExecutionConfigurationController({
   setOperationToast,
   setSelectedBlock,
+  runProductCommand,
   snapshotRef,
   t,
-  updateSnapshot,
 }: ExecutionConfigurationControllerOptions): {
-  restoreConfigurationVersion(executionId: string): void;
+  restoreConfigurationVersion(executionId: string): Promise<void>;
 } {
-  function restoreConfigurationVersion(executionId: string): void {
-    const candidate = structuredClone(snapshotRef.current);
-    const result = restoreExecutionConfiguration(candidate, executionId);
+  async function restoreConfigurationVersion(executionId: string): Promise<void> {
+    if (!runProductCommand) {
+      throw new Error('Whiteboard Execution configuration command facade is unavailable.');
+    }
+    const { result } = await runProductCommand(
+      (commands) => commands.executionConfiguration.restore({ executionId }),
+      {
+        history: true,
+        shouldKeepHistory: (outcome) => outcome.committed,
+      },
+    );
     if (!result.restored || !result.operationBlockId) {
       setOperationToast({
         id: `configuration-restore:${executionId}`,
@@ -38,11 +50,7 @@ export function useExecutionConfigurationController({
       });
       return;
     }
-    const nextSnapshot = updateSnapshot(
-      () => candidate,
-      { persist: true, history: true },
-    );
-    setSelectedBlock(nextSnapshot, result.operationBlockId);
+    setSelectedBlock(snapshotRef.current, result.operationBlockId);
     setOperationToast({
       id: `configuration-restored:${executionId}`,
       title: t('feedback.configurationRestored'),

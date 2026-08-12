@@ -1,7 +1,7 @@
 import { MiniMap, useReactFlow, type NodeMouseHandler } from '@xyflow/react';
 import type { ReactElement } from 'react';
 import { nodeColor, nodeStrokeColor } from '../core/flowProjection';
-import type { RetakeEdge, RetakeNode } from '../core/types';
+import type { RetakeEdge, RetakeNode } from '../canvas/reactFlowTypes';
 
 interface CanvasMiniMapProps {
   onSelectBlock: (blockId: string) => void;

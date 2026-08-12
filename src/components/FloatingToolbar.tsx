@@ -34,10 +34,10 @@ interface FloatingToolbarProps {
   onAttachFiles?: Parameters<typeof SkillQuickInputComposer>[0]['onAttachFiles'];
   onAddBlock: (type: Extract<BlockType, 'group' | 'image' | 'operation' | 'text' | 'video'>) => void;
   onCreateImageToImage: () => void;
-  onCreateImage: (input: UnifiedComposerImageDraftInput) => void;
-  onCreateVideoDraft?: (input: UnifiedComposerVideoDraftInput) => void;
+  onCreateImage: (input: UnifiedComposerImageDraftInput) => Promise<void>;
+  onCreateVideoDraft?: (input: UnifiedComposerVideoDraftInput) => Promise<void>;
   onCreateTextToImage: () => void;
-  onInvokeEntryPoint: (invocation: PackageComposerInvocation) => void;
+  onInvokeEntryPoint: (invocation: PackageComposerInvocation) => Promise<void>;
   onSubmitAgentMessage: (input: UnifiedComposerAgentInput) => void;
   onSetActiveTool: (tool: CanvasTool) => void;
   snapshot: BoardSnapshot;

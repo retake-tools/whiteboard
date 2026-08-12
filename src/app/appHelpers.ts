@@ -1,11 +1,10 @@
-import type { AssetRecord, BlockRecord, BlockType, BoardSnapshot, RetakeNode } from '../core/types';
+import type { RetakeNode } from '../canvas/reactFlowTypes';
+import type { AssetRecord, BlockRecord, BlockType, BoardSnapshot } from '../core/types';
 import { schemaForCapability } from '../core/capabilities';
 import {
-  displaySlotSizeForGenerationParams,
   type ImageGenerationParams,
   type SwitchableOperationMode,
 } from '../core/imageOperations';
-import { nowIso } from '../core/id';
 import { capabilityDefinitionFor } from '../core/capabilityRegistry';
 import { imageGenerateCapabilityId } from '../core/imageGenerateContracts';
 
@@ -74,24 +73,6 @@ export function generationParamsFromBlock(block: BlockRecord | undefined): Image
     targetWidth: finiteNumber(value.targetWidth),
     variationCount: finiteNumber(value.variationCount),
   };
-}
-
-export function resizeEmptyOperationOutputSlot(
-  snapshot: BoardSnapshot,
-  operationBlock: BlockRecord,
-  generationParams: ImageGenerationParams,
-): void {
-  const outputBlockIds = new Set(
-    snapshot.edges
-      .filter((edge) => edge.sourceBlockId === operationBlock.blockId && edge.kind === 'execution_output')
-      .map((edge) => edge.targetBlockId),
-  );
-  const updatedAt = nowIso();
-  for (const outputBlock of snapshot.blocks) {
-    if (!outputBlockIds.has(outputBlock.blockId) || outputBlock.type !== 'image' || outputBlock.data.assetId) continue;
-    outputBlock.size = displaySlotSizeForGenerationParams(generationParams, outputBlock.size);
-    outputBlock.updatedAt = updatedAt;
-  }
 }
 
 export function finiteNumber(value: unknown): number | undefined {

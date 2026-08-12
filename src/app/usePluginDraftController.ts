@@ -1,4 +1,4 @@
-import { useCallback, type RefObject } from 'react';
+import { useCallback } from 'react';
 import type {
   PluginDraftViewV2,
   PluginJsonValueV2,
@@ -14,31 +14,24 @@ import type {
   PluginDraftRunnerRequestV2,
   PluginDraftRunnerV2,
 } from '../core/pluginWebModuleLoader';
+import type { WhiteboardProductCommandsV1 } from '../whiteboard/application/whiteboardProductCommands';
 
 interface PluginDraftControllerOptions {
-  persistSnapshot: (snapshot: BoardSnapshot) => Promise<void>;
-  snapshotRef: RefObject<BoardSnapshot>;
-  updateSnapshot: (
-    updater: (current: BoardSnapshot) => BoardSnapshot,
-    options?: {
-      history?: boolean;
-      persist?: boolean;
-      syncFlow?: boolean;
-    },
-  ) => BoardSnapshot;
+  runProductCommand?: <Result>(
+    operation: (commands: WhiteboardProductCommandsV1) => Promise<Result>,
+    options?: { history?: boolean; syncFlow?: boolean },
+  ) => Promise<Result>;
 }
 
 export function usePluginDraftController({
-  persistSnapshot,
-  snapshotRef,
-  updateSnapshot,
+  runProductCommand,
 }: PluginDraftControllerOptions): PluginDraftRunnerV2 {
   return useCallback(
     (request: PluginDraftRunnerRequestV2) => savePluginDraft(
       request,
-      { persistSnapshot, snapshotRef, updateSnapshot },
+      { runProductCommand },
     ),
-    [persistSnapshot, snapshotRef, updateSnapshot],
+    [runProductCommand],
   );
 }
 
@@ -46,57 +39,14 @@ export async function savePluginDraft(
   request: PluginDraftRunnerRequestV2,
   options: PluginDraftControllerOptions,
 ): Promise<PluginDraftViewV2 | null> {
-  const initial = options.snapshotRef.current;
-  const block = initial.blocks.find(
-    (candidate) => candidate.blockId === request.blockId,
-  );
-  if (!block) {
-    throw new Error(`Plugin draft Block no longer exists: ${request.blockId}`);
+  if (!options.runProductCommand) {
+    throw new Error('Whiteboard Plugin draft command facade is unavailable.');
   }
-
-  const now = new Date().toISOString();
-  let saved: PluginDraftViewV2 | null = null;
-  const next = options.updateSnapshot((current) => {
-    const currentBlock = current.blocks.find(
-      (candidate) => candidate.blockId === request.blockId,
-    );
-    if (!currentBlock) {
-      throw new Error(
-        `Plugin draft Block no longer exists: ${request.blockId}`,
-      );
-    }
-    const drafts = (currentBlock.data.retakePluginDrafts ?? []).filter(
-      (draft) => (
-        draft.pluginModuleId !== request.pluginModuleId
-        || draft.capabilityId !== request.capabilityId
-      ),
-    );
-    if (request.value !== null) {
-      const record: RetakePluginDraftRecord = {
-        capabilityId: request.capabilityId,
-        pluginModuleId: request.pluginModuleId,
-        revision: `${now}:${request.pluginModuleId}:${request.capabilityId}`,
-        schemaVersion: 1,
-        updatedAt: now,
-        value: structuredClone(request.value),
-      };
-      drafts.push(record);
-      saved = toPluginDraftView(request.blockId, record);
-    }
-    if (drafts.length > 0) {
-      currentBlock.data.retakePluginDrafts = drafts;
-    } else {
-      delete currentBlock.data.retakePluginDrafts;
-    }
-    if (request.capabilityId === 'image.annotation_edit') {
-      delete currentBlock.data.annotationDraft;
-    }
-    currentBlock.updatedAt = now;
-    current.board.updatedAt = now;
-    return current;
-  }, { history: false, persist: false });
-  await options.persistSnapshot(next);
-  return saved;
+  const saved = await options.runProductCommand(
+    (commands) => commands.plugin.saveDraft(request),
+    { syncFlow: false },
+  );
+  return saved.draft;
 }
 
 export function pluginDraftViewsForBlocks(

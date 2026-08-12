@@ -12,9 +12,8 @@
   overflow: auto;
   border: 1px solid #d8dee8;
   border-radius: 8px;
-  background: rgb(255 255 255 / 94%);
+  background: #ffffff;
   box-shadow: 0 16px 34px rgb(16 24 40 / 14%);
-  backdrop-filter: blur(12px);
 }
 
 .board-history-panel header {

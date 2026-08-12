@@ -1,4 +1,4 @@
-import { Activity, MapPin } from 'lucide-react';
+import { Activity, MapPin, MessageCircle, RotateCcw } from 'lucide-react';
 import type { ReactElement } from 'react';
 import type {
   AgentMessageContextRef,
@@ -16,11 +16,15 @@ type OperationReceipt = Extract<
 >;
 
 export function AgentOperationRunCard({
+  onAskAgent,
   onLocateBlock,
+  onRerunOperation,
   receipt,
   snapshot,
 }: {
+  onAskAgent: () => void;
   onLocateBlock: (blockId: string) => void;
+  onRerunOperation: (operationBlockId: string) => void | Promise<void>;
   receipt: OperationReceipt;
   snapshot: BoardSnapshot;
 }): ReactElement {
@@ -77,16 +81,42 @@ export function AgentOperationRunCard({
         </div>
       </dl>
       {operation ? (
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onLocateBlock(operation.blockId);
-          }}
-        >
-          <MapPin size={12} />
-          {t('agentWorkspace.viewOnCanvas')}
-        </button>
+        <div className="agent-workspace-operation-actions">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onLocateBlock(operation.blockId);
+            }}
+          >
+            <MapPin size={12} />
+            {t('agentWorkspace.viewOnCanvas')}
+          </button>
+          {status === 'failed' ? (
+            <>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void onRerunOperation(operation.blockId);
+                }}
+              >
+                <RotateCcw size={12} />
+                {t('agentWorkspace.operationRetry')}
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onAskAgent();
+                }}
+              >
+                <MessageCircle size={12} />
+                {t('agentWorkspace.operationAskAgent')}
+              </button>
+            </>
+          ) : null}
+        </div>
       ) : null}
     </article>
   );

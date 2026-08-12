@@ -32,7 +32,7 @@ const [controllerSource, groupInspectorSource, targetPickerSource, appSource] = 
   readFile(new URL('../src/components/WorkflowAgentTargetPicker.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
 ]);
-assert.match(controllerSource, /createAgentRunForWorkflowStageSlice/);
+assert.match(controllerSource, /commands\.agent\.createWorkflowStageSlice/);
 assert.match(controllerSource, /createWorkflowStageSliceAgentRun/);
 assert.match(targetPickerSource, /agentRuntime\.untilStage/);
 assert.match(groupInspectorSource, /onCreateWorkflowStageSliceAgentRun/);

@@ -71,8 +71,10 @@ export type AgentMessageContextRef =
   | { kind: 'operation'; operationBlockId: string }
   | {
       action: 'created' | 'continued';
+      createdBlockIds?: string[];
       kind: 'operation_receipt';
       operationBlockId: string;
+      promptBlockId?: string;
     }
   | PackageComposerInlineValue
   | PackageComposerMention
@@ -87,6 +89,11 @@ export interface AgentMessageRecord {
   createdAt: string;
   projectId: string;
   recordVersion: number;
+  recovery?: {
+    error: string;
+    kind: 'operation_application' | 'runtime_unavailable';
+    runtimeTurnId?: string;
+  };
   role: AgentMessageRole;
   runtimeTurnId?: string;
   sourceMessageId?: string;

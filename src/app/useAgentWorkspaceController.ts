@@ -2,28 +2,16 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import {
   activeBoardAgentSessions,
   agentSessionForRun,
-  applyAuthorizedOperationSuggestion,
-  appendAgentUserMessage,
-  applyAgentRuntimeTurn,
-  archiveAgentSession,
-  createAgentSession,
-  ensureDefaultAgentSession,
-  renameAgentSession,
-  markAgentRuntimeFailure,
   runtimeBindingForSession,
-  setAgentSessionRun,
-  setAgentSessionWorkingOperation,
-  createTypedEntrypointProposalForMessage,
 } from '../core/agentSession';
-import {
-  appendAgentRuntimeEvent,
-  applyWorkflowLaunchPreferences,
-  decideChangeProposal,
-} from '../core/agentChangeApplication';
 import type {
   AgentDraftAppliedEffect,
   AgentDraftLaunchTarget,
   AgentMessageContextRef,
+  AgentRuntimeKind,
+  AgentRuntimeTurnResult,
+  GoalPlanDraftLaunchCommand,
+  PackageEntrypointDraftLaunchCommand,
   WorkflowLaunchPreferences,
 } from '../core/agentSessionContracts';
 import type { WorkflowExecutionMode } from '../components/UnifiedComposerProvider';
@@ -42,16 +30,10 @@ import type { BoardSnapshot } from '../core/types';
 import { createFlowNodes } from '../core/flowProjection';
 import {
   buildPackageEntrypointDraftLaunchCommand,
-  stagePackageEntrypointAgentLaunch,
 } from '../core/packageEntrypointAgentLaunchApplication';
 import {
   buildGoalPlanDraftLaunchCommand,
-  stageGoalPlanAgentLaunch,
 } from '../core/goalPlanAgentLaunchApplication';
-import {
-  stageAgentOperationExecution,
-  type AgentOperationExecutionRequest,
-} from '../core/agentOperationExecution';
 import {
   imageOperationDefaultPrompt,
   imageOperationTitle,
@@ -59,52 +41,45 @@ import {
 import { capabilityDefinitionFor } from '../core/capabilityRegistry';
 import { imageGenerateCapabilityId } from '../core/imageGenerateContracts';
 import { reconcileWorkflowArtifactGates } from '../core/workflowArtifactGateClient';
-import { resolvedWorkflowUiDefinitionFor, workflowDefinitionFor } from '../core/workflowRegistry';
+import { workflowDefinitionFor } from '../core/workflowRegistry';
 import type { useI18n } from '../i18n';
 import { textGenerationLabelsForSkill } from './skillTextLabels';
-import type { ImageComposerWorkflowLayoutInput } from './imageComposerWorkflowLayout';
 import {
   loadSelectedAgentSessionId,
   resolveSelectedAgentSessionId,
   saveSelectedAgentSessionId,
 } from '../core/agentWorkspaceViewState';
+import type { WhiteboardProductCommandsV1 } from '../whiteboard/application/whiteboardProductCommands';
+import { createAgentDraftPresentation } from './agentDraftPresentation';
 
 interface AgentWorkspaceControllerOptions {
-  centerBlockGroup: (snapshot: BoardSnapshot, blockIds: string[]) => void;
+  adoptDurableSnapshot: (snapshot: BoardSnapshot) => void;
   focusWorkflowBlocks: (blockIds: string[]) => void;
-  layoutImageComposerWorkflow: (
-    snapshot: BoardSnapshot,
-    input: ImageComposerWorkflowLayoutInput,
-  ) => void;
+  getViewportCenter: () => { x: number; y: number };
   locale: string;
-  persistSnapshot: (
-    snapshot: BoardSnapshot,
-    options?: { requireLocalApi?: boolean },
-  ) => Promise<void>;
+  runProductCommand?: <Result>(
+    operation: (commands: WhiteboardProductCommandsV1) => Promise<Result>,
+    options?: { history?: boolean; syncFlow?: boolean },
+  ) => Promise<Result>;
   snapshot: BoardSnapshot;
   snapshotRef: RefObject<BoardSnapshot>;
   setSelectedBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
   selectedBlockIdsRef: RefObject<string[]>;
   t: ReturnType<typeof useI18n>['t'];
-  updateSnapshot: (
-    updater: (current: BoardSnapshot) => BoardSnapshot,
-    options?: { history?: boolean; persist?: boolean; syncFlow?: boolean },
-  ) => BoardSnapshot;
 }
 
 export function useAgentWorkspaceController(options: AgentWorkspaceControllerOptions) {
   const {
-    centerBlockGroup,
+    adoptDurableSnapshot,
     focusWorkflowBlocks,
-    layoutImageComposerWorkflow,
+    getViewportCenter,
     locale,
-    persistSnapshot,
+    runProductCommand,
     selectedBlockIdsRef,
     setSelectedBlocks,
     snapshot,
     snapshotRef,
     t,
-    updateSnapshot,
   } = options;
   const agentWorkspaceBoardKey = `${snapshot.project.projectId}:${snapshot.board.boardId}`;
   const [selectedSessionIdsByBoard, setSelectedSessionIdsByBoard] = useState<Record<string, string>>(() => {
@@ -172,25 +147,21 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     );
   }
 
-  function newSession(connectionId?: string, agentRunId?: string): string {
-    let createdId = '';
+  async function newSession(connectionId?: string, agentRunId?: string): Promise<string> {
     const connection = currentAgentConnection(connectionId);
-    updateSnapshot((current) => {
-      const created = createAgentSession(current, {
+    const created = await requireProductCommands(runProductCommand)(
+      (commands) => commands.agentWorkspace.createSession({
         agentRunId,
-        connectionId: connection.connectionId,
-        model: connection.modelId,
-        runtimeKind: connection.runtimeKind,
-      });
-      createdId = created.session.agentSessionId;
-      return current;
-    }, { history: true, persist: true, syncFlow: false });
-    setSelectedSessionId(createdId);
-    setSessionError(createdId, undefined);
-    return createdId;
+        connection: agentWorkspaceConnection(connection),
+      }),
+      { history: true, syncFlow: false },
+    );
+    setSelectedSessionId(created.agentSessionId);
+    setSessionError(created.agentSessionId, undefined);
+    return created.agentSessionId;
   }
 
-  function ensureDefaultSession(): string {
+  async function ensureDefaultSession(): Promise<string> {
     const existingSessionId = resolveSelectedAgentSessionId(
       sessions.map((session) => session.agentSessionId),
       selectedSessionId,
@@ -201,34 +172,33 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
       setSessionError(existing.agentSessionId, undefined);
       return existing.agentSessionId;
     }
-    let resolvedId = '';
     const connection = currentAgentConnection();
-    updateSnapshot((current) => {
-      const resolved = ensureDefaultAgentSession(current, {
-        connectionId: connection.connectionId,
-        model: connection.modelId,
-        runtimeKind: connection.runtimeKind,
+    const resolved = await requireProductCommands(runProductCommand)(
+      (commands) => commands.agentWorkspace.ensureDefaultSession({
+        connection: agentWorkspaceConnection(connection),
         title: t('agentWorkspace.defaultSession'),
-      });
-      resolvedId = resolved.session.agentSessionId;
-      return current;
-    }, { history: false, persist: true, syncFlow: false });
-    setSelectedSessionId(resolvedId);
-    setSessionError(resolvedId, undefined);
-    return resolvedId;
+      }),
+      { syncFlow: false },
+    );
+    setSelectedSessionId(resolved.agentSessionId);
+    setSessionError(resolved.agentSessionId, undefined);
+    return resolved.agentSessionId;
   }
 
   function selectSession(agentSessionId: string): void {
     setSelectedSessionId(agentSessionId);
   }
 
-  function renameSession(title: string): boolean {
+  async function renameSession(title: string): Promise<boolean> {
     if (!selectedSessionId) return false;
     try {
-      updateSnapshot((current) => {
-        renameAgentSession(current, selectedSessionId, title);
-        return current;
-      }, { history: true, persist: true, syncFlow: false });
+      await requireProductCommands(runProductCommand)(
+        (commands) => commands.agentWorkspace.renameSession({
+          agentSessionId: selectedSessionId,
+          title,
+        }),
+        { history: true, syncFlow: false },
+      );
       setSessionError(selectedSessionId, undefined);
       return true;
     } catch (caught) {
@@ -237,7 +207,7 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     }
   }
 
-  function selectAgentRun(agentRunId?: string): void {
+  async function selectAgentRun(agentRunId?: string): Promise<void> {
     if (!selectedSessionId) return;
     if (agentRunId) {
       const owner = agentSessionForRun(snapshotRef.current, agentRunId);
@@ -248,13 +218,16 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
         return;
       }
     }
-    updateSnapshot((current) => {
-      setAgentSessionRun(current, selectedSessionId, agentRunId);
-      return current;
-    }, { persist: true, syncFlow: false });
+    await requireProductCommands(runProductCommand)(
+      (commands) => commands.agentWorkspace.bindRun({
+        agentRunId,
+        agentSessionId: selectedSessionId,
+      }),
+      { syncFlow: false },
+    );
   }
 
-  function focusAgentRun(agentRunId: string): void {
+  async function focusAgentRun(agentRunId: string): Promise<void> {
     const owner = agentSessionForRun(snapshotRef.current, agentRunId);
     if (owner) {
       setSelectedSessionId(owner.agentSessionId);
@@ -262,46 +235,42 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
       setSessionError(owner.agentSessionId, undefined);
       return;
     }
-    const agentSessionId = selectedSessionId ?? ensureDefaultSession();
-    updateSnapshot((current) => {
-      setAgentSessionRun(current, agentSessionId, agentRunId);
-      return current;
-    }, { persist: true, syncFlow: false });
+    const agentSessionId = selectedSessionId ?? await ensureDefaultSession();
+    await requireProductCommands(runProductCommand)(
+      (commands) => commands.agentWorkspace.bindRun({ agentRunId, agentSessionId }),
+      { syncFlow: false },
+    );
     setSelectedSessionId(agentSessionId);
     setFocusedAgentRunId(agentRunId);
     setSessionError(agentSessionId, undefined);
   }
 
-  function bindWorkingOperation(operationBlockId: string): void {
-    const agentSessionId = selectedSessionId ?? ensureDefaultSession();
-    updateSnapshot((current) => {
-      setAgentSessionWorkingOperation(current, agentSessionId, {
+  async function bindWorkingOperation(operationBlockId: string): Promise<void> {
+    const agentSessionId = selectedSessionId ?? await ensureDefaultSession();
+    await requireProductCommands(runProductCommand)(
+      (commands) => commands.agentWorkspace.bindWorkingOperation({
+        agentSessionId,
         operationBlockId,
-        source: 'user_explicit',
-      });
-      return current;
-    }, { persist: true, syncFlow: false });
+      }),
+      { syncFlow: false },
+    );
     setSelectedSessionId(agentSessionId);
     setSessionError(agentSessionId, undefined);
   }
 
-  function archiveSession(): void {
+  async function archiveSession(): Promise<void> {
     if (!selectedSessionId) return;
-    let nextSelectedSessionId = '';
     const connection = currentAgentConnection();
-    updateSnapshot((current) => {
-      archiveAgentSession(current, selectedSessionId);
-      const next = ensureDefaultAgentSession(current, {
-        connectionId: connection.connectionId,
-        model: connection.modelId,
-        runtimeKind: connection.runtimeKind,
-        title: t('agentWorkspace.defaultSession'),
-      });
-      nextSelectedSessionId = next.session.agentSessionId;
-      return current;
-    }, { history: true, persist: true, syncFlow: false });
-    setSelectedSessionId(nextSelectedSessionId);
-    setSessionError(nextSelectedSessionId, undefined);
+    const archived = await requireProductCommands(runProductCommand)(
+      (commands) => commands.agentWorkspace.archiveSession({
+        agentSessionId: selectedSessionId,
+        defaultConnection: agentWorkspaceConnection(connection),
+        defaultTitle: t('agentWorkspace.defaultSession'),
+      }),
+      { history: true, syncFlow: false },
+    );
+    setSelectedSessionId(archived.selectedSessionId);
+    setSessionError(archived.selectedSessionId, undefined);
   }
 
   async function decideProposal(
@@ -313,54 +282,20 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     const ownerSessionId = snapshotRef.current.changeProposals?.find(
       (proposal) => proposal.proposalId === proposalId,
     )?.agentSessionId;
-    const proposalKind = snapshotRef.current.changeProposals?.find(
-      (proposal) => proposal.proposalId === proposalId,
-    )?.kind;
     if (!ownerSessionId || launchStateRef.current.inFlightSessionIds.has(ownerSessionId)) return;
     launchStateRef.current.inFlightSessionIds.add(ownerSessionId);
     setLaunchingProposal(ownerSessionId, proposalId);
     try {
-      let effect: AgentDraftAppliedEffect | undefined;
-      let appliedProposalVersion = 0;
-      let proposalSessionId = ownerSessionId;
-      const nextSnapshot = updateSnapshot((current) => {
-        const proposal = current.changeProposals?.find(
-          (candidate) => candidate.proposalId === proposalId,
-        );
-        if (decision === 'approve' && workflowPreferences && proposal) {
-          applyWorkflowLaunchPreferences(proposal, workflowPreferences);
-        }
-        const result = decideChangeProposal(
-          current,
-          { decision, expectedProposalVersion, proposalId },
-          {
-            connectionIdForCapability: (capabilityId, applicationSnapshot) =>
-              resolveAgentExecutionConnection({
-                capabilityId,
-                initialConnectionId: 'codex-app-server',
-                projectId: applicationSnapshot.project.projectId,
-              })?.connectionId,
-            labelsForSkill: (skillId) => textGenerationLabelsForSkill(skillId, locale, t),
-            outputPlaceholder: t('workflowDraft.outputPending'),
-            workflowTitleForTarget: (target) =>
-              resolvedWorkflowUiDefinitionFor(
-                target.workflowDefinitionLock.workflowDefinitionId,
-                locale,
-              ).name,
-          },
-        );
-        effect = result.proposal.appliedEffect;
-        if (effect?.workflowGroupId) {
-          centerBlockGroup(current, effect.createdBlockIds);
-        }
-        appliedProposalVersion = result.proposal.recordVersion;
-        proposalSessionId = result.proposal.agentSessionId;
-        return current;
-      }, { history: true, persist: false });
-      await persistSnapshot(nextSnapshot, { requireLocalApi: true });
+      const decided = await decideProposalCommand({
+        decision,
+        expectedProposalVersion,
+        proposalId,
+        workflowPreferences,
+      });
+      const effect = decided.appliedEffect;
       if (effect) {
-        setSelectedBlocks(nextSnapshot, [effect.primaryBlockId]);
-        focusWorkflowBlocks(agentDraftFocusBlockIds(nextSnapshot, effect));
+        setSelectedBlocks(snapshotRef.current, [effect.primaryBlockId]);
+        focusWorkflowBlocks(agentDraftFocusBlockIds(snapshotRef.current, effect));
       }
       if (
         decision === 'approve'
@@ -368,71 +303,35 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
         && effect.entrypointKind === 'workflow'
       ) {
         const command = buildPackageEntrypointDraftLaunchCommand({
-          agentSessionId: proposalSessionId,
-          expectedProposalVersion: appliedProposalVersion,
+          agentSessionId: decided.agentSessionId,
+          expectedProposalVersion: decided.proposalVersion,
           proposalId,
           target: { kind: 'workflow_run' },
         });
-        const launched = stagePackageEntrypointAgentLaunch(nextSnapshot, command);
-        await persistSnapshot(launched.stagedSnapshot, { requireLocalApi: true });
-        const authoritative = await reconcileDraftLaunchTarget(
-          launched.stagedSnapshot,
-          launched.effect.agentRunId,
-          launched.effect.workflowRunId,
-          { kind: 'workflow_run' },
-        );
-        publishLaunch(
-          authoritative,
-          launched.effect.agentRunId,
-          launched.effect.agentSessionId,
-        );
+        await launchDraftCommand(command, { kind: 'workflow_run' });
       } else if (
         decision === 'approve'
-        && proposalKind === 'plan_skill'
+        && decided.proposalKind === 'plan_skill'
         && effect?.kind === 'package_entrypoint_draft'
         && effect.entrypointKind === 'skill'
       ) {
         const command = buildPackageEntrypointDraftLaunchCommand({
-          agentSessionId: proposalSessionId,
-          expectedProposalVersion: appliedProposalVersion,
+          agentSessionId: decided.agentSessionId,
+          expectedProposalVersion: decided.proposalVersion,
           proposalId,
           target: { kind: 'capability' },
         });
-        const launched = stagePackageEntrypointAgentLaunch(nextSnapshot, command);
-        await persistSnapshot(launched.stagedSnapshot, { requireLocalApi: true });
-        const authoritative = await reconcileDraftLaunchTarget(
-          launched.stagedSnapshot,
-          launched.effect.agentRunId,
-          launched.effect.workflowRunId,
-          { kind: 'capability' },
-        );
-        publishLaunch(
-          authoritative,
-          launched.effect.agentRunId,
-          launched.effect.agentSessionId,
-        );
+        await launchDraftCommand(command, { kind: 'capability' });
       } else if (
         decision === 'approve'
         && effect?.kind === 'goal_plan_draft'
       ) {
         const command = buildGoalPlanDraftLaunchCommand({
-          agentSessionId: proposalSessionId,
-          expectedProposalVersion: appliedProposalVersion,
+          agentSessionId: decided.agentSessionId,
+          expectedProposalVersion: decided.proposalVersion,
           proposalId,
         });
-        const launched = stageGoalPlanAgentLaunch(nextSnapshot, command);
-        await persistSnapshot(launched.stagedSnapshot, { requireLocalApi: true });
-        const authoritative = await reconcileDraftLaunchTarget(
-          launched.stagedSnapshot,
-          launched.effect.agentRunId,
-          launched.effect.workflowRunId,
-          { kind: 'goal' },
-        );
-        publishLaunch(
-          authoritative,
-          launched.effect.agentRunId,
-          launched.effect.agentSessionId,
-        );
+        await launchDraftCommand(command, { kind: 'goal' });
       }
       setSessionError(ownerSessionId, undefined);
     } catch (caught) {
@@ -441,6 +340,32 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
       launchStateRef.current.inFlightSessionIds.delete(ownerSessionId);
       setLaunchingProposal(ownerSessionId, undefined);
     }
+  }
+
+  async function decideProposalCommand(input: {
+    decision: 'approve' | 'reject';
+    expectedProposalVersion: number;
+    explicitConnectionId?: string;
+    proposalId: string;
+    workflowPreferences?: WorkflowLaunchPreferences;
+  }) {
+    return requireProductCommands(runProductCommand)(
+      (commands) => commands.agentWorkspace.decideProposal({
+        decision: input.decision,
+        expectedProposalVersion: input.expectedProposalVersion,
+        presentation: createAgentDraftPresentation({
+          explicitConnectionId: input.explicitConnectionId,
+          locale,
+          placementCenter: getViewportCenter(),
+          proposalId: input.proposalId,
+          snapshot: snapshotRef.current,
+          t,
+        }),
+        proposalId: input.proposalId,
+        workflowPreferences: input.workflowPreferences,
+      }),
+      { history: true },
+    );
   }
 
   function focusProposalEffect(proposalId: string): void {
@@ -460,44 +385,26 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
   ): Promise<void> {
     if (!selectedSessionId || launchStateRef.current.inFlightSessionIds.has(selectedSessionId)) return;
     const launchSessionId = selectedSessionId;
-    let command: { idempotencyKey: string } | undefined;
+    let command: GoalPlanDraftLaunchCommand | PackageEntrypointDraftLaunchCommand | undefined;
     launchStateRef.current.inFlightSessionIds.add(launchSessionId);
     setLaunchingProposal(launchSessionId, proposalId);
     setSessionError(launchSessionId, undefined);
     try {
-      const result = target.kind === 'goal'
-        ? (() => {
-            const goalCommand = buildGoalPlanDraftLaunchCommand({
-              agentPresetEntryPointId,
-              agentSessionId: launchSessionId,
-              expectedProposalVersion,
-              proposalId,
-            });
-            command = goalCommand;
-            return stageGoalPlanAgentLaunch(snapshotRef.current, goalCommand);
-          })()
-        : (() => {
-            const entrypointCommand = buildPackageEntrypointDraftLaunchCommand({
-              agentPresetEntryPointId,
-              agentSessionId: launchSessionId,
-              expectedProposalVersion,
-              proposalId,
-              target,
-            });
-            command = entrypointCommand;
-            return stagePackageEntrypointAgentLaunch(
-              snapshotRef.current,
-              entrypointCommand,
-            );
-          })();
-      await persistSnapshot(result.stagedSnapshot, { requireLocalApi: true });
-      const authoritative = await reconcileDraftLaunchTarget(
-        result.stagedSnapshot,
-        result.effect.agentRunId,
-        result.effect.workflowRunId,
-        target,
-      );
-      publishLaunch(authoritative, result.effect.agentRunId, result.effect.agentSessionId);
+      command = target.kind === 'goal'
+        ? buildGoalPlanDraftLaunchCommand({
+            agentPresetEntryPointId,
+            agentSessionId: launchSessionId,
+            expectedProposalVersion,
+            proposalId,
+          })
+        : buildPackageEntrypointDraftLaunchCommand({
+            agentPresetEntryPointId,
+            agentSessionId: launchSessionId,
+            expectedProposalVersion,
+            proposalId,
+            target,
+          });
+      await launchDraftCommand(command, target);
     } catch (caught) {
       const scope = snapshotRef.current;
       try {
@@ -512,7 +419,10 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
             && proposal.draftLaunchEffect?.idempotencyKey === idempotencyKey,
         )?.draftLaunchEffect : undefined;
         if (recovered) {
-          publishLaunch(authoritative, recovered.agentRunId, recovered.agentSessionId);
+          if (isCurrentBoardScope(authoritative.project.projectId, authoritative.board.boardId)) {
+            adoptDurableSnapshot(authoritative);
+            focusLaunch(recovered.agentRunId, recovered.agentSessionId);
+          }
           return;
         }
       } catch {
@@ -525,21 +435,37 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     }
   }
 
-  function publishLaunch(
-    nextSnapshot: BoardSnapshot,
-    agentRunId: string,
-    agentSessionId: string,
-  ): void {
-    if (
-      snapshotRef.current.project.projectId !== nextSnapshot.project.projectId
-      || snapshotRef.current.board.boardId !== nextSnapshot.board.boardId
-    ) return;
-    updateSnapshot(() => nextSnapshot, { history: true, persist: false });
+  function focusLaunch(agentRunId: string, agentSessionId: string): void {
     if (!launchStateRef.current.selectedSessionId || launchStateRef.current.selectedSessionId === agentSessionId) {
       setSelectedSessionId(agentSessionId);
       setFocusedAgentRunId(agentRunId);
     }
     setSessionError(agentSessionId, undefined);
+  }
+
+  async function launchDraftCommand(
+    command: GoalPlanDraftLaunchCommand | PackageEntrypointDraftLaunchCommand,
+    target: AgentDraftLaunchTarget,
+  ): Promise<void> {
+    const launched = await requireProductCommands(runProductCommand)(
+      (commands) => commands.agentWorkspace.launchDraft({ command }),
+      { history: true },
+    );
+    const authoritative = await reconcileDraftLaunchTarget({
+      agentRunId: launched.agentRunId,
+      boardId: launched.boardId,
+      projectId: launched.projectId,
+      target,
+      workflowRunId: launched.workflowRunId,
+    });
+    if (!isCurrentBoardScope(launched.projectId, launched.boardId)) return;
+    if (authoritative) adoptDurableSnapshot(authoritative);
+    focusLaunch(launched.agentRunId, launched.agentSessionId);
+  }
+
+  function isCurrentBoardScope(projectId: string, boardId: string): boolean {
+    return snapshotRef.current.project.projectId === projectId
+      && snapshotRef.current.board.boardId === boardId;
   }
 
   function focusProposalRun(proposalId: string): void {
@@ -550,7 +476,6 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     setSelectedSessionId(effect.agentSessionId);
     setFocusedAgentRunId(effect.agentRunId);
   }
-
   async function submitMessage(input: {
     agentPreferences: {
       aspectRatioPreset?: string;
@@ -571,14 +496,16 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     };
     workflowExecutionMode?: WorkflowExecutionMode;
   }): Promise<void> {
-    const agentSessionId = selectedSessionId ?? ensureDefaultSession();
+    const agentSessionId = selectedSessionId ?? await ensureDefaultSession();
     if (inFlightSessionIdsRef.current.has(agentSessionId)) return;
     inFlightSessionIdsRef.current.add(agentSessionId);
     setSessionSending(agentSessionId, true);
     setSessionError(agentSessionId, undefined);
     let sourceMessageId = '';
-    let operationExecution: AgentOperationExecutionRequest | undefined;
     let requestedAgentRuntime = false;
+    let receivedAgentRuntimeResult = false;
+    let operationApplicationAttempted = false;
+    let runtimeResult: AgentRuntimeTurnResult | undefined;
     try {
       const contextRefs: AgentMessageContextRef[] = [
         {
@@ -613,31 +540,30 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
           ? [{ kind: 'parameters' as const, value: structuredClone(input.parameters) }]
           : []),
       ];
-      const withUserMessage = updateSnapshot((current) => {
-        const message = appendAgentUserMessage(current, agentSessionId, {
+      const appendedMessage = await requireProductCommands(runProductCommand)(
+        (commands) => commands.agentWorkspace.appendMessage({
+          agentSessionId,
           content: input.content,
           contextRefs,
-        });
-        sourceMessageId = message.agentMessageId;
-        return current;
-      }, { syncFlow: false });
-      await persistSnapshot(withUserMessage, { requireLocalApi: true });
+        }),
+        { syncFlow: false },
+      );
+      sourceMessageId = appendedMessage.agentMessageId;
       if (input.suggestionAction?.operationBlockId) {
-        let authorizedExecution: AgentOperationExecutionRequest | undefined;
-        const withAuthorizedAction = updateSnapshot((current) => {
-          const applied = applyAuthorizedOperationSuggestion(current, {
+        operationApplicationAttempted = true;
+        const authorized = await requireProductCommands(runProductCommand)(
+          (commands) => commands.agentWorkspace.authorizeOperationSuggestion({
             agentSessionId,
             operationBlockId: input.suggestionAction!.operationBlockId!,
+            presentation: agentOperationPresentation(
+              undefined,
+              input.agentPreferences.connectionId,
+            ),
             sourceMessageId,
-          });
-          authorizedExecution = applied.operationExecution;
-          return current;
-        }, { syncFlow: false });
-        await persistSnapshot(withAuthorizedAction, { requireLocalApi: true });
-        await executeAgentOperationRequest(
-          authorizedExecution,
-          input.agentPreferences.connectionId,
+          }),
+          { history: true, syncFlow: true },
         );
+        revealStagedAgentOperation(authorized);
         return;
       }
       if (input.workflowExecutionMode) {
@@ -649,166 +575,151 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
           snapshotRef.current,
           launchSession?.activeAgentRunId,
         );
-        let proposalId = '';
-        let proposalVersion = 0;
-        let appliedEffect: AgentDraftAppliedEffect | undefined;
-        const appliedSnapshot = updateSnapshot((current) => {
-          const proposal = createTypedEntrypointProposalForMessage(current, {
+        const createdProposal = await requireProductCommands(runProductCommand)(
+          (commands) => commands.agentWorkspace.createEntrypointProposal({
             agentSessionId,
             explanation: t('agentWorkspace.workflowDirectStartSummary'),
             sourceMessageId,
-          });
-          const invocation = proposal.proposedCommand.kind === 'package_entrypoint.instantiate'
-            ? proposal.proposedCommand.invocation
-            : undefined;
-          const workflowDefinition = invocation?.targetLock.entrypointKind === 'workflow'
-            ? workflowDefinitionFor(
-                invocation.targetLock.workflowDefinitionLock.workflowDefinitionId,
-              )
-            : undefined;
-          const conceptStep = workflowDefinition?.steps.find((step) => (
-            step.capabilityLock.capabilityId === imageGenerateCapabilityId
-            && step.outputAcceptancePolicy === 'manual_single'
-          ));
-          applyWorkflowLaunchPreferences(proposal, {
-            ...(workflowDefinition?.steps.some(
-              (step) => step.capabilityLock.capabilityId === imageGenerateCapabilityId,
-            ) ? {
-                aspectRatioPreset: input.agentPreferences.aspectRatioPreset,
-                connectionId: input.agentPreferences.connectionId,
-                targetResolution: input.agentPreferences.targetResolution,
-              } : {}),
-            ...(conceptStep && input.agentPreferences.variationCount
-              ? {
-                  conceptStepId: conceptStep.stepId,
-                  conceptVariationCount: input.agentPreferences.variationCount,
-                }
-              : {}),
-            interactionMode: workflowInteractionMode,
-          });
-          const decision = decideChangeProposal(
-            current,
-            {
-              decision: 'approve',
-              expectedProposalVersion: proposal.recordVersion,
-              proposalId: proposal.proposalId,
-            },
-            {
-              connectionIdForCapability: (capabilityId, applicationSnapshot) =>
-                resolveAgentExecutionConnection({
-                  capabilityId,
-                  explicitConnectionId: input.agentPreferences.connectionId,
-                  initialConnectionId: 'codex-app-server',
-                  projectId: applicationSnapshot.project.projectId,
-                })?.connectionId,
-              labelsForSkill: (skillId) => textGenerationLabelsForSkill(skillId, locale, t),
-              outputPlaceholder: t('workflowDraft.outputPending'),
-              workflowTitleForTarget: (target) =>
-                resolvedWorkflowUiDefinitionFor(
-                  target.workflowDefinitionLock.workflowDefinitionId,
-                  locale,
-                ).name,
-            },
-          );
-          proposalId = decision.proposal.proposalId;
-          proposalVersion = decision.proposal.recordVersion;
-          appliedEffect = decision.proposal.appliedEffect;
-          if (appliedEffect?.workflowGroupId) {
-            centerBlockGroup(current, appliedEffect.createdBlockIds);
-          }
-          return current;
-        }, { history: true, syncFlow: true });
-        await persistSnapshot(appliedSnapshot, { requireLocalApi: true });
+          }),
+          { history: true, syncFlow: false },
+        );
+        const proposalId = createdProposal.proposalId;
+        const proposal = snapshotRef.current.changeProposals?.find(
+          (candidate) => candidate.proposalId === proposalId,
+        );
+        const invocation = proposal?.proposedCommand.kind === 'package_entrypoint.instantiate'
+          ? proposal.proposedCommand.invocation
+          : undefined;
+        const workflowDefinition = invocation?.targetLock.entrypointKind === 'workflow'
+          ? workflowDefinitionFor(
+              invocation.targetLock.workflowDefinitionLock.workflowDefinitionId,
+            )
+          : undefined;
+        const conceptStep = workflowDefinition?.steps.find((step) => (
+          step.capabilityLock.capabilityId === imageGenerateCapabilityId
+          && step.outputAcceptancePolicy === 'manual_single'
+        ));
+        const workflowPreferences: WorkflowLaunchPreferences = {
+          ...(workflowDefinition?.steps.some(
+            (step) => step.capabilityLock.capabilityId === imageGenerateCapabilityId,
+          ) ? {
+              aspectRatioPreset: input.agentPreferences.aspectRatioPreset,
+              connectionId: input.agentPreferences.connectionId,
+              targetResolution: input.agentPreferences.targetResolution,
+            } : {}),
+          ...(conceptStep && input.agentPreferences.variationCount
+            ? {
+                conceptStepId: conceptStep.stepId,
+                conceptVariationCount: input.agentPreferences.variationCount,
+              }
+            : {}),
+          interactionMode: workflowInteractionMode,
+        };
+        const decided = await decideProposalCommand({
+          decision: 'approve',
+          expectedProposalVersion: createdProposal.proposalVersion,
+          explicitConnectionId: input.agentPreferences.connectionId,
+          proposalId,
+          workflowPreferences,
+        });
+        const appliedEffect = decided.appliedEffect;
         if (appliedEffect) {
-          setSelectedBlocks(appliedSnapshot, [appliedEffect.primaryBlockId]);
-          focusWorkflowBlocks(agentDraftFocusBlockIds(appliedSnapshot, appliedEffect));
+          setSelectedBlocks(snapshotRef.current, [appliedEffect.primaryBlockId]);
+          focusWorkflowBlocks(agentDraftFocusBlockIds(snapshotRef.current, appliedEffect));
         }
         const launchCommand = buildPackageEntrypointDraftLaunchCommand({
           agentSessionId,
-          expectedProposalVersion: proposalVersion,
+          expectedProposalVersion: decided.proposalVersion,
           proposalId,
           target: { kind: 'workflow_run' },
         });
-        const launched = stagePackageEntrypointAgentLaunch(
-          appliedSnapshot,
-          launchCommand,
-        );
-        await persistSnapshot(launched.stagedSnapshot, { requireLocalApi: true });
-        const authoritative = await reconcileDraftLaunchTarget(
-          launched.stagedSnapshot,
-          launched.effect.agentRunId,
-          launched.effect.workflowRunId,
-          { kind: 'workflow_run' },
-        );
-        publishLaunch(
-          authoritative,
-          launched.effect.agentRunId,
-          launched.effect.agentSessionId,
-        );
+        await launchDraftCommand(launchCommand, { kind: 'workflow_run' });
         return;
       }
       requestedAgentRuntime = true;
-      const runtimeResult = await requestAgentRuntimeTurn({
+      const completedRuntimeResult = await requestAgentRuntimeTurn({
         agentSessionId,
-        boardId: withUserMessage.board.boardId,
-        projectId: withUserMessage.project.projectId,
+        boardId: appendedMessage.boardId,
+        projectId: appendedMessage.projectId,
         sourceMessageId,
       }, async (event) => {
-        const withEvent = updateSnapshot((current) => {
-          appendAgentRuntimeEvent(current, { event, sourceMessageId });
-          return current;
-        }, { syncFlow: false });
-        await persistSnapshot(withEvent, { requireLocalApi: true });
+        await requireProductCommands(runProductCommand)(
+          (commands) => commands.agentWorkspace.appendRuntimeEvent({ event, sourceMessageId }),
+          { syncFlow: false },
+        );
       });
-      let automaticGoalProposal: { proposalId: string; recordVersion: number } | undefined;
-      const withRuntimeResult = updateSnapshot((current) => {
-        const applied = applyAgentRuntimeTurn(current, {
+      runtimeResult = completedRuntimeResult;
+      receivedAgentRuntimeResult = true;
+      operationApplicationAttempted = completedRuntimeResult.decision.kind === 'operation_create_execute'
+        || completedRuntimeResult.decision.kind === 'operation_execute';
+      const capabilityId = completedRuntimeResult.decision.kind === 'operation_create_execute'
+        ? completedRuntimeResult.decision.capabilityId
+        : undefined;
+      const applied = await requireProductCommands(runProductCommand)(
+        (commands) => commands.agentWorkspace.applyRuntimeTurn({
           agentSessionId,
-          decision: runtimeResult.decision,
-          externalThreadId: runtimeResult.externalThreadId,
-          runtimeModel: runtimeResult.model,
-          runtimeTurnId: runtimeResult.runtimeTurnId,
+          decision: completedRuntimeResult.decision,
+          externalThreadId: completedRuntimeResult.externalThreadId,
+          operationPresentation: agentOperationPresentation(
+            capabilityId,
+            input.agentPreferences.connectionId,
+          ),
+          runtimeModel: completedRuntimeResult.model,
+          runtimeTurnId: completedRuntimeResult.runtimeTurnId,
           sourceMessageId,
-        });
-        operationExecution = applied.operationExecution;
-        if (
-          input.suggestionAction
-          && runtimeResult.decision.kind === 'goal_plan_proposal'
-          && runtimeResult.decision.coverage === 'full'
-          && applied.proposal?.proposedCommand.kind === 'goal_plan.instantiate'
-        ) {
-          automaticGoalProposal = {
-            proposalId: applied.proposal.proposalId,
-            recordVersion: applied.proposal.recordVersion,
-          };
-        }
-        return current;
-      }, { syncFlow: false });
-      await persistSnapshot(withRuntimeResult, { requireLocalApi: true });
-      if (automaticGoalProposal) {
+        }),
+        operationApplicationAttempted
+          ? { history: true, syncFlow: true }
+          : { syncFlow: false },
+      );
+      if (
+        input.suggestionAction
+        && completedRuntimeResult.decision.kind === 'goal_plan_proposal'
+        && completedRuntimeResult.decision.coverage === 'full'
+        && applied.proposal?.proposedCommandKind === 'goal_plan.instantiate'
+      ) {
         await decideProposal(
-          automaticGoalProposal.proposalId,
-          automaticGoalProposal.recordVersion,
+          applied.proposal.proposalId,
+          applied.proposal.proposalVersion,
           'approve',
         );
         return;
       }
-      await executeAgentOperationRequest(
-        operationExecution,
-        input.agentPreferences.connectionId,
-      );
+      if (applied.operationStage) revealStagedAgentOperation(applied.operationStage);
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
-      setSessionError(agentSessionId, agentRuntimeFailureUserMessage(locale));
-      if (
-        requestedAgentRuntime
-        && snapshotRef.current?.agentSessions?.some((session) => session.agentSessionId === agentSessionId)
-      ) {
-        const failed = updateSnapshot((current) => {
-          markAgentRuntimeFailure(current, agentSessionId, message);
-          return current;
-        }, { syncFlow: false });
-        await persistSnapshot(failed).catch(() => undefined);
+      const canRecoverInChat = Boolean(
+        sourceMessageId
+        && (requestedAgentRuntime || operationApplicationAttempted)
+        && snapshotRef.current?.agentSessions?.some(
+          (session) => session.agentSessionId === agentSessionId,
+        ),
+      );
+      if (canRecoverInChat) {
+        const kind = receivedAgentRuntimeResult || operationApplicationAttempted
+          ? 'operation_application' as const
+          : 'runtime_unavailable' as const;
+        const recovery = agentRuntimeRecoveryCopy(locale, kind);
+        const recorded = await requireProductCommands(runProductCommand)(
+          (commands) => commands.agentWorkspace.recordRuntimeRecovery({
+            agentSessionId,
+            content: recovery.content,
+            error: message,
+            ...(runtimeResult ? {
+              externalThreadId: runtimeResult.externalThreadId,
+              runtimeModel: runtimeResult.model,
+              runtimeTurnId: runtimeResult.runtimeTurnId,
+            } : {}),
+            kind,
+            sourceMessageId,
+            suggestions: recovery.suggestions,
+          }),
+          { syncFlow: false },
+        ).then(() => true).catch(() => false);
+        if (recorded) setSessionError(agentSessionId, undefined);
+        else setSessionError(agentSessionId, agentRuntimeRecoveryPersistenceError(locale));
+      } else {
+        setSessionError(agentSessionId, agentRuntimeRecoveryPersistenceError(locale));
       }
     } finally {
       inFlightSessionIdsRef.current.delete(agentSessionId);
@@ -816,62 +727,40 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
     }
   }
 
-  async function executeAgentOperationRequest(
-    executionRequest: AgentOperationExecutionRequest | undefined,
+  function agentOperationPresentation(
+    capabilityId: string | undefined,
     explicitConnectionId?: string,
-  ): Promise<void> {
-    if (!executionRequest) return;
-    let operationBlockId = '';
-    let operationScopeIds: string[] = [];
-    const executionSnapshot = updateSnapshot((current) => {
-      const staged = stageAgentOperationExecution(current, executionRequest, {
-        connectionIdForCapability: (capabilityId, applicationSnapshot) =>
-          resolveAgentExecutionConnection({
+  ) {
+    const operationTitle = capabilityId && capabilityId !== imageGenerateCapabilityId
+      ? capabilityDefinitionFor(capabilityId).displayName
+      : imageOperationTitle('generate_image', t);
+    return {
+      connectionId: capabilityId
+        ? resolveAgentExecutionConnection({
             capabilityId,
             explicitConnectionId,
             initialConnectionId: 'codex-app-server',
-            projectId: applicationSnapshot.project.projectId,
-          })?.connectionId,
-        operationTitle: imageOperationTitle('generate_image', t),
-        imageToImageOperationTitle: imageOperationTitle('generate_image', t),
-        imageToImagePromptPlaceholder: imageOperationDefaultPrompt('quick_edit', t),
-        operationTitleForCapability: (capabilityId) => {
-          if (capabilityId === 'image.generate') {
-            return imageOperationTitle('generate_image', t);
-          }
-          return capabilityDefinitionFor(capabilityId).displayName;
-        },
-        promptPlaceholder: imageOperationDefaultPrompt('generate_image', t),
-        promptTitle: t('operationToolbar.prompt'),
-      });
-      operationBlockId = staged.receipt.operationBlockId;
-      const attachmentBlockIds = agentMessageAttachmentBlockIds(executionRequest);
-      if (
-        staged.receipt.action === 'created'
-        && staged.receipt.promptBlockId
-        && attachmentBlockIds.length > 0
-      ) {
-        layoutImageComposerWorkflow(staged.stagedSnapshot, {
-          operationBlockId: staged.receipt.operationBlockId,
-          referenceBlockIds: attachmentBlockIds,
-          textBlockId: staged.receipt.promptBlockId,
-        });
-      }
-      operationScopeIds = [
-        ...attachmentBlockIds,
-        ...(staged.receipt.createdBlockIds.length > 0
-          ? staged.receipt.createdBlockIds
-          : [staged.receipt.operationBlockId]),
-      ];
-      return staged.stagedSnapshot;
-    }, { history: true, syncFlow: true });
-    await persistSnapshot(executionSnapshot, { requireLocalApi: true });
-    if (operationScopeIds.length > 0) {
-      setSelectedBlocks(executionSnapshot, operationScopeIds);
+            projectId: snapshotRef.current.project.projectId,
+          })?.connectionId
+        : undefined,
+      imageToImagePromptPlaceholder: imageOperationDefaultPrompt('quick_edit', t),
+      operationTitle,
+      placementCenter: getViewportCenter(),
+      promptPlaceholder: imageOperationDefaultPrompt('generate_image', t),
+      promptTitle: t('operationToolbar.prompt'),
+    };
+  }
+
+  function revealStagedAgentOperation(staged: {
+    operationBlockId: string;
+    operationScopeIds: string[];
+  }): void {
+    if (staged.operationScopeIds.length > 0) {
+      setSelectedBlocks(snapshotRef.current, staged.operationScopeIds);
     }
     window.dispatchEvent(new CustomEvent('retake:run-operation', {
       detail: {
-        blockId: operationBlockId,
+        blockId: staged.operationBlockId,
         queuedConfigurationStale: false,
         revealOnStart: true,
       },
@@ -952,10 +841,55 @@ export function useAgentWorkspaceController(options: AgentWorkspaceControllerOpt
   }
 }
 
-function agentRuntimeFailureUserMessage(locale: string): string {
+function agentWorkspaceConnection(connection: {
+  connectionId: string;
+  modelId: string;
+  runtimeKind: AgentRuntimeKind;
+}) {
+  return {
+    connectionId: connection.connectionId,
+    model: connection.modelId,
+    runtimeKind: connection.runtimeKind,
+  };
+}
+function requireProductCommands(
+  runProductCommand: AgentWorkspaceControllerOptions['runProductCommand'],
+): NonNullable<AgentWorkspaceControllerOptions['runProductCommand']> {
+  if (!runProductCommand) {
+    throw new Error('Whiteboard Agent Workspace command facade is unavailable.');
+  }
+  return runProductCommand;
+}
+function agentRuntimeRecoveryCopy(
+  locale: string,
+  kind: 'operation_application' | 'runtime_unavailable',
+): { content: string; suggestions: string[] } {
+  if (locale.toLowerCase().startsWith('zh')) {
+    return kind === 'operation_application'
+      ? {
+          content: '我已经理解你的要求，但这次没有把修改安全地应用到当前操作，因此没有开始新的执行，现有内容已保留。你可以选择重试这次修改，或保留现有结果并继续当前步骤。',
+          suggestions: ['重试这次修改', '保留现有结果并继续当前步骤'],
+        }
+      : {
+          content: '我现在没能完成这次请求，现有内容没有改变。你可以选择重试刚才的请求，或先保留现有内容。',
+          suggestions: ['重试刚才的请求', '保留现有内容'],
+        };
+  }
+  return kind === 'operation_application'
+    ? {
+        content: 'I understood your request, but could not safely apply it to the current Operation, so no new execution was started and your existing work is unchanged. You can retry the change or keep the current result and continue.',
+        suggestions: ['Retry this change', 'Keep the current result and continue'],
+      }
+    : {
+        content: 'I could not complete this request, and your existing work is unchanged. You can retry the request or keep the current content.',
+        suggestions: ['Retry the last request', 'Keep the current content'],
+      };
+}
+
+function agentRuntimeRecoveryPersistenceError(locale: string): string {
   return locale.toLowerCase().startsWith('zh')
-    ? '这次没有完成，但现有内容已经保留。你可以直接重试；如果仍然失败，请检查 Agent 连接。'
-    : 'This attempt did not finish, but your existing work is safe. Try again, and check the Agent connection if it keeps failing.';
+    ? '这次回复无法保存到 Chat，但现有内容没有改变。'
+    : 'The recovery reply could not be saved to Chat, but your existing work is unchanged.';
 }
 
 function agentDraftFocusBlockIds(
@@ -968,23 +902,6 @@ function agentDraftFocusBlockIds(
     .filter((node) => created.has(node.id) && node.id !== effect.workflowGroupId)
     .map((node) => node.id);
   return visibleChildren.length > 0 ? visibleChildren : [effect.primaryBlockId];
-}
-
-function agentMessageAttachmentBlockIds(
-  request: AgentOperationExecutionRequest,
-): string[] {
-  if (request.kind !== 'create_execute') return [];
-  const imageInputs = request.decision.imageInputs?.length
-    ? request.decision.imageInputs
-    : request.decision.sourceImageBlockId && request.decision.sourceBinding
-      ? [{
-          bindingSource: request.decision.sourceBinding,
-          blockId: request.decision.sourceImageBlockId,
-        }]
-      : [];
-  return imageInputs
-    .filter((input) => input.bindingSource === 'message_attachment')
-    .map((input) => input.blockId);
 }
 
 function canvasImageSelectionRefs(
@@ -1004,27 +921,30 @@ function canvasImageSelectionRefs(
 }
 
 async function reconcileDraftLaunchTarget(
-  snapshot: BoardSnapshot,
-  agentRunId: string,
-  workflowRunId: string | undefined,
-  target: AgentDraftLaunchTarget,
-): Promise<BoardSnapshot> {
+  input: {
+    agentRunId: string;
+    boardId: string;
+    projectId: string;
+    target: AgentDraftLaunchTarget;
+    workflowRunId?: string;
+  },
+): Promise<BoardSnapshot | undefined> {
   if (
-    target.kind === 'workflow_slice'
-    && (target.until.kind === 'artifact' || target.until.kind === 'stage')
+    input.target.kind === 'workflow_slice'
+    && (input.target.until.kind === 'artifact' || input.target.until.kind === 'stage')
   ) {
     return reconcileAgentArtifactTarget({
-      agentRunId,
-      boardId: snapshot.board.boardId,
-      projectId: snapshot.project.projectId,
+      agentRunId: input.agentRunId,
+      boardId: input.boardId,
+      projectId: input.projectId,
     });
   }
-  if (target.kind === 'workflow_slice' && target.until.kind === 'gate') {
+  if (input.target.kind === 'workflow_slice' && input.target.until.kind === 'gate') {
     return reconcileWorkflowArtifactGates({
-      boardId: snapshot.board.boardId,
-      projectId: snapshot.project.projectId,
-      workflowRunId,
+      boardId: input.boardId,
+      projectId: input.projectId,
+      workflowRunId: input.workflowRunId,
     });
   }
-  return snapshot;
+  return undefined;
 }

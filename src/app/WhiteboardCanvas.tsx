@@ -46,9 +46,8 @@ import type {
   AssetRecord,
   BlockRecord,
   BoardSnapshot,
-  RetakeEdge,
-  RetakeNode,
 } from '../core/types';
+import type { RetakeEdge, RetakeNode } from '../canvas/reactFlowTypes';
 import type { useI18n } from '../i18n';
 import { BlockNode } from '../nodes/BlockNode';
 import { downloadAsset, operationModeFromBlock } from './appHelpers';
@@ -550,7 +549,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
                 if (currentRun) {
                   onOpenWorkflowRun(currentRun.record.workflowRunId);
                 } else {
-                  workflowRuntime.createWorkflowRun(selectedBlock.blockId);
+                  void workflowRuntime.createWorkflowRun(selectedBlock.blockId);
                 }
               }}
             />

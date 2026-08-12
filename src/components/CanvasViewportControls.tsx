@@ -2,7 +2,7 @@ import { LocateFixed, Map, Minus, Plus } from 'lucide-react';
 import { useOnViewportChange, useReactFlow } from '@xyflow/react';
 import { useState, type ReactElement } from 'react';
 import { useI18n } from '../i18n';
-import type { RetakeEdge, RetakeNode } from '../core/types';
+import type { RetakeEdge, RetakeNode } from '../canvas/reactFlowTypes';
 import { TooltipIconButton } from './Tooltip';
 
 interface CanvasViewportControlsProps {

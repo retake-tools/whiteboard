@@ -12,7 +12,6 @@ import {
   reorderWorkspaceBoards,
   reorderWorkspaceProjects,
 } from '../core/boardStore';
-import { touchBoard } from '../core/blockFactory';
 import { removeBoardViewState, removeProjectBoardViewStates } from '../core/boardViewStateStore';
 import { numberedDefaultName } from '../core/listUtils';
 import type { BoardSnapshot, WorkspaceSummary } from '../core/types';
@@ -20,20 +19,15 @@ import type { ProjectBoardDialogState } from '../components/projectBoardTypes';
 import type { useI18n } from '../i18n';
 
 interface WorkspaceControllerOptions {
-  applyLoadedSnapshot: (snapshot: BoardSnapshot) => void;
+  applyLoadedSnapshot: (snapshot: BoardSnapshot) => Promise<void>;
   snapshotRef: RefObject<BoardSnapshot>;
   t: ReturnType<typeof useI18n>['t'];
-  updateSnapshot: (
-    updater: (current: BoardSnapshot) => BoardSnapshot,
-    options?: { syncFlow?: boolean; persist?: boolean; history?: boolean },
-  ) => BoardSnapshot;
 }
 
 export function useWorkspaceController({
   applyLoadedSnapshot,
   snapshotRef,
   t,
-  updateSnapshot,
 }: WorkspaceControllerOptions) {
   const [workspace, setWorkspace] = useState<WorkspaceSummary | undefined>();
   const [projectBoardDialog, setProjectBoardDialog] = useState<ProjectBoardDialogState | undefined>();
@@ -59,13 +53,13 @@ export function useWorkspaceController({
       projectId: snapshotRef.current.project.projectId,
       boardId: snapshotRef.current.board.boardId,
     });
-    applyLoadedSnapshot(nextSnapshot);
+    await applyLoadedSnapshot(nextSnapshot);
     await refreshWorkspace();
   }
 
   async function selectBoard(projectId: string, boardId: string): Promise<void> {
     const nextSnapshot = await loadBoardSnapshot({ projectId, boardId });
-    applyLoadedSnapshot(nextSnapshot);
+    await applyLoadedSnapshot(nextSnapshot);
     await refreshWorkspace();
   }
 
@@ -121,13 +115,13 @@ export function useWorkspaceController({
     if (dialog.action === 'createProject') {
       const result = await createWorkspaceProject(value || dialog.defaultName);
       setWorkspace(result.workspace);
-      applyLoadedSnapshot(result.snapshot);
+      await applyLoadedSnapshot(result.snapshot);
       return;
     }
     if (dialog.action === 'createBoard') {
       const result = await createWorkspaceBoard(dialog.projectId, value || dialog.defaultName);
       setWorkspace(result.workspace);
-      applyLoadedSnapshot(result.snapshot);
+      await applyLoadedSnapshot(result.snapshot);
       return;
     }
     if (dialog.action === 'renameProject') {
@@ -138,14 +132,14 @@ export function useWorkspaceController({
       const result = await renameWorkspaceBoard(dialog.projectId, dialog.boardId, value || dialog.currentName);
       setWorkspace(result.workspace);
       if (dialog.projectId === snapshotRef.current.project.projectId && dialog.boardId === snapshotRef.current.board.boardId) {
-        applyLoadedSnapshot(result.snapshot);
+        await applyLoadedSnapshot(result.snapshot);
       }
       return;
     }
     if (dialog.action === 'duplicateBoard') {
       const result = await duplicateWorkspaceBoard(dialog.projectId, dialog.boardId, value || dialog.currentName);
       setWorkspace(result.workspace);
-      applyLoadedSnapshot(result.snapshot);
+      await applyLoadedSnapshot(result.snapshot);
       return;
     }
     if (dialog.action === 'deleteBoard') {
@@ -153,26 +147,30 @@ export function useWorkspaceController({
       removeBoardViewState(dialog.projectId, dialog.boardId);
       setWorkspace(result.workspace);
       if (dialog.projectId === snapshotRef.current.project.projectId && dialog.boardId === snapshotRef.current.board.boardId) {
-        applyLoadedSnapshot(result.snapshot);
+        await applyLoadedSnapshot(result.snapshot);
       }
       return;
     }
     const result = await deleteWorkspaceProject(dialog.projectId);
     removeProjectBoardViewStates(dialog.projectId);
     setWorkspace(result.workspace);
-    if (dialog.projectId === snapshotRef.current.project.projectId) applyLoadedSnapshot(result.snapshot);
+    if (dialog.projectId === snapshotRef.current.project.projectId) {
+      await applyLoadedSnapshot(result.snapshot);
+    }
   }
 
   async function renameProjectByValue(projectId: string, name: string): Promise<void> {
     const result = await renameWorkspaceProject(projectId, name);
     setWorkspace(result.workspace);
-    if (result.snapshot && result.snapshot.project.projectId === snapshotRef.current.project.projectId) {
-      applyLoadedSnapshot(result.snapshot);
-    } else if (projectId === snapshotRef.current.project.projectId) {
-      updateSnapshot((current) => {
-        current.project.name = name.trim() || current.project.name;
-        return touchBoard(current);
-      }, { persist: true });
+    if (projectId === snapshotRef.current.project.projectId) {
+      const currentScope = {
+        boardId: snapshotRef.current.board.boardId,
+        projectId,
+      };
+      const currentBoard = result.snapshot?.board.boardId === currentScope.boardId
+        ? result.snapshot
+        : await loadBoardSnapshot(currentScope);
+      await applyLoadedSnapshot(currentBoard);
     }
   }
 

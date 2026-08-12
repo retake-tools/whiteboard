@@ -1,45 +1,41 @@
 import type { OperationToast } from '../components/OperationFeedback';
-import { supersedeResolvedAgentRunBlockerProposals } from '../core/agentChangeApplication';
-import { reconcileAgentRuntime } from '../core/agentRuntime';
 import type { BoardSnapshot } from '../core/types';
 import type { WorkflowApprovalDecisionValue } from '../core/workflowGateContracts';
-import { decideWorkflowApproval } from '../core/workflowGateRuntime';
 import { materializeAcceptedWorkflowOutput } from '../core/workflowOutputArtifactClient';
 import { reconcileAgentArtifactTarget } from '../core/agentArtifactTargetClient';
-import { acceptWorkflowStepOutputs, createWorkflowRunForGroup } from '../core/workflowRuntime';
 import type { useI18n } from '../i18n';
+import type { RunProductCommand } from './useBoardSession';
 
 interface WorkflowRuntimeControllerOptions {
+  adoptDurableSnapshot: (snapshot: BoardSnapshot) => void;
+  getCurrentSnapshot: () => BoardSnapshot;
+  runProductCommand?: RunProductCommand;
   setOperationToast: (toast: OperationToast | undefined) => void;
   t: ReturnType<typeof useI18n>['t'];
-  persistSnapshot: (
-    snapshot: BoardSnapshot,
-    options?: { requireLocalApi?: boolean },
-  ) => Promise<void>;
-  updateSnapshot: (
-    updater: (current: BoardSnapshot) => BoardSnapshot,
-    options?: { history?: boolean; persist?: boolean; syncFlow?: boolean },
-  ) => BoardSnapshot;
 }
 
 export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerOptions) {
-  const { persistSnapshot, setOperationToast, t, updateSnapshot } = options;
+  const {
+    adoptDurableSnapshot,
+    getCurrentSnapshot,
+    runProductCommand,
+    setOperationToast,
+    t,
+  } = options;
 
-  function createWorkflowRun(groupId: string): string | undefined {
+  async function createWorkflowRun(groupId: string): Promise<string | undefined> {
     try {
-      let workflowRunId = '';
-      updateSnapshot((current) => {
-        const view = createWorkflowRunForGroup(current, groupId);
-        workflowRunId = view.record.workflowRunId;
-        return current;
-      }, { history: true, persist: true });
+      const created = await requireProductCommands(runProductCommand)(
+        (commands) => commands.workflow.createRun({ groupId }),
+        { history: true },
+      );
       setOperationToast({
-        id: workflowRunId || `workflow-run:${groupId}`,
+        id: created.workflowRunId,
         title: t('workflowRuntime.created'),
         body: t('workflowRuntime.createdBody'),
         tone: 'success',
       });
-      return workflowRunId;
+      return created.workflowRunId;
     } catch (error) {
       setOperationToast({
         id: `workflow-run:${groupId}`,
@@ -57,23 +53,21 @@ export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerO
     expectedStepRunVersion: number,
   ): Promise<void> {
     try {
-      const acceptedSnapshot = updateSnapshot((current) => {
-        acceptWorkflowStepOutputs(current, {
-          acceptedOutputAssetIds: [assetId],
+      await requireProductCommands(runProductCommand)(
+        (commands) => commands.workflow.acceptOutput({
+          assetId,
           expectedStepRunVersion,
           stepRunId,
-        });
-        reconcileAgentRuntime(current);
-        supersedeResolvedAgentRunBlockerProposals(current);
-        return current;
-      }, { history: true });
-      await persistSnapshot(acceptedSnapshot, { requireLocalApi: true });
-      const materializedSnapshot = await materializeAcceptedWorkflowOutput({
-        boardId: acceptedSnapshot.board.boardId,
-        projectId: acceptedSnapshot.project.projectId,
-        stepRunId,
-      });
-      updateSnapshot(() => materializedSnapshot, { history: false, persist: false });
+        }),
+        {
+          afterCommit: ({ snapshot }) => materializeAcceptedWorkflowOutput({
+            boardId: snapshot.board.boardId,
+            projectId: snapshot.project.projectId,
+            stepRunId,
+          }),
+          history: true,
+        },
+      );
       setOperationToast({
         id: `workflow-output:${stepRunId}:${assetId}`,
         title: t('workflowRuntime.outputSelected'),
@@ -96,29 +90,23 @@ export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerO
     decision: WorkflowApprovalDecisionValue,
   ): Promise<void> {
     try {
-      let workflowRunId = '';
-      const decidedSnapshot = updateSnapshot((current) => {
-        workflowRunId = (current.workflowApprovalRequests ?? []).find(
-          (request) => request.approvalRequestId === approvalRequestId,
-        )?.workflowRunId ?? '';
-        decideWorkflowApproval(current, {
+      await requireProductCommands(runProductCommand)(
+        (commands) => commands.workflow.decideGate({
           approvalRequestId,
           decision,
           expectedApprovalRequestVersion,
-        });
-        reconcileAgentRuntime(current);
-        supersedeResolvedAgentRunBlockerProposals(current);
-        return current;
-      }, { history: true });
-      await persistSnapshot(decidedSnapshot, { requireLocalApi: true });
-      if (workflowRunId) {
-        const reconciled = await reconcileAgentArtifactTarget({
-          boardId: decidedSnapshot.board.boardId,
-          projectId: decidedSnapshot.project.projectId,
-          workflowRunId,
-        });
-        updateSnapshot(() => reconciled, { history: false, persist: false });
-      }
+        }),
+        {
+          afterCommit: ({ result: decided, snapshot }) => decided.workflowRunId
+            ? reconcileAgentArtifactTarget({
+                boardId: snapshot.board.boardId,
+                projectId: snapshot.project.projectId,
+                workflowRunId: decided.workflowRunId,
+              })
+            : Promise.resolve(snapshot),
+          history: true,
+        },
+      );
       setOperationToast({
         id: `workflow-approval:${approvalRequestId}`,
         title: t(decision === 'approve'
@@ -148,7 +136,7 @@ export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerO
         projectId: input.projectId,
         stepRunId: input.stepRunId,
       });
-      updateSnapshot(() => reconciled, { history: false, persist: false });
+      adoptDurableSnapshot(reconciled);
     } catch (error) {
       setOperationToast({
         id: `workflow-review:${input.stepRunId}`,
@@ -166,4 +154,13 @@ export function useWorkflowRuntimeController(options: WorkflowRuntimeControllerO
     decideWorkflowGate,
     prepareWorkflowReview,
   };
+}
+
+function requireProductCommands(
+  runProductCommand: WorkflowRuntimeControllerOptions['runProductCommand'],
+): NonNullable<WorkflowRuntimeControllerOptions['runProductCommand']> {
+  if (!runProductCommand) {
+    throw new Error('Whiteboard Workflow command facade is unavailable.');
+  }
+  return runProductCommand;
 }

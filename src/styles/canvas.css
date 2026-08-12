@@ -66,9 +66,8 @@
   padding: 5px;
   border: 1px solid #d8dee8;
   border-radius: 8px;
-  background: rgb(255 255 255 / 92%);
+  background: #ffffff;
   box-shadow: 0 10px 26px rgb(16 24 40 / 12%);
-  backdrop-filter: blur(12px);
 }
 
 .zoom-readout {

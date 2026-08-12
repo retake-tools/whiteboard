@@ -224,7 +224,7 @@ assert.match(
 assert.match(appSource, /saveUiPreferences\(\{ isAgentWorkspaceOpen \}\)/);
 assert.match(
   appSource,
-  /if \(!isAgentWorkspaceOpen\) return;\s*agentWorkspaceController\.ensureDefaultSession\(\)/,
+  /if \(!isAgentWorkspaceOpen\) return;\s*void agentWorkspaceController\.ensureDefaultSession\(\)/,
 );
 assert.match(uiPreferencesSource, /isAgentWorkspaceOpen: boolean/);
 assert.match(uiPreferencesSource, /isAgentWorkspaceOpen: false/);

@@ -9,7 +9,8 @@ import {
 } from '../src/core/boardViewStateStore';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import { migrateBoardSnapshot } from '../src/core/snapshotMigration';
-import type { BlockRecord, BoardSnapshot, RetakeNode } from '../src/core/types';
+import type { RetakeNode } from '../src/canvas/reactFlowTypes';
+import type { BlockRecord, BoardSnapshot } from '../src/core/types';
 import { safeViewportForBounds } from '../src/app/canvasFocus';
 import { absoluteFlowNodeBounds } from '../src/app/appHelpers';
 import { createBlankSnapshot } from './local-store/snapshot-store';

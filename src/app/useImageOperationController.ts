@@ -1,111 +1,75 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
-import { createImageAssetFromDataUrl } from '../core/assetStore';
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import { imageMimeTypeFromDataUrl } from '../core/assetStore';
 import { loadBoardSnapshot } from '../core/boardStore';
 import { localizedBlockData } from '../core/blockLocalization';
-import { createBlockRecord, touchBoard } from '../core/blockFactory';
 import { blockLockedByGroup } from '../core/grouping';
-import { appendPromptCopiedEvent } from '../core/historyEvents';
 import { readFileAsDataUrl, readImageDimensions } from '../core/imageFile';
-import { attachImportedImageAsset } from '../core/imageBlockAsset';
-import { imageBranchDraftSelectionBlockIds } from '../core/imageOperationLayout';
 import {
-  addImageCodexOperation,
-  createDraftImageToImageOperation,
-  createDraftTextToImageOperation,
-  executeExistingImageOperationBlock,
   type ImageCodexOperation,
   type ImageGenerationParams,
   type SwitchableOperationMode,
 } from '../core/imageOperations';
-import {
-  createImageComposerDraft,
-  type ImageComposerReference,
-} from '../core/imageComposer';
+import type { ImageComposerReference } from '../core/imageComposer';
 import { imageOperationDefaultPrompt, imageOperationTitle } from '../core/imageOperationText';
 import { imageGenerateCapabilityId } from '../core/imageGenerateContracts';
-import { nowIso } from '../core/id';
 import { createImageResultRetryPrompt } from '../core/prompts';
+import { operationReadinessFor, operationReadinessMessageKey } from '../core/capabilities';
 import {
-  compatibleInputSlotIdsFor,
-  operationReadinessFor,
-  operationReadinessMessageKey,
-} from '../core/capabilities';
-import { cancelExecution } from '../core/executionLifecycle';
-import {
-  currentExecutionProviderSettings,
   executionConnection,
-  resolveExecutionConnectionPreference,
-  subscribeExecutionProviderSettings,
 } from '../core/executionProviderPreferences';
-import type { ExecutionConnectionSummary, ExecutionProviderSettingsSnapshot } from '../core/executionProviders';
-import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
+import type { BlockRecord, BoardSnapshot } from '../core/types';
 import type { CompiledCreativeRequest } from '../core/creativeRequestCompiler';
 import { startVolcengineArkImage } from '../core/volcengineArkImageClient';
 import { startCodexAppServerImage } from '../core/codexAppServerImageClient';
 import type { OperationToast, PromptPreview } from '../components/OperationFeedback';
+import type { CanvasHostCommandsV1, CanvasHostScopeV1 } from '../host-kit';
 import type { useI18n } from '../i18n';
-import {
-  capabilityIdForOperationMode,
-  generationParamsFromBlock,
-  operationModeFromBlock,
-  resizeEmptyOperationOutputSlot,
-} from './appHelpers';
-import {
-  imageComposerWorkflowLayoutBlockIds,
-  type ImageComposerWorkflowLayoutInput,
-} from './imageComposerWorkflowLayout';
-import { executeExistingStoryboardSheetOperation } from '../core/storyboardSheetOperations';
-import { projectAgentCallableCapability } from '../core/agentCallableCapabilities';
-import { tryCapabilityDefinitionFor } from '../core/capabilityRegistry';
-import {
-  normalizeStoryboardSheetGenerationParameters,
-  storyboardSheetCapabilityId,
-} from '../core/storyboardSheetContracts';
+import { operationModeFromBlock } from './appHelpers';
+import type { WhiteboardProductCommandsV1 } from '../whiteboard/application/whiteboardProductCommands';
+import type { WhiteboardImageDraftResultV1 } from '../whiteboard/application/whiteboardImageOperationCommands';
 
 interface ImageOperationControllerOptions {
-  centeredBlockPosition: (size: { width: number; height: number }) => { x: number; y: number };
-  centerWorkflowBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
+  adoptDurableSnapshot: (snapshot: BoardSnapshot) => void;
   focusWorkflowBlocks: (blockIds: string[], options?: { maxZoom?: number }) => void;
-  layoutImageComposerWorkflow: (
-    snapshot: BoardSnapshot,
-    input: ImageComposerWorkflowLayoutInput,
-  ) => void;
+  getViewportCenter: () => { x: number; y: number };
   persistSnapshot: (snapshot: BoardSnapshot, options?: { requireLocalApi?: boolean }) => Promise<void>;
+  runHostCommand?: <Result>(
+    operation: (commands: CanvasHostCommandsV1) => Promise<Result>,
+    options?: { history?: boolean; syncFlow?: boolean },
+  ) => Promise<Result>;
+  runProductCommand?: <Result>(
+    operation: (commands: WhiteboardProductCommandsV1) => Promise<Result>,
+    options?: {
+      history?: boolean;
+      shouldKeepHistory?: (result: Result) => boolean;
+      syncFlow?: boolean;
+    },
+  ) => Promise<Result>;
   selectedBlock?: BlockRecord;
   setSelectedBlock: (snapshot: BoardSnapshot, blockId: string) => void;
   setSelectedBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
   snapshotRef: RefObject<BoardSnapshot>;
   t: ReturnType<typeof useI18n>['t'];
-  updateSnapshot: (
-    updater: (current: BoardSnapshot) => BoardSnapshot,
-    options?: { history?: boolean; persist?: boolean; syncFlow?: boolean },
-  ) => BoardSnapshot;
 }
 
 export function useImageOperationController(options: ImageOperationControllerOptions) {
   const {
-    centeredBlockPosition,
-    centerWorkflowBlocks,
+    adoptDurableSnapshot,
     focusWorkflowBlocks,
-    layoutImageComposerWorkflow,
+    getViewportCenter,
     persistSnapshot,
+    runHostCommand,
+    runProductCommand,
     selectedBlock,
     setSelectedBlock,
     setSelectedBlocks,
     snapshotRef,
     t,
-    updateSnapshot,
   } = options;
   const [operationToast, setOperationToast] = useState<OperationToast>();
   const [promptPreview, setPromptPreview] = useState<PromptPreview>();
   const [copiedPromptKey, setCopiedPromptKey] = useState<string>();
   const copiedPromptTimer = useRef<number | undefined>(undefined);
-  const providerSettings = useSyncExternalStore(
-    subscribeExecutionProviderSettings,
-    currentExecutionProviderSettings,
-    currentExecutionProviderSettings,
-  );
-
   useEffect(() => () => {
     if (copiedPromptTimer.current) window.clearTimeout(copiedPromptTimer.current);
   }, []);
@@ -133,17 +97,24 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     prompt: string;
     source: string;
   }): Promise<void> {
+    const scope = scopeFor(snapshotRef.current);
     await copyText(input.prompt);
     setCopiedPromptKey(input.copyKey);
     if (copiedPromptTimer.current) window.clearTimeout(copiedPromptTimer.current);
     copiedPromptTimer.current = window.setTimeout(() => {
       setCopiedPromptKey((current) => (current === input.copyKey ? undefined : current));
     }, 1800);
-    if (!input.executionId) return;
-    updateSnapshot((current) => touchBoard(appendPromptCopiedEvent(current, input)), {
-      syncFlow: false,
-      persist: true,
-    });
+    if (!input.executionId || !isCurrentScope(scope)) return;
+    await requireProductCommands(runProductCommand)(
+      (commands) => commands.history.recordPromptCopied({
+        blockIds: input.blockIds,
+        executionId: input.executionId!,
+        expectedScope: scope,
+        prompt: input.prompt,
+        source: input.source,
+      }),
+      { syncFlow: false },
+    );
   }
 
   function closePromptPreviewAfterCopy(copyKey: string): void {
@@ -176,6 +147,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
 
   async function retryFailedImageResult(blockId: string): Promise<void> {
     const current = snapshotRef.current;
+    const scope = scopeFor(current);
     const resultBlock = current.blocks.find((block) => block.blockId === blockId && block.type === 'image');
     const executionId = typeof resultBlock?.data.sourceExecutionId === 'string' ? resultBlock.data.sourceExecutionId : undefined;
     const execution = current.executions.find((candidate) => candidate.executionId === executionId);
@@ -211,8 +183,9 @@ export function useImageOperationController(options: ImageOperationControllerOpt
               connectionId: connection.connectionId,
               resultBlockId: blockId,
             });
-        const runningSnapshot = updateSnapshot(() => started.snapshot, { persist: false, history: true });
-        setSelectedBlock(runningSnapshot, blockId);
+        if (adoptIfCurrent(started.snapshot)) {
+          setSelectedBlock(snapshotRef.current, blockId);
+        }
         setOperationToast({
           id: copyKey,
           title: t('result.retryPromptTitle'),
@@ -221,7 +194,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
         });
         void pollDirectImageExecution(
           execution.executionId,
-          runningSnapshot,
+          scope,
           usesCodexAppServer ? 'codex' : 'seedream',
         );
         return;
@@ -240,6 +213,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
 
   async function retryFailedImageExecution(executionId: string): Promise<void> {
     const current = snapshotRef.current;
+    const scope = scopeFor(current);
     const execution = current.executions.find((candidate) => candidate.executionId === executionId);
     const resultBlockIds = execution?.outputBlockIds.filter((blockId) => {
       const block = current.blocks.find((candidate) => candidate.blockId === blockId);
@@ -280,8 +254,9 @@ export function useImageOperationController(options: ImageOperationControllerOpt
           connectionId: connection.connectionId,
           resultBlockIds,
         });
-    const runningSnapshot = updateSnapshot(() => started.snapshot, { persist: false, history: true });
-    setSelectedBlocks(runningSnapshot, resultBlockIds);
+    if (adoptIfCurrent(started.snapshot)) {
+      setSelectedBlocks(snapshotRef.current, resultBlockIds);
+    }
     setOperationToast({
       id: `retry-execution:${executionId}`,
       title: t('result.retryPromptTitle'),
@@ -290,22 +265,30 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     });
     void pollDirectImageExecution(
       executionId,
-      runningSnapshot,
+      scope,
       usesCodexAppServer ? 'codex' : 'seedream',
     );
   }
 
   async function refreshQueuedOperationPrompt(block: BlockRecord): Promise<void> {
-    let refreshedOperationBlock: BlockRecord | undefined;
-    updateSnapshot((current) => {
-      const currentBlock = current.blocks.find((candidate) => candidate.blockId === block.blockId && candidate.type === 'operation');
-      const executionId = typeof currentBlock?.data.sourceExecutionId === 'string' ? currentBlock.data.sourceExecutionId : undefined;
-      const execution = executionId ? current.executions.find((candidate) => candidate.executionId === executionId) : undefined;
-      if (!currentBlock || execution?.status !== 'queued') return current;
-      cancelExecution(current, execution.executionId);
-      refreshedOperationBlock = currentBlock;
-      return current;
-    }, { history: true });
+    const currentBlock = snapshotRef.current.blocks.find(
+      (candidate) => candidate.blockId === block.blockId && candidate.type === 'operation',
+    );
+    const executionId = typeof currentBlock?.data.sourceExecutionId === 'string'
+      ? currentBlock.data.sourceExecutionId
+      : undefined;
+    const execution = executionId
+      ? snapshotRef.current.executions.find((candidate) => candidate.executionId === executionId)
+      : undefined;
+    if (!currentBlock || execution?.status !== 'queued') return;
+    const queuedExecutionId = execution.executionId;
+    await requireHostCommands(runHostCommand)(
+      (commands) => commands.cancelExecution({ executionId: queuedExecutionId }),
+      { history: true },
+    );
+    const refreshedOperationBlock = snapshotRef.current.blocks.find(
+      (candidate) => candidate.blockId === block.blockId && candidate.type === 'operation',
+    );
     if (refreshedOperationBlock) {
       await startExistingOperationBlock({
         block: refreshedOperationBlock,
@@ -314,261 +297,115 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     }
   }
 
-  async function startImageCodexOperation(
-    operation: ImageCodexOperation,
-    block: BlockRecord,
-    instruction?: string,
-    operationOptions: {
-      annotatedCompositeAsset?: AssetRecord;
-      annotationManifest?: import('../core/imageAnnotations').AnnotationManifest;
-      connectionId?: string;
-      generationParams?: ImageGenerationParams;
-      referenceAssets?: AssetRecord[];
-    } = {},
-  ): Promise<boolean> {
-    const capabilityId = capabilityIdForImmediateImageOperation(operation);
-    const connection = preferredReadyImageConnection(
-      snapshotRef.current,
-      capabilityId,
-      providerSettings,
-      operationOptions.connectionId,
-    );
-    if (!connection) {
-      setOperationToast({
-        id: `connection:${block.blockId}`,
-        title: t('feedback.handoffUnavailable'),
-        body: t('feedback.connectionUnavailable'),
-        tone: 'error',
-      });
-      return false;
-    }
-    try {
-      await persistSnapshot(snapshotRef.current, { requireLocalApi: true });
-    } catch (error) {
-      setOperationToast({ id: `handoff:${block.blockId}`, title: t('feedback.handoffUnavailable'), body: error instanceof Error ? error.message : t('feedback.localApiUnavailable'), tone: 'error' });
-      return false;
-    }
-    let operationPrompt = '';
-    let resultBlockIds: string[] = [];
-    let operationBlockId = '';
-    let executionId = '';
-    const usesVolcengineArk = connection.connectorId === 'volcengine-ark';
-    const usesCodexAppServer = connection.connectorId === 'codex-app-server';
-    const nextSnapshot = updateSnapshot((current) => {
-      const result = addImageCodexOperation(current, {
-        connection,
-        operation,
-        sourceBlockId: block.blockId,
-        instruction,
-        taskTitle: imageOperationTitle(operation, t),
-        waitingBody: t('operation.waitingBody'),
-        defaultPrompt: imageOperationDefaultPrompt(operation, t),
-        annotatedCompositeAsset: operationOptions.annotatedCompositeAsset,
-        annotationManifest: operationOptions.annotationManifest,
-        generationParams: operationOptions.generationParams,
-        referenceAssets: operationOptions.referenceAssets,
-      });
-      operationPrompt = result.prompt;
-      operationBlockId = result.operationBlock.blockId;
-      resultBlockIds = result.resultBlocks.map((resultBlock) => resultBlock.blockId);
-      executionId = result.execution.executionId;
-      return current;
-    }, { history: true });
-    setSelectedBlock(nextSnapshot, operationBlockId);
-    const copyKey = `prompt:${operationBlockId}`;
-    const blockIds = [block.blockId, operationBlockId, ...resultBlockIds];
-    try {
-      await persistSnapshot(nextSnapshot, { requireLocalApi: true });
-    } catch (error) {
-      setOperationToast({ id: operationBlockId, title: t('feedback.handoffUnavailable'), body: error instanceof Error ? error.message : t('feedback.localApiUnavailable'), tone: 'error' });
-      return false;
-    }
-    if (usesVolcengineArk || usesCodexAppServer) {
-      try {
-        const started = usesVolcengineArk
-          ? await startVolcengineArkImage({
-              projectId: nextSnapshot.project.projectId,
-              boardId: nextSnapshot.board.boardId,
-              executionId,
-              connectionId: connection.connectionId,
-            })
-          : await startCodexAppServerImage({
-              projectId: nextSnapshot.project.projectId,
-              boardId: nextSnapshot.board.boardId,
-              executionId,
-              connectionId: connection.connectionId,
-            });
-        const runningSnapshot = updateSnapshot(() => started.snapshot, { persist: false, history: true });
-        setSelectedBlocks(runningSnapshot, started.execution.outputBlockIds);
-        setOperationToast({
-          id: executionId,
-          title: t(usesCodexAppServer ? 'feedback.codexImageStarted' : 'feedback.seedreamStarted'),
-          body: t(usesCodexAppServer ? 'feedback.codexImageCostNotice' : 'feedback.seedreamCostNotice'),
-          tone: 'success',
-        });
-        void pollDirectImageExecution(executionId, runningSnapshot, usesCodexAppServer ? 'codex' : 'seedream').catch((error) => {
-          setOperationToast({
-            id: executionId,
-            title: t(usesCodexAppServer ? 'feedback.codexImageFailed' : 'feedback.seedreamFailed'),
-            body: error instanceof Error ? error.message : t('feedback.localApiUnavailable'),
-            tone: 'error',
-          });
-        });
-        return true;
-      } catch (error) {
-        setOperationToast({
-          id: executionId,
-          title: t('feedback.handoffUnavailable'),
-          body: error instanceof Error ? error.message : t('feedback.localApiUnavailable'),
-          tone: 'error',
-        });
-        return false;
-      }
-    }
-    setPromptPreview({ title: t('feedback.promptTitle'), prompt: operationPrompt, copyKey, executionId, blockIds });
-    try {
-      await copyPromptWithHistory({ blockIds, copyKey, executionId, prompt: operationPrompt, source: 'prompt_preview' });
-      closePromptPreviewAfterCopy(copyKey);
-      setOperationToast({ id: operationBlockId, title: t('feedback.taskCreated'), body: t('feedback.taskCreatedCopied'), tone: 'success' });
-    } catch {
-      setOperationToast({ id: operationBlockId, title: t('feedback.taskCreated'), body: t('feedback.taskCreatedCopyFailed'), tone: 'error' });
-    }
-    return true;
-  }
-
-  function createImageToImageDraftOperation(
+  async function createImageToImageDraftOperation(
     block: BlockRecord,
     operation: Exclude<ImageCodexOperation, 'annotation_edit' | 'generate_image'>,
     instruction?: string,
     draftOptions: { centerWorkflow?: boolean } = {},
-  ): void {
-    let selectedWorkflowIds: string[] = [];
-    const nextSnapshot = updateSnapshot((current) => {
-      const result = createDraftImageToImageOperation(current, {
+  ): Promise<WhiteboardImageDraftResultV1> {
+    const result = await requireProductCommands(runProductCommand)(
+      (commands) => commands.imageOperation.createImageToImageDraft({
         operation,
         sourceBlockId: block.blockId,
-        textBlockTitle: t('operationToolbar.prompt'),
-        textBlockBody: instruction?.trim() || '',
-        textBlockPlaceholder: imageOperationDefaultPrompt(operation, t),
-        operationTitle: imageOperationTitle('generate_image', t),
-      });
-      result.operationBlock.data.connectionId = preferredImageConnection(current, imageGenerateCapabilityId);
-      selectedWorkflowIds = imageBranchDraftSelectionBlockIds(block, result.textBlock, result.operationBlock);
-      if (draftOptions.centerWorkflow) {
-        layoutImageComposerWorkflow(current, {
-          operationBlockId: result.operationBlock.blockId,
-          referenceBlockIds: [block.blockId],
-          textBlockId: result.textBlock.blockId,
-        });
-      }
-      return current;
-    }, { persist: true, history: true });
-    if (selectedWorkflowIds.length > 0) {
-      setSelectedBlocks(nextSnapshot, selectedWorkflowIds);
+        presentation: {
+          operationTitle: imageOperationTitle('generate_image', t),
+          placementCenter: draftOptions.centerWorkflow ? getViewportCenter() : undefined,
+          promptBody: instruction?.trim() || '',
+          promptPlaceholder: imageOperationDefaultPrompt(operation, t),
+          promptTitle: t('operationToolbar.prompt'),
+        },
+      }),
+      { history: true },
+    );
+    if (result.blockIds.length > 0) {
+      setSelectedBlocks(snapshotRef.current, result.blockIds);
       focusWorkflowBlocks(
-        selectedWorkflowIds,
+        result.blockIds,
         draftOptions.centerWorkflow ? { maxZoom: 0.95 } : undefined,
       );
     }
+    return result;
   }
 
-  function createImageToImageDraftFromMenu(): void {
+  async function createImageToImageDraftFromMenu(): Promise<void> {
     if (selectedBlock?.type === 'image') {
-      createImageToImageDraftOperation(selectedBlock, 'quick_edit');
+      await createImageToImageDraftOperation(selectedBlock, 'quick_edit');
       return;
     }
-    let imageBlock: BlockRecord | undefined;
-    updateSnapshot((current) => {
-      imageBlock = createBlockRecord(current, 'image');
-      imageBlock.position = centeredBlockPosition(imageBlock.size);
-      imageBlock.data = { ...imageBlock.data, ...localizedBlockData('image', t) };
-      current.blocks.push(imageBlock);
-      return touchBoard(current);
-    }, { persist: true, history: true });
-    if (imageBlock) createImageToImageDraftOperation(imageBlock, 'quick_edit', undefined, { centerWorkflow: true });
+    const placementCenter = getViewportCenter();
+    const result = await requireProductCommands(runProductCommand)(
+      (commands) => commands.imageOperation.createImageToImageDraft({
+        blankSource: {
+          data: localizedBlockData('image', t),
+          placementCenter,
+        },
+        operation: 'quick_edit',
+        presentation: {
+          operationTitle: imageOperationTitle('generate_image', t),
+          placementCenter,
+          promptBody: '',
+          promptPlaceholder: imageOperationDefaultPrompt('quick_edit', t),
+          promptTitle: t('operationToolbar.prompt'),
+        },
+      }),
+      { history: true },
+    );
+    setSelectedBlocks(snapshotRef.current, result.blockIds);
+    focusWorkflowBlocks(result.blockIds, { maxZoom: 0.95 });
   }
 
-  function createTextToImageDraftOperation(input: {
+  async function createTextToImageDraftOperation(input: {
     capabilityId?: typeof imageGenerateCapabilityId;
     connectionId?: string;
     creativeRequest?: CompiledCreativeRequest;
     generationParams?: ImageGenerationParams;
     instruction?: string;
+    referenceBlockIds?: string[];
     references?: ImageComposerReference[];
     reuseSelectedImageSlot?: boolean;
     slotBlock?: BlockRecord;
-  } = {}, draftOptions: { persist?: boolean; reveal?: boolean } = {}): BlockRecord | undefined {
-    let selectedWorkflowIds: string[] = [];
-    let createdOperationBlockId: string | undefined;
-    const nextSnapshot = updateSnapshot((current) => {
-      const hasSourceImage = input.references?.some(
-        (reference) => reference.bindingKind === 'source',
-      ) ?? false;
-      const selectedSlot = !hasSourceImage
-        ? input.slotBlock ?? (
-            input.reuseSelectedImageSlot
-            && selectedBlock?.type === 'image'
-            && !selectedBlock.data.assetId
-            && !selectedBlock.data.operationBlockId
-            && !selectedBlock.data.sourceExecutionId
-              ? selectedBlock
-              : undefined
-          )
-        : undefined;
-      const connectionId = input.connectionId
-        ?? preferredImageConnection(
-          current,
-          imageGenerateCapabilityId,
-        );
-      const composerOperation = hasSourceImage
-        ? 'quick_edit'
-        : 'generate_image';
-      const result = input.instruction === undefined
-        ? {
-            ...createDraftTextToImageOperation(current, {
-              generationParams: input.generationParams,
-              operationTitle: imageOperationTitle('generate_image', t),
-              slotBlockId: selectedSlot?.blockId,
-              textBlockTitle: t('operationToolbar.prompt'),
-              textBlockBody: '',
-              textBlockPlaceholder: imageOperationDefaultPrompt('generate_image', t),
-            }),
-            referenceBlockIds: [],
-          }
-        : createImageComposerDraft(current, {
-            capabilityId: input.capabilityId,
-            connectionId,
-            creativeRequest: input.creativeRequest,
-            generationParams: input.generationParams,
-            instruction: input.instruction,
-            operationTitle: imageOperationTitle('generate_image', t),
-            references: input.references ?? [],
-            slotBlockId: selectedSlot?.blockId,
-            textBlockTitle: t('operationToolbar.prompt'),
-            textBlockPlaceholder: imageOperationDefaultPrompt(composerOperation, t),
-          });
-      result.operationBlock.data.connectionId = connectionId;
-      createdOperationBlockId = result.operationBlock.blockId;
-      const layoutInput = {
-        operationBlockId: result.operationBlock.blockId,
-        outputSlotBlockId: selectedSlot?.blockId,
-        referenceBlockIds: result.referenceBlockIds,
-        textBlockId: result.textBlock.blockId,
-      };
-      selectedWorkflowIds = imageComposerWorkflowLayoutBlockIds(layoutInput);
-      if (!selectedSlot) layoutImageComposerWorkflow(current, layoutInput);
-      return current;
-    }, { persist: draftOptions.persist ?? true, history: true });
-    if (selectedWorkflowIds.length > 0) {
-      setSelectedBlocks(nextSnapshot, selectedWorkflowIds);
-      if (draftOptions.reveal ?? true) focusWorkflowBlocks(selectedWorkflowIds);
-    }
-    return createdOperationBlockId
-      ? nextSnapshot.blocks.find((block) => block.blockId === createdOperationBlockId)
+  } = {}, draftOptions: { reveal?: boolean } = {}): Promise<WhiteboardImageDraftResultV1> {
+    const hasSourceImage = input.references?.some(
+      (reference) => reference.bindingKind === 'source',
+    ) ?? false;
+    const selectedSlot = !hasSourceImage
+      ? input.slotBlock ?? (
+          input.reuseSelectedImageSlot
+          && selectedBlock?.type === 'image'
+          && !selectedBlock.data.assetId
+          && !selectedBlock.data.operationBlockId
+          && !selectedBlock.data.sourceExecutionId
+            ? selectedBlock
+            : undefined
+        )
       : undefined;
+    const composerOperation = hasSourceImage ? 'quick_edit' : 'generate_image';
+    const result = await requireProductCommands(runProductCommand)(
+      (commands) => commands.imageOperation.createTextToImageDraft({
+        capabilityId: input.capabilityId,
+        connectionId: input.connectionId,
+        creativeRequest: input.creativeRequest,
+        generationParams: input.generationParams,
+        instruction: input.instruction,
+        presentation: {
+          operationTitle: imageOperationTitle('generate_image', t),
+          placementCenter: selectedSlot ? undefined : getViewportCenter(),
+          promptBody: '',
+          promptPlaceholder: imageOperationDefaultPrompt(composerOperation, t),
+          promptTitle: t('operationToolbar.prompt'),
+        },
+        referenceBlockIds: input.referenceBlockIds,
+        references: input.references,
+        slotBlockId: selectedSlot?.blockId,
+      }),
+      { history: true },
+    );
+    setSelectedBlocks(snapshotRef.current, result.blockIds);
+    if (draftOptions.reveal ?? true) focusWorkflowBlocks(result.blockIds);
+    return result;
   }
 
-  function createAndStartImageComposerOperation(input: {
+  async function createAndStartImageComposerOperation(input: {
     capabilityId?: typeof imageGenerateCapabilityId;
     connectionId?: string;
     creativeRequest?: CompiledCreativeRequest;
@@ -577,13 +414,15 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     references?: ImageComposerReference[];
     reuseSelectedImageSlot?: boolean;
     slotBlock?: BlockRecord;
-  }): void {
-    const operationBlock = createTextToImageDraftOperation(input, {
-      persist: false,
+  }): Promise<void> {
+    const created = await createTextToImageDraftOperation(input, {
       reveal: false,
     });
+    const operationBlock = snapshotRef.current.blocks.find(
+      (block) => block.blockId === created.operationBlockId && block.type === 'operation',
+    );
     if (!operationBlock) return;
-    void startExistingOperationBlock({
+    await startExistingOperationBlock({
       block: operationBlock,
       operation: operationModeFromBlock(operationBlock, snapshotRef.current),
       revealOnStart: true,
@@ -596,138 +435,91 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     revealOnStart?: boolean;
   }): Promise<void> {
     if (blockLockedByGroup(snapshotRef.current, input.block.blockId)) return;
-    let operationPrompt = '';
-    let resultBlockIds: string[] = [];
-    let executionId = '';
-    let inputBlockIds: string[] = [];
-    let selectedConnectionId = '';
-    let usesVolcengineArk = false;
-    let usesCodexAppServer = false;
     const copyKey = `prompt:${input.block.blockId}`;
+    const initialScope = scopeFor(snapshotRef.current);
     try {
-      await persistSnapshot(snapshotRef.current, { requireLocalApi: true });
-      const nextSnapshot = updateSnapshot((current) => {
-        const currentOperationBlock = current.blocks.find((block) => block.blockId === input.block.blockId);
-        if (!currentOperationBlock || blockLockedByGroup(current, currentOperationBlock.blockId)) return current;
-        selectedConnectionId = typeof currentOperationBlock.data.connectionId === 'string'
-          ? currentOperationBlock.data.connectionId
-          : 'codex-managed';
-        const connection = executionConnection(selectedConnectionId, current.project.projectId);
-        const storedCapabilityId = typeof currentOperationBlock.data.capabilityId === 'string'
-          ? currentOperationBlock.data.capabilityId
-          : undefined;
-        const storedCapability = storedCapabilityId
-          ? tryCapabilityDefinitionFor(storedCapabilityId)
-          : undefined;
-        const agentSourceCapabilityId = storedCapabilityId
-          && storedCapability
-          && projectAgentCallableCapability(storedCapability)?.authoringKind === 'source_image_edit'
-          ? storedCapabilityId
-          : undefined;
-        const currentCapabilityId = storedCapabilityId === storyboardSheetCapabilityId
-          ? storyboardSheetCapabilityId
-          : storedCapabilityId === 'image.annotation_edit'
-            ? 'image.annotation_edit'
-            : agentSourceCapabilityId ?? capabilityIdForOperationMode(input.operation);
-        if (
-          !connection ||
-          connection.status !== 'ready' ||
-          !connection.enabledUseCases.includes('image') ||
-          !connection.supportedCapabilityIds.includes(currentCapabilityId)
-        ) {
-          throw new Error(t('feedback.connectionUnavailable'));
-        }
-        if (
-          connection.connectorId !== 'codex-managed' &&
-          connection.connectorId !== 'codex-app-server' &&
-          connection.connectorId !== 'volcengine-ark'
-        ) {
-          throw new Error(t('feedback.connectionAdapterUnavailable'));
-        }
-        usesVolcengineArk = connection.connectorId === 'volcengine-ark';
-        usesCodexAppServer = connection.connectorId === 'codex-app-server';
-        const hasPendingImageBinding = currentCapabilityId !== storyboardSheetCapabilityId && current.edges.some((edge) => {
-          if (edge.targetBlockId !== input.block.blockId || edge.kind !== 'execution_input' || edge.inputSlotId) return false;
-          const sourceBlock = current.blocks.find((block) => block.blockId === edge.sourceBlockId);
-          return sourceBlock?.type === 'image' && Boolean(sourceBlock.data.assetId);
-        });
-        if (hasPendingImageBinding) {
-          throw new Error(t('operationReference.bindingRequired'));
-        }
-        const result = currentCapabilityId === storyboardSheetCapabilityId
-          ? executeExistingStoryboardSheetOperation(current, {
-              operationBlockId: input.block.blockId,
-              connection,
-            })
-          : executeExistingImageOperationBlock(current, {
-              capabilityId: currentCapabilityId,
-              operationBlockId: input.block.blockId,
-              operation: input.operation,
-              instruction: '',
-              generationParams: generationParamsFromBlock(currentOperationBlock),
-              connection,
-            });
-        operationPrompt = result.execution.prompt ?? '';
-        resultBlockIds = result.resultBlocks.map((resultBlock) => resultBlock.blockId);
-        inputBlockIds = result.execution.inputBlockIds;
-        executionId = result.execution.executionId;
-        return current;
-      }, { history: true });
-      await persistSnapshot(nextSnapshot, { requireLocalApi: true });
-      setSelectedBlock(nextSnapshot, input.block.blockId);
-      const blockIds = [...inputBlockIds, input.block.blockId, ...resultBlockIds].filter(Boolean);
+      const queued = await requireProductCommands(runProductCommand)(
+        (commands) => commands.imageExecution.queue({
+          connectionAdapterUnavailableMessage: t('feedback.connectionAdapterUnavailable'),
+          connectionUnavailableMessage: t('feedback.connectionUnavailable'),
+          expectedScope: initialScope,
+          inputBindingRequiredMessage: t('operationReference.bindingRequired'),
+          operation: input.operation,
+          operationBlockId: input.block.blockId,
+        }),
+        { history: true },
+      );
+      if (!isCurrentScope(queued.scope)) return;
+      setSelectedBlock(snapshotRef.current, input.block.blockId);
+      const blockIds = [
+        ...queued.inputBlockIds,
+        input.block.blockId,
+        ...queued.resultBlockIds,
+      ];
       const revealBlockIds = blockIds.filter((blockId) => {
-        const block = nextSnapshot.blocks.find((candidate) => candidate.blockId === blockId);
+        const block = snapshotRef.current.blocks.find((candidate) => candidate.blockId === blockId);
         return (
           block?.type !== 'image'
-          || resultBlockIds.includes(blockId)
+          || queued.resultBlockIds.includes(blockId)
           || typeof block.data.composerSourceAssetId === 'string'
         );
       });
-      if (usesVolcengineArk) {
+      if (queued.route === 'volcengine_ark') {
         const started = await startVolcengineArkImage({
-          projectId: nextSnapshot.project.projectId,
-          boardId: nextSnapshot.board.boardId,
-          executionId,
-          connectionId: selectedConnectionId,
+          ...queued.scope,
+          executionId: queued.executionId,
+          connectionId: queued.connectionId,
         });
-        const runningSnapshot = updateSnapshot(() => started.snapshot, { persist: false, history: true });
-        setSelectedBlocks(runningSnapshot, started.execution.outputBlockIds);
-        if (input.revealOnStart) {
+        if (adoptIfCurrent(started.snapshot)) {
+          setSelectedBlocks(snapshotRef.current, started.execution.outputBlockIds);
+        }
+        if (input.revealOnStart && isCurrentScope(queued.scope)) {
           focusWorkflowBlocks(revealBlockIds, { maxZoom: 1 });
         }
         setOperationToast({
-          id: executionId,
+          id: queued.executionId,
           title: t('feedback.seedreamStarted'),
           body: t('feedback.seedreamCostNotice'),
           tone: 'success',
         });
-        await pollDirectImageExecution(executionId, runningSnapshot, 'seedream');
+        await pollDirectImageExecution(queued.executionId, queued.scope, 'seedream');
         return;
       }
-      if (usesCodexAppServer) {
+      if (queued.route === 'codex_app_server') {
         const started = await startCodexAppServerImage({
-          projectId: nextSnapshot.project.projectId,
-          boardId: nextSnapshot.board.boardId,
-          executionId,
-          connectionId: selectedConnectionId,
+          ...queued.scope,
+          executionId: queued.executionId,
+          connectionId: queued.connectionId,
         });
-        const runningSnapshot = updateSnapshot(() => started.snapshot, { persist: false, history: true });
-        setSelectedBlocks(runningSnapshot, started.execution.outputBlockIds);
-        if (input.revealOnStart) {
+        if (adoptIfCurrent(started.snapshot)) {
+          setSelectedBlocks(snapshotRef.current, started.execution.outputBlockIds);
+        }
+        if (input.revealOnStart && isCurrentScope(queued.scope)) {
           focusWorkflowBlocks(revealBlockIds, { maxZoom: 1 });
         }
         setOperationToast({
-          id: executionId,
+          id: queued.executionId,
           title: t('feedback.codexImageStarted'),
           body: t('feedback.codexImageCostNotice'),
           tone: 'success',
         });
-        await pollDirectImageExecution(executionId, runningSnapshot, 'codex');
+        await pollDirectImageExecution(queued.executionId, queued.scope, 'codex');
         return;
       }
-      setPromptPreview({ title: t('feedback.promptTitle'), prompt: operationPrompt, copyKey, executionId, blockIds });
-      await copyPromptWithHistory({ blockIds, copyKey, executionId, prompt: operationPrompt, source: 'prompt_preview' });
+      setPromptPreview({
+        title: t('feedback.promptTitle'),
+        prompt: queued.prompt,
+        copyKey,
+        executionId: queued.executionId,
+        blockIds,
+      });
+      await copyPromptWithHistory({
+        blockIds,
+        copyKey,
+        executionId: queued.executionId,
+        prompt: queued.prompt,
+        source: 'prompt_preview',
+      });
       closePromptPreviewAfterCopy(copyKey);
       setOperationToast({ id: input.block.blockId, title: t('feedback.taskCreated'), body: t('feedback.taskCreatedCopied'), tone: 'success' });
     } catch (error) {
@@ -740,22 +532,14 @@ export function useImageOperationController(options: ImageOperationControllerOpt
 
   async function pollDirectImageExecution(
     executionId: string,
-    scope: BoardSnapshot,
+    scope: CanvasHostScopeV1,
     provider: 'codex' | 'seedream',
   ): Promise<void> {
     while (true) {
       await delay(1_500);
-      const latest = await loadBoardSnapshot({
-        projectId: scope.project.projectId,
-        boardId: scope.board.boardId,
-      });
+      const latest = await loadBoardSnapshot(scope);
       const execution = latest.executions.find((candidate) => candidate.executionId === executionId);
-      if (
-        snapshotRef.current.project.projectId === scope.project.projectId &&
-        snapshotRef.current.board.boardId === scope.board.boardId
-      ) {
-        updateSnapshot(() => latest, { persist: false, history: false });
-      }
+      adoptIfCurrent(latest);
       if (!execution) throw new Error(`Image execution disappeared while waiting: ${executionId}`);
       if (execution.status === 'queued' || execution.status === 'running') continue;
       setOperationToast({
@@ -774,85 +558,62 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     }
   }
 
+  function adoptIfCurrent(snapshot: BoardSnapshot): boolean {
+    if (!isCurrentScope(scopeFor(snapshot))) return false;
+    adoptDurableSnapshot(snapshot);
+    return true;
+  }
+
+  function isCurrentScope(scope: CanvasHostScopeV1): boolean {
+    return snapshotRef.current.project.projectId === scope.projectId
+      && snapshotRef.current.board.boardId === scope.boardId;
+  }
+
   function updateOperationGenerationParams(blockId: string, generationParams: ImageGenerationParams): void {
-    updateSnapshot((current) => {
-      const operationBlock = current.blocks.find((block) => block.blockId === blockId && block.type === 'operation');
-      if (!operationBlock || blockLockedByGroup(current, blockId)) return current;
-      if (operationBlock.data.capabilityId === storyboardSheetCapabilityId) {
-        const currentParameters = operationBlock.data.storyboardSheetParameters;
-        const parameters = normalizeStoryboardSheetGenerationParameters({
-          ...(currentParameters && typeof currentParameters === 'object' && !Array.isArray(currentParameters)
-            ? currentParameters as Record<string, unknown>
-            : {}),
-          outputCount: generationParams.variationCount,
-        });
-        operationBlock.data = {
-          ...operationBlock.data,
-          storyboardSheetParameters: parameters,
-          workflowParameters: parameters,
-          generationParams: {
-            aspectRatioPreset: '16:9',
-            variationCount: parameters.outputCount,
-            storyboardSheet: parameters,
-          },
-        };
-      } else {
-        operationBlock.data = { ...operationBlock.data, generationParams };
-      }
-      operationBlock.updatedAt = nowIso();
-      resizeEmptyOperationOutputSlot(
-        current,
-        operationBlock,
-        operationBlock.data.generationParams as ImageGenerationParams,
-      );
-      return touchBoard(current);
-    }, { persist: true });
+    runImageOperationUpdate(blockId, (commands) => (
+      commands.imageOperation.updateGenerationParams({ blockId, generationParams })
+    ));
   }
 
   function updateOperationGenerationProfile(blockId: string, generationProfileId: string): void {
-    updateSnapshot((current) => {
-      const operationBlock = current.blocks.find((block) => block.blockId === blockId && block.type === 'operation');
-      if (!operationBlock || blockLockedByGroup(current, blockId)) return current;
-      operationBlock.data = { ...operationBlock.data, generationProfileId };
-      operationBlock.updatedAt = nowIso();
-      return touchBoard(current);
-    }, { persist: true });
+    runImageOperationUpdate(blockId, (commands) => (
+      commands.imageOperation.updateGenerationProfile({ blockId, generationProfileId })
+    ));
   }
 
   function updateOperationConnection(blockId: string, connectionId: string): void {
-    updateSnapshot((current) => {
-      const operationBlock = current.blocks.find((block) => block.blockId === blockId && block.type === 'operation');
-      if (!operationBlock || blockLockedByGroup(current, blockId)) return current;
-      operationBlock.data = { ...operationBlock.data, connectionId };
-      operationBlock.updatedAt = nowIso();
-      return touchBoard(current);
-    }, { persist: true });
+    runImageOperationUpdate(blockId, (commands) => (
+      commands.imageOperation.updateConnection({ blockId, connectionId })
+    ));
   }
 
   function updateOperationCapability(blockId: string, operation: SwitchableOperationMode): void {
-    updateSnapshot((current) => {
-      const operationBlock = current.blocks.find((block) => block.blockId === blockId && block.type === 'operation');
-      if (!operationBlock || blockLockedByGroup(current, blockId)) return current;
-      operationBlock.data = {
-        ...operationBlock.data,
+    runImageOperationUpdate(blockId, (commands) => (
+      commands.imageOperation.updateCapability({
+        blockId,
+        operation,
         title: operation === 'text_to_image' ? imageOperationTitle('generate_image', t) : imageOperationTitle('quick_edit', t),
-        capabilityId: capabilityIdForOperationMode(operation),
-        operationMode: undefined,
-        operationVariant: undefined,
-      };
-      operationBlock.updatedAt = nowIso();
-      for (const edge of current.edges) {
-        if (edge.targetBlockId !== operationBlock.blockId || edge.kind !== 'execution_input') continue;
-        const sourceBlock = current.blocks.find((block) => block.blockId === edge.sourceBlockId);
-        if (!sourceBlock) continue;
-        const supportedSlotIds = compatibleInputSlotIdsFor(sourceBlock, operationBlock);
-        if (!edge.inputSlotId || !supportedSlotIds.includes(edge.inputSlotId)) {
-          delete edge.inputSlotId;
-          delete edge.referenceIntent;
-        }
-      }
-      return touchBoard(current);
-    }, { persist: true, history: true });
+      })
+    ));
+  }
+
+  function runImageOperationUpdate(
+    blockId: string,
+    update: (
+      commands: WhiteboardProductCommandsV1,
+    ) => Promise<{ committed: boolean; updated: boolean }>,
+  ): void {
+    void requireProductCommands(runProductCommand)(update, {
+      history: true,
+      shouldKeepHistory: (result) => result.committed,
+    }).catch((error) => {
+      setOperationToast({
+        id: `image-operation-update:${blockId}`,
+        title: t('feedback.handoffUnavailable'),
+        body: error instanceof Error ? error.message : t('feedback.localApiUnavailable'),
+        tone: 'error',
+      });
+    });
   }
 
   async function importImageIntoBlock(block: BlockRecord, file: File): Promise<void> {
@@ -860,12 +621,17 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     if (currentBlock?.type !== 'image' || currentBlock.data.sourceExecutionId || currentBlock.data.operationBlockId || blockLockedByGroup(snapshotRef.current, block.blockId)) return;
     const dataUrl = await readFileAsDataUrl(file);
     const imageSize = await readImageDimensions(dataUrl);
-    const asset = await createImageAssetFromDataUrl({ projectId: snapshotRef.current.project.projectId, dataUrl, fileName: file.name, width: imageSize?.width, height: imageSize?.height });
-    const nextSnapshot = updateSnapshot((current) => {
-      attachImportedImageAsset(current, { asset, blockId: block.blockId, fileName: file.name, updatedAt: nowIso() });
-      return current;
-    }, { history: true });
-    await persistSnapshot(nextSnapshot);
+    await requireHostCommands(runHostCommand)((commands) => commands.attachAsset({
+        blockId: block.blockId,
+        fileName: file.name,
+        height: imageSize?.height,
+        kind: 'image',
+        mimeType: imageMimeTypeFromDataUrl(dataUrl),
+        previewUrl: dataUrl,
+        storageKey: `import://${file.name || 'image'}`,
+        storageProvider: 'custom',
+        width: imageSize?.width,
+      }), { history: true });
   }
 
   return {
@@ -887,7 +653,6 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     setOperationToast,
     setPromptPreview,
     startExistingOperationBlock,
-    startImageCodexOperation,
     updateOperationCapability,
     updateOperationConnection,
     updateOperationGenerationParams,
@@ -895,61 +660,28 @@ export function useImageOperationController(options: ImageOperationControllerOpt
   };
 }
 
-function preferredImageConnection(snapshot: BoardSnapshot, capabilityId: string): string {
-  const settings = currentExecutionProviderSettings();
-  const preference = resolveExecutionConnectionPreference({
-    capabilityId,
-    initialConnectionId: 'codex-app-server',
-    projectId: snapshot.project.projectId,
-    settings,
-    useCase: 'image',
-  });
-  if (preference.isUsable || !settings) {
-    return preference.connectionId ?? 'codex-app-server';
-  }
-  return settings.connections.find((connection) => (
-    connection.enabled
-    && connection.status === 'ready'
-    && connection.enabledUseCases.includes('image')
-    && connection.supportedCapabilityIds.includes(capabilityId)
-  ))?.connectionId ?? 'codex-app-server';
-}
-
-function preferredReadyImageConnection(
-  snapshot: BoardSnapshot,
-  capabilityId: string,
-  settings: ExecutionProviderSettingsSnapshot | undefined = currentExecutionProviderSettings(),
-  requestedConnectionId?: string,
-): ExecutionConnectionSummary | undefined {
-  if (requestedConnectionId) {
-    const requested = settings?.connections.find((connection) => connection.connectionId === requestedConnectionId);
-    return requested?.status === 'ready' &&
-      requested.enabledUseCases.includes('image') &&
-      requested.supportedCapabilityIds.includes(capabilityId)
-      ? requested
-      : undefined;
-  }
-  const preference = resolveExecutionConnectionPreference({
-    capabilityId,
-    initialConnectionId: 'codex-app-server',
-    projectId: snapshot.project.projectId,
-    settings,
-    useCase: 'image',
-  });
-  if (preference.isUsable) return preference.connection;
-  return settings?.connections.find((connection) => (
-    connection.enabled
-    && connection.status === 'ready'
-    && connection.enabledUseCases.includes('image')
-    && connection.supportedCapabilityIds.includes(capabilityId)
-  ));
-}
-
-function capabilityIdForImmediateImageOperation(operation: ImageCodexOperation): string {
-  if (operation === 'annotation_edit') return 'image.annotation_edit';
-  return imageGenerateCapabilityId;
-}
-
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function scopeFor(snapshot: BoardSnapshot): CanvasHostScopeV1 {
+  return { boardId: snapshot.board.boardId, projectId: snapshot.project.projectId };
+}
+
+function requireProductCommands(
+  runProductCommand: ImageOperationControllerOptions['runProductCommand'],
+): NonNullable<ImageOperationControllerOptions['runProductCommand']> {
+  if (!runProductCommand) {
+    throw new Error('Whiteboard product command facade is unavailable.');
+  }
+  return runProductCommand;
+}
+
+function requireHostCommands(
+  runHostCommand: ImageOperationControllerOptions['runHostCommand'],
+): NonNullable<ImageOperationControllerOptions['runHostCommand']> {
+  if (!runHostCommand) {
+    throw new Error('Canvas Host command facade is unavailable.');
+  }
+  return runHostCommand;
 }

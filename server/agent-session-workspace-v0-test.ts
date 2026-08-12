@@ -154,6 +154,10 @@ assert.doesNotMatch(operationCardSource, /agentWorkspace\.scope/);
 assert.doesNotMatch(operationCardSource, /operationToolbar\.capability/);
 assert.match(operationCardSource, /onClick=\{operation \? \(\) => onLocateBlock/);
 assert.doesNotMatch(operationCardSource, /role=\{operation \? 'button'/);
+assert.match(operationCardSource, /status === 'failed'/);
+assert.match(operationCardSource, /onRerunOperation\(operation\.blockId\)/);
+assert.match(operationCardSource, /onAskAgent\(\)/);
+assert.match(workspaceSource, /agentWorkspace\.operationAskAgentPrompt/);
 for (const status of ['queued', 'running', 'succeeded', 'failed', 'canceled']) {
   assert.match(agentWorkspaceCssSource, new RegExp(`agent-workspace-operation-card\\.is-${status}`));
 }
@@ -169,11 +173,11 @@ assert.match(sharedComposerSource, /selectedEntryPoint\?\.entrypoint\.kind === '
 assert.match(controllerSource, /kind: 'agent_preferences'/);
 assert.match(controllerSource, /kind: 'workflow_interaction_mode'/);
 assert.match(controllerSource, /if \(input\.workflowExecutionMode\)/);
-assert.match(controllerSource, /createTypedEntrypointProposalForMessage/);
+assert.match(controllerSource, /commands\.agentWorkspace\.createEntrypointProposal/);
 assert.match(controllerSource, /effect\?\.kind === 'goal_plan_draft'/);
-assert.match(controllerSource, /stageGoalPlanAgentLaunch\(nextSnapshot, command\)/);
+assert.match(controllerSource, /commands\.agentWorkspace\.launchDraft/);
 assert.match(controllerSource, /input\.suggestionAction/);
-assert.match(controllerSource, /runtimeResult\.decision\.coverage === 'full'/);
+assert.match(controllerSource, /completedRuntimeResult\.decision\.coverage === 'full'/);
 assert.match(portSource, /attachedImageBlockIds/);
 assert.match(portSource, /localImagePaths/);
 assert.match(portSource, /Use at most one clarification turn/);
@@ -191,17 +195,26 @@ assert.match(sharedComposerSource, /listPackageComposerMentionOptions/);
 assert.match(agentRuntimeControllerSource, /async function persistAgentRunControl/);
 assert.match(
   agentRuntimeControllerSource,
-  /await persistSnapshot\(nextSnapshot, \{ requireLocalApi: true \}\)/,
+  /commands\.agent\.control\(\{ action, agentRunId: requestedAgentRunId \}\)/,
 );
 assert.match(
   agentRuntimeControllerSource,
-  /async function persistAgentRunControl[\s\S]*?\}, \{ history: true \}\);\n\s+await persistSnapshot\(nextSnapshot/,
+  /async function persistAgentRunControl[\s\S]*?\{ history: true \}/,
 );
-assert.match(controllerSource, /persistSnapshot\(withUserMessage, \{ requireLocalApi: true \}\)/);
-assert.match(controllerSource, /applyAgentRuntimeTurn/);
-assert.match(controllerSource, /stageAgentOperationExecution/);
-assert.match(controllerSource, /layoutImageComposerWorkflow\(staged\.stagedSnapshot/);
-assert.match(controllerSource, /bindingSource === 'message_attachment'/);
+assert.doesNotMatch(agentRuntimeControllerSource, /persistSnapshot/);
+assert.match(
+  controllerSource,
+  /commands\.agentWorkspace\.appendMessage[\s\S]*requestAgentRuntimeTurn/,
+);
+assert.match(controllerSource, /commands\.agentWorkspace\.applyRuntimeTurn/);
+assert.doesNotMatch(
+  controllerSource,
+  /\b(?:appendAgentRuntimeEvent|applyAgentRuntimeTurn|applyAuthorizedOperationSuggestion|markAgentRuntimeFailure|stageAgentOperationExecution)\b/,
+);
+assert.doesNotMatch(controllerSource, /commands\.agentWorkspace\.stageOperationExecution/);
+assert.match(controllerSource, /commands\.agentWorkspace\.authorizeOperationSuggestion/);
+assert.match(controllerSource, /placementCenter: getViewportCenter\(\)/);
+assert.doesNotMatch(controllerSource, /bindingSource === 'message_attachment'/);
 assert.doesNotMatch(controllerSource, /focusWorkflowBlocks\(operationScopeIds\)/);
 assert.match(controllerSource, /retake:run-operation/);
 assert.match(controllerSource, /revealOnStart: true/);
@@ -209,9 +222,9 @@ assert.match(
   canvasControllerSource,
   /event\.target instanceof HTMLElement && isInteractiveNodeTarget\(event\.target\)/,
 );
-assert.match(controllerSource, /ensureDefaultAgentSession/);
-assert.match(controllerSource, /const agentSessionId = selectedSessionId \?\? ensureDefaultSession\(\)/);
-assert.match(controllerSource, /setAgentSessionWorkingOperation/);
+assert.match(controllerSource, /commands\.agentWorkspace\.ensureDefaultSession\(/);
+assert.match(controllerSource, /const agentSessionId = selectedSessionId \?\? await ensureDefaultSession\(\)/);
+assert.match(controllerSource, /commands\.agentWorkspace\.bindWorkingOperation\(/);
 assert.match(appEventBindingsSource, /retake:bind-agent-operation/);
 assert.match(blockNodeSource, /dispatchBindAgentOperation/);
 assert.match(blockNodeSource, /retake:use-image-in-agent/);
@@ -792,14 +805,134 @@ assert.equal(
   2,
   'A run-local Workflow correction must apply the requested candidate count to the rerun only.',
 );
+const repeatedDocumentWorkflowMessage = appendAgentUserMessage(
+  documentWorkflowCorrection.stagedSnapshot,
+  workflowScopeSession.agentSessionId,
+  { content: '去掉黑色基调，不必强制卡通化，再生成两个方向。' },
+);
+const repeatedDocumentWorkflowContext = agentRuntimeTurnContext(
+  documentWorkflowCorrection.stagedSnapshot,
+  workflowScopeSession.agentSessionId,
+  repeatedDocumentWorkflowMessage.agentMessageId,
+);
+const repeatedDocumentWorkflowDecision = parseAgentRuntimeDecision(JSON.stringify({
+  kind: 'operation_execute',
+  message: '我会按新的风格要求重新生成概念方向。',
+  operationBlockId: legacyOperationDraft.operationBlock.blockId,
+  operationPrompt: '去掉黑色基调，使用明亮温暖配色；不强制卡通化，采用更真实现代的品牌风格。',
+  variationCount: 2,
+}), repeatedDocumentWorkflowContext);
+assert.equal(
+  repeatedDocumentWorkflowDecision.kind === 'operation_execute'
+    ? repeatedDocumentWorkflowDecision.bindingSource
+    : undefined,
+  'workflow_scope',
+  'A repeated correction must retain the working Operation workflow scope.',
+);
+const repeatedDocumentWorkflowTurn = applyAgentRuntimeTurn(
+  documentWorkflowCorrection.stagedSnapshot,
+  {
+    agentSessionId: workflowScopeSession.agentSessionId,
+    decision: repeatedDocumentWorkflowDecision,
+    externalThreadId: 'thread_workflow_document_correction_repeat',
+    runtimeModel: 'test-model',
+    runtimeTurnId: 'turn_workflow_document_correction_repeat',
+    sourceMessageId: repeatedDocumentWorkflowMessage.agentMessageId,
+  },
+);
+const repeatedDocumentWorkflowApplication = stageAgentOperationExecution(
+  documentWorkflowCorrection.stagedSnapshot,
+  repeatedDocumentWorkflowTurn.operationExecution!,
+  {
+    connectionIdForCapability: () => 'codex-app-server',
+    operationTitle: 'Generate image',
+    promptTitle: 'Prompt',
+  },
+);
+assert.equal(
+  repeatedDocumentWorkflowApplication.stagedSnapshot.blocks.find(
+    (block) => block.blockId === documentPromptBlock.blockId,
+  )?.data.title,
+  '蛋炒饭小饭店 IP 角色圣经',
+  'A repeated correction must keep the accepted upstream Document immutable.',
+);
+assert.equal(
+  repeatedDocumentWorkflowApplication.stagedSnapshot.blocks.find(
+    (block) => block.blockId === legacyOperationDraft.operationBlock.blockId,
+  )?.data.executionAdjustmentInstruction,
+  repeatedDocumentWorkflowDecision.kind === 'operation_execute'
+    ? repeatedDocumentWorkflowDecision.operationPrompt
+    : undefined,
+  'A repeated Document-backed correction must remain executable on the Workflow Operation.',
+);
+let multiTurnWorkflowSnapshot = repeatedDocumentWorkflowApplication.stagedSnapshot;
+for (const [index, operationPrompt] of [
+  '改成自然比例的人物形象，保留理发业务关联。',
+  '减少玩具质感，尝试成熟的当代编辑插画。',
+  '使用更明亮的暖色，同时保留前两轮已经确认的约束。',
+].entries()) {
+  const message = appendAgentUserMessage(
+    multiTurnWorkflowSnapshot,
+    workflowScopeSession.agentSessionId,
+    { content: operationPrompt },
+  );
+  const context = agentRuntimeTurnContext(
+    multiTurnWorkflowSnapshot,
+    workflowScopeSession.agentSessionId,
+    message.agentMessageId,
+  );
+  const decision = parseAgentRuntimeDecision(JSON.stringify({
+    kind: 'operation_execute',
+    message: `应用第 ${index + 1} 轮后续修改。`,
+    operationBlockId: legacyOperationDraft.operationBlock.blockId,
+    operationPrompt,
+    variationCount: 2,
+  }), context);
+  assert.equal(
+    decision.kind === 'operation_execute' ? decision.bindingSource : undefined,
+    'workflow_scope',
+    `Workflow scope must survive repeated chat correction ${index + 1}.`,
+  );
+  const turn = applyAgentRuntimeTurn(multiTurnWorkflowSnapshot, {
+    agentSessionId: workflowScopeSession.agentSessionId,
+    decision,
+    externalThreadId: `thread_workflow_document_correction_${index + 3}`,
+    runtimeModel: 'test-model',
+    runtimeTurnId: `turn_workflow_document_correction_${index + 3}`,
+    sourceMessageId: message.agentMessageId,
+  });
+  const application = stageAgentOperationExecution(
+    multiTurnWorkflowSnapshot,
+    turn.operationExecution!,
+    {
+      connectionIdForCapability: () => 'codex-app-server',
+      operationTitle: 'Generate image',
+      promptTitle: 'Prompt',
+    },
+  );
+  assert.equal(application.receipt.action, 'continued');
+  assert.equal(
+    application.stagedSnapshot.blocks.find(
+      (block) => block.blockId === documentPromptBlock.blockId,
+    )?.data.title,
+    '蛋炒饭小饭店 IP 角色圣经',
+  );
+  multiTurnWorkflowSnapshot = application.stagedSnapshot;
+}
+assert.match(controllerSource, /receivedAgentRuntimeResult/);
+assert.match(controllerSource, /没有把修改安全地应用到当前操作/);
+assert.match(controllerSource, /重试这次修改/);
+assert.match(controllerSource, /commands\.agentWorkspace\.recordRuntimeRecovery/);
 assert.deepEqual(
   createdApplication.stagedSnapshot.agentMessages?.find(
     (message) => message.agentMessageId === operationTurn.assistantMessage.agentMessageId,
   )?.contextRefs.find((ref) => ref.kind === 'operation_receipt'),
   {
     action: 'created',
+    createdBlockIds: createdApplication.receipt.createdBlockIds,
     kind: 'operation_receipt',
     operationBlockId: createdApplication.receipt.operationBlockId,
+    promptBlockId: createdApplication.receipt.promptBlockId,
   },
 );
 

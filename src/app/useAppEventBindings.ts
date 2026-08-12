@@ -39,6 +39,8 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
   onBindAgentOperationRef.current = onBindAgentOperation;
   const onUseImageInAgentRef = useRef(onUseImageInAgent);
   onUseImageInAgentRef.current = onUseImageInAgent;
+  const addOperationInputBlockRef = useRef(addOperationInputBlock);
+  addOperationInputBlockRef.current = addOperationInputBlock;
   const deleteBlockIdsRef = useRef(deleteBlockIds);
   deleteBlockIdsRef.current = deleteBlockIds;
 
@@ -62,7 +64,7 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
     function onAddOperationInput(event: Event): void {
       const detail = (event as CustomEvent<{ operationBlockId?: string; type?: BlockType }>).detail;
       if (!detail?.operationBlockId || (detail.type !== 'text' && detail.type !== 'image' && detail.type !== 'video')) return;
-      addOperationInputBlock(detail.operationBlockId, detail.type);
+      addOperationInputBlockRef.current(detail.operationBlockId, detail.type);
     }
     function onRequestImageImport(event: Event): void {
       const blockId = (event as CustomEvent<{ blockId?: string }>).detail?.blockId;

@@ -1,14 +1,13 @@
 import { useEffect, useState, type RefObject } from 'react';
-import {
-  type DomainVideoLaunchReviewV1,
-} from '../core/domainVideoGenerationContracts';
+import type { OperationToast } from '../components/OperationFeedback';
+import { loadBoardSnapshot } from '../core/boardStore';
+import type { DomainVideoLaunchReviewV1 } from '../core/domainVideoGenerationContracts';
 import {
   loadDomainVideoLaunchReview,
   startAuthorizedDomainVideoGeneration,
 } from '../core/domainVideoLaunchReviewClient';
-import { loadBoardSnapshot } from '../core/boardStore';
 import type { BoardSnapshot } from '../core/types';
-import type { OperationToast } from '../components/OperationFeedback';
+import type { CanvasHostScopeV1 } from '../host-kit';
 
 export interface DomainVideoLaunchReviewState {
   blockId: string;
@@ -18,21 +17,30 @@ export interface DomainVideoLaunchReviewState {
   review?: DomainVideoLaunchReviewV1;
 }
 
+interface DomainVideoLaunchReviewControllerOptions {
+  adoptDurableSnapshot: (snapshot: BoardSnapshot) => void;
+  boardId: string;
+  projectId: string;
+  setOperationToast: (toast: OperationToast | undefined) => void;
+  setSelectedBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
+  snapshotRef: RefObject<BoardSnapshot>;
+}
+
 export function useDomainVideoLaunchReviewController(
-  snapshotRef: RefObject<BoardSnapshot>,
-  projectId: string,
-  boardId: string,
-  updateSnapshot: (
-    updater: (current: BoardSnapshot) => BoardSnapshot,
-    options?: { history?: boolean; persist?: boolean; syncFlow?: boolean },
-  ) => BoardSnapshot,
-  setOperationToast: (toast: OperationToast | undefined) => void,
-  setSelectedBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void,
+  options: DomainVideoLaunchReviewControllerOptions,
 ): {
   authorizeDomainVideoGeneration: () => Promise<void>;
   closeDomainVideoLaunchReview: () => void;
   domainVideoLaunchReview: DomainVideoLaunchReviewState | undefined;
 } {
+  const {
+    adoptDurableSnapshot,
+    boardId,
+    projectId,
+    setOperationToast,
+    setSelectedBlocks,
+    snapshotRef,
+  } = options;
   const [state, setState] = useState<DomainVideoLaunchReviewState>();
 
   useEffect(() => {
@@ -64,23 +72,16 @@ export function useDomainVideoLaunchReviewController(
     const request = currentState?.review?.request;
     if (!currentState || !currentState.review?.ready || !request || currentState.executing) return;
     setState({ ...currentState, executing: true, error: undefined });
-    const scope = snapshotRef.current;
+    const scope = scopeFor(snapshotRef.current);
     try {
       const started = await startAuthorizedDomainVideoGeneration({
         blockId: currentState.blockId,
-        boardId: scope.board.boardId,
-        projectId: scope.project.projectId,
+        ...scope,
         requestFingerprint: request.requestFingerprint,
       });
-      if (
-        snapshotRef.current.board.boardId === scope.board.boardId
-        && snapshotRef.current.project.projectId === scope.project.projectId
-      ) {
-        const next = updateSnapshot(() => started.snapshot, {
-          history: true,
-          persist: false,
-        });
-        setSelectedBlocks(next, started.execution.outputBlockIds);
+      adoptIfCurrent(started.snapshot);
+      if (isCurrentScope(scope)) {
+        setSelectedBlocks(snapshotRef.current, started.execution.outputBlockIds);
       }
       setState(undefined);
       setOperationToast({
@@ -94,7 +95,14 @@ export function useDomainVideoLaunchReviewController(
         tone: 'success',
       });
       if (started.execution.status === 'queued' || started.execution.status === 'running') {
-        void pollExecution(started.execution.executionId, scope);
+        void pollExecution(started.execution.executionId, scope).catch((error) => {
+          setOperationToast({
+            id: started.execution.executionId,
+            title: 'Domain Video 生成失败',
+            body: error instanceof Error ? error.message : 'Domain Video execution failed.',
+            tone: 'error',
+          });
+        });
       }
     } catch (error) {
       setState((latest) => latest?.blockId === currentState.blockId
@@ -107,22 +115,14 @@ export function useDomainVideoLaunchReviewController(
     }
   }
 
-  async function pollExecution(executionId: string, scope: BoardSnapshot): Promise<void> {
+  async function pollExecution(executionId: string, scope: CanvasHostScopeV1): Promise<void> {
     while (true) {
       await delay(1_500);
-      const latest = await loadBoardSnapshot({
-        projectId: scope.project.projectId,
-        boardId: scope.board.boardId,
-      });
+      const latest = await loadBoardSnapshot(scope);
       const execution = latest.executions.find(
         (candidate) => candidate.executionId === executionId,
       );
-      if (
-        snapshotRef.current.project.projectId === scope.project.projectId
-        && snapshotRef.current.board.boardId === scope.board.boardId
-      ) {
-        updateSnapshot(() => latest, { history: false, persist: false });
-      }
+      adoptIfCurrent(latest);
       if (!execution) {
         setOperationToast({
           id: executionId,
@@ -147,11 +147,26 @@ export function useDomainVideoLaunchReviewController(
     }
   }
 
+  function adoptIfCurrent(snapshot: BoardSnapshot): boolean {
+    if (!isCurrentScope(scopeFor(snapshot))) return false;
+    adoptDurableSnapshot(snapshot);
+    return true;
+  }
+
+  function isCurrentScope(scope: CanvasHostScopeV1): boolean {
+    return snapshotRef.current.project.projectId === scope.projectId
+      && snapshotRef.current.board.boardId === scope.boardId;
+  }
+
   return {
     authorizeDomainVideoGeneration,
     closeDomainVideoLaunchReview: () => setState(undefined),
     domainVideoLaunchReview: state,
   };
+}
+
+function scopeFor(snapshot: BoardSnapshot): CanvasHostScopeV1 {
+  return { boardId: snapshot.board.boardId, projectId: snapshot.project.projectId };
 }
 
 function delay(milliseconds: number): Promise<void> {

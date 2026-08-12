@@ -62,11 +62,13 @@ export function WorkflowWorkspace({
 }: {
   activeAgentRun?: AgentRunRecord;
   initialWorkflowRunId: string;
-  onCreateWorkflowRun: (groupBlockId: string) => string | undefined;
+  onCreateWorkflowRun: (groupBlockId: string) => Promise<string | undefined>;
   onClose: () => void;
   onLocateBlock: (blockId: string) => void;
   onOpenAgentRun: (agentRunId: string) => void;
-  onProjectWorkflowRevision: (revision: ProjectWorkflowRevisionV1) => ProjectedWorkflowRevisionResult;
+  onProjectWorkflowRevision: (
+    revision: ProjectWorkflowRevisionV1,
+  ) => Promise<ProjectedWorkflowRevisionResult>;
   onStartWorkflowRun: (workflowRunId: string) => void;
   onStartWorkflowStep: (workflowRunId: string, stepRunId: string) => void;
   selectedBlockIds: string[];
@@ -276,8 +278,8 @@ export function WorkflowWorkspace({
         {mode === 'design' && selectedRunRecord ? (
           <WorkflowDesignWorkspace
             boardId={snapshot.board.boardId}
-            onCreateWorkflowRun={(groupBlockId) => {
-              const workflowRunId = onCreateWorkflowRun(groupBlockId);
+            onCreateWorkflowRun={async (groupBlockId) => {
+              const workflowRunId = await onCreateWorkflowRun(groupBlockId);
               if (!workflowRunId) return;
               setSelectedWorkflowRunId(workflowRunId);
               setMode('run');

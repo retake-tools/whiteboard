@@ -78,8 +78,11 @@ export function stageAgentOperationExecution(
       receipt: {
         action: existingReceipt.action,
         assistantMessageId: request.assistantMessageId,
-        createdBlockIds: [],
+        createdBlockIds: [...(existingReceipt.createdBlockIds ?? [])],
         operationBlockId: existingReceipt.operationBlockId,
+        ...(existingReceipt.promptBlockId
+          ? { promptBlockId: existingReceipt.promptBlockId }
+          : {}),
       },
       stagedSnapshot,
     };
@@ -106,8 +109,12 @@ export function stageAgentOperationExecution(
   });
   assistantMessage.contextRefs.push({
     action: receipt.action,
+    ...(receipt.createdBlockIds.length > 0
+      ? { createdBlockIds: [...receipt.createdBlockIds] }
+      : {}),
     kind: 'operation_receipt',
     operationBlockId: receipt.operationBlockId,
+    ...(receipt.promptBlockId ? { promptBlockId: receipt.promptBlockId } : {}),
   });
   assistantMessage.recordVersion += 1;
   stagedSnapshot.board.updatedAt = nowIso();

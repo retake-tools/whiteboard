@@ -1,4 +1,5 @@
-import type { BoardSnapshot, RetakeEdge } from './types';
+import type { RetakeEdge } from '../canvas/reactFlowTypes';
+import type { BoardSnapshot } from './types';
 
 const workflowTargetTopHandleId = 'workflow-target-top';
 const workflowSourceBottomHandleId = 'workflow-source-bottom';

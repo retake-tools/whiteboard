@@ -25,10 +25,10 @@ export function AgentWorkspaceHeader({
   sessions,
   snapshot,
 }: {
-  onArchiveSession: () => void;
+  onArchiveSession: () => Promise<void>;
   onClose: () => void;
-  onCreateSession: (connectionId?: string) => void;
-  onRenameSession: (title: string) => boolean;
+  onCreateSession: (connectionId?: string) => Promise<string>;
+  onRenameSession: (title: string) => Promise<boolean>;
   onSelectSession: (agentSessionId: string) => void;
   projectId: string;
   runtimeLabel?: string;
@@ -61,7 +61,7 @@ export function AgentWorkspaceHeader({
     setEditing(true);
   }
 
-  function commit(): void {
+  async function commit(): Promise<void> {
     if (!selectedSession) return;
     const normalized = draft.trim().replace(/\s+/g, ' ');
     if (!normalized) {
@@ -69,7 +69,7 @@ export function AgentWorkspaceHeader({
       setEditing(false);
       return;
     }
-    if (normalized === selectedSession.title || onRenameSession(normalized)) {
+    if (normalized === selectedSession.title || await onRenameSession(normalized)) {
       setEditing(false);
       return;
     }
@@ -79,7 +79,7 @@ export function AgentWorkspaceHeader({
   function onEditorKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
     if (event.key === 'Enter') {
       event.preventDefault();
-      commit();
+      void commit();
       return;
     }
     if (event.key !== 'Escape') return;
@@ -106,7 +106,7 @@ export function AgentWorkspaceHeader({
                   ignoreBlurRef.current = false;
                   return;
                 }
-                commit();
+                void commit();
               }}
               onChange={(event) => setDraft(event.currentTarget.value)}
               onKeyDown={onEditorKeyDown}

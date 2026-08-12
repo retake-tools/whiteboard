@@ -117,11 +117,11 @@ export function AgentWorkspace({
   focusedAgentRunId?: string;
   isSending: boolean;
   launchingProposalId?: string;
-  onArchiveSession: () => void;
+  onArchiveSession: () => Promise<void>;
   onAttachFiles?: Parameters<typeof AgentWorkspaceComposer>[0]['onAttachFiles'];
   onCancelAgentRun: (agentRunId: string) => void;
   onClose: () => void;
-  onCreateSession: (connectionId?: string) => void;
+  onCreateSession: (connectionId?: string) => Promise<string>;
   onDecideWorkflowApproval: (
     approvalRequestId: string,
     expectedApprovalRequestVersion: number,
@@ -145,14 +145,14 @@ export function AgentWorkspace({
   onPrepareWorkflowReview: (stepRunId: string) => void | Promise<void>;
   onResumeAgentRun: (agentRunId: string) => void;
   onRequestCanvasMode: () => void;
-  onRenameSession: (title: string) => boolean;
+  onRenameSession: (title: string) => Promise<boolean>;
   onRerunOperation: (operationBlockId: string) => void | Promise<void>;
   onRetryAgentRun: (agentRunId: string, retryExecutionId?: string) => void | Promise<void>;
   onSelectLaunchConnection: (
     blockId: string,
     connectionId: string,
   ) => void;
-  onSelectAgentRun: (agentRunId?: string) => void;
+  onSelectAgentRun: (agentRunId?: string) => Promise<void>;
   onSelectWorkflowOutput: (
     stepRunId: string,
     assetId: string,
@@ -485,7 +485,11 @@ export function AgentWorkspace({
                     ) : null}
                     {operationReceipt ? (
                       <AgentOperationRunCard
+                        onAskAgent={() => submitSuggestedMessage(
+                          t('agentWorkspace.operationAskAgentPrompt'),
+                        )}
                         onLocateBlock={onLocateBlock}
+                        onRerunOperation={onRerunOperation}
                         receipt={operationReceipt}
                         snapshot={snapshot}
                       />
@@ -594,7 +598,7 @@ const AgentRunSummaryCard = function AgentRunSummaryCard({
   onPauseAgentRun: (agentRunId: string) => void;
   onLocateBlock: (blockId: string) => void;
   onResumeAgentRun: (agentRunId: string) => void;
-  onSelectAgentRun: (agentRunId?: string) => void;
+  onSelectAgentRun: (agentRunId?: string) => Promise<void>;
   selectedSession: AgentSessionRecord;
   snapshot: BoardSnapshot;
 }): ReactElement {
@@ -649,7 +653,7 @@ const AgentRunSummaryCard = function AgentRunSummaryCard({
           <span>{t('agentWorkspace.targetRun')}</span>
           <select
             value={selectedSession.activeAgentRunId ?? ''}
-            onChange={(event) => onSelectAgentRun(event.target.value || undefined)}
+            onChange={(event) => void onSelectAgentRun(event.target.value || undefined)}
           >
             <option value="">{t('agentWorkspace.noRun')}</option>
             {agentRuns.map((run) => (

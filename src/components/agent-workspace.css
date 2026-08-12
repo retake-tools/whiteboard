@@ -849,7 +849,8 @@ button.agent-execution-activity:hover {
 .agent-workspace-operation-card dl > div { min-width: 0; }
 .agent-workspace-operation-card dt { color: var(--retake-text-muted); font-size: 9px; font-weight: 750; text-transform: uppercase; }
 .agent-workspace-operation-card dd { margin: 2px 0 0; overflow: hidden; color: var(--retake-text-secondary); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.agent-workspace-operation-card > button { display: inline-flex; justify-self: start; align-items: center; gap: 5px; padding: 6px 8px; border: 1px solid var(--retake-border); border-radius: 6px; background: var(--retake-surface); color: var(--retake-text-secondary); font-size: 10px; cursor: pointer; }
+.agent-workspace-operation-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.agent-workspace-operation-actions > button { display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; border: 1px solid var(--retake-border); border-radius: 6px; background: var(--retake-surface); color: var(--retake-text-secondary); font-size: 10px; cursor: pointer; }
 .agent-workspace-proposal { display: grid; gap: 7px; padding: 10px; border: 1px solid var(--retake-border); border-radius: 8px; background: var(--retake-surface-subtle); }
 .agent-workspace-proposal > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .agent-workspace-proposal strong { font-size: 11px; }

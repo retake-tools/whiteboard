@@ -97,9 +97,9 @@ interface SkillQuickInputComposerProps {
   autoFocus?: boolean;
   mode?: 'agent' | 'canvas';
   onAttachFiles?: (files: File[]) => Promise<PackageComposerMention[]>;
-  onCreateImage?: (input: UnifiedComposerImageDraftInput) => void;
-  onCreateVideoDraft?: (input: UnifiedComposerVideoDraftInput) => void;
-  onInvokeEntryPoint?: (invocation: PackageComposerInvocation) => void;
+  onCreateImage?: (input: UnifiedComposerImageDraftInput) => Promise<void>;
+  onCreateVideoDraft?: (input: UnifiedComposerVideoDraftInput) => Promise<void>;
+  onInvokeEntryPoint?: (invocation: PackageComposerInvocation) => Promise<void>;
   onRequestCanvasMode?: () => void;
   onSubmitAgentMessage: (input: UnifiedComposerAgentInput) => void;
   showRecommendations?: boolean;
@@ -444,7 +444,7 @@ export function SkillQuickInputComposer({
       ) return;
       setIsCompilingRequest(true);
       try {
-        onCreateImage(await compileImageComposerSubmission({
+        await onCreateImage(await compileImageComposerSubmission({
           connectionId: imageConnectionId,
           generationParams: imageGenerationParams,
           generationParamsTouched: imageGenerationParamsTouched,
@@ -474,7 +474,7 @@ export function SkillQuickInputComposer({
       ) return;
       setIsCompilingRequest(true);
       try {
-        onCreateVideoDraft(await compileVideoComposerSubmission({
+        await onCreateVideoDraft(await compileVideoComposerSubmission({
           ...videoParameters,
           connectionId: videoConnectionId,
           instruction: instruction.trim(),
@@ -532,7 +532,7 @@ export function SkillQuickInputComposer({
     try {
       resolvePackageComposerInvocation(snapshot, invocation);
       if (!onInvokeEntryPoint) throw new Error('Canvas Composer requires an EntryPoint invocation handler.');
-      onInvokeEntryPoint(invocation);
+      await onInvokeEntryPoint(invocation);
       reset();
       setPicker(undefined);
       setSubmitError(undefined);

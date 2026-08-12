@@ -1,0 +1,104 @@
+.retake-canvas-host {
+  --retake-host-accent: #2563eb;
+  --retake-host-background: #f8fafc;
+  --retake-host-block: #ffffff;
+  --retake-host-border: #cbd5e1;
+  --retake-host-grid: #94a3b8;
+  --retake-host-muted: #64748b;
+  --retake-host-text: #0f172a;
+  background: var(--retake-host-background);
+  color: var(--retake-host-text);
+  height: 100%;
+  min-height: 320px;
+  min-width: 320px;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.retake-canvas-host .react-flow {
+  background: var(--retake-host-background);
+}
+
+.retake-canvas-host__block {
+  background: var(--retake-host-block);
+  border: 1px solid var(--retake-host-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 8%);
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 72px;
+  min-width: 140px;
+  overflow: hidden;
+  padding: 14px;
+  width: 100%;
+}
+
+.retake-canvas-host__block header {
+  font: 600 14px/1.35 ui-sans-serif, system-ui, sans-serif;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.retake-canvas-host__block p {
+  color: var(--retake-host-muted);
+  font: 400 13px/1.45 ui-sans-serif, system-ui, sans-serif;
+  margin: 8px 0 0;
+  overflow: hidden;
+}
+
+.retake-canvas-host__block img,
+.retake-canvas-host__block video {
+  border-radius: 8px;
+  display: block;
+  height: calc(100% - 30px);
+  margin-top: 10px;
+  object-fit: contain;
+  width: 100%;
+}
+
+.retake-canvas-host__block.is-group {
+  background: color-mix(in srgb, var(--retake-host-block) 72%, transparent);
+  border-style: dashed;
+}
+
+.retake-canvas-host .react-flow__node.selected .retake-canvas-host__block {
+  border-color: var(--retake-host-accent);
+  box-shadow: 0 0 0 1px var(--retake-host-accent), 0 8px 24px rgb(15 23 42 / 10%);
+}
+
+.retake-canvas-host .react-flow__controls,
+.retake-canvas-host .react-flow__minimap {
+  border: 1px solid var(--retake-host-border);
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgb(15 23 42 / 8%);
+  overflow: hidden;
+}
+
+.retake-canvas-host__plugin-commands {
+  display: flex;
+  gap: 8px;
+  left: 12px;
+  position: absolute;
+  top: 12px;
+  z-index: 10;
+}
+
+.retake-canvas-host__plugin-commands button {
+  background: var(--retake-host-block);
+  border: 1px solid var(--retake-host-border);
+  border-radius: 8px;
+  color: var(--retake-host-text);
+  cursor: pointer;
+  font: 600 13px/1 ui-sans-serif, system-ui, sans-serif;
+  padding: 9px 12px;
+}
+
+.retake-canvas-host__plugin-body {
+  border-top: 1px solid var(--retake-host-border);
+  color: var(--retake-host-muted);
+  font: 500 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+  margin-top: 8px;
+  padding-top: 8px;
+}

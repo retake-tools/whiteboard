@@ -26,9 +26,8 @@ import type {
   BoardSnapshot,
   GroupColor,
   OperationReferenceInputPresentation,
-  RetakeEdge,
-  RetakeNode,
 } from './types';
+import type { RetakeEdge, RetakeNode } from '../canvas/reactFlowTypes';
 import { sourceImageAspectRatio } from './operationAspectRatio';
 import { workflowStepRuntimeForOperation } from './workflowRuntime';
 import type { CanvasProjectionMode } from './canvasProjectionViewState';
@@ -206,6 +205,21 @@ export function createFlowNodes(
     const groupDescendants = block.type === 'group'
       ? groupDescendantIds.map((blockId) => blockById.get(blockId)).filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
       : [];
+    const projectedWidth = isCollapsed
+      ? 260
+      : compactOperation
+        ? 36
+        : workflowResultSummary
+          ? workflowResultSummaryWidth
+          : projectedWorkflowGroupSize?.width ?? block.size.width;
+    const projectedHeight = isCollapsed
+      ? 88
+      : compactOperation
+        ? 36
+        : workflowResultSummary
+          ? workflowResultSummaryHeight
+          : projectedWorkflowGroupSize?.height
+            ?? projectedBlockHeight(block, operationReferenceInputs.length, operationReadinessIssues.length > 0);
     return ({
     id: block.blockId,
     type: block.type,
@@ -297,22 +311,15 @@ export function createFlowNodes(
               : undefined
           : undefined,
     },
+    // React Flow does not treat CSS dimensions as initialized dimensions. Remote
+    // snapshots replace controlled node objects while executions are running, so
+    // provide the known projection size up front instead of hiding every node
+    // until ResizeObserver has measured the replacement objects again.
+    initialWidth: projectedWidth,
+    initialHeight: projectedHeight,
     style: {
-      width: isCollapsed
-        ? 260
-        : compactOperation
-          ? 36
-          : workflowResultSummary
-            ? workflowResultSummaryWidth
-          : projectedWorkflowGroupSize?.width ?? block.size.width,
-      height: isCollapsed
-        ? 88
-        : compactOperation
-          ? 36
-          : workflowResultSummary
-            ? workflowResultSummaryHeight
-          : projectedWorkflowGroupSize?.height
-            ?? projectedBlockHeight(block, operationReferenceInputs.length, operationReadinessIssues.length > 0),
+      width: projectedWidth,
+      height: projectedHeight,
     },
     connectable: !contentLocked && !workflowManaged,
     deletable:

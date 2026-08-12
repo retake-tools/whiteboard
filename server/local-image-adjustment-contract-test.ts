@@ -8,7 +8,7 @@ import {
   addPluginImageOperation,
   completePluginImageOperation,
   failPluginImageOperation,
-} from '../src/core/imageOperations';
+} from '../src/core/pluginImageOperations';
 import { capabilityDefinitionFor } from '../src/core/capabilityRegistry';
 import { replacePluginCapabilityDefinitions } from '../src/core/pluginCapabilityDefinitions';
 import { imageMimeTypeFromDataUrl } from '../src/core/assetStore';

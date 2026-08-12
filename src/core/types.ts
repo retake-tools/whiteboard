@@ -1,4 +1,3 @@
-import type { Edge, Node } from '@xyflow/react';
 import type { AnnotationDraft } from './imageAnnotations';
 import type {
   AdapterDefinition,
@@ -481,21 +480,3 @@ export interface WorkspaceSummary {
   defaultProjectId: string;
   projects: WorkspaceProjectSummary[];
 }
-
-export type RetakeNode = Node<BlockRecord['data'], BlockType>;
-export type RetakeEdge = Edge<{
-  inputSlotId?: string;
-  kind: ConnectionKind;
-  proxyEdgeIds?: string[];
-  referenceIntent?: ReferenceIntentV1;
-  resultCount?: number;
-  resultHeight?: number;
-  resultIndex?: number;
-  workflowFanoutCount?: number;
-  workflowFanoutIndex?: number;
-  workflowFaninCount?: number;
-  workflowFaninIndex?: number;
-  workflowGutterX?: number;
-  workflowHistoricalResult?: boolean;
-  workflowRouteKind?: 'long_dependency' | 'result_fanout' | 'standard' | 'step_dependency';
-}>;

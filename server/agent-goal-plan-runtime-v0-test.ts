@@ -367,9 +367,10 @@ assert.notEqual(continuedPlanGoal, '继续。');
 
 await assertSourceDriftRejected();
 
-const [workspaceSource, controllerSource, runtimePortSource] = await Promise.all([
+const [workspaceSource, controllerSource, agentWorkspaceCommandsSource, runtimePortSource] = await Promise.all([
   readFile(new URL('../src/components/AgentWorkspace.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/useAgentWorkspaceController.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/whiteboard/application/whiteboardAgentWorkspaceCommands.ts', import.meta.url), 'utf8'),
   readFile(new URL('./agent-runtime-port.ts', import.meta.url), 'utf8'),
 ]);
 assert.match(workspaceSource, /agentWorkspace\.recommendedWorkflow/);
@@ -382,7 +383,8 @@ assert.match(controllerSource, /proposalKind === 'plan_skill'/);
 assert.match(controllerSource, /target: \{ kind: 'capability' \}/);
 assert.match(runtimePortSource, /skill_entrypoint_proposal/);
 assert.match(workspaceSource, /goalLaunchWarning/);
-assert.match(controllerSource, /stageGoalPlanAgentLaunch/);
+assert.match(controllerSource, /commands\.agentWorkspace\.launchDraft/);
+assert.match(agentWorkspaceCommandsSource, /stageGoalPlanAgentLaunch/);
 assert.match(runtimePortSource, /goal_plan_proposal/);
 assert.match(runtimePortSource, /goalPlanOptions/);
 

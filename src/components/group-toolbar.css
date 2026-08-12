@@ -7,7 +7,6 @@
   border-radius: 8px;
   background: var(--retake-surface-elevated);
   box-shadow: var(--retake-shadow-popover);
-  backdrop-filter: blur(12px);
 }
 
 .group-toolbar input {

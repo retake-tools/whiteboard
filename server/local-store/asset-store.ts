@@ -75,6 +75,7 @@ export async function importAssetFromPath(input: {
 export async function createAssetFromDataUrl(input: {
   projectId: string;
   dataUrl: string;
+  deferSnapshotRegistration?: boolean;
   duration?: number;
   fileName?: string;
   kind?: AssetKind;
@@ -107,7 +108,7 @@ export async function createAssetFromDataUrl(input: {
   };
   await mkdir(assetDir, { recursive: true });
   await writeFile(storageKey, parsed.bytes);
-  await persistAsset(assetDir, asset);
+  await persistAsset(assetDir, asset, input.deferSnapshotRegistration);
   return asset;
 }
 
@@ -159,7 +160,11 @@ export async function importAssetFromUrl(input: {
   return asset;
 }
 
-async function persistAsset(assetDir: string, asset: AssetRecord): Promise<void> {
+async function persistAsset(
+  assetDir: string,
+  asset: AssetRecord,
+  deferSnapshotRegistration = false,
+): Promise<void> {
   await writeJson(path.join(assetDir, 'metadata.json'), asset);
-  await appendAssetImportedHistory(asset);
+  if (!deferSnapshotRegistration) await appendAssetImportedHistory(asset);
 }

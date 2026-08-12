@@ -1,226 +1,121 @@
 import type { RefObject } from 'react';
+import type { OperationToast } from '../components/OperationFeedback';
+import { isTextDocumentCapability } from '../core/capabilityRegistry';
+import { loadProjectArtifactAuthority } from '../core/artifactLibraryClient';
 import { loadBoardSnapshot } from '../core/boardStore';
-import { blockLockedByGroup } from '../core/grouping';
-import {
-  executionConnection,
-  resolveExecutionConnectionPreference,
-} from '../core/executionProviderPreferences';
-import { startTextGeneration } from '../core/textGenerationClient';
 import { appendDocumentStream, beginDocumentStream } from '../core/documentStreamStore';
 import { subscribeExecutionEvents } from '../core/executionEventClient';
-import {
-  createDraftTextGenerationOperation,
-  createDraftSkillOperation,
-  executeExistingTextGenerationOperation,
-  type TextGenerationLabels,
-} from '../core/textOperations';
-import { isTextDocumentCapability } from '../core/capabilityRegistry';
-import type { BlockRecord, BoardSnapshot } from '../core/types';
-import type { OperationToast } from '../components/OperationFeedback';
-import type { ResolvedPackageEntryPointTarget } from '../core/packageRegistry';
-import type { ResolvedPackageComposerInvocation } from '../core/packageComposer';
-import type { useI18n } from '../i18n';
-import { textGenerationLabelsForSkill } from './skillTextLabels';
-import { createDraftStoryboardSheetOperation } from '../core/storyboardSheetOperations';
-import { storyboardSheetCapabilityId } from '../core/storyboardSheetContracts';
-import {
-  createDraftGenerationPreparationOperation,
-  executeExistingGenerationPreparationOperation,
-} from '../core/generationPreparationOperations';
 import { generationPreparationCapabilityId } from '../core/generationPreparationContracts';
-import { loadProjectArtifactAuthority } from '../core/artifactLibraryClient';
-import { domainVideoGenerationCapabilityId } from '../core/domainVideoGenerationContracts';
-import { createDraftDomainVideoGenerationOperation } from '../core/domainVideoGenerationOperations';
+import { blockLockedByGroup } from '../core/grouping';
+import type { ResolvedPackageComposerInvocation } from '../core/packageComposer';
+import type { ResolvedPackageEntryPointTarget } from '../core/packageRegistry';
+import { startTextGeneration } from '../core/textGenerationClient';
+import type { TextGenerationLabels } from '../core/textOperations';
+import type { BlockRecord, BoardSnapshot } from '../core/types';
+import type { CanvasHostScopeV1 } from '../host-kit';
+import type { useI18n } from '../i18n';
+import type { WhiteboardProductCommandsV1 } from '../whiteboard/application/whiteboardProductCommands';
+import { textGenerationLabelsForSkill } from './skillTextLabels';
 
 interface TextGenerationControllerOptions {
-  centerWorkflowBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
+  adoptDurableSnapshot: (snapshot: BoardSnapshot) => void;
   focusWorkflowBlocks: (blockIds: string[]) => void;
+  getViewportCenter: () => { x: number; y: number };
   locale: string;
-  persistSnapshot: (snapshot: BoardSnapshot, options?: { requireLocalApi?: boolean }) => Promise<void>;
+  runProductCommand?: <Result>(
+    operation: (commands: WhiteboardProductCommandsV1) => Promise<Result>,
+    options?: { history?: boolean; syncFlow?: boolean },
+  ) => Promise<Result>;
   setOperationToast: (toast: OperationToast | undefined) => void;
   setSelectedBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
   selectedBlockIdsRef: RefObject<string[]>;
   snapshotRef: RefObject<BoardSnapshot>;
   t: ReturnType<typeof useI18n>['t'];
-  updateSnapshot: (
-    updater: (current: BoardSnapshot) => BoardSnapshot,
-    options?: { history?: boolean; persist?: boolean; syncFlow?: boolean },
-  ) => BoardSnapshot;
 }
 
 export function useTextGenerationController(options: TextGenerationControllerOptions) {
   const {
-    centerWorkflowBlocks,
+    adoptDurableSnapshot,
     focusWorkflowBlocks,
+    getViewportCenter,
     locale,
-    persistSnapshot,
+    runProductCommand,
     setOperationToast,
     setSelectedBlocks,
     selectedBlockIdsRef,
     snapshotRef,
     t,
-    updateSnapshot,
   } = options;
 
-  function createTextGenerationDraft(): void {
-    let workflowBlockIds: string[] = [];
-    const nextSnapshot = updateSnapshot((current) => {
-      const draft = createDraftTextGenerationOperation(current, {
-        ...labels(),
-        connectionId: preferredTextConnection(current),
-      });
-      workflowBlockIds = [draft.promptBlock.blockId, draft.operationBlock.blockId];
-      centerWorkflowBlocks(current, workflowBlockIds);
-      return current;
-    }, { history: true, persist: true });
-    if (workflowBlockIds.length) {
-      setSelectedBlocks(nextSnapshot, workflowBlockIds);
-      focusWorkflowBlocks(workflowBlockIds);
-    }
+  async function createTextGenerationDraft(): Promise<void> {
+    const draft = await requireProductCommands(runProductCommand)(
+      (commands) => commands.operationDraft.createText({
+        labels: labels(),
+        placementCenter: getViewportCenter(),
+      }),
+      { history: true },
+    );
+    selectAndFocus(draft.blockIds);
   }
 
-  function createSkillDraft(
+  async function createSkillDraft(
     target: Extract<ResolvedPackageEntryPointTarget, { kind: 'skill' }>,
     composer?: ResolvedPackageComposerInvocation,
-  ): void {
+  ): Promise<void> {
+    const capabilityId = target.capabilityLock.capabilityId;
     const skillId = target.entrypoint.ref.skillId;
-    let workflowBlockIds: string[] = [];
-    const nextSnapshot = updateSnapshot((current) => {
-      const skillLabels = textGenerationLabelsForSkill(skillId, locale, t);
-      const explicitInputBindings = composer?.invocation.mentions.map((mention) => mention.kind === 'block'
-        ? { kind: 'block' as const, blockId: mention.blockId, inputSlotId: mention.slotId }
-        : { kind: 'asset' as const, assetId: mention.assetId, inputSlotId: mention.slotId });
-      if (target.capabilityLock.capabilityId === storyboardSheetCapabilityId) {
-        const unitId = composer?.invocation.inlineValues?.find(
-          (value) => value.slotId === 'unit_id',
-        )?.value;
-        const draft = createDraftStoryboardSheetOperation(current, {
-          connectionId: preferredImageConnection(current, target.capabilityLock.capabilityId),
-          explicitInputBindings,
-          labels: skillLabels,
-          packageContext: {
-            entrypointId: target.entrypoint.entrypointId,
-            packageLock: target.packageLock,
-          },
-          parameters: composer?.invocation.parameters,
-          selectedBlockIds: composer ? [] : selectedBlockIdsRef.current,
-          unitId: typeof unitId === 'string' ? unitId : undefined,
-        });
-        workflowBlockIds = [...draft.inputBlocks.map((block) => block.blockId), draft.operationBlock.blockId];
-        centerWorkflowBlocks(current, workflowBlockIds);
-        return current;
-      }
-      if (target.capabilityLock.capabilityId === generationPreparationCapabilityId) {
-        const unitValue = composer?.invocation.inlineValues?.find(
-          (value) => value.slotId === 'unit_id',
-        )?.value;
-        const manifestValue = composer?.invocation.inlineValues?.find(
-          (value) => value.slotId === 'reference_manifest',
-        )?.value;
-        const draft = createDraftGenerationPreparationOperation(current, {
-          connectionId: preferredTextConnection(current, target.capabilityLock.capabilityId),
-          explicitInputBindings,
-          labels: skillLabels,
-          packageContext: {
-            entrypointId: target.entrypoint.entrypointId,
-            packageLock: target.packageLock,
-          },
-          parameters: composer?.invocation.parameters,
-          referenceManifest: manifestValue,
-          selectedBlockIds: composer ? [] : selectedBlockIdsRef.current,
-          unitId: typeof unitValue === 'string' ? unitValue : undefined,
-        });
-        workflowBlockIds = [...draft.inputBlocks.map((inputBlock) => inputBlock.blockId), draft.operationBlock.blockId];
-        centerWorkflowBlocks(current, workflowBlockIds);
-        return current;
-      }
-      if (target.capabilityLock.capabilityId === domainVideoGenerationCapabilityId) {
-        const draft = createDraftDomainVideoGenerationOperation(current, {
-          connectionId: preferredVideoConnection(current, target.capabilityLock.capabilityId),
-          explicitInputBindings,
-          labels: skillLabels,
-          packageContext: {
-            entrypointId: target.entrypoint.entrypointId,
-            packageLock: target.packageLock,
-          },
-          parameters: composer?.invocation.parameters,
-          selectedBlockIds: composer ? [] : selectedBlockIdsRef.current,
-        });
-        workflowBlockIds = [...draft.inputBlocks.map((inputBlock) => inputBlock.blockId), draft.operationBlock.blockId];
-        centerWorkflowBlocks(current, workflowBlockIds);
-        return current;
-      }
-      const draft = createDraftSkillOperation(current, {
-        ...skillLabels,
-        connectionId: preferredTextConnection(current, target.capabilityLock.capabilityId),
+    const unitId = inlineString(composer, 'unit_id');
+    const draft = await requireProductCommands(runProductCommand)(
+      (commands) => commands.operationDraft.createSkill({
+        capabilityId,
+        explicitInputBindings: composer?.invocation.mentions.map((mention) => mention.kind === 'block'
+          ? { kind: 'block' as const, blockId: mention.blockId, inputSlotId: mention.slotId }
+          : { kind: 'asset' as const, assetId: mention.assetId, inputSlotId: mention.slotId }),
+        initialText: composer?.instructionSlotId && composer.invocation.instruction
+          ? { body: composer.invocation.instruction, inputSlotId: composer.instructionSlotId }
+          : undefined,
+        labels: textGenerationLabelsForSkill(skillId, locale, t),
         packageContext: {
           entrypointId: target.entrypoint.entrypointId,
           packageLock: target.packageLock,
         },
-        explicitInputBindings,
-        initialText: composer?.instructionSlotId && composer.invocation.instruction
-          ? { body: composer.invocation.instruction, inputSlotId: composer.instructionSlotId }
-          : undefined,
+        parameters: composer?.invocation.parameters,
+        placementCenter: getViewportCenter(),
+        referenceManifest: inlineValue(composer, 'reference_manifest'),
         selectedBlockIds: composer ? [] : selectedBlockIdsRef.current,
         skillId,
-      });
-      workflowBlockIds = [...draft.inputBlocks.map((block) => block.blockId), draft.operationBlock.blockId];
-      centerWorkflowBlocks(current, workflowBlockIds);
-      return current;
-    }, { history: true, persist: true });
-    if (workflowBlockIds.length) {
-      setSelectedBlocks(nextSnapshot, workflowBlockIds);
-      focusWorkflowBlocks(workflowBlockIds);
-    }
+        unitId,
+      }),
+      { history: true },
+    );
+    selectAndFocus(draft.blockIds);
   }
 
   async function startTextGenerationOperation(block: BlockRecord): Promise<void> {
     if (
-      block.type !== 'operation' ||
-      !isTextDocumentCapability(typeof block.data.capabilityId === 'string' ? block.data.capabilityId : '') ||
-      blockLockedByGroup(snapshotRef.current, block.blockId)
+      block.type !== 'operation'
+      || !isTextDocumentCapability(currentCapabilityId(block))
+      || blockLockedByGroup(snapshotRef.current, block.blockId)
     ) return;
     let executionId = '';
-    let connectionId = '';
-    let resultBlockId = '';
+    const initialScope = scopeFor(snapshotRef.current);
+    const capabilityId = currentCapabilityId(block);
     try {
-      await persistSnapshot(snapshotRef.current, { requireLocalApi: true });
-      const artifactLibrary = currentCapabilityId(block) === generationPreparationCapabilityId
-        ? await loadProjectArtifactAuthority(snapshotRef.current.project.projectId)
+      const artifactLibrary = capabilityId === generationPreparationCapabilityId
+        ? await loadProjectArtifactAuthority(initialScope.projectId)
         : undefined;
-      const queuedSnapshot = updateSnapshot((current) => {
-        const currentBlock = current.blocks.find((candidate) => candidate.blockId === block.blockId);
-        if (!currentBlock || currentBlock.type !== 'operation') return current;
-        const preference = resolveExecutionConnectionPreference({
-          capabilityId: String(currentBlock.data.capabilityId),
-          explicitConnectionId: typeof currentBlock.data.connectionId === 'string'
-            ? currentBlock.data.connectionId
-            : undefined,
-          initialConnectionId: 'codex-app-server',
-          projectId: current.project.projectId,
-          useCase: 'text',
-        });
-        connectionId = preference.connectionId ?? '';
-        const connection = executionConnection(connectionId, current.project.projectId);
-        if (!connection || !preference.isUsable) throw new Error(t('feedback.connectionUnavailable'));
-        const run = currentBlock.data.capabilityId === generationPreparationCapabilityId
-          ? executeExistingGenerationPreparationOperation(current, {
-              artifactLibrary: artifactLibrary!,
-              connection,
-              labels: labelsForOperation(currentBlock),
-              operationBlockId: currentBlock.blockId,
-            })
-          : executeExistingTextGenerationOperation(current, {
-              connection,
-              labels: labelsForOperation(currentBlock),
-              operationBlockId: currentBlock.blockId,
-            });
-        executionId = run.execution.executionId;
-        resultBlockId = run.resultBlock.blockId;
-        return current;
-      }, { history: true });
-      beginDocumentStream(resultBlockId);
-      await persistSnapshot(queuedSnapshot, { requireLocalApi: true });
+      const queued = await requireProductCommands(runProductCommand)(
+        (commands) => commands.textGeneration.queue({
+          artifactLibrary,
+          connectionUnavailableMessage: t('feedback.connectionUnavailable'),
+          expectedScope: initialScope,
+          labels: labelsForOperation(block),
+          operationBlockId: block.blockId,
+        }),
+        { history: true },
+      );
+      executionId = queued.executionId;
+      beginDocumentStream(queued.resultBlockId);
       let finishStream: ((snapshot: BoardSnapshot) => void) | undefined;
       let failStream: ((error: Error) => void) | undefined;
       const streamCompletion = new Promise<BoardSnapshot>((resolve, reject) => {
@@ -228,8 +123,7 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
         failStream = reject;
       });
       const unsubscribe = subscribeExecutionEvents({
-        projectId: queuedSnapshot.project.projectId,
-        boardId: queuedSnapshot.board.boardId,
+        ...queued.scope,
         executionId,
         onError: () => failStream?.(new Error('Execution event stream disconnected.')),
         onEvent: (event) => {
@@ -238,32 +132,32 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
           } else if (event.type === 'execution.snapshot') {
             finishStream?.(event.snapshot);
           } else if (event.type === 'execution.failed') {
-            const failedSnapshot = event.snapshot;
-            if (failedSnapshot) updateSnapshot(() => failedSnapshot, { history: false, persist: false });
+            if (event.snapshot) adoptIfCurrent(event.snapshot);
             failStream?.(new Error(event.errorMessage));
           }
         },
       });
       try {
         const started = await startTextGeneration({
-          projectId: queuedSnapshot.project.projectId,
-          boardId: queuedSnapshot.board.boardId,
+          ...queued.scope,
           executionId,
-          connectionId,
+          connectionId: queued.connectionId,
         });
-        const runningSnapshot = updateSnapshot(() => started.snapshot, { history: true, persist: false });
-        setSelectedBlocks(runningSnapshot, [resultBlockId]);
+        adoptIfCurrent(started.snapshot);
+        if (isCurrentScope(queued.scope)) {
+          setSelectedBlocks(snapshotRef.current, [queued.resultBlockId]);
+        }
         setOperationToast({
           id: executionId,
-          title: t(feedbackTitleKey(currentCapabilityId(block), 'started')),
+          title: t(feedbackTitleKey(queued.capabilityId, 'started')),
           tone: 'success',
         });
         try {
           const completedSnapshot = await streamCompletion;
-          updateSnapshot(() => completedSnapshot, { history: false, persist: false });
+          adoptIfCurrent(completedSnapshot);
           showTextExecutionResult(executionId, completedSnapshot);
         } catch {
-          await pollTextExecution(executionId, runningSnapshot);
+          await pollTextExecution(executionId, queued.scope);
         }
       } finally {
         unsubscribe();
@@ -271,32 +165,44 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
     } catch (error) {
       setOperationToast({
         id: executionId || `text-generation:${block.blockId}`,
-        title: t(feedbackTitleKey(currentCapabilityId(block), 'failed')),
+        title: t(feedbackTitleKey(capabilityId, 'failed')),
         body: error instanceof Error ? error.message : t('feedback.localApiUnavailable'),
         tone: 'error',
       });
     }
   }
 
-  async function pollTextExecution(executionId: string, scope: BoardSnapshot): Promise<void> {
+  async function pollTextExecution(
+    executionId: string,
+    scope: CanvasHostScopeV1,
+  ): Promise<void> {
     while (true) {
       await delay(1_000);
-      const latest = await loadBoardSnapshot({
-        projectId: scope.project.projectId,
-        boardId: scope.board.boardId,
-      });
+      const latest = await loadBoardSnapshot(scope);
       const execution = latest.executions.find((candidate) => candidate.executionId === executionId);
-      if (
-        snapshotRef.current.project.projectId === scope.project.projectId &&
-        snapshotRef.current.board.boardId === scope.board.boardId
-      ) {
-        updateSnapshot(() => latest, { history: false, persist: false });
-      }
+      adoptIfCurrent(latest);
       if (!execution) throw new Error(`Text execution disappeared while waiting: ${executionId}`);
       if (execution.status === 'queued' || execution.status === 'running') continue;
       showTextExecutionResult(executionId, latest);
       return;
     }
+  }
+
+  function adoptIfCurrent(snapshot: BoardSnapshot): boolean {
+    if (!isCurrentScope(scopeFor(snapshot))) return false;
+    adoptDurableSnapshot(snapshot);
+    return true;
+  }
+
+  function isCurrentScope(scope: CanvasHostScopeV1): boolean {
+    return snapshotRef.current.project.projectId === scope.projectId
+      && snapshotRef.current.board.boardId === scope.boardId;
+  }
+
+  function selectAndFocus(blockIds: string[]): void {
+    if (blockIds.length === 0) return;
+    setSelectedBlocks(snapshotRef.current, blockIds);
+    focusWorkflowBlocks(blockIds);
   }
 
   function showTextExecutionResult(executionId: string, snapshot: BoardSnapshot): void {
@@ -323,9 +229,9 @@ export function useTextGenerationController(options: TextGenerationControllerOpt
     };
   }
 
-  function labelsForOperation(block: BlockRecord): TextGenerationLabels {
-    return typeof block.data.skillId === 'string'
-      ? textGenerationLabelsForSkill(block.data.skillId, locale, t)
+  function labelsForOperation(operation: BlockRecord): TextGenerationLabels {
+    return typeof operation.data.skillId === 'string'
+      ? textGenerationLabelsForSkill(operation.data.skillId, locale, t)
       : labels();
   }
 
@@ -356,31 +262,35 @@ function feedbackTitleKey(
   return 'feedback.screenplayFailed';
 }
 
-function preferredTextConnection(snapshot: BoardSnapshot, capabilityId = 'text.generate'): string | undefined {
-  return resolveExecutionConnectionPreference({
-    capabilityId,
-    initialConnectionId: 'codex-app-server',
-    projectId: snapshot.project.projectId,
-    useCase: 'text',
-  }).connectionId;
+function inlineValue(
+  composer: ResolvedPackageComposerInvocation | undefined,
+  slotId: string,
+): unknown {
+  return composer?.invocation.inlineValues?.find((value) => value.slotId === slotId)?.value;
 }
 
-function preferredImageConnection(snapshot: BoardSnapshot, capabilityId: string): string | undefined {
-  return resolveExecutionConnectionPreference({
-    capabilityId,
-    initialConnectionId: 'codex-app-server',
-    projectId: snapshot.project.projectId,
-    useCase: 'image',
-  }).connectionId;
+function inlineString(
+  composer: ResolvedPackageComposerInvocation | undefined,
+  slotId: string,
+): string | undefined {
+  const value = inlineValue(composer, slotId);
+  return typeof value === 'string' ? value : undefined;
 }
 
-function preferredVideoConnection(snapshot: BoardSnapshot, capabilityId: string): string | undefined {
-  return resolveExecutionConnectionPreference({
-    capabilityId,
-    initialConnectionId: 'retake-mock',
+function scopeFor(snapshot: BoardSnapshot): CanvasHostScopeV1 {
+  return {
+    boardId: snapshot.board.boardId,
     projectId: snapshot.project.projectId,
-    useCase: 'video',
-  }).connectionId;
+  };
+}
+
+function requireProductCommands(
+  runProductCommand: TextGenerationControllerOptions['runProductCommand'],
+): NonNullable<TextGenerationControllerOptions['runProductCommand']> {
+  if (!runProductCommand) {
+    throw new Error('Whiteboard Text generation command facade is unavailable.');
+  }
+  return runProductCommand;
 }
 
 function delay(milliseconds: number): Promise<void> {

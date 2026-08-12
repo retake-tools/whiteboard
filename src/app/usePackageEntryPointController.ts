@@ -13,22 +13,22 @@ interface PackageEntryPointControllerOptions {
   createSkillDraft: (
     target: Extract<ResolvedPackageEntryPointTarget, { kind: 'skill' }>,
     composer: ResolvedPackageComposerInvocation,
-  ) => void;
+  ) => void | Promise<void>;
   createWorkflowDraft: (
     target: Extract<ResolvedPackageEntryPointTarget, { kind: 'workflow' }>,
     composer: ResolvedPackageComposerInvocation,
-  ) => void;
+  ) => void | Promise<void>;
   snapshotRef: RefObject<BoardSnapshot>;
 }
 
 export function usePackageEntryPointController(options: PackageEntryPointControllerOptions) {
-  function invokeEntryPoint(invocation: PackageComposerInvocation): void {
+  async function invokeEntryPoint(invocation: PackageComposerInvocation): Promise<void> {
     const resolved = resolvePackageComposerInvocation(options.snapshotRef.current, invocation);
     if (resolved.target.kind === 'skill') {
-      options.createSkillDraft(resolved.target, resolved);
+      await options.createSkillDraft(resolved.target, resolved);
       return;
     }
-    options.createWorkflowDraft(resolved.target, resolved);
+    await options.createWorkflowDraft(resolved.target, resolved);
   }
 
   return { invokeEntryPoint };

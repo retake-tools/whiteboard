@@ -18,17 +18,8 @@ import {
 } from './components/UnifiedComposerProvider';
 import { WorkflowContinuationDialog } from './components/WorkflowContinuationDialog';
 import { getAssetPreviewUrl } from './core/assetStore';
-import {
-  createBlockRecord,
-  touchBoard,
-  videoProfileForConnector,
-} from './core/blockFactory';
-import { createId, nowIso } from './core/id';
-import type { BlockRecord, BoardSnapshot } from './core/types';
-import { executionConnection } from './core/executionProviderPreferences';
 import { blockLockedByGroup, groupMediaItems } from './core/grouping';
 import { loadUiPreferences, saveUiPreferences } from './core/uiPreferences';
-import { setBoardBackground } from './core/boardBackground';
 import { loadExecutionProviderSettings } from './core/executionProviderClient';
 import { useI18n } from './i18n';
 import { useWorkspaceController } from './app/useWorkspaceController';
@@ -87,6 +78,7 @@ import type {
 } from './core/installedRuntimeRegistryClient';
 import { loadProjectWorkflowAuthoring } from './core/workflowAuthoringClient';
 import { configureProjectWorkflowRegistry } from './core/workflowRegistry';
+import type { CanvasHostV1 } from './host-kit';
 
 const DocumentReviewWorkspace = lazy(() => import('./components/DocumentReviewWorkspace').then((module) => ({
   default: module.DocumentReviewWorkspace,
@@ -102,6 +94,7 @@ const WorkflowWorkspace = lazy(() => import('./components/WorkflowWorkspace').th
 })));
 
 export function App({
+  canvasHost,
   onPluginContributionFatalFailure,
   onPluginDraftRunnerChange,
   onPluginExecutionRunnerChange,
@@ -113,6 +106,7 @@ export function App({
   packageLifecycleController,
   pluginRuntimeController,
 }: {
+  canvasHost?: CanvasHostV1;
   onPluginContributionFatalFailure?: (
     pluginModuleId: string,
     message: string,
@@ -139,7 +133,7 @@ export function App({
   pluginRuntimeController?: PluginRuntimeControllerV1;
 } = {}): ReactElement {
   const { t } = useI18n();
-  const boardSession = useBoardSession(t);
+  const boardSession = useBoardSession(t, canvasHost);
 
   if (boardSession.status === 'loading') {
     return <WorkspaceLoadState status="loading" />;
@@ -212,6 +206,7 @@ function ReadyApp({
 }): ReactElement {
   const { locale, t } = useI18n();
   const {
+    adoptDurableSnapshot,
     applyLoadedSnapshot,
     autosaveStatus,
     canRedo,
@@ -220,10 +215,11 @@ function ReadyApp({
     persistSnapshot,
     redo,
     retrySave,
+    runHostCommand,
+    runProductCommand,
     snapshot,
     snapshotRef,
     undo,
-    updateSnapshot,
   } = boardSession;
   const initialUiPreferences = useRef(loadUiPreferences());
   const directImageImportInputRef = useRef<HTMLInputElement | null>(null);
@@ -306,13 +302,14 @@ function ReadyApp({
     onPluginContributionFatalFailure,
     pluginContributionRegistry,
     redo,
+    runHostCommand,
+    runProductCommand,
     setHistoryOpen: setIsHistoryOpen,
     setInspectorBlockId,
     snapshot,
     snapshotRef,
     t,
     undo,
-    updateSnapshot,
   });
   const {
     createBoardFromMenu,
@@ -330,15 +327,14 @@ function ReadyApp({
     setProjectBoardDialog,
     submitProjectBoardDialog,
     workspace,
-  } = useWorkspaceController({ applyLoadedSnapshot, snapshotRef, t, updateSnapshot });
+  } = useWorkspaceController({ applyLoadedSnapshot, snapshotRef, t });
   const {
     activeCanvasTool,
     canvasAreaRef,
     centeredBlockPosition,
     centerBlockGroup,
-    centerWorkflowBlocks,
-    layoutImageComposerWorkflow,
     focusWorkflowBlocks,
+    getViewportCenter,
     collapsedGroupIdsRef,
     connectActions: connectCanvasActions,
     createFlowEdgesForSelection,
@@ -359,15 +355,14 @@ function ReadyApp({
       ? snapshot.blocks.find((block) => block.blockId === selectedBlockIds[0])
       : undefined;
   const pluginExecutionRunner = usePluginExecutionController({
-    persistSnapshot,
+    adoptDurableSnapshot,
+    runHostCommand,
+    runProductCommand,
     setSelectedBlock,
     snapshotRef,
-    updateSnapshot,
   });
   const pluginDraftRunner = usePluginDraftController({
-    persistSnapshot,
-    snapshotRef,
-    updateSnapshot,
+    runProductCommand,
   });
   useEffect(() => {
     onPluginDraftRunnerChange?.(pluginDraftRunner);
@@ -421,17 +416,17 @@ function ReadyApp({
     snapshot.project.projectId,
   ]);
   const imageOperationController = useImageOperationController({
-    centeredBlockPosition,
-    centerWorkflowBlocks,
-    layoutImageComposerWorkflow,
+    adoptDurableSnapshot,
     focusWorkflowBlocks,
+    getViewportCenter,
     persistSnapshot,
+    runHostCommand,
+    runProductCommand,
     selectedBlock,
     setSelectedBlock,
     setSelectedBlocks,
     snapshotRef,
     t,
-    updateSnapshot,
   });
   const {
     closePromptPreviewAfterCopy,
@@ -479,7 +474,7 @@ function ReadyApp({
     );
   }, []);
 
-  function createOperationFromImage(mode: 'edit' | 'similar' | 'reference'): void {
+  async function createOperationFromImage(mode: 'edit' | 'similar' | 'reference'): Promise<void> {
     const request = operationFromImagePicker;
     setOperationFromImagePicker(undefined);
     if (!request) return;
@@ -487,76 +482,54 @@ function ReadyApp({
       (block) => block.blockId === request.sourceBlockId && block.type === 'image',
     );
     if (!sourceBlock) return;
-    if (mode === 'edit' || mode === 'similar') {
-      createImageToImageDraftOperation(
-        sourceBlock,
-        mode === 'similar' ? 'create_similar' : 'quick_edit',
-        undefined,
-        { centerWorkflow: true },
-      );
-      return;
-    }
-    const operation = createTextToImageDraftOperation(
-      undefined,
-      { reveal: false },
-    );
-    if (!operation) return;
-    const edgeId = createId('edge');
-    let promptBlockId: string | undefined;
-    updateSnapshot((current) => {
-      if (
-        !current.blocks.some((block) => block.blockId === sourceBlock.blockId)
-        || !current.blocks.some((block) => block.blockId === operation.blockId)
-      ) return current;
-      current.edges.push({
-        edgeId,
-        inputSlotId: 'references',
-        kind: 'execution_input',
-        sourceBlockId: sourceBlock.blockId,
-        targetBlockId: operation.blockId,
-      });
-      const promptBlock = current.edges
-        .filter((edge) => (
-          edge.kind === 'execution_input'
-          && edge.targetBlockId === operation.blockId
-        ))
-        .map((edge) => current.blocks.find((block) => block.blockId === edge.sourceBlockId))
-        .find((block) => block?.type === 'text');
-      if (promptBlock) {
-        promptBlockId = promptBlock.blockId;
-        layoutImageComposerWorkflow(current, {
-          operationBlockId: operation.blockId,
-          referenceBlockIds: [sourceBlock.blockId],
-          textBlockId: promptBlock.blockId,
-        });
+    try {
+      if (mode === 'edit' || mode === 'similar') {
+        await createImageToImageDraftOperation(
+          sourceBlock,
+          mode === 'similar' ? 'create_similar' : 'quick_edit',
+          undefined,
+          { centerWorkflow: true },
+        );
+        return;
       }
-      return touchBoard(current);
-    }, { history: true, persist: true, syncFlow: true });
-    focusWorkflowBlocks(
-      [sourceBlock.blockId, promptBlockId, operation.blockId]
-        .filter((blockId): blockId is string => Boolean(blockId)),
-      { maxZoom: 0.95 },
-    );
-    window.dispatchEvent(new CustomEvent('retake:configure-operation-reference', {
-      detail: { anchor: request.anchor, edgeId },
-    }));
+      const result = await createTextToImageDraftOperation(
+        { referenceBlockIds: [sourceBlock.blockId] },
+        { reveal: false },
+      );
+      focusWorkflowBlocks(result.blockIds, { maxZoom: 0.95 });
+      const edgeId = result.referenceEdgeIds[0];
+      if (edgeId) {
+        window.dispatchEvent(new CustomEvent('retake:configure-operation-reference', {
+          detail: { anchor: request.anchor, edgeId },
+        }));
+      }
+    } catch (error) {
+      setOperationToast({
+        id: `create-operation-from-image:${sourceBlock.blockId}`,
+        title: t('feedback.handoffUnavailable'),
+        body: error instanceof Error ? error.message : t('feedback.localApiUnavailable'),
+        tone: 'error',
+      });
+    }
   }
   const artifactLibraryController = useArtifactLibraryController({
     centeredBlockPosition,
     isOpen: isArtifactLibraryOpen,
     projectId: snapshot.project.projectId,
+    runProductCommand,
     selectedBlockId: selectedBlock?.blockId,
     setOperationToast,
     setSelectedBlock,
     snapshotRef,
     t,
-    updateSnapshot,
   });
   const blockActions = useBlockActions({
     centeredBlockPosition,
     collapsedGroupIdsRef,
     selectedBlockIds,
     selectedBlockIdsRef,
+    runHostCommand,
+    runProductCommand,
     setActiveCanvasTool,
     setCollapsedGroupIds,
     setOperationToast,
@@ -564,28 +537,28 @@ function ReadyApp({
     setSelectedBlocks,
     snapshotRef,
     t,
-    updateSnapshot,
   });
   const { addBlock, deleteBlockIds, deleteSelection, duplicateSelection } = blockActions;
   const textGenerationController = useTextGenerationController({
-    centerWorkflowBlocks,
+    adoptDurableSnapshot,
     focusWorkflowBlocks,
+    getViewportCenter,
     locale,
-    persistSnapshot,
+    runProductCommand,
     setOperationToast,
     setSelectedBlocks,
     selectedBlockIdsRef,
     snapshotRef,
     t,
-    updateSnapshot,
   });
   const workflowDraftController = useWorkflowDraftController({
-    centerBlockGroup,
     focusWorkflowBlocks,
+    getViewportCenter,
     locale,
+    runProductCommand,
     setSelectedBlocks,
+    snapshotRef,
     t,
-    updateSnapshot,
   });
   const packageEntryPointController = usePackageEntryPointController({
     createSkillDraft: textGenerationController.createSkillDraft,
@@ -597,35 +570,39 @@ function ReadyApp({
     closeDomainVideoLaunchReview,
     domainVideoLaunchReview,
   } = useDomainVideoLaunchReviewController(
-    snapshotRef,
-    snapshot.project.projectId,
-    snapshot.board.boardId,
-    updateSnapshot,
-    setOperationToast,
-    setSelectedBlocks,
+    {
+      adoptDurableSnapshot,
+      boardId: snapshot.board.boardId,
+      projectId: snapshot.project.projectId,
+      setOperationToast,
+      setSelectedBlocks,
+      snapshotRef,
+    },
   );
   const workflowRuntimeController = useWorkflowRuntimeController({
-    persistSnapshot,
+    adoptDurableSnapshot,
+    getCurrentSnapshot: () => snapshotRef.current,
+    runProductCommand,
     setOperationToast,
     t,
-    updateSnapshot,
   });
   useVideoGenerationController({
+    adoptDurableSnapshot,
+    runProductCommand,
     setOperationToast,
     setSelectedBlocks,
     snapshotRef,
     t,
-    updateSnapshot,
   });
   connectCanvasActions({ deleteBlockIds });
   const {
     restoreConfigurationVersion,
   } = useExecutionConfigurationController({
+    runProductCommand,
     setOperationToast,
     setSelectedBlock,
     snapshotRef,
     t,
-    updateSnapshot,
   });
   const {
     addOperationInputBlock,
@@ -641,6 +618,8 @@ function ReadyApp({
     copyQueuedOperationPrompt,
     locale,
     refreshQueuedOperationPrompt,
+    runHostCommand,
+    runProductCommand,
     setOperationToast,
     setSelectedBlock,
     snapshot,
@@ -652,46 +631,45 @@ function ReadyApp({
     updateOperationConnection,
     updateOperationGenerationParams,
     updateOperationGenerationProfile,
-    updateSnapshot,
   });
   const agentRuntimeController = useAgentRuntimeController({
-    persistSnapshot,
     runOperation,
+    runProductCommand,
     setOperationToast,
     snapshot,
     snapshotRef,
     t,
-    updateSnapshot,
   });
   const agentWorkspaceController = useAgentWorkspaceController({
-    centerBlockGroup,
+    adoptDurableSnapshot,
     focusWorkflowBlocks,
-    layoutImageComposerWorkflow,
+    getViewportCenter,
     locale,
-    persistSnapshot,
+    runProductCommand,
     selectedBlockIdsRef,
     setSelectedBlocks,
     snapshot,
     snapshotRef,
     t,
-    updateSnapshot,
   });
   useEffect(() => {
     saveUiPreferences({ isAgentWorkspaceOpen });
   }, [isAgentWorkspaceOpen]);
   useEffect(() => {
     if (!isAgentWorkspaceOpen) return;
-    agentWorkspaceController.ensureDefaultSession();
+    void agentWorkspaceController.ensureDefaultSession();
   }, [
     isAgentWorkspaceOpen,
     snapshot.board.boardId,
     snapshot.project.projectId,
   ]);
   const agentAttachmentController = useAgentAttachmentController({
-    centeredBlockPosition,
-    persistSnapshot,
-    snapshotRef,
-    updateSnapshot,
+    getViewportCenter,
+    runProductCommand,
+    scope: {
+      boardId: snapshot.board.boardId,
+      projectId: snapshot.project.projectId,
+    },
   });
   const groupController = useGroupController({
     canvasAreaRef,
@@ -699,6 +677,8 @@ function ReadyApp({
     createFlowEdgesForSelection,
     createFlowNodesForSelection,
     reactFlowRef,
+    runHostCommand,
+    runProductCommand,
     setActiveCanvasTool,
     setCollapsedGroupIds,
     setEdges,
@@ -708,7 +688,6 @@ function ReadyApp({
     setSelectedBlocks,
     snapshotRef,
     t,
-    updateSnapshot,
   });
   const { downloadGroupAssets } = groupController;
 
@@ -718,14 +697,14 @@ function ReadyApp({
     directImageImportInputRef,
     isMiniMapVisible,
     onBindAgentOperation: (operationBlockId) => {
-      agentWorkspaceController.bindWorkingOperation(operationBlockId);
+      void agentWorkspaceController.bindWorkingOperation(operationBlockId);
       setInspectorBlockId(undefined);
       setIsHistoryOpen(false);
       setIsArtifactLibraryOpen(false);
       setIsAgentWorkspaceOpen(true);
     },
     onUseImageInAgent: (imageBlockId) => {
-      agentWorkspaceController.ensureDefaultSession();
+      void agentWorkspaceController.ensureDefaultSession();
       setSelectedBlock(snapshotRef.current, imageBlockId);
       setInspectorBlockId(undefined);
       setIsHistoryOpen(false);
@@ -756,7 +735,7 @@ function ReadyApp({
   function toggleAgentWorkspace(): void {
     const next = !isAgentWorkspaceOpen;
     if (next) {
-      agentWorkspaceController.ensureDefaultSession();
+      void agentWorkspaceController.ensureDefaultSession();
       setInspectorBlockId(undefined);
       setIsHistoryOpen(false);
       setIsArtifactLibraryOpen(false);
@@ -770,21 +749,21 @@ function ReadyApp({
   }
 
   function showAgentRun(agentRunId: string): void {
-    agentWorkspaceController.focusAgentRun(agentRunId);
+    void agentWorkspaceController.focusAgentRun(agentRunId);
     setWorkflowWorkspaceRunId(undefined);
     setIsAgentWorkspaceOpen(true);
   }
 
-  function startWorkflowFromWorkspace(workflowRunId: string): void {
-    const agentRunId = agentRuntimeController.createWorkflowAgentRun(workflowRunId);
+  async function startWorkflowFromWorkspace(workflowRunId: string): Promise<void> {
+    const agentRunId = await agentRuntimeController.createWorkflowAgentRun(workflowRunId);
     if (agentRunId) showAgentRun(agentRunId);
   }
 
-  function startWorkflowStepFromWorkspace(
+  async function startWorkflowStepFromWorkspace(
     workflowRunId: string,
     stepRunId: string,
-  ): void {
-    const agentRunId = agentRuntimeController.createWorkflowSliceAgentRun(
+  ): Promise<void> {
+    const agentRunId = await agentRuntimeController.createWorkflowSliceAgentRun(
       workflowRunId,
       stepRunId,
     );
@@ -808,67 +787,20 @@ function ReadyApp({
     }
   }, [inspectorBlockId, isHistoryOpen]);
 
-  function createVideoComposerDraft(input: UnifiedComposerVideoDraftInput): void {
-    let createdBlockId = '';
-    const next = updateSnapshot((current) => {
-      const block = createBlockRecord(current, 'video');
-      const connection = executionConnection(
-        input.connectionId,
-        current.project.projectId,
-      );
-      createdBlockId = block.blockId;
-      block.position = centeredBlockPosition(block.size);
-      block.data = {
-        title: t('block.video.title'),
-        creativeRequest: structuredClone(input.creativeRequest),
-        executionDraft: {
-          schemaVersion: 1,
-          capabilityId: 'video.generate',
-          connectionId: input.connectionId,
-          executionProfileId: videoProfileForConnector(connection?.connectorId),
-          prompt: input.instruction,
-          parameters: {
-            aspectRatio: input.aspectRatio,
-            durationSeconds: input.durationSeconds,
-            outputCount: input.outputCount,
-            qualityTier: 'preview',
-          },
-        },
-      };
-      block.updatedAt = nowIso();
-      current.blocks.push(block);
-      for (const [index, reference] of input.references.entries()) {
-        const mention = reference.mention;
-        const source = mention.kind === 'block'
-          ? current.blocks.find(
-              (candidate) =>
-                candidate.blockId === mention.blockId
-                && candidate.type === 'image',
-            )
-          : materializeVideoReferenceAsset(
-              current,
-              mention.assetId,
-              block,
-              index,
-            );
-        if (!source) continue;
-        current.edges.push({
-          edgeId: createId('edge'),
-          inputSlotId: reference.inputSlotId,
-          kind: 'execution_input',
-          ...(reference.referenceIntent
-            ? { referenceIntent: structuredClone(reference.referenceIntent) }
-            : {}),
-          sourceBlockId: source.blockId,
-          targetBlockId: block.blockId,
-        });
-      }
-      return touchBoard(current);
-    }, { history: true, persist: true, syncFlow: true });
-    if (createdBlockId) {
-      setSelectedBlock(next, createdBlockId);
-      focusWorkflowBlocks([createdBlockId]);
+  async function createVideoComposerDraft(input: UnifiedComposerVideoDraftInput): Promise<void> {
+    if (!runProductCommand) {
+      throw new Error('Whiteboard Video generation command facade is unavailable.');
     }
+    const created = await runProductCommand(
+      (commands) => commands.videoGeneration.createDraft({
+        ...input,
+        placementCenter: getViewportCenter(),
+        title: t('block.video.title'),
+      }),
+      { history: true },
+    );
+    setSelectedBlock(snapshotRef.current, created.blockId);
+    focusWorkflowBlocks([created.blockId]);
   }
 
   const selectedImageUrl =
@@ -945,9 +877,20 @@ function ReadyApp({
         onRetrySave={() => void retrySave()}
         onSelectBoard={(projectId, boardId) => void selectBoard(projectId, boardId)}
         onSetBoardBackground={(background) => {
-          updateSnapshot(
-            (current) => setBoardBackground(current, background),
-            { history: true, persist: true, syncFlow: false },
+          const current = snapshotRef.current;
+          if (!runProductCommand) throw new Error('Whiteboard product command facade is unavailable.');
+          void runProductCommand(
+            (commands) => commands.board.setBackground({
+              background,
+              expectedScope: {
+                boardId: current.board.boardId,
+                projectId: current.project.projectId,
+              },
+            }),
+            {
+              history: true,
+              shouldKeepHistory: (result) => result.committed,
+            },
           );
         }}
         onToggleGrid={() => setShowGrid((current) => !current)}
@@ -1028,7 +971,7 @@ function ReadyApp({
         <OperationFromImagePicker
           anchor={operationFromImagePicker.anchor}
           onCancel={() => setOperationFromImagePicker(undefined)}
-          onSelect={createOperationFromImage}
+          onSelect={(mode) => void createOperationFromImage(mode)}
         />
       ) : null}
       <WorkflowContinuationDialog
@@ -1066,8 +1009,8 @@ function ReadyApp({
           reuseSelectedImageSlot: true,
         })}
         onCreateVideoDraft={createVideoComposerDraft}
-        onCreateImageToImage={createImageToImageDraftFromMenu}
-        onCreateTextToImage={() => createTextToImageDraftOperation()}
+        onCreateImageToImage={() => void createImageToImageDraftFromMenu()}
+        onCreateTextToImage={() => void createTextToImageDraftOperation()}
         onInvokeEntryPoint={packageEntryPointController.invokeEntryPoint}
         onSubmitAgentMessage={(input) => {
           setIsAgentWorkspaceOpen(true);
@@ -1289,35 +1232,6 @@ function nextAnimationFrame(): Promise<void> {
   return new Promise((resolve) => {
     window.requestAnimationFrame(() => resolve());
   });
-}
-
-function materializeVideoReferenceAsset(
-  snapshot: BoardSnapshot,
-  assetId: string,
-  targetBlock: BlockRecord,
-  index: number,
-): BlockRecord | undefined {
-  const asset = snapshot.assets.find(
-    (candidate) =>
-      candidate.assetId === assetId
-      && candidate.projectId === snapshot.project.projectId
-      && candidate.kind === 'image',
-  );
-  if (!asset) return undefined;
-  const block = createBlockRecord(snapshot, 'image');
-  block.position = {
-    x: targetBlock.position.x - block.size.width - 80,
-    y: targetBlock.position.y + index * (block.size.height + 28),
-  };
-  block.data = {
-    ...block.data,
-    assetId: asset.assetId,
-    composerSourceAssetId: asset.assetId,
-    previewUrl: asset.previewUrl,
-    title: `Video reference ${index + 1}`,
-  };
-  snapshot.blocks.push(block);
-  return block;
 }
 
 function WorkspaceLoadState({

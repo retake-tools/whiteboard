@@ -10,7 +10,17 @@ import { capabilityDefinitionFor } from '../src/core/capabilityRegistry';
 import {
   createPluginHostReadStore,
 } from '../src/core/pluginWebModuleLoader';
+import { createBlankBoardSnapshot } from '../src/core/application/createBlankBoardSnapshot';
 import { defaultSnapshot } from '../src/core/sampleBoard';
+import {
+  createCanvasHost,
+  type CanvasHostCommandsV1,
+} from '../src/host-kit';
+import {
+  createNoopHostConnections,
+  createNoopHostPackageRuntime,
+  InMemoryHostStorageAdapter,
+} from '../src/host-kit/testing';
 import type {
   AssetRecord,
   BlockRecord,
@@ -91,24 +101,62 @@ assert.deepEqual(registry.replace([{
   record: { pluginModuleId },
 }]), []);
 
-const snapshotRef = { current: snapshot };
-const persisted: BoardSnapshot[] = [];
-const selectedBlockIds: string[] = [];
-const updateSnapshot = (
-  updater: (current: BoardSnapshot) => BoardSnapshot,
-): BoardSnapshot => {
-  snapshotRef.current = updater(snapshotRef.current);
-  return snapshotRef.current;
+const scope = {
+  boardId: snapshot.board.boardId,
+  projectId: snapshot.project.projectId,
 };
-hostStore.setExecutionRunner((request) => runPluginExecution(request, {
-  persistSnapshot: async (next) => {
-    persisted.push(structuredClone(next));
+const otherSnapshot = createBlankBoardSnapshot({
+  boardId: 'board.plugin-other',
+  boardName: 'Other Plugin Board',
+  projectId: snapshot.project.projectId,
+  projectName: snapshot.project.name,
+});
+const storage = new InMemoryHostStorageAdapter([snapshot, otherSnapshot]);
+const canvasHost = await createCanvasHost({
+  connections: createNoopHostConnections(),
+  environment: {
+    colorScheme: 'light',
+    contrast: 'normal',
+    direction: 'ltr',
+    locale: 'en',
+    reducedMotion: true,
+    themeId: 'retake.plugin-command-test',
   },
+  experience: {
+    commandOverrides: [],
+    profileId: 'retake.plugin-command-test',
+    schemaVersion: 1,
+  },
+  initialScope: scope,
+  packageRuntime: createNoopHostPackageRuntime(),
+  storage,
+});
+const snapshotRef = {
+  current: structuredClone(canvasHost.readModel.getSnapshot()) as BoardSnapshot,
+};
+const selectedBlockIds: string[] = [];
+let compatibilityPersistCalls = 0;
+async function runHostCommand<Result>(
+  operation: (commands: CanvasHostCommandsV1) => Promise<Result>,
+): Promise<Result> {
+  const result = await operation(canvasHost.commands);
+  snapshotRef.current = structuredClone(
+    canvasHost.readModel.getSnapshot(),
+  ) as BoardSnapshot;
+  return result;
+}
+hostStore.setExecutionRunner((request) => runPluginExecution(request, {
+  persistSnapshot: async () => {
+    compatibilityPersistCalls += 1;
+  },
+  runHostCommand,
   setSelectedBlock: (_next, blockId) => {
     selectedBlockIds.push(blockId);
   },
   snapshotRef,
-  updateSnapshot,
+  updateSnapshot: () => {
+    throw new Error('Plugin command path must not use the compatibility snapshot updater.');
+  },
 }));
 
 const completed = await host.execution.run({
@@ -117,6 +165,7 @@ const completed = await host.execution.run({
     assert.equal(signal.aborted, false);
     assert.equal(assets[0]?.assetId, sourceAsset.assetId);
     assert.equal(assets[0]?.previewUrl, sourceAsset.previewUrl);
+    assert.equal(snapshotRef.current.executions[0]?.status, 'running');
     return {
       images: [{
         dataUrl: onePixelPng,
@@ -135,7 +184,7 @@ const completed = await host.execution.run({
 });
 
 assert.equal(completed.status, 'succeeded');
-assert.equal(persisted[0]?.executions[0]?.status, 'running');
+assert.equal(compatibilityPersistCalls, 0);
 assert.equal(snapshotRef.current.executions.length, 1);
 const execution = snapshotRef.current.executions[0]!;
 assert.equal(execution.executionId, completed.executionId);
@@ -258,9 +307,13 @@ await assert.rejects(
   host.execution.run({
     capabilityId: 'image.local_adjust',
     execute: async () => {
-      const otherBoard = structuredClone(defaultSnapshot);
-      otherBoard.board.boardId = 'board.plugin-other';
-      snapshotRef.current = otherBoard;
+      await canvasHost.setScope({
+        boardId: otherSnapshot.board.boardId,
+        projectId: otherSnapshot.project.projectId,
+      });
+      snapshotRef.current = structuredClone(
+        canvasHost.readModel.getSnapshot(),
+      ) as BoardSnapshot;
       throw new DOMException('board switched', 'AbortError');
     },
     inputBlockIds: [sourceBlock.blockId],
@@ -272,10 +325,11 @@ await assert.rejects(
   }),
   /board switched/,
 );
-const detachedFailure = persisted.at(-1)!;
+const detachedFailure = await storage.loadBoard(scope);
 assert.equal(detachedFailure.board.boardId, snapshot.board.boardId);
 assert.equal(detachedFailure.executions[0]?.status, 'failed');
 assert.equal(selectedBlockIds.length, selectedBeforeBoardSwitch + 1);
+assert.equal(compatibilityPersistCalls, 0);
 
 registry.removeModule(pluginModuleId);
 assert.throws(
@@ -291,9 +345,12 @@ await assert.rejects(
   }),
   /does not own/,
 );
+await canvasHost.dispose();
 
 process.stdout.write(`${JSON.stringify({
   capabilityOwnershipRequired: true,
+  commandFacadeOwnsPluginWriteback: true,
+  detachedCommandWritebackPreservesCurrentScope: true,
   detachedBoardExecutionPersistsFailureWithoutSelectionWrite: true,
   failedProcessorRecordsExecutionFailure: true,
   imageStudioCapabilityHasNoCoreFallback: true,

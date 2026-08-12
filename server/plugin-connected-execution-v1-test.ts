@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { PluginHostErrorV2 } from '@retake-tools/package-sdk';
 import {
   listConnectedPluginExecutionConnections,
+  runConnectedPluginExecution,
 } from '../src/app/runConnectedPluginExecution';
 import {
   runPluginExecution,
@@ -26,6 +28,13 @@ import type {
   BlockRecord,
   BoardSnapshot,
 } from '../src/core/types';
+import { createCanvasHost } from '../src/host-kit';
+import {
+  createNoopHostConnections,
+  createNoopHostPackageRuntime,
+  InMemoryHostStorageAdapter,
+} from '../src/host-kit/testing';
+import { createWhiteboardProductCommands } from '../src/whiteboard/application/whiteboardProductCommands';
 
 const pluginModuleId = 'design.retake.image-studio.connected-fixture';
 const capability = {
@@ -294,21 +303,51 @@ assert.deepEqual(connectionViews, [{
 assert.equal('baseUrl' in connectionViews[0]!, false);
 assert.equal('hasCredential' in connectionViews[0]!, false);
 
-const snapshotRef = { current: snapshot };
-const persisted: BoardSnapshot[] = [];
+const storage = new InMemoryHostStorageAdapter([snapshot]);
+const canvasHost = await createCanvasHost({
+  connections: createNoopHostConnections(),
+  environment: {
+    colorScheme: 'light',
+    contrast: 'normal',
+    direction: 'ltr',
+    locale: 'en',
+    reducedMotion: true,
+    themeId: 'retake.whiteboard.test',
+  },
+  experience: {
+    commandOverrides: [],
+    profileId: 'retake.whiteboard.test',
+    schemaVersion: 1,
+  },
+  initialScope: {
+    boardId: snapshot.board.boardId,
+    projectId: snapshot.project.projectId,
+  },
+  packageRuntime: createNoopHostPackageRuntime(),
+  storage,
+});
+const productCommands = createWhiteboardProductCommands(canvasHost);
+const snapshotRef = {
+  current: structuredClone(canvasHost.readModel.getSnapshot()) as BoardSnapshot,
+};
+let publications = 0;
+const unsubscribe = canvasHost.readModel.subscribe(() => {
+  publications += 1;
+  snapshotRef.current = structuredClone(
+    canvasHost.readModel.getSnapshot(),
+  ) as BoardSnapshot;
+});
 const selectedBlockIds: string[] = [];
 hostStore.setExecutionRunner((request) => runPluginExecution(request, {
-  persistSnapshot: async (next) => {
-    persisted.push(structuredClone(next));
+  adoptDurableSnapshot: (next) => {
+    snapshotRef.current = structuredClone(next);
   },
+  runHostCommand: (operation) => operation(canvasHost.commands),
+  runProductCommand: (operation) => operation(productCommands),
   setSelectedBlock: (_next, blockId) => {
     selectedBlockIds.push(blockId);
   },
   snapshotRef,
-  updateSnapshot(updater) {
-    snapshotRef.current = updater(snapshotRef.current);
-    return snapshotRef.current;
-  },
 }));
 
 const started = await host.execution.runConnected!({
@@ -325,7 +364,7 @@ const started = await host.execution.runConnected!({
 });
 assert.equal(started.status, 'queued');
 assert.equal(started.connectionId, 'codex-managed');
-assert.equal(persisted.length, 1);
+assert.equal(publications, 1);
 assert.equal(selectedBlockIds.length, 1);
 assert.equal(started.outputBlockIds.length, 2);
 
@@ -614,8 +653,96 @@ await assert.rejects(
   ),
 );
 assert.equal(snapshotRef.current.executions.length, executionCount);
+assert.equal(publications, 4, 'Each valid connected execution publishes exactly once.');
+assert.equal(
+  (await storage.loadBoard({
+    boardId: snapshot.board.boardId,
+    projectId: snapshot.project.projectId,
+  })).executions.length,
+  executionCount,
+  'Connected Plugin executions are durable when their command resolves.',
+);
+
+const abortController = new AbortController();
+let canceledExecutionId = '';
+await assert.rejects(
+  runConnectedPluginExecution({
+    capabilityId: 'image.masked_edit',
+    connectionId: 'codex-managed',
+    inputs: [
+      { blockId: source.blockId, slotId: 'source_image' },
+      { blockId: mask.blockId, slotId: 'inpaint_mask' },
+    ],
+    parameters: { maskEncoding: 'grayscale_white_selected_v1' },
+    prompt: 'Abort after durable queue staging.',
+  }, abortController.signal, {
+    adoptDurableSnapshot: (next) => {
+      snapshotRef.current = structuredClone(next);
+    },
+    runHostCommand: async (operation) => {
+      const result = await operation(canvasHost.commands);
+      snapshotRef.current = structuredClone(
+        canvasHost.readModel.getSnapshot(),
+      ) as BoardSnapshot;
+      return result;
+    },
+    runProductCommand: async (operation) => {
+      const result = await operation(productCommands);
+      canceledExecutionId = (result as { executionId: string }).executionId;
+      abortController.abort();
+      return result;
+    },
+    setSelectedBlock: (_next, blockId) => {
+      selectedBlockIds.push(blockId);
+    },
+    snapshotRef,
+  }),
+  (error: unknown) => error instanceof DOMException && error.name === 'AbortError',
+);
+assert.equal(
+  snapshotRef.current.executions.find(
+    (candidate) => candidate.executionId === canceledExecutionId,
+  )?.status,
+  'canceled',
+);
+assert.equal(
+  snapshotRef.current.blocks.some(
+    (block) => block.data.sourceExecutionId === canceledExecutionId && block.type === 'image',
+  ),
+  false,
+);
+
+const connectedRunnerSource = await readFile(
+  new URL('../src/app/runConnectedPluginExecution.ts', import.meta.url),
+  'utf8',
+);
+const pluginControllerSource = await readFile(
+  new URL('../src/app/usePluginExecutionController.ts', import.meta.url),
+  'utf8',
+);
+const connectedCommandSource = await readFile(
+  new URL(
+    '../src/whiteboard/application/whiteboardConnectedPluginExecutionCommands.ts',
+    import.meta.url,
+  ),
+  'utf8',
+);
+assert.match(connectedRunnerSource, /commands\.connectedPluginExecution\.queue\(/);
+assert.match(connectedRunnerSource, /adoptDurableSnapshot/);
+assert.doesNotMatch(
+  connectedRunnerSource,
+  /\b(?:addImageCodexOperation|persistSnapshot|updateSnapshot)\b/,
+);
+assert.doesNotMatch(
+  pluginControllerSource,
+  /\b(?:persistSnapshot|updateSnapshot)\b/,
+);
+assert.match(connectedCommandSource, /executeProductTransaction/);
+assert.doesNotMatch(connectedCommandSource, /startCodexAppServerImage/);
 
 registry.removeModule(pluginModuleId);
+unsubscribe();
+await canvasHost.dispose();
 
 process.stdout.write(`${JSON.stringify({
   connectedExecutionUsesCurrentRetakeConnection: true,
@@ -625,6 +752,10 @@ process.stdout.write(`${JSON.stringify({
   outpaintProviderPromptPreservesSourceRectangle: true,
   annotationPluginProjectsLegacyReadModel: true,
   annotationPluginFreezesTypedCompositeInput: true,
+  connectedExecutionUsesHostTransaction: true,
+  connectedProviderStartRemainsOutsideTransaction: true,
+  connectedServerSnapshotsUseDurableAdoption: true,
+  connectedAbortAfterQueueCancelsExecution: true,
   maskGeometryValidatedBeforeOperation: true,
   multipleResultsShareOneExecution: true,
   typedInputsPersistedToExecutionAndEdges: true,
