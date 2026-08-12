@@ -93,6 +93,7 @@ function snapshotWithSourceImage(): { snapshot: BoardSnapshot; sourceBlock: Bloc
 const { snapshot, sourceBlock } = snapshotWithSourceImage();
 const started = addPluginImageOperation(snapshot, {
   body: 'Adjust',
+  capabilityDefinition: localAdjustDefinition,
   capabilityId: 'image.local_adjust',
   params: { brightness: 20, contrast: -10, saturation: 30 },
   sourceBlockId: sourceBlock.blockId,
@@ -101,6 +102,7 @@ const started = addPluginImageOperation(snapshot, {
 
 const secondStarted = addPluginImageOperation(snapshot, {
   body: 'Crop',
+  capabilityDefinition: localAdjustDefinition,
   capabilityId: 'image.local_adjust',
   params: { brightness: 0, contrast: 0, saturation: 0 },
   sourceBlockId: sourceBlock.blockId,
@@ -160,6 +162,7 @@ assert.equal(snapshot.historyEvents?.[1]?.type, 'result_block_updated');
 const failedFixture = snapshotWithSourceImage();
 const failedStart = addPluginImageOperation(failedFixture.snapshot, {
   body: 'Adjust',
+  capabilityDefinition: localAdjustDefinition,
   capabilityId: 'image.local_adjust',
   params: { brightness: 10, contrast: 0, saturation: 0 },
   sourceBlockId: failedFixture.sourceBlock.blockId,
