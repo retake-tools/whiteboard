@@ -13,6 +13,7 @@ import type {
   ExecutionConfigurationSnapshot,
   ExecutionRecord,
 } from './types';
+import type { CapabilityDefinition } from './capabilityContracts';
 
 export function currentOperationConfiguration(
   snapshot: BoardSnapshot,
@@ -122,6 +123,7 @@ export function recordExecutionConfiguration(
   snapshot: BoardSnapshot,
   execution: ExecutionRecord,
   operationBlock: BlockRecord,
+  capabilityDefinition?: CapabilityDefinition,
 ): void {
   const inputBindings = readInputBindings(execution.params?.inputBindings);
   const currentInputEdges = new Map(
@@ -172,7 +174,12 @@ export function recordExecutionConfiguration(
 
   execution.configuration = configuration;
   execution.configurationFingerprint = configurationFingerprint(configuration);
-  recordExecutionContractSnapshot(snapshot, execution, operationBlock);
+  recordExecutionContractSnapshot(
+    snapshot,
+    execution,
+    operationBlock,
+    capabilityDefinition,
+  );
 }
 
 export function assignExecutionVersion(snapshot: BoardSnapshot, execution: ExecutionRecord): void {

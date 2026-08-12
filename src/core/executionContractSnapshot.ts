@@ -13,8 +13,13 @@ export function recordExecutionContractSnapshot(
   snapshot: BoardSnapshot,
   execution: ExecutionRecord,
   operationBlock: BlockRecord,
+  capabilityDefinition?: CapabilityDefinition,
 ): void {
-  const definition = capabilityDefinitionFor(execution.capabilityId);
+  const definition = capabilityDefinition
+    ?? capabilityDefinitionFor(execution.capabilityId);
+  if (definition.capabilityId !== execution.capabilityId) {
+    throw new Error('Execution Capability definition does not match capabilityId.');
+  }
   execution.capabilityLock = {
     capabilityId: definition.capabilityId,
     version: definition.version,
@@ -42,6 +47,11 @@ export function syncExecutionOutputContractSnapshot(execution: ExecutionRecord):
     execution.outputSlotResults = definition.outputSlots.map((slot) => ({
       slotId: slot.slotId,
       assetIds: outputAssetIdsForSlot(execution, slot.dataType),
+    }));
+  } else if (execution.outputSlotResults?.length) {
+    execution.outputSlotResults = execution.outputSlotResults.map((slot, index) => ({
+      slotId: slot.slotId,
+      assetIds: index === 0 ? [...execution.outputAssetIds] : [],
     }));
   }
   execution.resultSummary = executionResultSummary(execution);

@@ -14,6 +14,7 @@ import type {
   GroupLayoutMode,
   TriggerMode,
 } from '../../core/types';
+import type { CapabilityDefinition } from '../../core/capabilityContracts';
 import type { DeepReadonly } from './readonly';
 import type { CanvasHostScopeV1 } from './storage';
 
@@ -82,6 +83,8 @@ export interface CancelExecutionResultV1 {
 
 export interface StartLocalImageExecutionCommandV1 {
   readonly body?: string;
+  /** Exact Plugin capability contract used to snapshot portable execution lineage. */
+  readonly capabilityDefinition: DeepReadonly<CapabilityDefinition>;
   readonly capabilityId: string;
   readonly params?: Readonly<Record<string, unknown>>;
   readonly sourceBlockId: string;

@@ -14,9 +14,11 @@ import type {
   ExecutionRecord,
 } from './types';
 import { refreshWorkflowGroupLayoutForBlock } from './workflowGroupLayout';
+import type { CapabilityDefinition } from './capabilityContracts';
 
 interface PluginImageOperationInput {
   body: string;
+  capabilityDefinition: CapabilityDefinition;
   capabilityId: string;
   params?: Record<string, unknown>;
   sourceBlockId: string;
@@ -40,6 +42,9 @@ export function addPluginImageOperation(
   const sourceBlock = snapshot.blocks.find((block) => block.blockId === input.sourceBlockId);
   if (!sourceBlock || sourceBlock.type !== 'image') {
     throw new Error('Plugin image operation requires a selected image block.');
+  }
+  if (input.capabilityDefinition.capabilityId !== input.capabilityId) {
+    throw new Error('Plugin image operation Capability definition does not match capabilityId.');
   }
 
   const createdAt = nowIso();
@@ -130,7 +135,12 @@ export function addPluginImageOperation(
   }
   ensureEdge(snapshot, sourceBlock.blockId, operationBlock.blockId, 'execution_input', 'source_image');
   ensureEdge(snapshot, operationBlock.blockId, resultBlock.blockId, 'execution_output');
-  recordExecutionConfiguration(snapshot, execution, operationBlock);
+  recordExecutionConfiguration(
+    snapshot,
+    execution,
+    operationBlock,
+    input.capabilityDefinition,
+  );
   snapshot.executions.unshift(execution);
   const historyEvent: BoardHistoryEvent = {
     eventId: createId('history'),

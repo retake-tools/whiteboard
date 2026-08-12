@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createBlankBoardSnapshot } from '../src/core/application/createBlankBoardSnapshot';
+import { imageGenerateCapabilityDefinition } from '../src/core/imageGenerateContracts';
 import { createCanvasHost } from '../src/host-kit';
 import {
   createNoopHostConnections,
@@ -33,6 +34,34 @@ const scope = {
   boardId: initial.board.boardId,
   projectId: initial.project.projectId,
 };
+const localAdjustCapabilityDefinition = {
+  capabilityId: 'image.local_adjust',
+  category: 'image_editing',
+  definitionHash: 'sha256:image-local-adjust-v2',
+  displayName: 'Local image adjustment',
+  inputSlots: [{
+    artifactTypes: [],
+    bindingKinds: ['asset', 'block'],
+    cardinality: 'one',
+    dataTypes: ['image'],
+    required: true,
+    semanticRole: 'source',
+    slotId: 'source_image',
+  }],
+  outputSlots: [{
+    artifactType: 'image',
+    cardinality: 'one',
+    dataType: 'image',
+    projectionBlockTypes: ['image'],
+    semanticRole: 'adjusted_image',
+    slotId: 'result_image',
+  }],
+  parametersSchemaRef: 'definitions/image.local_adjust.parameters.json',
+  runtimeRequirements: ['browser.canvas_2d'],
+  schemaVersion: 1,
+  supportedAdapterClasses: ['local_canvas'],
+  version: '0.2.0',
+} as const;
 const host = await createCanvasHost({
   connections: createNoopHostConnections(),
   environment,
@@ -370,7 +399,40 @@ await assert.rejects(
 );
 assert.equal((await storage.listWorkspace()).projects.length, 2);
 
+const pluginLocal = await host.commands.startLocalImageExecution({
+  capabilityDefinition: localAdjustCapabilityDefinition,
+  capabilityId: localAdjustCapabilityDefinition.capabilityId,
+  params: { brightness: 5 },
+  sourceBlockId: image.blockId,
+  title: localAdjustCapabilityDefinition.displayName,
+});
+assert.deepEqual(pluginLocal.execution.capabilityLock, {
+  capabilityId: localAdjustCapabilityDefinition.capabilityId,
+  definitionHash: localAdjustCapabilityDefinition.definitionHash,
+  version: localAdjustCapabilityDefinition.version,
+});
+const completedPluginLocal = await host.commands.completeLocalImageExecution({
+  asset: {
+    assetId: 'asset_plugin_local_completion',
+    fileName: 'plugin-local.png',
+    height: 8,
+    kind: 'image',
+    mimeType: 'image/png',
+    previewUrl: 'data:image/png;base64,',
+    storageKey: 'memory://asset_plugin_local_completion',
+    storageProvider: 'custom',
+    width: 8,
+  },
+  executionId: pluginLocal.execution.executionId,
+  scope,
+});
+assert.deepEqual(completedPluginLocal.execution.outputSlotResults, [{
+  assetIds: ['asset_plugin_local_completion'],
+  slotId: 'result_image',
+}]);
+
 const detachedCompletion = await host.commands.startLocalImageExecution({
+  capabilityDefinition: imageGenerateCapabilityDefinition,
   capabilityId: 'image.generate',
   params: { brightness: 12 },
   sourceBlockId: image.blockId,
@@ -407,6 +469,7 @@ assert.equal(
 
 await host.setScope(scope);
 const detachedFailure = await host.commands.startLocalImageExecution({
+  capabilityDefinition: imageGenerateCapabilityDefinition,
   capabilityId: 'image.generate',
   sourceBlockId: image.blockId,
   title: 'Detached failure',

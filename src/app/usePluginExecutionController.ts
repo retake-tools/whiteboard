@@ -128,6 +128,7 @@ export async function runPluginExecution(
   const started = await runHostCommand(
     (commands) => commands.startLocalImageExecution({
       body: definition.displayName,
+      capabilityDefinition: definition,
       capabilityId: definition.capabilityId,
       params: parameters,
       sourceBlockId,

@@ -16,6 +16,7 @@ import type {
   BoardSnapshot,
   ExecutionRecord,
 } from '../../core/types';
+import type { CapabilityDefinition } from '../../core/capabilityContracts';
 import {
   canvasHostApiVersionV1,
   canvasHostDomainSchemaVersionV1,
@@ -417,6 +418,9 @@ export async function createCanvasHost(
       }
       const started = addPluginImageOperation(staged, {
         body: command.body ?? command.title,
+        capabilityDefinition: structuredClone(
+          command.capabilityDefinition,
+        ) as CapabilityDefinition,
         capabilityId: requiredText(command.capabilityId, 'capabilityId'),
         params: structuredClone(command.params ?? {}),
         sourceBlockId: sourceBlock.blockId,

@@ -35,6 +35,34 @@ void host.commands.attachAsset({
 });
 void host.commands.cancelExecution({ executionId: 'execution_a' });
 void host.commands.startLocalImageExecution({
+  capabilityDefinition: {
+    capabilityId: 'image.local_adjust',
+    category: 'image_editing',
+    definitionHash: 'sha256:image-local-adjust-v2',
+    displayName: 'Local image adjustment',
+    inputSlots: [{
+      artifactTypes: [],
+      bindingKinds: ['asset', 'block'],
+      cardinality: 'one',
+      dataTypes: ['image'],
+      required: true,
+      semanticRole: 'source',
+      slotId: 'source_image',
+    }],
+    outputSlots: [{
+      artifactType: 'image',
+      cardinality: 'one',
+      dataType: 'image',
+      projectionBlockTypes: ['image'],
+      semanticRole: 'adjusted_image',
+      slotId: 'result_image',
+    }],
+    parametersSchemaRef: 'definitions/image.local_adjust.parameters.json',
+    runtimeRequirements: ['browser.canvas_2d'],
+    schemaVersion: 1,
+    supportedAdapterClasses: ['local_canvas'],
+    version: '0.2.0',
+  },
   capabilityId: 'image.local_adjust',
   sourceBlockId: 'block_image',
   title: 'Local image adjustment',
