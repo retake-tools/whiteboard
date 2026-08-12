@@ -88,6 +88,10 @@ try {
   const importedPlugin = await import(
     join(installRoot, 'node_modules/@retake-tools/host-kit/dist/plugin.js')
   );
+  const reactTypes = await readFile(
+    new URL('dist-types/host-kit/react/CanvasSurface.d.ts', packageRoot),
+    'utf8',
+  );
   assert.equal(imported.canvasHostApiVersionV1, 1);
   assert.equal(typeof imported.createCanvasHost, 'function');
   assert.equal(typeof imported.createCanvasHostBoardSnapshot, 'function');
@@ -101,6 +105,7 @@ try {
   assert.equal(initialSnapshot.blocks.length, 0);
   assert.equal(typeof importedPlugin.createPluginHostReadStore, 'function');
   assert.equal(typeof importedPlugin.createPluginWebModuleRuntime, 'function');
+  assert.match(reactTypes, /onSelectionChange\?: \(blockIds: readonly string\[\]\) => void/);
 } finally {
   await rm(installRoot, { force: true, recursive: true });
 }

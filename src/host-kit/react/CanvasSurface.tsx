@@ -42,6 +42,7 @@ export interface CanvasSurfaceProps {
   readonly fitView?: boolean;
   readonly miniMap?: boolean;
   readonly onCommandError?: (error: Error) => void;
+  readonly onSelectionChange?: (blockIds: readonly string[]) => void;
   readonly pluginSurface?: HostReactPluginSurfaceV1;
   readonly showBackground?: boolean;
   readonly style?: CSSProperties;
@@ -82,8 +83,10 @@ export function CanvasSurface(props: CanvasSurfaceProps): ReactElement {
     }));
   }, [host, run]);
   const onSelectionChange = useCallback((selection: OnSelectionChangeParams) => {
-    setSelectedIds(selection.nodes.map((node) => node.id));
-  }, []);
+    const blockIds = selection.nodes.map((node) => node.id);
+    setSelectedIds(blockIds);
+    props.onSelectionChange?.(blockIds);
+  }, [props.onSelectionChange]);
 
   return (
     <section

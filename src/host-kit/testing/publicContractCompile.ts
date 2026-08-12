@@ -14,6 +14,13 @@ const initialSnapshot: CanvasHostBoardSnapshotV1 = createCanvasHostBoardSnapshot
 });
 void initialSnapshot;
 
+const canvasProps: import('../react').CanvasSurfaceProps = {
+  onSelectionChange(blockIds) {
+    void blockIds;
+  },
+};
+void canvasProps;
+
 void host.commands.createGroup({ blockIds: ['block_a', 'block_b'] });
 void host.commands.layoutGroup({ groupId: 'group_a', layoutMode: 'row' });
 void host.commands.dissolveGroup({ groupId: 'group_a' });
