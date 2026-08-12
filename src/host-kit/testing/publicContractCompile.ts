@@ -1,6 +1,18 @@
-import type { CanvasHostV1 } from '../contracts';
+import {
+  createCanvasHostBoardSnapshot,
+  type CanvasHostBoardSnapshotV1,
+  type CanvasHostV1,
+} from '..';
 
 declare const host: CanvasHostV1;
+
+const initialSnapshot: CanvasHostBoardSnapshotV1 = createCanvasHostBoardSnapshot({
+  boardId: 'board_initial',
+  boardName: 'Initial Board',
+  projectId: 'project_initial',
+  projectName: 'Initial Project',
+});
+void initialSnapshot;
 
 void host.commands.createGroup({ blockIds: ['block_a', 'block_b'] });
 void host.commands.layoutGroup({ groupId: 'group_a', layoutMode: 'row' });

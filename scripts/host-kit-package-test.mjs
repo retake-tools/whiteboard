@@ -90,6 +90,15 @@ try {
   );
   assert.equal(imported.canvasHostApiVersionV1, 1);
   assert.equal(typeof imported.createCanvasHost, 'function');
+  assert.equal(typeof imported.createCanvasHostBoardSnapshot, 'function');
+  const initialSnapshot = imported.createCanvasHostBoardSnapshot({
+    boardId: 'board_clean_consumer',
+    boardName: 'Clean Consumer Board',
+    projectId: 'project_clean_consumer',
+    projectName: 'Clean Consumer Project',
+  });
+  assert.equal(initialSnapshot.board.boardId, 'board_clean_consumer');
+  assert.equal(initialSnapshot.blocks.length, 0);
   assert.equal(typeof importedPlugin.createPluginHostReadStore, 'function');
   assert.equal(typeof importedPlugin.createPluginWebModuleRuntime, 'function');
 } finally {

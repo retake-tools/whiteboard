@@ -1,7 +1,7 @@
 import type { PluginHostExperienceProfileV1 } from '@retake-tools/package-sdk';
-import type { BoardSnapshot } from '../../core/types';
 import type { CanvasHostCommandsV1 } from './commands';
 import type { HostConnectionAdapterV1 } from './connection';
+import type { CanvasHostBoardSnapshotV1 } from './domain';
 import type { DeepReadonly } from './readonly';
 import type { HostPackageRuntimeAdapterV1 } from './runtime';
 import type { HostPackageRuntimeReadModelV1 } from './runtime';
@@ -25,8 +25,8 @@ export interface HostEnvironmentV1 {
 
 export interface CanvasHostReadModelV1 {
   getRevision(): HostBoardRevisionV1;
-  getSnapshot(): DeepReadonly<BoardSnapshot>;
-  subscribe(listener: (snapshot: DeepReadonly<BoardSnapshot>) => void): () => void;
+  getSnapshot(): DeepReadonly<CanvasHostBoardSnapshotV1>;
+  subscribe(listener: (snapshot: DeepReadonly<CanvasHostBoardSnapshotV1>) => void): () => void;
 }
 
 export interface CreateCanvasHostInputV1 {

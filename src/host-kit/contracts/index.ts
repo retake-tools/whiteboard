@@ -28,6 +28,13 @@ export type {
   UpdateGroupCommandV1,
 } from './commands';
 export type {
+  CanvasHostAssetRecordV1,
+  CanvasHostBlockRecordV1,
+  CanvasHostBoardSnapshotV1,
+  CanvasHostExecutionRecordV1,
+  CanvasHostWorkspaceSummaryV1,
+} from './domain';
+export type {
   HostConnectionAdapterV1,
   HostConnectionExecutionInputV1,
 } from './connection';

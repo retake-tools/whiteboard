@@ -12,6 +12,9 @@ Portable Retake Canvas Host V1.
 Consumers own Storage, Connection, and Package Runtime adapters. UI code receives
 an immutable Board read model and typed commands; it cannot replace snapshots.
 
+`createCanvasHostBoardSnapshot()` creates the first canonical Board for a new
+Host without requiring consumers to duplicate the Retake Snapshot schema.
+
 Every Host must create its own Plugin Web Module runtime with
 `createPluginWebModuleRuntime()`. Module sessions are intentionally not shared
 between Hosts, even when they load the same plugin ID and package digest.

@@ -1,6 +1,6 @@
 {
   "name": "@retake-tools/host-kit",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Portable Retake Canvas Host contracts, application service, and React surface.",
   "license": "Apache-2.0",
   "type": "module",
