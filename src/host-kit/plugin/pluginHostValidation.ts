@@ -7,7 +7,7 @@ import {
 } from '@retake-tools/package-sdk';
 import { PluginHostErrorV2 } from '@retake-tools/plugin-runtime';
 import type { PluginHostDraftRecordV2 } from './pluginDrafts';
-import type { AssetRecord } from './types';
+import type { AssetRecord } from '../../core/types';
 
 type CapabilityAuthorizer = (
   pluginModuleId: string,
@@ -63,7 +63,6 @@ export function assertExecutionRunInput(
     locale,
   );
 }
-
 export function assertConnectedExecutionRunInput(
   input: PluginConnectedExecutionRunInputV2,
   snapshot: PluginHostReadSnapshotV2,

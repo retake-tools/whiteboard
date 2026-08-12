@@ -41,7 +41,7 @@ import {
 } from './PluginOperationInspectorActions';
 import type {
   PluginContributionRegistryV1,
-} from '../core/pluginContributionRegistry';
+} from '../host-kit/plugin';
 
 export type { ExecutionDetailCopySource } from './ExecutionPromptDetails';
 

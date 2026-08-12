@@ -1,6 +1,6 @@
 {
   "name": "@retake-tools/host-kit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Portable Retake Canvas Host contracts, application service, and React surface.",
   "license": "Apache-2.0",
   "type": "module",
@@ -9,12 +9,17 @@
   ],
   "files": [
     "dist/index.js",
+    "dist/chunks",
+    "dist/plugin.js",
+    "dist/plugin-react.js",
     "dist/react.js",
     "dist/styles.css",
     "dist-types/core",
     "dist-types/host-kit/application",
     "dist-types/host-kit/contracts",
     "dist-types/host-kit/index.d.ts",
+    "dist-types/host-kit/plugin",
+    "dist-types/host-kit/plugin-react",
     "dist-types/host-kit/react",
     "README.md"
   ],
@@ -30,10 +35,20 @@
       "types": "./dist-types/host-kit/react/index.d.ts",
       "import": "./dist/react.js"
     },
+    "./plugin": {
+      "types": "./dist-types/host-kit/plugin/index.d.ts",
+      "import": "./dist/plugin.js"
+    },
+    "./plugin-react": {
+      "types": "./dist-types/host-kit/plugin-react/index.d.ts",
+      "import": "./dist/plugin-react.js"
+    },
     "./styles.css": "./dist/styles.css"
   },
   "peerDependencies": {
+    "@retake-tools/package-contracts": ">=0.1.7 <0.2.0",
     "@retake-tools/package-sdk": ">=0.1.7 <0.2.0",
+    "@retake-tools/plugin-runtime": ">=0.1.7 <0.2.0",
     "@xyflow/react": ">=12.11.0 <13.0.0",
     "react": ">=19.0.0 <20.0.0"
   },

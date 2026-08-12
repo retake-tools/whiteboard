@@ -23,6 +23,19 @@ assert(files.length > 0, 'Host Kit boundary has no source files.');
 
 for (const file of files) {
   const source = await readFile(file, 'utf8');
+  if (file.includes(`${path.sep}plugin${path.sep}`)) {
+    for (const forbidden of [
+      '/api/local/',
+      'createImageAssetFromDataUrl',
+      'loadPluginSettingsState',
+      'replacePluginCapabilityDefinitions',
+    ]) {
+      assert(
+        !source.includes(forbidden),
+        `${relative(file)}: public Plugin Host code contains product dependency ${forbidden}.`,
+      );
+    }
+  }
   const specifiers = importSpecifiers(source);
   for (const specifier of specifiers) {
     if (file.includes(`${path.sep}contracts${path.sep}`)) {
@@ -40,7 +53,10 @@ for (const file of files) {
       `${relative(file)}: forbidden Host Kit dependency ${specifier}.`,
     );
     assert(
-      !forbiddenInternalModules.has(path.basename(resolved)),
+      !(
+        resolved.startsWith(path.join(repositoryRoot, 'src', 'core', path.sep))
+        && forbiddenInternalModules.has(path.basename(resolved))
+      ),
       `${relative(file)}: mutable implementation ${specifier} is not a Host Kit dependency.`,
     );
   }

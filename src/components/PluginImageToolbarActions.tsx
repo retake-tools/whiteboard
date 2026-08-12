@@ -9,7 +9,7 @@ import {
 import type {
   PluginContributionRegistryV1,
   RegisteredPluginCommandV1,
-} from '../core/pluginContributionRegistry';
+} from '../host-kit/plugin';
 import { TooltipIconButton } from './Tooltip';
 import { PluginActionIcon } from './PluginActionIcon';
 

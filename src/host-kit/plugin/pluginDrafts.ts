@@ -4,7 +4,6 @@ export interface PluginHostDraftRecordV2 extends PluginDraftViewV2 {
   legacy?: true;
   pluginModuleId: string;
 }
-
 export function pluginDraftView(
   draft: PluginHostDraftRecordV2,
 ): PluginDraftViewV2 {

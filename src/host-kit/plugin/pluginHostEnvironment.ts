@@ -35,7 +35,6 @@ export function createPluginHostEnvironment(): {
     },
   };
 }
-
 function normalizeLocale(locale: string): string {
   try {
     return new Intl.Locale(locale).toString();

@@ -70,7 +70,7 @@ import type { BoardSessionPorts } from './useBoardSession';
 import type {
   PluginContributionRegistryV1,
   RegisteredPluginCommandV1,
-} from '../core/pluginContributionRegistry';
+} from '../host-kit/plugin';
 import type { CanvasHostCommandsV1 } from '../host-kit';
 import type { WhiteboardProductCommandsV1 } from '../whiteboard/application/whiteboardProductCommands';
 

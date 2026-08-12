@@ -6,6 +6,7 @@ import type {
   PluginRuntimeSnapshotV1,
 } from '@retake-tools/package-sdk';
 import { listConnectedPluginExecutionConnections } from '../../app/runConnectedPluginExecution';
+import { createImageAssetFromDataUrl } from '../../core/assetStore';
 import {
   bootstrapInstalledRuntimeRegistry,
   confirmPluginActivation,
@@ -17,24 +18,26 @@ import {
   type PackageLifecycleControllerV1,
 } from '../../core/packageLifecycleClient';
 import type { PackageDevelopmentSnapshotV1 } from '../../core/packageLifecycleContracts';
-import {
-  createPluginContributionRegistry,
-  type PluginContributionRegistryV1,
-} from '../../core/pluginContributionRegistry';
+import { replacePluginCapabilityDefinitions } from '../../core/pluginCapabilityDefinitions';
 import { resolveCandidateActivationDecision } from '../../core/pluginDevelopmentActivation';
 import {
   loadPluginExperience,
   loadPluginProfile,
+  loadPluginSettingsState,
+  updatePluginSettingsState,
 } from '../../core/pluginFoundationConfigClient';
-import type { PluginHostDraftRecordV2 } from '../../core/pluginDrafts';
 import {
+  createPluginContributionRegistry,
   createPluginHostReadStore,
-  disposePluginWebModule,
-  reconcilePluginWebModules,
+  createPluginWebModuleRuntime,
+  type PluginContributionRegistryV1,
   type PluginDraftRunnerV2,
   type PluginExecutionRunnerV2,
+  type PluginHostDraftRecordV2,
   type PluginHostReadStore,
-} from '../../core/pluginWebModuleLoader';
+  type PluginWebModuleReconcileResult,
+  type PluginWebModuleRuntimeV1,
+} from '../../host-kit/plugin';
 import {
   createPluginRuntimeController,
   loadPluginRuntimeSnapshot,
@@ -71,8 +74,15 @@ export interface WhiteboardPluginHostRuntime {
 }
 
 export async function createWhiteboardPluginHostRuntime(): Promise<WhiteboardPluginHostRuntime> {
-  const pluginContributionRegistry = createPluginContributionRegistry();
+  const pluginContributionRegistry = createPluginContributionRegistry({
+    onCapabilitiesChanged: (capabilities) => {
+      replacePluginCapabilityDefinitions(
+        capabilities.map((capability) => capability.definition),
+      );
+    },
+  });
   const pluginHostReadStore = createReadStore(pluginContributionRegistry);
+  const pluginWebModuleRuntime = createPluginWebModuleRuntime();
   const { packageFailures, pluginRuntime } = await bootstrapInstalledRuntimeRegistry();
   const [profile, experience] = await Promise.all([
     loadPluginProfile(),
@@ -84,6 +94,7 @@ export async function createWhiteboardPluginHostRuntime(): Promise<WhiteboardPlu
   const applySnapshot = createSnapshotApplicator(
     pluginContributionRegistry,
     pluginHostReadStore,
+    pluginWebModuleRuntime,
   );
   const initialRuntimeSnapshot = await applySnapshot(
     pluginRuntime,
@@ -107,6 +118,7 @@ export async function createWhiteboardPluginHostRuntime(): Promise<WhiteboardPlu
       ...(failure.packageId ? { packageId: failure.packageId } : {}),
     })),
     pluginRuntimeController,
+    pluginWebModuleRuntime,
   });
 
   const runtime: WhiteboardPluginHostRuntime = {
@@ -119,7 +131,7 @@ export async function createWhiteboardPluginHostRuntime(): Promise<WhiteboardPlu
     async onPluginContributionFatalFailure(pluginModuleId, message) {
       pluginContributionRegistry.failModule(pluginModuleId, message);
       pluginHostReadStore.abortModuleExecutions(pluginModuleId);
-      void disposePluginWebModule(pluginModuleId).catch(() => undefined);
+      void pluginWebModuleRuntime.dispose(pluginModuleId).catch(() => undefined);
       await reportPluginFatalFailure(pluginModuleId, message)
         .then(() => pluginRuntimeController.refresh())
         .then(() => undefined)
@@ -164,6 +176,9 @@ function createReadStore(
     authorizeExecution: (pluginModuleId, capabilityId) => (
       registry.ownsCapability(pluginModuleId, capabilityId)
     ),
+    importImage: createImageAssetFromDataUrl,
+    loadSettingsState: loadPluginSettingsState,
+    updateSettingsState: updatePluginSettingsState,
   });
   store.setConnectionLister(listConnectedPluginExecutionConnections);
   return store;
@@ -236,6 +251,7 @@ function createActivationState(
 function createSnapshotApplicator(
   registry: PluginContributionRegistryV1,
   readStore: PluginHostReadStore,
+  pluginWebModuleRuntime: PluginWebModuleRuntimeV1,
 ): (
   baseSnapshot: PluginRuntimeSnapshotV1,
   effectiveSnapshot: PluginRuntimeSnapshotV1,
@@ -257,7 +273,7 @@ function createSnapshotApplicator(
             pluginModuleId: record.pluginModuleId,
           })),
     );
-    const pluginModules = await reconcilePluginWebModules({
+    const pluginModules = await pluginWebModuleRuntime.reconcile({
       createHost: (record) => readStore.host(
         record.negotiatedHostApiVersion!,
         record.pluginModuleId,
@@ -267,6 +283,7 @@ function createSnapshotApplicator(
         registry.removeModule(pluginModuleId);
         readStore.abortModuleExecutions(pluginModuleId);
       },
+      resolveModuleUrl: whiteboardPluginModuleUrl,
       snapshot: effectiveSnapshot,
       validateSessions: (sessions) => registry.replace(sessions),
     });
@@ -350,7 +367,7 @@ async function loadPackageDevelopmentSnapshot(): Promise<PackageDevelopmentSnaps
 async function resolveLinkedDevelopmentCandidates(
   development: PackageDevelopmentSnapshotV1,
   effectiveSnapshot: PluginRuntimeSnapshotV1,
-  result: Awaited<ReturnType<typeof reconcilePluginWebModules>>,
+  result: PluginWebModuleReconcileResult,
 ): Promise<boolean> {
   let rejected = false;
   for (const link of development.links) {
@@ -387,6 +404,7 @@ async function resolveLinkedDevelopmentCandidates(
 function createPackageRuntimeAdapter(input: {
   failures: HostPackageRuntimeSnapshotV1['failures'];
   pluginRuntimeController: PluginRuntimeControllerV1;
+  pluginWebModuleRuntime: PluginWebModuleRuntimeV1;
 }): HostPackageRuntimeAdapterV1 {
   const snapshot = (): HostPackageRuntimeSnapshotV1 => ({
     failures: input.failures,
@@ -400,9 +418,7 @@ function createPackageRuntimeAdapter(input: {
       return snapshot();
     },
     async dispose() {
-      await Promise.all(input.pluginRuntimeController.getSnapshot().modules.map(
-        (module) => disposePluginWebModule(module.pluginModuleId),
-      ));
+      await input.pluginWebModuleRuntime.disposeAll();
     },
     async setScope({ demand, scope }) {
       await input.pluginRuntimeController.setScope({
@@ -417,6 +433,17 @@ function createPackageRuntimeAdapter(input: {
     },
   };
   return Object.freeze(adapter);
+}
+
+function whiteboardPluginModuleUrl(
+  record: PluginRuntimeSnapshotV1['modules'][number],
+): string {
+  return [
+    '/api/local/plugin-runtime/modules',
+    encodeURIComponent(record.pluginModuleId),
+    encodeURIComponent(record.packageLock.digest),
+    ...record.manifest.runtime.entrypoint.split('/').map(encodeURIComponent),
+  ].join('/');
 }
 
 function pluginDemand(demand: HostRuntimeDemandV1): PluginActivationDemandV1 {

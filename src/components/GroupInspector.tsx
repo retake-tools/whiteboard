@@ -29,7 +29,7 @@ import { TooltipIconButton } from './Tooltip';
 import { WorkflowAgentTargetPicker } from './WorkflowAgentTargetPicker';
 import type {
   PluginContributionRegistryV1,
-} from '../core/pluginContributionRegistry';
+} from '../host-kit/plugin';
 
 interface CopyPromptInput {
   blockIds?: string[];

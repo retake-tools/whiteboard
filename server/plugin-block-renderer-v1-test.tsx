@@ -10,7 +10,7 @@ import {
 } from '../src/components/PluginBlockRendererHost';
 import {
   createPluginContributionRegistry,
-} from '../src/core/pluginContributionRegistry';
+} from '../src/host-kit/plugin';
 
 const host: PluginHostApiV2 = {
   assets: {

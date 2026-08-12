@@ -6,9 +6,10 @@ import type {
 } from '@retake-tools/package-sdk';
 import {
   createPluginHostReadStore,
+  createPluginWebModuleRuntime,
   disposePluginWebModule,
   reconcilePluginWebModules,
-} from '../src/core/pluginWebModuleLoader';
+} from '../src/host-kit/plugin';
 
 const readStore = createPluginHostReadStore({
   boardId: 'board.fixture',
@@ -507,6 +508,41 @@ assert.deepEqual(atomicDisposals, [
   record.packageLock.digest,
 ]);
 
+const firstHostRuntime = createPluginWebModuleRuntime();
+const secondHostRuntime = createPluginWebModuleRuntime();
+const hostRuntimeActivations: string[] = [];
+const hostRuntimeDisposals: string[] = [];
+const activateForHost = (hostId: string) => async () => {
+  hostRuntimeActivations.push(hostId);
+  return {
+    contributions: [],
+    async dispose() {
+      hostRuntimeDisposals.push(hostId);
+    },
+    pluginModuleId: record.pluginModuleId,
+  } satisfies ActivatedPluginWebModuleV2;
+};
+await firstHostRuntime.reconcile({
+  activate: activateForHost('first'),
+  createHost: () => host,
+  snapshot,
+});
+await firstHostRuntime.reconcile({
+  activate: activateForHost('first-duplicate'),
+  createHost: () => host,
+  snapshot,
+});
+await secondHostRuntime.reconcile({
+  activate: activateForHost('second'),
+  createHost: () => host,
+  snapshot,
+});
+assert.deepEqual(hostRuntimeActivations, ['first', 'second']);
+await firstHostRuntime.disposeAll();
+assert.deepEqual(hostRuntimeDisposals, ['first']);
+await secondHostRuntime.disposeAll();
+assert.deepEqual(hostRuntimeDisposals, ['first', 'second']);
+
 process.stdout.write(`${JSON.stringify({
   activationFailureRetainsLastGoodSession: true,
   activationFailureReportsFatalState: true,
@@ -517,6 +553,7 @@ process.stdout.write(`${JSON.stringify({
   connectedExecutionUsesTypedBoundInputs: true,
   executionRequiresBoundBlocksAndCapabilityOwnership: true,
   fatalDisposalDetachesActivation: true,
+  hostRuntimeModuleCachesAreIsolated: true,
   safeModeDisposesActivation: true,
   scopedReadSnapshotStableAndImmutable: true,
   scopedAssetMetadataStableAndImmutable: true,

@@ -9,11 +9,11 @@ import type {
 } from '../core/types';
 import type {
   PluginHostDraftRecordV2,
-} from '../core/pluginDrafts';
+} from '../host-kit/plugin';
 import type {
   PluginDraftRunnerRequestV2,
   PluginDraftRunnerV2,
-} from '../core/pluginWebModuleLoader';
+} from '../host-kit/plugin';
 import type { WhiteboardProductCommandsV1 } from '../whiteboard/application/whiteboardProductCommands';
 
 interface PluginDraftControllerOptions {

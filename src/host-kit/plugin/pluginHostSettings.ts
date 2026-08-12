@@ -11,11 +11,28 @@ import {
   PluginHostErrorV2,
   resolvePluginSettingsValuesV1,
 } from '@retake-tools/plugin-runtime';
-import {
-  loadPluginSettingsState,
-  updatePluginSettingsState,
-  type PluginSettingsPersistedStateV1,
-} from './pluginFoundationConfigClient';
+export interface PluginSettingsPersistedEntryV1 {
+  readonly pluginModuleId: string;
+  readonly schemaVersion: number;
+  readonly scope: PluginSettingScopeV1;
+  readonly scopeId: string;
+  readonly settingsId: string;
+  readonly values: Readonly<Record<string, PluginJsonValueV2>>;
+}
+
+export interface PluginSettingsPersistedStateV1 {
+  readonly entries: readonly PluginSettingsPersistedEntryV1[];
+  readonly revision: number;
+  readonly schemaVersion: 1;
+}
+
+export interface UpdatePluginSettingsStateInputV1 {
+  readonly definition: PluginSettingsV1;
+  readonly pluginModuleId: string;
+  readonly scope: PluginSettingScopeV1;
+  readonly scopeId: string;
+  readonly values: Readonly<Record<string, PluginJsonValueV2>>;
+}
 
 export interface PluginSettingsDefinitionRegistrationV1 {
   definition: PluginSettingsV1;
@@ -24,7 +41,9 @@ export interface PluginSettingsDefinitionRegistrationV1 {
 
 export interface PluginHostSettingsDependenciesV1 {
   loadSettingsState?: () => Promise<PluginSettingsPersistedStateV1>;
-  updateSettingsState?: typeof updatePluginSettingsState;
+  updateSettingsState?: (
+    input: UpdatePluginSettingsStateInputV1,
+  ) => Promise<PluginSettingsPersistedStateV1>;
 }
 
 export function createPluginHostSettingsStore(
@@ -55,9 +74,9 @@ export function createPluginHostSettingsStore(
           pluginModuleId: entry.pluginModuleId,
         })
       )));
-      persistedState = await (
-        dependencies.loadSettingsState ?? loadPluginSettingsState
-      )();
+      persistedState = dependencies.loadSettingsState
+        ? await dependencies.loadSettingsState()
+        : emptySettingsState();
       recompute(scope);
     },
     subscribe(listener: () => void) {
@@ -86,9 +105,13 @@ export function createPluginHostSettingsStore(
         input.scope,
         input.values,
       );
-      persistedState = await (
-        dependencies.updateSettingsState ?? updatePluginSettingsState
-      )({
+      if (!dependencies.updateSettingsState) {
+        throw new PluginHostErrorV2(
+          'unavailable',
+          'Plugin Settings persistence is not configured for this Host.',
+        );
+      }
+      persistedState = await dependencies.updateSettingsState({
         definition: registration.definition,
         pluginModuleId: input.pluginModuleId,
         scope: input.scope,
@@ -149,6 +172,10 @@ export function createPluginHostSettingsStore(
     snapshots = next;
     for (const listener of listeners) listener();
   }
+}
+
+function emptySettingsState(): PluginSettingsPersistedStateV1 {
+  return { entries: [], revision: 0, schemaVersion: 1 };
 }
 
 function settingsScopeId(

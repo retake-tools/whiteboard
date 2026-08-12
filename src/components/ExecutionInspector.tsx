@@ -16,7 +16,7 @@ import { SafeMarkdown } from './SafeMarkdown';
 import { TooltipIconButton } from './Tooltip';
 import type {
   PluginContributionRegistryV1,
-} from '../core/pluginContributionRegistry';
+} from '../host-kit/plugin';
 
 interface CopyPromptInput {
   blockIds?: string[];

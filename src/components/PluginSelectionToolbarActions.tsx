@@ -8,7 +8,7 @@ import {
 import type {
   PluginContributionRegistryV1,
   RegisteredPluginCommandV1,
-} from '../core/pluginContributionRegistry';
+} from '../host-kit/plugin';
 import type {
   PluginImageBlockV1,
 } from '@retake-tools/package-sdk';

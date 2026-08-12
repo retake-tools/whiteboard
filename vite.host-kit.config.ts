@@ -9,6 +9,8 @@ export default defineConfig({
     lib: {
       entry: {
         index: resolve(import.meta.dirname, 'src/host-kit/index.ts'),
+        plugin: resolve(import.meta.dirname, 'src/host-kit/plugin/index.ts'),
+        'plugin-react': resolve(import.meta.dirname, 'src/host-kit/plugin-react/index.ts'),
         react: resolve(import.meta.dirname, 'src/host-kit/react/index.ts'),
         styles: resolve(import.meta.dirname, 'src/host-kit/styles.ts'),
       },
@@ -20,8 +22,12 @@ export default defineConfig({
         'react',
         'react/jsx-runtime',
         '@xyflow/react',
+        '@retake-tools/package-contracts',
+        '@retake-tools/package-sdk',
+        '@retake-tools/plugin-runtime',
       ],
       output: {
+        chunkFileNames: 'chunks/[name]-[hash].js',
         entryFileNames: '[name].js',
       },
     },

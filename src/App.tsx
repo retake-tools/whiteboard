@@ -57,14 +57,14 @@ import type {
 import { PluginPanelHost } from './components/PluginPanelHost';
 import type {
   PluginContributionRegistryV1,
-} from './core/pluginContributionRegistry';
+} from './host-kit/plugin';
 import type {
   PluginDraftRunnerV2,
   PluginExecutionRunnerV2,
-} from './core/pluginWebModuleLoader';
+} from './host-kit/plugin';
 import type {
   PluginHostDraftRecordV2,
-} from './core/pluginDrafts';
+} from './host-kit/plugin';
 import { pluginHostBoundScope } from './core/pluginHostScope';
 import type {
   PluginActivationDemandV1,

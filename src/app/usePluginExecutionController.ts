@@ -11,7 +11,7 @@ import {
 import type {
   PluginExecutionRunnerRequestV2,
   PluginExecutionRunnerV2,
-} from '../core/pluginWebModuleLoader';
+} from '../host-kit/plugin';
 import type {
   AssetRecord,
   BoardSnapshot,

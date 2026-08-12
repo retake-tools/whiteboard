@@ -3,7 +3,7 @@ import type {
   PluginJsonValueV2,
 } from '@retake-tools/package-sdk';
 import { nowIso } from '../../core/id';
-import type { PluginDraftRunnerRequestV2 } from '../../core/pluginWebModuleLoader';
+import type { PluginDraftRunnerRequestV2 } from '../../host-kit/plugin';
 import type {
   BoardSnapshot,
   RetakePluginDraftRecord,

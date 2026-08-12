@@ -13,7 +13,7 @@ import {
 import type {
   PluginContributionRegistryV1,
   RegisteredPluginPanelV1,
-} from '../core/pluginContributionRegistry';
+} from '../host-kit/plugin';
 
 export function PluginPanelHost({
   anchorBlockId,

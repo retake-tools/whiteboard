@@ -18,7 +18,7 @@ import type {
   PluginRendererBlockTypeV1,
   PluginRendererBlockViewV1,
   RegisteredPluginBlockRendererV1,
-} from '../core/pluginContributionRegistry';
+} from '../host-kit/plugin';
 
 interface PluginBlockRendererContextV1 {
   onFatalFailure(

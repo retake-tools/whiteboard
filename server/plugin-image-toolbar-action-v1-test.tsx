@@ -18,7 +18,7 @@ import {
 } from '../src/components/PluginOperationInspectorActions';
 import {
   createPluginContributionRegistry,
-} from '../src/core/pluginContributionRegistry';
+} from '../src/host-kit/plugin';
 import {
   commandShortcutFromKeyboardEvent,
 } from '../src/app/useCanvasController';

@@ -11,7 +11,7 @@ import { applyWhiteboardPluginDraft } from '../src/whiteboard/application/whiteb
 import {
   createPluginHostReadStore,
   type PluginExecutionRunnerRequestV2,
-} from '../src/core/pluginWebModuleLoader';
+} from '../src/host-kit/plugin';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import type {
   AssetRecord,

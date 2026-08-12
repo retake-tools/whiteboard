@@ -10,13 +10,14 @@ import {
 } from '../src/app/usePluginExecutionController';
 import {
   createPluginContributionRegistry,
-} from '../src/core/pluginContributionRegistry';
+} from '../src/host-kit/plugin';
 import {
   cacheExecutionProviderSettings,
 } from '../src/core/executionProviderPreferences';
+import { replacePluginCapabilityDefinitions } from '../src/core/pluginCapabilityDefinitions';
 import {
   createPluginHostReadStore,
-} from '../src/core/pluginWebModuleLoader';
+} from '../src/host-kit/plugin';
 import {
   createProviderImagePrompt,
   imageExecutionInputAssignments,
@@ -209,7 +210,14 @@ const mask = snapshot.blocks.find(
 )!;
 const sourceAsset = assetFor(snapshot, source);
 const maskAsset = assetFor(snapshot, mask);
-const registry = createPluginContributionRegistry();
+let importedAssetSequence = 0;
+const registry = createPluginContributionRegistry({
+  onCapabilitiesChanged: (capabilities) => {
+    replacePluginCapabilityDefinitions(
+      capabilities.map((candidate) => candidate.definition),
+    );
+  },
+});
 const hostStore = createPluginHostReadStore({
   boardId: snapshot.board.boardId,
   boundAssetIds: [sourceAsset.assetId, maskAsset.assetId],
@@ -222,6 +230,21 @@ const hostStore = createPluginHostReadStore({
   authorizeExecution: (candidateModuleId, capabilityId) => (
     registry.ownsCapability(candidateModuleId, capabilityId)
   ),
+  importImage: async (input) => {
+    const assetId = `asset.connected-import-${++importedAssetSequence}`;
+    return {
+      assetId,
+      createdAt: '2026-07-27T00:00:01.000Z',
+      height: input.height,
+      kind: 'image',
+      mimeType: input.dataUrl.slice(5, input.dataUrl.indexOf(';')),
+      previewUrl: input.dataUrl,
+      projectId: input.projectId,
+      storageKey: `memory://${assetId}/${input.fileName}`,
+      storageProvider: 'local_mock',
+      width: input.width,
+    };
+  },
 });
 const host = hostStore.host(2, pluginModuleId);
 hostStore.update(host.getReadSnapshot(), [sourceAsset, maskAsset]);

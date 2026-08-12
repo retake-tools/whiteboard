@@ -5,11 +5,12 @@ import {
 } from '../src/app/usePluginExecutionController';
 import {
   createPluginContributionRegistry,
-} from '../src/core/pluginContributionRegistry';
+} from '../src/host-kit/plugin';
 import { capabilityDefinitionFor } from '../src/core/capabilityRegistry';
+import { replacePluginCapabilityDefinitions } from '../src/core/pluginCapabilityDefinitions';
 import {
   createPluginHostReadStore,
-} from '../src/core/pluginWebModuleLoader';
+} from '../src/host-kit/plugin';
 import { createBlankBoardSnapshot } from '../src/core/application/createBlankBoardSnapshot';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import {
@@ -68,7 +69,13 @@ const sourceBlock = snapshot.blocks.find(
 const sourceAsset = snapshot.assets.find(
   (asset) => asset.assetId === 'asset.plugin-source',
 )!;
-const registry = createPluginContributionRegistry();
+const registry = createPluginContributionRegistry({
+  onCapabilitiesChanged: (capabilities) => {
+    replacePluginCapabilityDefinitions(
+      capabilities.map((candidate) => candidate.definition),
+    );
+  },
+});
 const hostStore = createPluginHostReadStore({
   boardId: snapshot.board.boardId,
   boundAssetIds: [sourceAsset.assetId],

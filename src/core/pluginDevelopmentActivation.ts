@@ -6,7 +6,7 @@ import type {
 } from './packageLifecycleContracts';
 import type {
   PluginWebModuleReconcileResult,
-} from './pluginWebModuleLoader';
+} from '../host-kit/plugin';
 
 export function resolveCandidateActivationDecision(input: {
   effectiveSnapshot: PluginRuntimeSnapshotV1;

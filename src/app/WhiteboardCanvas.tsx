@@ -40,7 +40,7 @@ import {
 import { maxBoardZoom, minBoardZoom } from '../core/boardViewStateStore';
 import type {
   PluginContributionRegistryV1,
-} from '../core/pluginContributionRegistry';
+} from '../host-kit/plugin';
 import { blockLockedByGroup } from '../core/grouping';
 import type {
   AssetRecord,

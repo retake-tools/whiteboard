@@ -24,9 +24,6 @@ import type {
   ComponentType,
 } from 'react';
 import {
-  replacePluginCapabilityDefinitions,
-} from './pluginCapabilityDefinitions';
-import {
   pluginCapabilityConflicts,
   localizeRegisteredPluginCapability,
   registeredPluginCapabilityFrom,
@@ -38,7 +35,7 @@ export type {
 } from './pluginCapabilityContributions';
 import type {
   BlockType,
-} from './types';
+} from '../../core/types';
 
 export type PluginRendererBlockTypeV1 = Exclude<BlockType, 'group'>;
 
@@ -180,8 +177,15 @@ export interface PluginContributionRegistryV1 {
   subscribe(listener: () => void): () => void;
 }
 
-export function createPluginContributionRegistry():
-PluginContributionRegistryV1 {
+export interface PluginContributionRegistryOptionsV1 {
+  readonly onCapabilitiesChanged?: (
+    capabilities: readonly RegisteredPluginCapabilityV1[],
+  ) => void;
+}
+
+export function createPluginContributionRegistry(
+  options: PluginContributionRegistryOptionsV1 = {},
+): PluginContributionRegistryV1 {
   let locale = 'en';
   let commands: readonly RegisteredPluginCommandV1[] =
     Object.freeze([]);
@@ -214,9 +218,7 @@ PluginContributionRegistryV1 {
     panels = Object.freeze(nextPanels);
     renderers = Object.freeze(nextRenderers);
     settings = Object.freeze(nextSettings);
-    replacePluginCapabilityDefinitions(
-      capabilities.map((capability) => capability.definition),
-    );
+    options.onCapabilitiesChanged?.(capabilities);
     for (const listener of listeners) listener();
   };
   return {

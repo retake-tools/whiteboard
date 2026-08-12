@@ -5,10 +5,11 @@ import type {
 import {
   createPluginContributionRegistry,
   type PluginContributionSessionV1,
-} from '../src/core/pluginContributionRegistry';
+} from '../src/host-kit/plugin';
 import {
   capabilityDefinitionFor,
 } from '../src/core/capabilityRegistry';
+import { replacePluginCapabilityDefinitions } from '../src/core/pluginCapabilityDefinitions';
 
 const host: PluginHostApiV2 = {
   assets: {
@@ -63,7 +64,13 @@ const host: PluginHostApiV2 = {
 const FixturePanel = () => null;
 const FixtureRenderer = () => null;
 const fixtureCommandRun = () => undefined;
-const registry = createPluginContributionRegistry();
+const registry = createPluginContributionRegistry({
+  onCapabilitiesChanged: (capabilities) => {
+    replacePluginCapabilityDefinitions(
+      capabilities.map((candidate) => candidate.definition),
+    );
+  },
+});
 let notifications = 0;
 const unsubscribe = registry.subscribe(() => {
   notifications += 1;

@@ -36,7 +36,6 @@ export function pluginHostMessage(
 ): string {
   return messages[locale.toLowerCase().startsWith('zh') ? 'zh' : 'en'][key];
 }
-
 export function normalizePluginHostError(
   error: unknown,
   locale: string,

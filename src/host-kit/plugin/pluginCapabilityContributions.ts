@@ -9,7 +9,7 @@ import type {
 import {
   assertValidCapabilityDefinition,
   type CapabilityDefinition,
-} from './capabilityContracts';
+} from '../../core/capabilityContracts';
 
 export interface RegisteredPluginCapabilityV1 {
   contributionId: string;
@@ -18,7 +18,6 @@ export interface RegisteredPluginCapabilityV1 {
   localizedDisplayName: PluginLocalizedTextV2;
   pluginModuleId: string;
 }
-
 export function registeredPluginCapabilityFrom(
   activated: ActivatedPluginContributionV2,
   pluginModuleId: string,
