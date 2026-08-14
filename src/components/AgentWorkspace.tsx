@@ -1,4 +1,4 @@
-import { Activity, Bot, CircleAlert, CircleStop, MapPin, Pause, Play } from 'lucide-react';
+import { Activity, Bot, CircleAlert, CircleStop, MapPin, Pause, Play, Route } from 'lucide-react';
 import {
   useEffect,
   useMemo,
@@ -394,6 +394,7 @@ export function AgentWorkspace({
                   return (
                     <div key={timelineItem.itemId} className="agent-workspace-timeline-item">
                       <AgentWorkflowStepMessage
+                        candidateDecisionPlacement={selectedWorkflowRun.isActiveAgentRunTarget ? 'dock' : 'inline'}
                         onLocateBlock={onLocateBlock}
                         onRerunOperation={onRerunOperation}
                         onSelectWorkflowOutput={onSelectWorkflowOutput}
@@ -553,6 +554,18 @@ export function AgentWorkspace({
               workflowRunIds={activeWorkflowRunIds}
               workingOperationBlockId={selectedSession.workingOperation?.operationBlockId}
             />
+            {selectedWorkflowRun?.isActiveAgentRunTarget
+            && !isTerminalWorkflowExperience(selectedWorkflowRun.status) ? (
+              <button
+                type="button"
+                className="agent-workspace-adjust-plan"
+                disabled={isSending}
+                onClick={() => submitSuggestedMessage(t('agentWorkspace.workflowAdjustPlanPrompt'))}
+              >
+                <Route size={14} />
+                {t('agentWorkspace.workflowAdjustPlan')}
+              </button>
+            ) : null}
             <AgentWorkspaceComposer
               disabled={isSending}
               onAttachFiles={onAttachFiles}
@@ -565,6 +578,10 @@ export function AgentWorkspace({
       </div>
     </aside>
   );
+}
+
+function isTerminalWorkflowExperience(status: string): boolean {
+  return status === 'canceled' || status === 'failed' || status === 'succeeded';
 }
 
 function exactOperationIdInSuggestion(

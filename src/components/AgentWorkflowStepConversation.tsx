@@ -68,6 +68,7 @@ export function AgentWorkflowStepConversation({
 }
 
 export function AgentWorkflowStepMessage({
+  candidateDecisionPlacement = 'inline',
   onLocateBlock,
   onRerunOperation,
   onSelectWorkflowOutput,
@@ -76,6 +77,7 @@ export function AgentWorkflowStepMessage({
   stepIndex,
   totalStepCount,
 }: {
+  candidateDecisionPlacement?: 'dock' | 'inline';
   onLocateBlock: (blockId: string) => void;
   onRerunOperation: (operationBlockId: string) => void | Promise<void>;
   onSelectWorkflowOutput: (
@@ -150,7 +152,7 @@ export function AgentWorkflowStepMessage({
                 ? t('agentWorkspace.workflowCandidateSingle')
                 : t('agentWorkspace.workflowCandidateMultiple')}
             </strong>
-            {candidates.length > 0 ? (
+            {candidateDecisionPlacement === 'inline' && candidates.length > 0 ? (
               <div className={`agent-workflow-candidate-grid${candidates.length === 1 ? ' is-single' : ''}`}>
                 {candidates.map((candidate, index) => {
                   const isSelected = candidate.assetId === selectedCandidateId;
@@ -180,11 +182,21 @@ export function AgentWorkflowStepMessage({
                   );
                 })}
               </div>
-            ) : (
+            ) : candidateDecisionPlacement === 'inline' ? (
               <small>{t('agentWorkspace.workflowCandidatePreparing')}</small>
-            )}
+            ) : <small>{t('agentWorkspace.workflowCandidateDockHint')}</small>}
             <div className="agent-workflow-step-actions">
-              {candidates.length === 1 ? (
+              {candidateDecisionPlacement === 'dock' ? (
+                <button
+                  type="button"
+                  className="is-primary"
+                  disabled={candidates.length === 0}
+                  onClick={() => onLocateBlock(candidates[0]?.blockId ?? step.operationBlockId)}
+                >
+                  <ImageIcon size={14} />
+                  {t('agentWorkspace.workflowViewCandidates')}
+                </button>
+              ) : candidates.length === 1 ? (
                 <button
                   type="button"
                   className="is-primary"

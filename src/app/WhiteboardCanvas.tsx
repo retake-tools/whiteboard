@@ -89,6 +89,7 @@ interface WhiteboardCanvasProps {
   setMiniMapVisible: Dispatch<SetStateAction<boolean>>;
   showGrid: boolean;
   snapshot: BoardSnapshot;
+  suppressImageInspectorForSelection?: boolean;
   t: ReturnType<typeof useI18n>['t'];
   workflowRuntime: ReturnType<typeof useWorkflowRuntimeController>;
 }
@@ -116,6 +117,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
     setMiniMapVisible,
     showGrid,
     snapshot,
+    suppressImageInspectorForSelection = false,
     t,
     workflowRuntime,
   } = props;
@@ -203,7 +205,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
   const onNodeDragStop = useStableCallback(canvas.onNodeDragStop);
   const onNodeClick = useStableCallback((event: Parameters<NodeMouseHandler<RetakeNode>>[0], node: RetakeNode) => {
     canvas.onNodeClick(event, node);
-    if (event.detail > 1 || node.type !== 'image') return;
+    if (suppressImageInspectorForSelection || event.detail > 1 || node.type !== 'image') return;
     const image = snapshot.blocks.find((block) => (
       block.blockId === node.id
       && block.type === 'image'
@@ -216,6 +218,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
   const onConnectEnd = useStableCallback(canvas.onConnectEnd);
   const onSelectionChange = useStableCallback((params: OnSelectionChangeParams) => {
     canvas.onSelectionChange(params);
+    if (suppressImageInspectorForSelection) return;
     const selectedNode = params.nodes.length === 1 ? params.nodes[0] : undefined;
     const selectedImage = selectedNode?.type === 'image'
       ? snapshot.blocks.find((block) => (

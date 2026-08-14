@@ -1047,6 +1047,10 @@ export type TranslationKey =
   | 'agentWorkspace.workflowUseCandidate'
   | 'agentWorkspace.workflowRegenerate'
   | 'agentWorkspace.workflowLocateStep'
+  | 'agentWorkspace.workflowViewCandidates'
+  | 'agentWorkspace.workflowCandidateDockHint'
+  | 'agentWorkspace.workflowAdjustPlan'
+  | 'agentWorkspace.workflowAdjustPlanPrompt'
   | 'agentWorkspace.workflowDirectStartSummary'
   | 'agentWorkspace.startWorkflow'
   | 'agentWorkspace.workflowTimeline'
@@ -2360,6 +2364,10 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.workflowUseCandidate': 'Use selected candidate',
     'agentWorkspace.workflowRegenerate': 'Generate again',
     'agentWorkspace.workflowLocateStep': 'View on canvas',
+    'agentWorkspace.workflowViewCandidates': 'View candidates',
+    'agentWorkspace.workflowCandidateDockHint': 'Candidates are available below the canvas. Previewing does not select one; confirm the result there to continue.',
+    'agentWorkspace.workflowAdjustPlan': 'Adjust plan with Agent',
+    'agentWorkspace.workflowAdjustPlanPrompt': 'Review the current Workflow progress and propose the smallest useful plan adjustment. Do not execute changes yet; explain what needs my confirmation first.',
     'agentWorkspace.workflowDirectStartSummary': 'Start the selected Workflow now.',
     'agentWorkspace.startWorkflow': 'Start Workflow',
     'agentWorkspace.workflowTimeline': 'Execution timeline',
@@ -3775,6 +3783,10 @@ const translations: Record<Locale, Translations> = {
     'agentWorkspace.workflowUseCandidate': '使用所选候选',
     'agentWorkspace.workflowRegenerate': '重新生成',
     'agentWorkspace.workflowLocateStep': '在画布中查看',
+    'agentWorkspace.workflowViewCandidates': '查看候选',
+    'agentWorkspace.workflowCandidateDockHint': '候选已显示在画布下方。预览不会直接选用；请在下方确认结果后继续。',
+    'agentWorkspace.workflowAdjustPlan': '与 Agent 调整计划',
+    'agentWorkspace.workflowAdjustPlanPrompt': '请复核当前 Workflow 进度，并提出最小且有用的计划调整。先说明需要我确认的变更，不要直接执行。',
     'agentWorkspace.workflowDirectStartSummary': '立即启动已选择的 Workflow。',
     'agentWorkspace.startWorkflow': '开始执行',
     'agentWorkspace.workflowTimeline': '执行时间线',

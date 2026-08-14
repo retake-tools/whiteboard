@@ -268,6 +268,53 @@
   font-weight: 750;
 }
 
+.workflow-candidate-dock > header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.workflow-candidate-dock > header small {
+  color: var(--retake-text-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.workflow-candidate-dock > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 2px;
+}
+
+.workflow-candidate-dock > footer small {
+  max-width: 440px;
+  color: var(--retake-text-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.workflow-candidate-dock > footer button {
+  display: inline-flex;
+  min-height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--retake-accent);
+  color: var(--retake-on-accent);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.workflow-candidate-dock > footer button:disabled {
+  cursor: default;
+  opacity: .45;
+}
+
 .generation-candidate-strip {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));

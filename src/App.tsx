@@ -6,6 +6,10 @@ import { ExecutionInspector } from './components/ExecutionInspector';
 import { FloatingToolbar } from './components/FloatingToolbar';
 import { GenerationCandidateDock } from './components/GenerationCandidateDock';
 import {
+  WorkflowCandidateDock,
+  workflowCandidateDecision,
+} from './components/WorkflowCandidateDock';
+import {
   GenerationTaskPanel,
   generationExecutionForBlock,
 } from './components/GenerationTaskPanel';
@@ -674,6 +678,14 @@ function ReadyApp({
     snapshotRef,
     t,
   });
+  const activeAgentRun = agentWorkspaceController.selectedSession?.activeAgentRunId
+    ? snapshot.agentRuns?.find((run) => (
+      run.agentRunId === agentWorkspaceController.selectedSession?.activeAgentRunId
+    ))
+    : undefined;
+  const hasActiveWorkflowCandidateDecision = Boolean(
+    workflowCandidateDecision(snapshot, activeAgentRun),
+  );
   useEffect(() => {
     saveUiPreferences({ isAgentWorkspaceOpen });
   }, [isAgentWorkspaceOpen]);
@@ -1312,15 +1324,19 @@ function ReadyApp({
           snapshot={snapshot}
         />
       ) : null}
+      {workspaceSurface.kind === 'agent' ? (
+        <WorkflowCandidateDock
+          agentRun={activeAgentRun}
+          onAcceptCandidate={workflowRuntimeController.acceptWorkflowOutput}
+          onSelectBlock={(blockId) => setSelectedBlock(snapshotRef.current, blockId)}
+          selectedBlockId={selectedBlock?.blockId}
+          snapshot={snapshot}
+        />
+      ) : null}
       {workflowWorkspaceRunId ? (
         <Suspense fallback={null}>
           <WorkflowWorkspace
-            activeAgentRun={agentWorkspaceController.selectedSession?.activeAgentRunId
-              ? snapshot.agentRuns?.find((run) => (
-                run.agentRunId
-                  === agentWorkspaceController.selectedSession?.activeAgentRunId
-              ))
-              : undefined}
+            activeAgentRun={activeAgentRun}
             initialWorkflowRunId={workflowWorkspaceRunId}
             onClose={closeWorkflowWorkspace}
             onCreateWorkflowRun={workflowRuntimeController.createWorkflowRun}
@@ -1365,6 +1381,9 @@ function ReadyApp({
         setHistoryOpen={setIsHistoryOpen}
         setInspectorBlockId={setInspectorBlockId}
         setMiniMapVisible={setIsMiniMapVisible}
+        suppressImageInspectorForSelection={
+          workspaceSurface.kind === 'agent' && hasActiveWorkflowCandidateDecision
+        }
         onOpenWorkflowRun={setWorkflowWorkspaceRunId}
         showGrid={showGrid}
         snapshot={snapshot}
