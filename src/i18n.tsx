@@ -375,6 +375,7 @@ export type TranslationKey =
   | 'imageInspector.close'
   | 'imageInspector.eyebrow'
   | 'imageInspector.executionDetails'
+  | 'imageInspector.executionDetailsHint'
   | 'imageInspector.format'
   | 'imageInspector.history'
   | 'imageInspector.imageInfo'
@@ -382,10 +383,19 @@ export type TranslationKey =
   | 'imageInspector.locked'
   | 'imageInspector.noHistory'
   | 'imageInspector.position'
+  | 'imageInspector.prompt'
   | 'imageInspector.source'
+  | 'imageInspector.sourceAndGeneration'
   | 'imageInspector.title'
   | 'imageInspector.tools'
+  | 'imageInspector.inputsAndReferences'
   | 'imageInspector.version'
+  | 'imageFocus.backToCanvas'
+  | 'imageFocus.candidates'
+  | 'imageFocus.scrollCandidatesNext'
+  | 'imageFocus.scrollCandidatesPrevious'
+  | 'imageFocus.title'
+  | 'imageFocus.viewing'
   | 'operation.createSimilar.prompt'
   | 'operation.createSimilar.title'
   | 'operation.generateImage.prompt'
@@ -1798,7 +1808,8 @@ const translations: Record<Locale, Translations> = {
     'inspector.zoomReset': 'Reset view',
     'imageInspector.close': 'Close image inspector',
     'imageInspector.eyebrow': 'Current selection',
-    'imageInspector.executionDetails': 'Open execution details',
+    'imageInspector.executionDetails': 'Execution technical details',
+    'imageInspector.executionDetailsHint': 'Status, model, parameters, and run activity',
     'imageInspector.format': 'Format',
     'imageInspector.history': 'Task history',
     'imageInspector.imageInfo': 'Image information',
@@ -1806,10 +1817,19 @@ const translations: Record<Locale, Translations> = {
     'imageInspector.locked': 'Locked',
     'imageInspector.noHistory': 'No task history for this image yet',
     'imageInspector.position': 'Position and size',
+    'imageInspector.prompt': 'Prompt',
     'imageInspector.source': 'Source',
+    'imageInspector.sourceAndGeneration': 'Source and generation',
     'imageInspector.title': 'Image inspector',
     'imageInspector.tools': 'Image tools',
+    'imageInspector.inputsAndReferences': 'Inputs and references',
     'imageInspector.version': 'Current version',
+    'imageFocus.backToCanvas': 'Back to canvas',
+    'imageFocus.candidates': 'Candidates from this run',
+    'imageFocus.scrollCandidatesNext': 'Scroll candidate queue right',
+    'imageFocus.scrollCandidatesPrevious': 'Scroll candidate queue left',
+    'imageFocus.title': 'Image focus workspace',
+    'imageFocus.viewing': 'Viewing',
     'operation.createSimilar.prompt': 'Create similar image',
     'operation.createSimilar.title': 'Create similar image',
     'operation.generateImage.prompt': 'Generate image from prompt',
@@ -3217,7 +3237,8 @@ const translations: Record<Locale, Translations> = {
     'inspector.zoomReset': '重置视图',
     'imageInspector.close': '关闭图片检查器',
     'imageInspector.eyebrow': '当前选择',
-    'imageInspector.executionDetails': '打开完整执行详情',
+    'imageInspector.executionDetails': '执行技术详情',
+    'imageInspector.executionDetailsHint': '状态、模型、参数与运行记录',
     'imageInspector.format': '格式',
     'imageInspector.history': '任务历史',
     'imageInspector.imageInfo': '图像信息',
@@ -3225,10 +3246,19 @@ const translations: Record<Locale, Translations> = {
     'imageInspector.locked': '已锁定',
     'imageInspector.noHistory': '当前图片暂无任务历史',
     'imageInspector.position': '位置与尺寸',
+    'imageInspector.prompt': '提示词',
     'imageInspector.source': '来源',
+    'imageInspector.sourceAndGeneration': '来源与生成',
     'imageInspector.title': '图片检查器',
     'imageInspector.tools': '图片工具',
+    'imageInspector.inputsAndReferences': '输入与参考',
     'imageInspector.version': '当前版本',
+    'imageFocus.backToCanvas': '返回画布',
+    'imageFocus.candidates': '本次候选',
+    'imageFocus.scrollCandidatesNext': '向右移动候选队列',
+    'imageFocus.scrollCandidatesPrevious': '向左移动候选队列',
+    'imageFocus.title': '图片聚焦工作区',
+    'imageFocus.viewing': '正在查看',
     'operation.createSimilar.prompt': '生成同款图片',
     'operation.createSimilar.title': '生成同款图片',
     'operation.generateImage.prompt': '根据 prompt 生成图片',

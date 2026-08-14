@@ -124,15 +124,21 @@ assert.match(dockMarkup, /方案 4/);
 assert.match(dockMarkup, /预览中/);
 assert.doesNotMatch(dockMarkup, /已选|selected authority/);
 
-const [appSource, eventBindingSource, taskStyles] = await Promise.all([
+const [appSource, eventBindingSource, imageInspectorSource, taskStyles] = await Promise.all([
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/app/useAppEventBindings.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/ImageInspectorPanel.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/generation-task-panel.css', import.meta.url), 'utf8'),
 ]);
 assert.match(appSource, /workspaceSurface\.kind === 'task'/);
 assert.match(appSource, /<GenerationTaskPanel/);
 assert.match(appSource, /<GenerationCandidateDock/);
-assert.match(eventBindingSource, /isImageGenerationBlock/);
+assert.match(appSource, /<ImageFocusWorkspace/);
+assert.match(imageInspectorSource, /<ExecutionPromptDetails/);
+assert.match(eventBindingSource, /block\.type === 'operation' && block\.data\.capabilityId === imageGenerateCapabilityId/);
+assert.match(eventBindingSource, /setTaskBlockIdRef\.current\(blockId\)/);
+assert.match(eventBindingSource, /setImageFocusBlockIdRef\.current\(blockId\)/);
+assert.match(eventBindingSource, /setInspectorBlockIdRef\.current\(blockId\)/);
 assert.match(taskStyles, /right: calc\(var\(--workspace-workbench-width\) \+ 20px\)/);
 
 console.log(JSON.stringify({

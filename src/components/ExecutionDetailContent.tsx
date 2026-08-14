@@ -77,12 +77,20 @@ export interface ExecutionActivityItem {
   resultTitles: string[];
 }
 
+const executionDetailContextBySnapshot = new WeakMap<
+  BoardSnapshot,
+  Map<string, ExecutionDetailContext | undefined>
+>();
+
 interface ExecutionDetailContentProps {
   compact?: boolean;
   context: ExecutionDetailContext;
   copiedPromptKey?: string;
   copyKey: string;
   copySource: ExecutionDetailCopySource;
+  hideImageInputs?: boolean;
+  hideOutputAssets?: boolean;
+  hidePromptDetails?: boolean;
   onSelectAsset?: (asset: AssetRecord) => void;
   onBeforePluginOperationAction?: (
     operationBlockId: string,
@@ -118,6 +126,9 @@ export function ExecutionDetailContent({
   copiedPromptKey,
   copyKey,
   copySource,
+  hideImageInputs = false,
+  hideOutputAssets = false,
+  hidePromptDetails = false,
   onSelectAsset,
   onBeforePluginOperationAction,
   onPluginFatalFailure,
@@ -232,7 +243,7 @@ export function ExecutionDetailContent({
         sourceBlock={context.sourceBlock}
       />
 
-      {annotatedCompositeAsset || inputImages.length ? (
+      {!hideImageInputs && (annotatedCompositeAsset || inputImages.length) ? (
         <>
           <ImageComparison
             annotatedAsset={annotatedCompositeAsset}
@@ -255,27 +266,31 @@ export function ExecutionDetailContent({
           restoreState={annotationDraftRestoreState}
         />
       ) : null}
-      <AssetList
-        assets={outputAssets}
-        emptyLabel={t('inspector.none')}
-        icon={outputAssets.some((asset) => asset.mimeType.startsWith('image/'))
-          ? <ImageIcon size={13} />
-          : <FileText size={13} />}
-        title={t('inspector.outputAssets')}
-        onSelect={onSelectAsset}
-      />
+      {!hideOutputAssets ? (
+        <AssetList
+          assets={outputAssets}
+          emptyLabel={t('inspector.none')}
+          icon={outputAssets.some((asset) => asset.mimeType.startsWith('image/'))
+            ? <ImageIcon size={13} />
+            : <FileText size={13} />}
+          title={t('inspector.outputAssets')}
+          onSelect={onSelectAsset}
+        />
+      ) : null}
 
-      <ExecutionPromptDetails
-        agentPrompt={agentPrompt}
-        blockIds={executionDetailBlockIds(context)}
-        copiedPromptKey={copiedPromptKey}
-        copyKey={copyKey}
-        copySource={copySource}
-        executionId={execution.executionId}
-        onCopyPrompt={onCopyPrompt}
-        prompt={prompt}
-        requestPrompts={requestPrompts}
-      />
+      {!hidePromptDetails ? (
+        <ExecutionPromptDetails
+          agentPrompt={agentPrompt}
+          blockIds={executionDetailBlockIds(context)}
+          copiedPromptKey={copiedPromptKey}
+          copyKey={copyKey}
+          copySource={copySource}
+          executionId={execution.executionId}
+          onCopyPrompt={onCopyPrompt}
+          prompt={prompt}
+          requestPrompts={requestPrompts}
+        />
+      ) : null}
 
       {previewImage ? (
         <ImageLightbox
@@ -304,6 +319,10 @@ export function getExecutionDetailContextForBlock(
   snapshot: BoardSnapshot,
   selectedBlock: BlockRecord,
 ): ExecutionDetailContext | undefined {
+  const snapshotCache = executionDetailContextBySnapshot.get(snapshot);
+  if (snapshotCache?.has(selectedBlock.blockId)) {
+    return snapshotCache.get(selectedBlock.blockId);
+  }
   const sourceExecutionId =
     typeof selectedBlock.data.sourceExecutionId === 'string' ? selectedBlock.data.sourceExecutionId : undefined;
   const execution = snapshot.executions.find(
@@ -311,8 +330,13 @@ export function getExecutionDetailContextForBlock(
       candidate.executionId === sourceExecutionId ||
       candidate.outputBlockIds.includes(selectedBlock.blockId),
   );
-  if (!execution) return undefined;
-  return createExecutionDetailContext(snapshot, execution, selectedBlock);
+  const context = execution
+    ? createExecutionDetailContext(snapshot, execution, selectedBlock)
+    : undefined;
+  const cache = snapshotCache ?? new Map();
+  cache.set(selectedBlock.blockId, context);
+  executionDetailContextBySnapshot.set(snapshot, cache);
+  return context;
 }
 
 export function getExecutionDetailContextForExecution(

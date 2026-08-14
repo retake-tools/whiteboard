@@ -104,6 +104,7 @@ const emptySelectionMarkup = renderToStaticMarkup(
     <WorkflowCandidateDock
       agentRun={agentRun}
       onAcceptCandidate={() => undefined}
+      onOpenCandidateDetails={() => undefined}
       onSelectBlock={() => undefined}
       snapshot={snapshot}
     />
@@ -114,13 +115,14 @@ assert.match(emptySelectionMarkup, /候选 1/);
 assert.match(emptySelectionMarkup, /候选 2/);
 assert.match(emptySelectionMarkup, /选用并继续/);
 assert.match(emptySelectionMarkup, /disabled=""/);
-assert.match(emptySelectionMarkup, /预览不会改变 Workflow/);
+assert.match(emptySelectionMarkup, /单击预览，双击查看详情/);
 
 const selectedMarkup = renderToStaticMarkup(
   <I18nProvider>
     <WorkflowCandidateDock
       agentRun={agentRun}
       onAcceptCandidate={() => undefined}
+      onOpenCandidateDetails={() => undefined}
       onSelectBlock={() => undefined}
       selectedBlockId={candidateTwo.blockId}
       snapshot={snapshot}
@@ -158,22 +160,36 @@ assert.match(stepMarkup, /候选已显示在画布下方/);
 assert.match(stepMarkup, /查看候选/);
 assert.doesNotMatch(stepMarkup, /agent-workflow-candidate-grid/);
 
-const [appSource, workspaceSource, styles] = await Promise.all([
+const [appSource, canvasSource, dockSource, eventBindingSource, workspaceSource, styles] = await Promise.all([
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/app/WhiteboardCanvas.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/components/WorkflowCandidateDock.tsx', import.meta.url), 'utf8'),
+  readFile(new URL('../src/app/useAppEventBindings.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/AgentWorkspace.tsx', import.meta.url), 'utf8'),
   readFile(new URL('../src/components/generation-task-panel.css', import.meta.url), 'utf8'),
 ]);
 assert.match(appSource, /workspaceSurface\.kind === 'agent'/);
 assert.match(appSource, /<WorkflowCandidateDock/);
 assert.match(appSource, /onAcceptCandidate=\{workflowRuntimeController\.acceptWorkflowOutput\}/);
-assert.match(appSource, /suppressImageInspectorForSelection/);
+assert.match(appSource, /onOpenCandidateDetails=/);
+assert.match(appSource, /retake:open-execution-inspector/);
+assert.match(appSource, /imageCandidatePreviewBlockIds=\{workflowCandidatePreviewBlockIds\}/);
+assert.match(canvasSource, /imageCandidatePreviewBlockIds\.includes\(node\.id\)/);
+assert.match(canvasSource, /imageCandidatePreviewBlockIds\.includes\(selectedNode\.id\)/);
+assert.doesNotMatch(canvasSource, /suppressImageInspectorForSelection/);
+assert.match(dockSource, /onDoubleClick=/);
+assert.match(dockSource, /onOpenCandidateDetails\(candidate\.block\.blockId\)/);
+assert.match(eventBindingSource, /if \(block\.type === 'image'\) \{[\s\S]*setImageFocusBlockIdRef\.current\(blockId\)/);
+assert.doesNotMatch(eventBindingSource, /isImageGenerationBlock/);
 assert.match(workspaceSource, /agent-workspace-adjust-plan/);
 assert.match(workspaceSource, /workflowAdjustPlanPrompt/);
 assert.match(styles, /\.workflow-candidate-dock > footer/);
 
 console.log(JSON.stringify({
   candidatePreviewIsEphemeral: true,
+  candidateDoubleClickOpensDetails: true,
   canonicalAcceptanceCommandReused: true,
+  nonCandidateImageInspectorPreserved: true,
   planAdjustmentUsesAgentMessage: true,
   waitingSelectionUsesSingleTimeline: true,
 }));

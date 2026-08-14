@@ -13,6 +13,7 @@ interface WorkflowCandidateDockProps {
     assetId: string,
     expectedStepRunVersion: number,
   ) => void | Promise<void>;
+  onOpenCandidateDetails: (blockId: string) => void;
   onSelectBlock: (blockId: string) => void;
   selectedBlockId?: string;
   snapshot: BoardSnapshot;
@@ -21,6 +22,7 @@ interface WorkflowCandidateDockProps {
 export const WorkflowCandidateDock = memo(function WorkflowCandidateDock({
   agentRun,
   onAcceptCandidate,
+  onOpenCandidateDetails,
   onSelectBlock,
   selectedBlockId,
   snapshot,
@@ -54,6 +56,10 @@ export const WorkflowCandidateDock = memo(function WorkflowCandidateDock({
               className={selected ? 'is-previewing' : undefined}
               aria-pressed={selected}
               onClick={() => onSelectBlock(candidate.block.blockId)}
+              onDoubleClick={(event) => {
+                event.preventDefault();
+                onOpenCandidateDetails(candidate.block.blockId);
+              }}
             >
               <span className="generation-candidate-preview">
                 {candidate.previewUrl && candidate.kind === 'image' ? (
@@ -78,8 +84,8 @@ export const WorkflowCandidateDock = memo(function WorkflowCandidateDock({
       <footer>
         <small>
           {locale === 'zh'
-            ? '预览不会改变 Workflow；“选用并继续”才会写入当前 StepRun。'
-            : 'Preview does not change the Workflow; continue writes to the current StepRun.'}
+            ? '单击预览，双击查看详情；“选用并继续”才会写入当前 StepRun。'
+            : 'Click to preview, double-click for details; continue writes to the current StepRun.'}
         </small>
         <button
           type="button"

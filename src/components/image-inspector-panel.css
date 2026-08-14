@@ -102,6 +102,66 @@
   font-weight: 700;
 }
 
+.image-inspector-actions {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.image-inspector-actions > .image-context-primary-action,
+.image-inspector-more-actions > summary {
+  display: inline-flex;
+  width: 100%;
+  min-width: 0;
+  height: 52px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 5px;
+  border: 1px solid var(--retake-border-subtle);
+  border-radius: 8px;
+  background: var(--retake-surface);
+  color: var(--retake-text-secondary);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 620;
+  list-style: none;
+}
+
+.image-inspector-actions > .image-context-primary-action:hover,
+.image-inspector-actions > .image-context-primary-action:focus-visible,
+.image-inspector-more-actions > summary:hover,
+.image-inspector-more-actions > summary:focus-visible {
+  border-color: var(--retake-accent-border);
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
+}
+
+.image-inspector-more-actions > summary::-webkit-details-marker {
+  display: none;
+}
+
+.image-inspector-more-actions > div {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  z-index: 4;
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid var(--retake-border-subtle);
+  border-radius: 10px;
+  background: var(--retake-surface);
+  box-shadow: var(--retake-shadow-popover);
+}
+
+.image-inspector-more-actions:not([open]) > div {
+  display: none;
+}
+
 .image-inspector-metric-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -162,6 +222,70 @@
   white-space: nowrap;
 }
 
+.image-inspector-panel .execution-inspector-prompt {
+  gap: 7px;
+}
+
+.image-inspector-panel .execution-inspector-prompt header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.image-inspector-panel .execution-inspector-prompt h3 {
+  color: var(--retake-text-muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.image-inspector-panel .execution-inspector-prompt pre {
+  max-height: 88px;
+  margin: 0;
+  padding: 9px 10px;
+  overflow: auto;
+  border: 1px solid var(--retake-border-subtle);
+  border-radius: 8px;
+  background: var(--retake-surface-subtle);
+  color: var(--retake-text-secondary);
+  font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+.image-inspector-references {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.image-inspector-references figure {
+  display: grid;
+  width: 72px;
+  flex: 0 0 72px;
+  gap: 5px;
+  margin: 0;
+}
+
+.image-inspector-references img {
+  display: block;
+  width: 72px;
+  height: 72px;
+  border: 1px solid var(--retake-border-subtle);
+  border-radius: 8px;
+  background: var(--retake-surface-subtle);
+  object-fit: cover;
+}
+
+.image-inspector-references figcaption {
+  overflow: hidden;
+  color: var(--retake-text-muted);
+  font-size: 10px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .image-inspector-details-button {
   display: flex;
   width: 100%;
@@ -179,6 +303,63 @@
   font-size: 12px;
   font-weight: 630;
   text-align: left;
+}
+
+.image-inspector-execution-details {
+  border-bottom: 1px solid var(--retake-border-subtle);
+}
+
+.image-inspector-execution-details > summary {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px;
+  color: var(--retake-text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 680;
+  list-style: none;
+}
+
+.image-inspector-execution-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.image-inspector-execution-details > summary > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.image-inspector-execution-details > summary strong {
+  color: inherit;
+  font-size: 12px;
+}
+
+.image-inspector-execution-details > summary small {
+  color: var(--retake-text-muted);
+  font-size: 10px;
+  font-weight: 450;
+}
+
+.image-inspector-execution-details > summary > svg {
+  flex: 0 0 auto;
+  transition: transform 140ms ease;
+}
+
+.image-inspector-execution-details[open] > summary {
+  border-bottom: 1px solid var(--retake-border-subtle);
+  color: var(--retake-accent-strong);
+}
+
+.image-inspector-execution-details[open] > summary > svg {
+  transform: rotate(90deg);
+}
+
+.image-inspector-execution-details > .execution-detail-content {
+  padding: 14px 16px 18px;
 }
 
 .image-inspector-details-button:hover,

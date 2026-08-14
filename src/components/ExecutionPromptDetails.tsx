@@ -4,7 +4,11 @@ import type { ExecutionRecord } from '../core/types';
 import { useI18n } from '../i18n';
 import { TooltipIconButton } from './Tooltip';
 
-export type ExecutionDetailCopySource = 'execution_inspector' | 'group_inspector' | 'history_panel';
+export type ExecutionDetailCopySource =
+  | 'execution_inspector'
+  | 'group_inspector'
+  | 'history_panel'
+  | 'image_inspector';
 
 interface ExecutionPromptDetailsProps {
   agentPrompt?: string;

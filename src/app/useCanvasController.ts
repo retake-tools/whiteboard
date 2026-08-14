@@ -63,6 +63,10 @@ import {
 } from './appHelpers';
 import { safeViewportForBounds } from './canvasFocus';
 import {
+  projectFlowEdgeSelection,
+  projectFlowNodeSelection,
+} from './canvasSelectionProjection';
+import {
   imageComposerWorkflowGeometry,
   type ImageComposerWorkflowLayoutInput,
 } from './imageComposerWorkflowLayout';
@@ -248,9 +252,9 @@ export function useCanvasController(options: CanvasControllerOptions) {
   }, [selectedBlockIds]);
 
   useEffect(() => {
-    setNodes(createFlowNodesForSelection(snapshotRef.current, selectedBlockIds));
-    setEdges(createFlowEdgesForSelection(snapshotRef.current, selectedBlockIds));
-  }, [selectedBlockIds, snapshot]);
+    setNodes(createFlowNodesForSelection(snapshotRef.current));
+    setEdges(createFlowEdgesForSelection(snapshotRef.current));
+  }, [snapshot]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
@@ -616,7 +620,18 @@ export function useCanvasController(options: CanvasControllerOptions) {
     blockIds: string[],
     selectionOptions: { source?: 'app' | 'flow' } = {},
   ): void {
-    const visibleBlockIds = new Set(createFlowNodesForSelection(nextSnapshot, blockIds).map((node) => node.id));
+    const currentNodes = reactFlowRef.current?.getNodes() ?? nodes;
+    const visibleBlockIds = new Set(currentNodes.map((node) => node.id));
+    const requiresProjectionRefresh = blockIds.some(
+      (blockId) => !visibleBlockIds.has(blockId),
+    );
+    const refreshedNodes = requiresProjectionRefresh
+      ? createFlowNodesForSelection(nextSnapshot, blockIds)
+      : undefined;
+    if (refreshedNodes) {
+      visibleBlockIds.clear();
+      refreshedNodes.forEach((node) => visibleBlockIds.add(node.id));
+    }
     const nextSelectedBlockIds = blockIds.filter((blockId) => visibleBlockIds.has(blockId));
     if (selectionOptions.source !== 'flow') {
       pendingFlowSelectionRef.current = nextSelectedBlockIds;
@@ -628,8 +643,11 @@ export function useCanvasController(options: CanvasControllerOptions) {
     }
     selectedBlockIdsRef.current = nextSelectedBlockIds;
     setSelectedBlockIds(nextSelectedBlockIds);
-    setNodes(createFlowNodesForSelection(nextSnapshot, nextSelectedBlockIds));
-    setEdges(createFlowEdgesForSelection(nextSnapshot, nextSelectedBlockIds));
+    setNodes((current) => refreshedNodes
+      ?? projectFlowNodeSelection(current, nextSnapshot, nextSelectedBlockIds));
+    setEdges((current) => requiresProjectionRefresh
+      ? createFlowEdgesForSelection(nextSnapshot, nextSelectedBlockIds)
+      : projectFlowEdgeSelection(current, nextSnapshot, nextSelectedBlockIds));
   }
 
   function selectBlock(blockId: string): void {

@@ -15,6 +15,7 @@ import {
 } from './components/GenerationTaskPanel';
 import { GroupInspector } from './components/GroupInspector';
 import { ImageInspectorPanel } from './components/ImageInspectorPanel';
+import { ImageFocusWorkspace } from './components/ImageFocusWorkspace';
 import { InputReferencePicker } from './components/InputReferencePicker';
 import { OperationFeedback } from './components/OperationFeedback';
 import { OperationFromImagePicker } from './components/OperationFromImagePicker';
@@ -63,6 +64,7 @@ import { useAgentAttachmentController } from './app/useAgentAttachmentController
 import { useArtifactLibraryController } from './app/useArtifactLibraryController';
 import { useDomainVideoLaunchReviewController } from './app/useDomainVideoLaunchReviewController';
 import { WhiteboardCanvas } from './app/WhiteboardCanvas';
+import { downloadAsset } from './app/appHelpers';
 import type {
   PluginAssetV2,
   PluginHostEnvironmentSnapshotV2,
@@ -258,6 +260,7 @@ function ReadyApp({
     initialAgentOpen: initialUiPreferences.current.isAgentWorkspaceOpen,
   });
   const [workflowWorkspaceRunId, setWorkflowWorkspaceRunId] = useState<string>();
+  const [imageFocusBlockId, setImageFocusBlockId] = useState<string>();
   const [imageExecutionDetailsBlockId, setImageExecutionDetailsBlockId] = useState<string>();
   const [reviewDocumentBlockId, setReviewDocumentBlockId] = useState<string | undefined>();
   const [operationFromImagePicker, setOperationFromImagePicker] = useState<{
@@ -265,6 +268,9 @@ function ReadyApp({
     sourceBlockId: string;
   }>();
   const [pluginReducedMotion, setPluginReducedMotion] = useState(false);
+  useEffect(() => {
+    if (workspaceSurface.kind !== 'inspector') setImageFocusBlockId(undefined);
+  }, [workspaceSurface.kind]);
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
     const update = () => setPluginReducedMotion(media.matches);
@@ -314,6 +320,7 @@ function ReadyApp({
   useEffect(() => setReviewDocumentBlockId(undefined), [snapshot.board.boardId, snapshot.project.projectId]);
   useEffect(() => {
     setInspectorBlockId(undefined);
+    setImageFocusBlockId(undefined);
     setImageExecutionDetailsBlockId(undefined);
     setIsHistoryOpen(false);
     setIsArtifactLibraryOpen(false);
@@ -683,9 +690,10 @@ function ReadyApp({
       run.agentRunId === agentWorkspaceController.selectedSession?.activeAgentRunId
     ))
     : undefined;
-  const hasActiveWorkflowCandidateDecision = Boolean(
-    workflowCandidateDecision(snapshot, activeAgentRun),
-  );
+  const activeWorkflowCandidateDecision = workflowCandidateDecision(snapshot, activeAgentRun);
+  const workflowCandidatePreviewBlockIds = workspaceSurface.kind === 'agent'
+    ? activeWorkflowCandidateDecision?.candidates.map((candidate) => candidate.block.blockId) ?? []
+    : [];
   useEffect(() => {
     saveUiPreferences({ isAgentWorkspaceOpen });
   }, [isAgentWorkspaceOpen]);
@@ -748,6 +756,7 @@ function ReadyApp({
     pendingDirectImageImportBlockIdRef,
     retryFailedImageResult,
     setHistoryOpen: setIsHistoryOpen,
+    setImageFocusBlockId,
     setImageExecutionDetailsBlockId,
     setInspectorBlockId,
     setTaskBlockId,
@@ -863,6 +872,9 @@ function ReadyApp({
     : undefined;
   const imageExecutionDetailsBlock = imageExecutionDetailsBlockId
     ? snapshot.blocks.find((block) => block.blockId === imageExecutionDetailsBlockId)
+    : undefined;
+  const imageFocusBlock = imageFocusBlockId
+    ? snapshot.blocks.find((block) => block.blockId === imageFocusBlockId && block.type === 'image')
     : undefined;
   const taskBlock = taskBlockId
     ? snapshot.blocks.find((block) => block.blockId === taskBlockId)
@@ -1179,16 +1191,18 @@ function ReadyApp({
             <ImageInspectorPanel
               asset={inspectorImageAsset}
               block={inspectorBlock}
+              copiedPromptKey={copiedPromptKey}
               contentLocked={blockLockedByGroup(snapshot, inspectorBlock.blockId)}
-              onClose={() => setInspectorBlockId(undefined)}
-              onOpenExecutionDetails={() => {
-                if (generationExecutionForBlock(snapshot, inspectorBlock)) {
-                  setTaskBlockId(inspectorBlock.blockId);
-                  return;
-                }
-                setImageExecutionDetailsBlockId(inspectorBlock.blockId);
+              onClose={() => {
+                setImageFocusBlockId(undefined);
+                setInspectorBlockId(undefined);
               }}
+              onCopyPrompt={copyPromptWithHistory}
+              onDownload={() => downloadAsset(inspectorImageAsset, inspectorBlock.data.title)}
+              onPluginFatalFailure={onPluginContributionFatalFailure}
+              onRestoreConfiguration={restoreConfigurationVersion}
               previewUrl={inspectorImageUrl}
+              pluginContributionRegistry={pluginContributionRegistry}
               snapshot={snapshot}
             />
           ) : null}
@@ -1328,6 +1342,11 @@ function ReadyApp({
         <WorkflowCandidateDock
           agentRun={activeAgentRun}
           onAcceptCandidate={workflowRuntimeController.acceptWorkflowOutput}
+          onOpenCandidateDetails={(blockId) => {
+            window.dispatchEvent(new CustomEvent('retake:open-execution-inspector', {
+              detail: { blockId },
+            }));
+          }}
           onSelectBlock={(blockId) => setSelectedBlock(snapshotRef.current, blockId)}
           selectedBlockId={selectedBlock?.blockId}
           snapshot={snapshot}
@@ -1381,15 +1400,28 @@ function ReadyApp({
         setHistoryOpen={setIsHistoryOpen}
         setInspectorBlockId={setInspectorBlockId}
         setMiniMapVisible={setIsMiniMapVisible}
-        suppressImageInspectorForSelection={
-          workspaceSurface.kind === 'agent' && hasActiveWorkflowCandidateDecision
-        }
+        imageCandidatePreviewBlockIds={workflowCandidatePreviewBlockIds}
         onOpenWorkflowRun={setWorkflowWorkspaceRunId}
         showGrid={showGrid}
         snapshot={snapshot}
         t={t}
         workflowRuntime={workflowRuntimeController}
       />
+      {imageFocusBlock ? (
+        <ImageFocusWorkspace
+          block={imageFocusBlock}
+          snapshot={snapshot}
+          onBackToCanvas={() => {
+            setImageFocusBlockId(undefined);
+            setInspectorBlockId(undefined);
+          }}
+          onSelectBlock={(blockId) => {
+            setImageFocusBlockId(blockId);
+            setSelectedBlock(snapshotRef.current, blockId);
+            setInspectorBlockId(blockId);
+          }}
+        />
+      ) : null}
       {pluginContributionRegistry && onPluginContributionFatalFailure ? (
         <PluginPanelHost
           anchorBlockId={
