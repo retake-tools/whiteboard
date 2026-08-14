@@ -2,6 +2,7 @@ import { useEffect, useRef, type RefObject } from 'react';
 import { blockLockedByGroup } from '../core/grouping';
 import { saveUiPreferences } from '../core/uiPreferences';
 import type { BlockType, BoardSnapshot } from '../core/types';
+import { imageGenerateCapabilityId } from '../core/imageGenerateContracts';
 
 interface AppEventBindingsOptions {
   addOperationInputBlock: (operationBlockId: string, type: Extract<BlockType, 'image' | 'text' | 'video'>) => void;
@@ -15,6 +16,7 @@ interface AppEventBindingsOptions {
   setHistoryOpen: (open: boolean) => void;
   setImageExecutionDetailsBlockId: (blockId: string | undefined) => void;
   setInspectorBlockId: (blockId: string | undefined) => void;
+  setTaskBlockId: (blockId: string | undefined) => void;
   setSelectedBlock: (snapshot: BoardSnapshot, blockId: string) => void;
   showGrid: boolean;
   snapshotRef: RefObject<BoardSnapshot>;
@@ -33,6 +35,7 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
     setHistoryOpen,
     setImageExecutionDetailsBlockId,
     setInspectorBlockId,
+    setTaskBlockId,
     setSelectedBlock,
     showGrid,
     snapshotRef,
@@ -53,6 +56,8 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
   setImageExecutionDetailsBlockIdRef.current = setImageExecutionDetailsBlockId;
   const setInspectorBlockIdRef = useRef(setInspectorBlockId);
   setInspectorBlockIdRef.current = setInspectorBlockId;
+  const setTaskBlockIdRef = useRef(setTaskBlockId);
+  setTaskBlockIdRef.current = setTaskBlockId;
   const setSelectedBlockRef = useRef(setSelectedBlock);
   setSelectedBlockRef.current = setSelectedBlock;
 
@@ -68,6 +73,13 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
       if (!block) return;
       setHistoryOpenRef.current(false);
       setSelectedBlockRef.current(current, blockId);
+      if (isImageGenerationBlock(current, blockId)) {
+        setImageExecutionDetailsBlockIdRef.current(undefined);
+        setInspectorBlockIdRef.current(undefined);
+        setTaskBlockIdRef.current(blockId);
+        return;
+      }
+      setTaskBlockIdRef.current(undefined);
       if (block.type === 'image') {
         setImageExecutionDetailsBlockIdRef.current(blockId);
       } else {
@@ -136,4 +148,21 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
       window.removeEventListener('retake:delete-block', onDeleteBlock);
     };
   }, [directImageImportInputRef, pendingDirectImageImportBlockIdRef, snapshotRef]);
+}
+
+function isImageGenerationBlock(snapshot: BoardSnapshot, blockId: string): boolean {
+  const block = snapshot.blocks.find((candidate) => candidate.blockId === blockId);
+  if (!block) return false;
+  if (block.type === 'operation' && block.data.capabilityId === imageGenerateCapabilityId) return true;
+  const sourceExecutionId = typeof block.data.sourceExecutionId === 'string'
+    ? block.data.sourceExecutionId
+    : undefined;
+  return snapshot.executions.some((execution) => (
+    execution.capabilityId === imageGenerateCapabilityId
+    && (
+      execution.executionId === sourceExecutionId
+      || execution.outputBlockIds.includes(blockId)
+      || execution.params?.operationBlockId === blockId
+    )
+  ));
 }

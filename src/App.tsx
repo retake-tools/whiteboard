@@ -4,6 +4,11 @@ import { BoardHistoryPanel } from './components/BoardHistoryPanel';
 import { AgentWorkspace } from './components/AgentWorkspace';
 import { ExecutionInspector } from './components/ExecutionInspector';
 import { FloatingToolbar } from './components/FloatingToolbar';
+import { GenerationCandidateDock } from './components/GenerationCandidateDock';
+import {
+  GenerationTaskPanel,
+  generationExecutionForBlock,
+} from './components/GenerationTaskPanel';
 import { GroupInspector } from './components/GroupInspector';
 import { ImageInspectorPanel } from './components/ImageInspectorPanel';
 import { InputReferencePicker } from './components/InputReferencePicker';
@@ -234,7 +239,9 @@ function ReadyApp({
   const [showGrid, setShowGrid] = useState(() => initialUiPreferences.current.showGrid);
   const {
     surface: workspaceSurface,
+    closeSurface: closeWorkspaceSurface,
     inspectorBlockId,
+    taskBlockId,
     isAgentWorkspaceOpen,
     isArtifactLibraryOpen,
     isHistoryOpen,
@@ -242,6 +249,7 @@ function ReadyApp({
     setArtifactLibraryOpen: setIsArtifactLibraryOpen,
     setHistoryOpen: setIsHistoryOpen,
     setInspectorBlockId,
+    setTaskBlockId,
   } = useWorkspaceSurfaceController({
     initialAgentOpen: initialUiPreferences.current.isAgentWorkspaceOpen,
   });
@@ -730,6 +738,7 @@ function ReadyApp({
     setHistoryOpen: setIsHistoryOpen,
     setImageExecutionDetailsBlockId,
     setInspectorBlockId,
+    setTaskBlockId,
     setSelectedBlock,
     showGrid,
     snapshotRef,
@@ -843,6 +852,12 @@ function ReadyApp({
   const imageExecutionDetailsBlock = imageExecutionDetailsBlockId
     ? snapshot.blocks.find((block) => block.blockId === imageExecutionDetailsBlockId)
     : undefined;
+  const taskBlock = taskBlockId
+    ? snapshot.blocks.find((block) => block.blockId === taskBlockId)
+    : undefined;
+  const taskExecution = taskBlock
+    ? generationExecutionForBlock(snapshot, taskBlock)
+    : undefined;
   const reviewDocumentBlock = reviewDocumentBlockId
     ? snapshot.blocks.find((block) => block.blockId === reviewDocumentBlockId && block.type === 'document')
     : undefined;
@@ -859,6 +874,7 @@ function ReadyApp({
     && inspectorBlock?.type === 'image'
     && Boolean(inspectorImageAsset && inspectorImageUrl);
   const workbenchOpen = imageInspectorOpen
+    || Boolean(workspaceSurface.kind === 'task' && taskBlock && taskExecution)
     || workspaceSurface.kind === 'agent'
     || workspaceSurface.kind === 'artifact'
     || workspaceSurface.kind === 'history';
@@ -1104,7 +1120,7 @@ function ReadyApp({
           pluginContributionRegistry={pluginContributionRegistry}
         />
       ) : null}
-      {imageExecutionDetailsBlock?.type === 'image' ? (
+      {imageExecutionDetailsBlock ? (
         <ExecutionInspector
           copiedPromptKey={copiedPromptKey}
           reserveAgentWorkspace={false}
@@ -1153,8 +1169,42 @@ function ReadyApp({
               block={inspectorBlock}
               contentLocked={blockLockedByGroup(snapshot, inspectorBlock.blockId)}
               onClose={() => setInspectorBlockId(undefined)}
-              onOpenExecutionDetails={() => setImageExecutionDetailsBlockId(inspectorBlock.blockId)}
+              onOpenExecutionDetails={() => {
+                if (generationExecutionForBlock(snapshot, inspectorBlock)) {
+                  setTaskBlockId(inspectorBlock.blockId);
+                  return;
+                }
+                setImageExecutionDetailsBlockId(inspectorBlock.blockId);
+              }}
               previewUrl={inspectorImageUrl}
+              snapshot={snapshot}
+            />
+          ) : null}
+          {workspaceSurface.kind === 'task' && taskBlock && taskExecution ? (
+            <GenerationTaskPanel
+              block={taskBlock}
+              onCancelExecution={imageOperationController.cancelImageExecution}
+              onClose={closeWorkspaceSurface}
+              onContinueFromResult={async (resultBlock) => {
+                await createImageToImageDraftOperation(resultBlock, 'quick_edit', undefined, {
+                  centerWorkflow: true,
+                });
+                setTaskBlockId(undefined);
+              }}
+              onOpenExecutionDetails={setImageExecutionDetailsBlockId}
+              onRetryExecution={async (executionId) => {
+                try {
+                  await imageOperationController.retryFailedImageExecution(executionId);
+                } catch (error) {
+                  setOperationToast({
+                    id: `retry-execution:${executionId}`,
+                    title: t('result.retryPromptTitle'),
+                    body: error instanceof Error ? error.message : t('feedback.taskCreatedCopyFailed'),
+                    tone: 'error',
+                  });
+                }
+              }}
+              selectedBlockId={selectedBlock?.blockId}
               snapshot={snapshot}
             />
           ) : null}
@@ -1253,6 +1303,14 @@ function ReadyApp({
             />
           ) : null}
         </WorkspaceWorkbench>
+      ) : null}
+      {workspaceSurface.kind === 'task' && taskExecution ? (
+        <GenerationCandidateDock
+          execution={taskExecution}
+          onSelectBlock={(blockId) => setSelectedBlock(snapshotRef.current, blockId)}
+          selectedBlockId={selectedBlock?.blockId}
+          snapshot={snapshot}
+        />
       ) : null}
       {workflowWorkspaceRunId ? (
         <Suspense fallback={null}>

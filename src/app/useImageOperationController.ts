@@ -270,6 +270,24 @@ export function useImageOperationController(options: ImageOperationControllerOpt
     );
   }
 
+  async function cancelImageExecution(executionId: string): Promise<void> {
+    const current = snapshotRef.current;
+    const execution = current.executions.find((candidate) => candidate.executionId === executionId);
+    if (!execution || (execution.status !== 'queued' && execution.status !== 'running')) return;
+    await requireHostCommands(runHostCommand)(
+      (commands) => commands.cancelExecution({ executionId }),
+      { history: true },
+    );
+    setOperationToast({
+      id: `execution-canceled:${executionId}`,
+      title: t('feedback.executionCanceled'),
+      body: t(execution.status === 'running'
+        ? 'feedback.runningExecutionCanceled'
+        : 'feedback.queuedExecutionCanceled'),
+      tone: 'success',
+    });
+  }
+
   async function refreshQueuedOperationPrompt(block: BlockRecord): Promise<void> {
     const currentBlock = snapshotRef.current.blocks.find(
       (candidate) => candidate.blockId === block.blockId && candidate.type === 'operation',
@@ -635,6 +653,7 @@ export function useImageOperationController(options: ImageOperationControllerOpt
   }
 
   return {
+    cancelImageExecution,
     closePromptPreviewAfterCopy,
     copiedPromptKey,
     copyPromptWithHistory,

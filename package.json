@@ -77,6 +77,8 @@
     "workspace-shell-v0:test": "tsx server/workspace-shell-v0-test.tsx",
     "workspace-create-ui-v0:test": "tsx server/workspace-create-ui-v0-test.tsx",
     "image-inspector-ui-v0:test": "tsx server/image-inspector-panel-v0-test.tsx",
+    "generation-task-workbench-v0:test": "tsx server/generation-task-workbench-v0-test.tsx",
+    "generation-task-workbench-v0:ui-fixture": "RETAKE_WORKSPACE_DIR=.retake-test-generation-task-v0 tsx server/generation-task-workbench-v0-ui-fixture.ts",
     "reference-intent:test": "tsx server/reference-intent-contract-test.ts",
     "snapshot-safety:test": "RETAKE_WORKSPACE_DIR=.retake-test tsx server/snapshot-persistence-safety-test.ts",
     "sizing:test": "tsx server/block-sizing-contract-test.ts",
