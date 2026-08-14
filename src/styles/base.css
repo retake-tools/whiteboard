@@ -24,6 +24,7 @@
   --retake-success-soft: #ecfdf3;
   --retake-warning: #a66316;
   --retake-warning-soft: #fff4e5;
+  --retake-error: #c84055;
   --retake-shadow-popover: 0 16px 34px rgb(16 24 40 / 18%);
   --retake-color-accent: var(--retake-accent);
   --retake-color-background: #f4f5f7;
@@ -74,6 +75,7 @@
   --retake-success-soft: #173426;
   --retake-warning: #e2a258;
   --retake-warning-soft: #3a2b18;
+  --retake-error: #f17382;
   --retake-shadow-popover: 0 18px 42px rgb(0 0 0 / 38%);
   --retake-color-background: #141417;
 }

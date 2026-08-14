@@ -6,6 +6,7 @@ export function WorkspaceShell({
   sidebar,
   children,
   hasWorkbench,
+  workbenchMode = 'compact',
 }: {
   sidebar: (options: {
     collapsed: boolean;
@@ -13,6 +14,7 @@ export function WorkspaceShell({
   }) => ReactNode;
   children: ReactNode;
   hasWorkbench: boolean;
+  workbenchMode?: 'compact' | 'wide';
 }): ReactElement {
   const [collapsed, setCollapsed] = useState(readSidebarPreference);
 
@@ -36,7 +38,7 @@ export function WorkspaceShell({
 
   return (
     <main
-      className={`app-shell workspace-shell${collapsed ? ' is-sidebar-collapsed' : ''}${hasWorkbench ? ' has-workbench' : ''}`}
+      className={`app-shell workspace-shell${collapsed ? ' is-sidebar-collapsed' : ''}${hasWorkbench ? ` has-workbench is-workbench-${workbenchMode}` : ''}`}
       data-workspace-shell="v0"
     >
       {sidebar({

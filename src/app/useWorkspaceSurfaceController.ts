@@ -21,17 +21,52 @@ export type WorkspaceSurfaceAction =
       open: boolean;
     };
 
+export interface WorkspaceSurfaceState {
+  agentOpen: boolean;
+  surface: WorkspaceSurface;
+}
+
 export function reduceWorkspaceSurface(
-  current: WorkspaceSurface,
+  current: WorkspaceSurfaceState,
   action: WorkspaceSurfaceAction,
-): WorkspaceSurface {
-  if (action.type === 'close') return { kind: 'none' };
-  if (action.type === 'set-inspector') {
-    if (action.blockId) return { kind: 'inspector', blockId: action.blockId };
-    return current.kind === 'inspector' ? { kind: 'none' } : current;
+): WorkspaceSurfaceState {
+  if (action.type === 'close') {
+    if (current.surface.kind === 'agent') {
+      return { agentOpen: false, surface: { kind: 'none' } };
+    }
+    return {
+      ...current,
+      surface: current.agentOpen ? { kind: 'agent' } : { kind: 'none' },
+    };
   }
-  if (action.open) return { kind: action.kind };
-  return current.kind === action.kind ? { kind: 'none' } : current;
+  if (action.type === 'set-inspector') {
+    if (action.blockId) {
+      return {
+        ...current,
+        surface: { kind: 'inspector', blockId: action.blockId },
+      };
+    }
+    return current.surface.kind === 'inspector'
+      ? {
+          ...current,
+          surface: current.agentOpen ? { kind: 'agent' } : { kind: 'none' },
+        }
+      : current;
+  }
+  if (action.kind === 'agent') {
+    if (action.open) return { agentOpen: true, surface: { kind: 'agent' } };
+    return {
+      agentOpen: false,
+      surface: current.surface.kind === 'agent' ? { kind: 'none' } : current.surface,
+    };
+  }
+  if (action.open) return { ...current, surface: { kind: action.kind } };
+  return current.surface.kind === action.kind
+    ? {
+        ...current,
+        surface: current.agentOpen ? { kind: 'agent' } : { kind: 'none' },
+      }
+    : current;
 }
 
 interface WorkspaceSurfaceController {
@@ -52,48 +87,51 @@ export function useWorkspaceSurfaceController({
 }: {
   initialAgentOpen?: boolean;
 } = {}): WorkspaceSurfaceController {
-  const [surface, setSurface] = useState<WorkspaceSurface>(
-    initialAgentOpen ? { kind: 'agent' } : { kind: 'none' },
-  );
+  const [state, setState] = useState<WorkspaceSurfaceState>(() => ({
+    agentOpen: initialAgentOpen,
+    surface: initialAgentOpen ? { kind: 'agent' } : { kind: 'none' },
+  }));
 
-  const closeSurface = useCallback(() => setSurface((current) => reduceWorkspaceSurface(
+  const closeSurface = useCallback(() => setState((current) => reduceWorkspaceSurface(
     current,
     { type: 'close' },
   )), []);
 
   const setInspectorBlockId = useCallback<Dispatch<SetStateAction<string | undefined>>>((next) => {
-    setSurface((current) => {
-      const currentBlockId = current.kind === 'inspector' ? current.blockId : undefined;
+    setState((current) => {
+      const currentBlockId = current.surface.kind === 'inspector' ? current.surface.blockId : undefined;
       const blockId = typeof next === 'function' ? next(currentBlockId) : next;
       return reduceWorkspaceSurface(current, { type: 'set-inspector', blockId });
     });
   }, []);
 
-  const setHistoryOpen = useBooleanSurfaceSetter('history', setSurface);
-  const setArtifactLibraryOpen = useBooleanSurfaceSetter('artifact', setSurface);
-  const setAgentWorkspaceOpen = useBooleanSurfaceSetter('agent', setSurface);
+  const setHistoryOpen = useBooleanSurfaceSetter('history', setState);
+  const setArtifactLibraryOpen = useBooleanSurfaceSetter('artifact', setState);
+  const setAgentWorkspaceOpen = useBooleanSurfaceSetter('agent', setState);
 
   return {
-    surface,
+    surface: state.surface,
     closeSurface,
     setInspectorBlockId,
     setHistoryOpen,
     setArtifactLibraryOpen,
     setAgentWorkspaceOpen,
-    inspectorBlockId: surface.kind === 'inspector' ? surface.blockId : undefined,
-    isHistoryOpen: surface.kind === 'history',
-    isArtifactLibraryOpen: surface.kind === 'artifact',
-    isAgentWorkspaceOpen: surface.kind === 'agent',
+    inspectorBlockId: state.surface.kind === 'inspector' ? state.surface.blockId : undefined,
+    isHistoryOpen: state.surface.kind === 'history',
+    isArtifactLibraryOpen: state.surface.kind === 'artifact',
+    isAgentWorkspaceOpen: state.agentOpen,
   };
 }
 
 function useBooleanSurfaceSetter(
   kind: Exclude<WorkspaceSurface['kind'], 'none' | 'inspector'>,
-  setSurface: Dispatch<SetStateAction<WorkspaceSurface>>,
+  setState: Dispatch<SetStateAction<WorkspaceSurfaceState>>,
 ): Dispatch<SetStateAction<boolean>> {
   return useCallback((next) => {
-    setSurface((current) => {
-      const isOpen = current.kind === kind;
+    setState((current) => {
+      const isOpen = kind === 'agent'
+        ? current.agentOpen
+        : current.surface.kind === kind;
       const shouldOpen = typeof next === 'function' ? next(isOpen) : next;
       return reduceWorkspaceSurface(current, {
         type: 'set-workbench',
@@ -101,5 +139,5 @@ function useBooleanSurfaceSetter(
         open: shouldOpen,
       });
     });
-  }, [kind, setSurface]);
+  }, [kind, setState]);
 }

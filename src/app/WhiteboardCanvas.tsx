@@ -4,7 +4,9 @@ import {
   Position,
   ReactFlow,
   type EdgeTypes,
+  type NodeMouseHandler,
   type NodeTypes,
+  type OnSelectionChangeParams,
   type ReactFlowInstance,
   type Viewport,
 } from '@xyflow/react';
@@ -199,11 +201,31 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
   const onNodeDragStart = useStableCallback(canvas.onNodeDragStart);
   const onNodeDrag = useStableCallback(canvas.onNodeDrag);
   const onNodeDragStop = useStableCallback(canvas.onNodeDragStop);
-  const onNodeClick = useStableCallback(canvas.onNodeClick);
+  const onNodeClick = useStableCallback((event: Parameters<NodeMouseHandler<RetakeNode>>[0], node: RetakeNode) => {
+    canvas.onNodeClick(event, node);
+    if (event.detail > 1 || node.type !== 'image') return;
+    const image = snapshot.blocks.find((block) => (
+      block.blockId === node.id
+      && block.type === 'image'
+      && typeof block.data.assetId === 'string'
+    ));
+    if (image) setInspectorBlockId(image.blockId);
+  });
   const onNodeDoubleClick = useStableCallback(canvas.onNodeDoubleClick);
   const onConnect = useStableCallback(canvas.onConnect);
   const onConnectEnd = useStableCallback(canvas.onConnectEnd);
-  const onSelectionChange = useStableCallback(canvas.onSelectionChange);
+  const onSelectionChange = useStableCallback((params: OnSelectionChangeParams) => {
+    canvas.onSelectionChange(params);
+    const selectedNode = params.nodes.length === 1 ? params.nodes[0] : undefined;
+    const selectedImage = selectedNode?.type === 'image'
+      ? snapshot.blocks.find((block) => (
+          block.blockId === selectedNode.id
+          && block.type === 'image'
+          && typeof block.data.assetId === 'string'
+        ))
+      : undefined;
+    setInspectorBlockId(selectedImage?.blockId);
+  });
   const onInit = useStableCallback((
     instance: ReactFlowInstance<RetakeNode, RetakeEdge>,
   ) => {
@@ -491,6 +513,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
                       ) {
                         canvas.selectBlock(imageToolbarContext.block.blockId);
                       }
+                      setInspectorBlockId(undefined);
                     }}
                     previewUrl={imageToolbarContext.previewUrl}
                     registry={pluginContributionRegistry}
@@ -510,6 +533,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
                       ) {
                         canvas.selectBlock(imageToolbarContext.block.blockId);
                       }
+                      setInspectorBlockId(undefined);
                     }}
                     onOpenSettings={() => window.dispatchEvent(new CustomEvent('retake:open-settings'))}
                     previewUrl={imageToolbarContext.previewUrl}

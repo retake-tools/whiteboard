@@ -372,6 +372,20 @@ export type TranslationKey =
   | 'inspector.zoomIn'
   | 'inspector.zoomOut'
   | 'inspector.zoomReset'
+  | 'imageInspector.close'
+  | 'imageInspector.eyebrow'
+  | 'imageInspector.executionDetails'
+  | 'imageInspector.format'
+  | 'imageInspector.history'
+  | 'imageInspector.imageInfo'
+  | 'imageInspector.importedSource'
+  | 'imageInspector.locked'
+  | 'imageInspector.noHistory'
+  | 'imageInspector.position'
+  | 'imageInspector.source'
+  | 'imageInspector.title'
+  | 'imageInspector.tools'
+  | 'imageInspector.version'
   | 'operation.createSimilar.prompt'
   | 'operation.createSimilar.title'
   | 'operation.generateImage.prompt'
@@ -1778,6 +1792,20 @@ const translations: Record<Locale, Translations> = {
     'inspector.zoomIn': 'Zoom in',
     'inspector.zoomOut': 'Zoom out',
     'inspector.zoomReset': 'Reset view',
+    'imageInspector.close': 'Close image inspector',
+    'imageInspector.eyebrow': 'Current selection',
+    'imageInspector.executionDetails': 'Open execution details',
+    'imageInspector.format': 'Format',
+    'imageInspector.history': 'Task history',
+    'imageInspector.imageInfo': 'Image information',
+    'imageInspector.importedSource': 'Imported asset',
+    'imageInspector.locked': 'Locked',
+    'imageInspector.noHistory': 'No task history for this image yet',
+    'imageInspector.position': 'Position and size',
+    'imageInspector.source': 'Source',
+    'imageInspector.title': 'Image inspector',
+    'imageInspector.tools': 'Image tools',
+    'imageInspector.version': 'Current version',
     'operation.createSimilar.prompt': 'Create similar image',
     'operation.createSimilar.title': 'Create similar image',
     'operation.generateImage.prompt': 'Generate image from prompt',
@@ -3179,6 +3207,20 @@ const translations: Record<Locale, Translations> = {
     'inspector.zoomIn': '放大',
     'inspector.zoomOut': '缩小',
     'inspector.zoomReset': '重置视图',
+    'imageInspector.close': '关闭图片检查器',
+    'imageInspector.eyebrow': '当前选择',
+    'imageInspector.executionDetails': '打开完整执行详情',
+    'imageInspector.format': '格式',
+    'imageInspector.history': '任务历史',
+    'imageInspector.imageInfo': '图像信息',
+    'imageInspector.importedSource': '导入素材',
+    'imageInspector.locked': '已锁定',
+    'imageInspector.noHistory': '当前图片暂无任务历史',
+    'imageInspector.position': '位置与尺寸',
+    'imageInspector.source': '来源',
+    'imageInspector.title': '图片检查器',
+    'imageInspector.tools': '图片工具',
+    'imageInspector.version': '当前版本',
     'operation.createSimilar.prompt': '生成同款图片',
     'operation.createSimilar.title': '生成同款图片',
     'operation.generateImage.prompt': '根据 prompt 生成图片',

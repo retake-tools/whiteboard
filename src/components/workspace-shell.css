@@ -1,9 +1,13 @@
 .workspace-shell {
   --workspace-sidebar-width: 248px;
-  --workspace-workbench-width: 410px;
+  --workspace-workbench-width: 320px;
   display: grid;
   grid-template-columns: var(--workspace-sidebar-width) minmax(0, 1fr);
   background: var(--retake-color-background);
+}
+
+.workspace-shell.is-workbench-wide {
+  --workspace-workbench-width: 410px;
 }
 
 .workspace-shell.is-sidebar-collapsed {
@@ -291,7 +295,7 @@
   }
 
   .workspace-workbench {
-    width: min(410px, calc(100vw - var(--workspace-sidebar-width)));
+    width: min(var(--workspace-workbench-width), calc(100vw - var(--workspace-sidebar-width)));
     box-shadow: -16px 0 40px rgb(16 24 40 / 18%);
   }
 }

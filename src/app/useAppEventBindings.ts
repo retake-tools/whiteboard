@@ -13,6 +13,7 @@ interface AppEventBindingsOptions {
   pendingDirectImageImportBlockIdRef: RefObject<string | undefined>;
   retryFailedImageResult: (blockId: string) => Promise<void>;
   setHistoryOpen: (open: boolean) => void;
+  setImageExecutionDetailsBlockId: (blockId: string | undefined) => void;
   setInspectorBlockId: (blockId: string | undefined) => void;
   setSelectedBlock: (snapshot: BoardSnapshot, blockId: string) => void;
   showGrid: boolean;
@@ -30,6 +31,7 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
     pendingDirectImageImportBlockIdRef,
     retryFailedImageResult,
     setHistoryOpen,
+    setImageExecutionDetailsBlockId,
     setInspectorBlockId,
     setSelectedBlock,
     showGrid,
@@ -43,6 +45,16 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
   addOperationInputBlockRef.current = addOperationInputBlock;
   const deleteBlockIdsRef = useRef(deleteBlockIds);
   deleteBlockIdsRef.current = deleteBlockIds;
+  const retryFailedImageResultRef = useRef(retryFailedImageResult);
+  retryFailedImageResultRef.current = retryFailedImageResult;
+  const setHistoryOpenRef = useRef(setHistoryOpen);
+  setHistoryOpenRef.current = setHistoryOpen;
+  const setImageExecutionDetailsBlockIdRef = useRef(setImageExecutionDetailsBlockId);
+  setImageExecutionDetailsBlockIdRef.current = setImageExecutionDetailsBlockId;
+  const setInspectorBlockIdRef = useRef(setInspectorBlockId);
+  setInspectorBlockIdRef.current = setInspectorBlockId;
+  const setSelectedBlockRef = useRef(setSelectedBlock);
+  setSelectedBlockRef.current = setSelectedBlock;
 
   useEffect(() => { saveUiPreferences({ isMiniMapVisible }); }, [isMiniMapVisible]);
   useEffect(() => { saveUiPreferences({ showGrid }); }, [showGrid]);
@@ -52,14 +64,19 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
       const blockId = (event as CustomEvent<{ blockId?: string }>).detail?.blockId;
       if (!blockId) return;
       const current = snapshotRef.current;
-      if (!current.blocks.some((block) => block.blockId === blockId)) return;
-      setHistoryOpen(false);
-      setInspectorBlockId(blockId);
-      setSelectedBlock(current, blockId);
+      const block = current.blocks.find((candidate) => candidate.blockId === blockId);
+      if (!block) return;
+      setHistoryOpenRef.current(false);
+      setSelectedBlockRef.current(current, blockId);
+      if (block.type === 'image') {
+        setImageExecutionDetailsBlockIdRef.current(blockId);
+      } else {
+        setInspectorBlockIdRef.current(blockId);
+      }
     }
     function onRetryImageResult(event: Event): void {
       const blockId = (event as CustomEvent<{ blockId?: string }>).detail?.blockId;
-      if (blockId) void retryFailedImageResult(blockId);
+      if (blockId) void retryFailedImageResultRef.current(blockId);
     }
     function onAddOperationInput(event: Event): void {
       const detail = (event as CustomEvent<{ operationBlockId?: string; type?: BlockType }>).detail;
@@ -118,5 +135,5 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
       window.removeEventListener('retake:use-image-in-agent', onUseImageInAgent);
       window.removeEventListener('retake:delete-block', onDeleteBlock);
     };
-  }, []);
+  }, [directImageImportInputRef, pendingDirectImageImportBlockIdRef, snapshotRef]);
 }

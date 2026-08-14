@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import sharp from 'sharp';
 import {
   reduceWorkspaceSurface,
-  type WorkspaceSurface,
+  type WorkspaceSurfaceState,
 } from '../src/app/useWorkspaceSurfaceController';
 import { WorkspaceShell } from '../src/components/WorkspaceShell';
 import { WorkspaceSidebar } from '../src/components/WorkspaceSidebar';
@@ -24,32 +24,47 @@ Object.defineProperty(globalThis, 'localStorage', {
   },
 });
 
-let surface: WorkspaceSurface = { kind: 'none' };
-surface = reduceWorkspaceSurface(surface, {
+let workspaceSurfaceState: WorkspaceSurfaceState = {
+  agentOpen: false,
+  surface: { kind: 'none' },
+};
+workspaceSurfaceState = reduceWorkspaceSurface(workspaceSurfaceState, {
   type: 'set-workbench',
   kind: 'history',
   open: true,
 });
-assert.equal(surface.kind, 'history');
-surface = reduceWorkspaceSurface(surface, {
+assert.equal(workspaceSurfaceState.surface.kind, 'history');
+workspaceSurfaceState = reduceWorkspaceSurface(workspaceSurfaceState, {
   type: 'set-workbench',
   kind: 'agent',
   open: true,
 });
-assert.equal(surface.kind, 'agent');
-surface = reduceWorkspaceSurface(surface, {
+assert.equal(workspaceSurfaceState.surface.kind, 'agent');
+assert.equal(workspaceSurfaceState.agentOpen, true);
+workspaceSurfaceState = reduceWorkspaceSurface(workspaceSurfaceState, {
   type: 'set-inspector',
   blockId: 'block_inspector',
 });
-assert.deepEqual(surface, { kind: 'inspector', blockId: 'block_inspector' });
-surface = reduceWorkspaceSurface(surface, {
+assert.deepEqual(workspaceSurfaceState, {
+  agentOpen: true,
+  surface: { kind: 'inspector', blockId: 'block_inspector' },
+});
+workspaceSurfaceState = reduceWorkspaceSurface(workspaceSurfaceState, {
   type: 'set-workbench',
   kind: 'history',
   open: false,
 });
-assert.deepEqual(surface, { kind: 'inspector', blockId: 'block_inspector' });
-surface = reduceWorkspaceSurface(surface, { type: 'set-inspector' });
-assert.equal(surface.kind, 'none');
+assert.deepEqual(workspaceSurfaceState.surface, { kind: 'inspector', blockId: 'block_inspector' });
+workspaceSurfaceState = reduceWorkspaceSurface(workspaceSurfaceState, { type: 'set-inspector' });
+assert.equal(workspaceSurfaceState.surface.kind, 'agent');
+assert.equal(workspaceSurfaceState.agentOpen, true);
+workspaceSurfaceState = reduceWorkspaceSurface(workspaceSurfaceState, {
+  type: 'set-workbench',
+  kind: 'agent',
+  open: false,
+});
+assert.equal(workspaceSurfaceState.surface.kind, 'none');
+assert.equal(workspaceSurfaceState.agentOpen, false);
 
 const workspace: WorkspaceSummary = {
   defaultProjectId: 'project_current',
@@ -136,6 +151,7 @@ assert.equal(
 const shellMarkup = renderToStaticMarkup(
   <WorkspaceShell
     hasWorkbench
+    workbenchMode="compact"
     sidebar={({ collapsed, onToggleCollapsed }) => (
       <button type="button" data-collapsed={collapsed} onClick={onToggleCollapsed}>Sidebar</button>
     )}
@@ -148,6 +164,7 @@ const shellMarkup = renderToStaticMarkup(
 );
 assert.match(shellMarkup, /data-workspace-shell="v0"/);
 assert.match(shellMarkup, /has-workbench/);
+assert.match(shellMarkup, /is-workbench-compact/);
 assert.match(shellMarkup, /data-canvas-slot="true"/);
 assert.match(shellMarkup, /data-workspace-surface="history"/);
 
@@ -170,6 +187,8 @@ assert.match(sidebarSource, /workspace-sidebar-brand[\s\S]*workspace-sidebar-col
 assert.doesNotMatch(sidebarSource, /Token|Plan|Sign in|登录/);
 assert.match(shellCss, /grid-template-columns: var\(--workspace-sidebar-width\) minmax\(0, 1fr\)/);
 assert.match(shellCss, /--workspace-sidebar-width: 48px/);
+assert.match(shellCss, /--workspace-workbench-width: 320px/);
+assert.match(shellCss, /\.workspace-shell\.is-workbench-wide/);
 assert.match(railCss, /\.workspace-board-switcher/);
 assert.match(railCss, /\.workspace-sidebar-rail \{[\s\S]*height: 100%/);
 assert.match(railCss, /\.workspace-sidebar-rail-footer \{[\s\S]*align-self: end/);

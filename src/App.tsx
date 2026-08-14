@@ -5,6 +5,7 @@ import { AgentWorkspace } from './components/AgentWorkspace';
 import { ExecutionInspector } from './components/ExecutionInspector';
 import { FloatingToolbar } from './components/FloatingToolbar';
 import { GroupInspector } from './components/GroupInspector';
+import { ImageInspectorPanel } from './components/ImageInspectorPanel';
 import { InputReferencePicker } from './components/InputReferencePicker';
 import { OperationFeedback } from './components/OperationFeedback';
 import { OperationFromImagePicker } from './components/OperationFromImagePicker';
@@ -245,6 +246,7 @@ function ReadyApp({
     initialAgentOpen: initialUiPreferences.current.isAgentWorkspaceOpen,
   });
   const [workflowWorkspaceRunId, setWorkflowWorkspaceRunId] = useState<string>();
+  const [imageExecutionDetailsBlockId, setImageExecutionDetailsBlockId] = useState<string>();
   const [reviewDocumentBlockId, setReviewDocumentBlockId] = useState<string | undefined>();
   const [operationFromImagePicker, setOperationFromImagePicker] = useState<{
     anchor: { x: number; y: number };
@@ -300,6 +302,7 @@ function ReadyApp({
   useEffect(() => setReviewDocumentBlockId(undefined), [snapshot.board.boardId, snapshot.project.projectId]);
   useEffect(() => {
     setInspectorBlockId(undefined);
+    setImageExecutionDetailsBlockId(undefined);
     setIsHistoryOpen(false);
     setIsArtifactLibraryOpen(false);
     setWorkflowWorkspaceRunId(undefined);
@@ -725,6 +728,7 @@ function ReadyApp({
     pendingDirectImageImportBlockIdRef,
     retryFailedImageResult,
     setHistoryOpen: setIsHistoryOpen,
+    setImageExecutionDetailsBlockId,
     setInspectorBlockId,
     setSelectedBlock,
     showGrid,
@@ -829,6 +833,16 @@ function ReadyApp({
   const inspectorBlock = inspectorBlockId
     ? snapshot.blocks.find((block) => block.blockId === inspectorBlockId)
     : undefined;
+  const inspectorImageAsset = inspectorBlock?.type === 'image'
+    && typeof inspectorBlock.data.assetId === 'string'
+    ? snapshot.assets.find((asset) => asset.assetId === inspectorBlock.data.assetId)
+    : undefined;
+  const inspectorImageUrl = inspectorBlock?.type === 'image'
+    ? getAssetPreviewUrl(snapshot.assets, inspectorBlock.data.assetId)
+    : undefined;
+  const imageExecutionDetailsBlock = imageExecutionDetailsBlockId
+    ? snapshot.blocks.find((block) => block.blockId === imageExecutionDetailsBlockId)
+    : undefined;
   const reviewDocumentBlock = reviewDocumentBlockId
     ? snapshot.blocks.find((block) => block.blockId === reviewDocumentBlockId && block.type === 'document')
     : undefined;
@@ -841,12 +855,17 @@ function ReadyApp({
   const projectBoardDialogView = projectBoardDialog
     ? getProjectBoardDialogView(projectBoardDialog, t)
     : undefined;
-  const workbenchOpen = workspaceSurface.kind === 'agent'
+  const imageInspectorOpen = workspaceSurface.kind === 'inspector'
+    && inspectorBlock?.type === 'image'
+    && Boolean(inspectorImageAsset && inspectorImageUrl);
+  const workbenchOpen = imageInspectorOpen
+    || workspaceSurface.kind === 'agent'
     || workspaceSurface.kind === 'artifact'
     || workspaceSurface.kind === 'history';
   const appShell = (
     <WorkspaceShell
       hasWorkbench={workbenchOpen}
+      workbenchMode={workspaceSurface.kind === 'agent' ? 'wide' : 'compact'}
       sidebar={({ collapsed, onToggleCollapsed }) => (
         <WorkspaceSidebar
           artifactLibraryOpen={isArtifactLibraryOpen}
@@ -1065,7 +1084,9 @@ function ReadyApp({
         snapshot={snapshot}
         onSetActiveTool={setActiveCanvasTool}
       />
-      {workspaceSurface.kind === 'inspector' && inspectorBlock?.type !== 'group' ? (
+      {workspaceSurface.kind === 'inspector'
+        && inspectorBlock?.type !== 'group'
+        && inspectorBlock?.type !== 'image' ? (
         <ExecutionInspector
           copiedPromptKey={copiedPromptKey}
           reserveAgentWorkspace={false}
@@ -1073,6 +1094,25 @@ function ReadyApp({
           snapshot={snapshot}
           onClose={() => setInspectorBlockId(undefined)}
           onBeforePluginOperationAction={async () => {
+            setInspectorBlockId(undefined);
+            await nextAnimationFrame();
+            await nextAnimationFrame();
+          }}
+          onCopyPrompt={copyPromptWithHistory}
+          onPluginFatalFailure={onPluginContributionFatalFailure}
+          onRestoreConfiguration={restoreConfigurationVersion}
+          pluginContributionRegistry={pluginContributionRegistry}
+        />
+      ) : null}
+      {imageExecutionDetailsBlock?.type === 'image' ? (
+        <ExecutionInspector
+          copiedPromptKey={copiedPromptKey}
+          reserveAgentWorkspace={false}
+          selectedBlock={imageExecutionDetailsBlock}
+          snapshot={snapshot}
+          onClose={() => setImageExecutionDetailsBlockId(undefined)}
+          onBeforePluginOperationAction={async () => {
+            setImageExecutionDetailsBlockId(undefined);
             setInspectorBlockId(undefined);
             await nextAnimationFrame();
             await nextAnimationFrame();
@@ -1107,6 +1147,17 @@ function ReadyApp({
       ) : null}
       {workbenchOpen ? (
         <WorkspaceWorkbench surface={workspaceSurface}>
+          {imageInspectorOpen && inspectorBlock?.type === 'image' && inspectorImageAsset && inspectorImageUrl ? (
+            <ImageInspectorPanel
+              asset={inspectorImageAsset}
+              block={inspectorBlock}
+              contentLocked={blockLockedByGroup(snapshot, inspectorBlock.blockId)}
+              onClose={() => setInspectorBlockId(undefined)}
+              onOpenExecutionDetails={() => setImageExecutionDetailsBlockId(inspectorBlock.blockId)}
+              previewUrl={inspectorImageUrl}
+              snapshot={snapshot}
+            />
+          ) : null}
           {workspaceSurface.kind === 'artifact' ? (
             <Suspense fallback={null}>
               <ArtifactLibraryPanel

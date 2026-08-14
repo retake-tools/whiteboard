@@ -13,6 +13,7 @@ import './components/group-inspector.css';
 import './components/group-draw-overlay.css';
 import './components/image-generation-panel.css';
 import './components/image-context-command-menu.css';
+import './components/image-inspector-panel.css';
 import './components/input-reference-picker.css';
 import './components/project-board.css';
 import './components/project-board-manager.css';
