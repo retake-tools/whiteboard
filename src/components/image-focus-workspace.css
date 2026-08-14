@@ -145,6 +145,7 @@
 }
 
 .image-focus-candidate-strip > button {
+  position: relative;
   display: grid;
   width: 104px;
   flex: 0 0 104px;
@@ -158,6 +159,27 @@
   font: inherit;
   font-size: 11px;
   text-align: center;
+}
+
+.image-focus-candidate-strip > button.is-selected-output {
+  background: var(--retake-accent-soft);
+}
+
+.image-focus-selected-output {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 999px;
+  background: var(--retake-accent);
+  box-shadow: 0 2px 8px rgb(18 18 28 / 18%);
+  color: var(--retake-on-accent);
+  font-size: 9px;
+  font-weight: 750;
 }
 
 .image-focus-candidate-strip > button:hover,

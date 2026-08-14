@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   memo,
   useCallback,
@@ -50,6 +50,11 @@ export const ImageFocusWorkspace = memo(function ImageFocusWorkspace({
     overflow: false,
     previous: false,
   });
+  const selectedOutputKeys = useMemo(() => new Set(
+    (snapshot.executionOutputSelections ?? []).map(
+      (selection) => `${selection.selectedBlockId}\u0000${selection.selectedAssetId}`,
+    ),
+  ), [snapshot.executionOutputSelections]);
 
   const syncCandidateScroll = useCallback((): void => {
     const strip = candidateStripRef.current;
@@ -178,8 +183,7 @@ export const ImageFocusWorkspace = memo(function ImageFocusWorkspace({
 
       <div className="image-focus-candidates">
         <header>
-          <strong>{t('imageFocus.candidates')}</strong>
-          <span>{t('imageFocus.viewing')} {activeIndex + 1} / {images.length}</span>
+          <strong>{t('imageFocus.candidates')} {activeIndex + 1} / {images.length}</strong>
         </header>
         <div className="image-focus-candidate-navigation">
           <button
@@ -199,6 +203,9 @@ export const ImageFocusWorkspace = memo(function ImageFocusWorkspace({
                 index={index}
                 key={image.block.blockId}
                 onSelectBlock={selectFocusBlock}
+                selectedOutput={selectedOutputKeys.has(
+                  `${image.block.blockId}\u0000${image.asset.assetId}`,
+                )}
               />
             ))}
           </div>
@@ -222,22 +229,29 @@ const FocusCandidateButton = memo(function FocusCandidateButton({
   image,
   index,
   onSelectBlock,
+  selectedOutput,
 }: {
   active: boolean;
   image: FocusImage;
   index: number;
   onSelectBlock: (blockId: string) => void;
+  selectedOutput: boolean;
 }): ReactElement {
   return (
     <button
       type="button"
-      className={active ? 'is-active' : undefined}
+      className={`${active ? 'is-active' : ''}${selectedOutput ? ' is-selected-output' : ''}`.trim() || undefined}
       aria-label={`${image.block.data.title} ${index + 1}`}
       aria-pressed={active}
       data-candidate-index={index}
       onClick={() => onSelectBlock(image.block.blockId)}
     >
       <img loading="lazy" src={image.asset.previewUrl} alt="" />
+      {selectedOutput ? (
+        <span className="image-focus-selected-output">
+          <Check aria-hidden="true" size={11} />
+        </span>
+      ) : null}
       <span>{image.block.data.title}</span>
     </button>
   );

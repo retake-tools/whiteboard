@@ -382,8 +382,14 @@ export type TranslationKey =
   | 'imageInspector.importedSource'
   | 'imageInspector.locked'
   | 'imageInspector.noHistory'
+  | 'imageInspector.outputNotSelected'
+  | 'imageInspector.outputSelection'
+  | 'imageInspector.outputSelectionHint'
   | 'imageInspector.position'
   | 'imageInspector.prompt'
+  | 'imageInspector.reselectOutput'
+  | 'imageInspector.selectOutput'
+  | 'imageInspector.selectedOutput'
   | 'imageInspector.source'
   | 'imageInspector.sourceAndGeneration'
   | 'imageInspector.title'
@@ -396,6 +402,9 @@ export type TranslationKey =
   | 'imageFocus.scrollCandidatesPrevious'
   | 'imageFocus.title'
   | 'imageFocus.viewing'
+  | 'outputSelection.failed'
+  | 'outputSelection.selected'
+  | 'outputSelection.selectedBody'
   | 'operation.createSimilar.prompt'
   | 'operation.createSimilar.title'
   | 'operation.generateImage.prompt'
@@ -1816,8 +1825,14 @@ const translations: Record<Locale, Translations> = {
     'imageInspector.importedSource': 'Imported asset',
     'imageInspector.locked': 'Locked',
     'imageInspector.noHistory': 'No task history for this image yet',
+    'imageInspector.outputNotSelected': 'This candidate has not been selected',
+    'imageInspector.outputSelection': 'Output selection',
+    'imageInspector.outputSelectionHint': 'Selection is saved for this run. Other candidates remain available.',
     'imageInspector.position': 'Position and size',
     'imageInspector.prompt': 'Prompt',
+    'imageInspector.reselectOutput': 'Select this candidate instead',
+    'imageInspector.selectOutput': 'Select this candidate',
+    'imageInspector.selectedOutput': 'Selected output',
     'imageInspector.source': 'Source',
     'imageInspector.sourceAndGeneration': 'Source and generation',
     'imageInspector.title': 'Image inspector',
@@ -1830,6 +1845,9 @@ const translations: Record<Locale, Translations> = {
     'imageFocus.scrollCandidatesPrevious': 'Scroll candidate queue left',
     'imageFocus.title': 'Image focus workspace',
     'imageFocus.viewing': 'Viewing',
+    'outputSelection.failed': 'Could not select output',
+    'outputSelection.selected': 'Output selected',
+    'outputSelection.selectedBody': 'This run now uses the selected candidate. Other candidates were kept.',
     'operation.createSimilar.prompt': 'Create similar image',
     'operation.createSimilar.title': 'Create similar image',
     'operation.generateImage.prompt': 'Generate image from prompt',
@@ -3245,8 +3263,14 @@ const translations: Record<Locale, Translations> = {
     'imageInspector.importedSource': '导入素材',
     'imageInspector.locked': '已锁定',
     'imageInspector.noHistory': '当前图片暂无任务历史',
+    'imageInspector.outputNotSelected': '当前候选尚未选用',
+    'imageInspector.outputSelection': '候选选用',
+    'imageInspector.outputSelectionHint': '选用结果会保存到本次执行，其他候选仍会保留。',
     'imageInspector.position': '位置与尺寸',
     'imageInspector.prompt': '提示词',
+    'imageInspector.reselectOutput': '改选为当前方案',
+    'imageInspector.selectOutput': '选用当前方案',
+    'imageInspector.selectedOutput': '已选用',
     'imageInspector.source': '来源',
     'imageInspector.sourceAndGeneration': '来源与生成',
     'imageInspector.title': '图片检查器',
@@ -3259,6 +3283,9 @@ const translations: Record<Locale, Translations> = {
     'imageFocus.scrollCandidatesPrevious': '向左移动候选队列',
     'imageFocus.title': '图片聚焦工作区',
     'imageFocus.viewing': '正在查看',
+    'outputSelection.failed': '选用失败',
+    'outputSelection.selected': '已选用当前方案',
+    'outputSelection.selectedBody': '本次执行已记录该方案，其他候选仍然保留。',
     'operation.createSimilar.prompt': '生成同款图片',
     'operation.createSimilar.title': '生成同款图片',
     'operation.generateImage.prompt': '根据 prompt 生成图片',

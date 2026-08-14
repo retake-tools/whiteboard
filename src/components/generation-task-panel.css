@@ -279,7 +279,8 @@
   font-weight: 500;
 }
 
-.workflow-candidate-dock > footer {
+.workflow-candidate-dock > footer,
+.generation-candidate-dock > footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -287,14 +288,16 @@
   padding-top: 2px;
 }
 
-.workflow-candidate-dock > footer small {
+.workflow-candidate-dock > footer small,
+.generation-candidate-dock > footer small {
   max-width: 440px;
   color: var(--retake-text-muted);
   font-size: 9px;
   line-height: 1.4;
 }
 
-.workflow-candidate-dock > footer button {
+.workflow-candidate-dock > footer button,
+.generation-candidate-dock > footer button {
   display: inline-flex;
   min-height: 36px;
   flex: 0 0 auto;
@@ -310,7 +313,8 @@
   font-weight: 700;
 }
 
-.workflow-candidate-dock > footer button:disabled {
+.workflow-candidate-dock > footer button:disabled,
+.generation-candidate-dock > footer button:disabled {
   cursor: default;
   opacity: .45;
 }
@@ -338,6 +342,10 @@
 .generation-candidate-strip > button.is-previewing {
   border-color: var(--retake-accent);
   box-shadow: 0 0 0 1px var(--retake-accent);
+}
+
+.generation-candidate-strip > button.is-selected-output {
+  background: var(--retake-accent-soft);
 }
 
 .generation-candidate-strip > button:disabled {
@@ -382,6 +390,22 @@
   border-radius: 999px;
   background: var(--retake-accent);
   color: var(--retake-on-accent);
+  font-size: 8px;
+  font-weight: 750;
+}
+
+.generation-candidate-selected-output {
+  position: absolute;
+  top: 9px;
+  left: 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 5px;
+  border-radius: 999px;
+  background: var(--retake-surface);
+  box-shadow: 0 2px 8px rgb(18 18 28 / 12%);
+  color: var(--retake-accent-strong);
   font-size: 8px;
   font-weight: 750;
 }

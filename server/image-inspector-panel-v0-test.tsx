@@ -161,7 +161,7 @@ const focusMarkup = renderToStaticMarkup(
 assert.match(focusMarkup, /图片聚焦工作区/);
 assert.match(focusMarkup, /返回画布/);
 assert.match(focusMarkup, /本次候选/);
-assert.match(focusMarkup, /正在查看 1 \/ 1/);
+assert.match(focusMarkup, /本次候选 1 \/ 1/);
 assert.match(focusMarkup, /向左移动候选队列/);
 assert.match(focusMarkup, /向右移动候选队列/);
 assert.match(focusMarkup, /data-candidate-index="0"/);
@@ -177,6 +177,7 @@ const [appSource, eventBindingSource, inspectorSource, focusSource, focusStyles]
 ]);
 
 assert.match(appSource, /<ImageFocusWorkspace/);
+assert.match(appSource, /onSelectOutput=\{executionOutputSelectionController\.selectOutput\}/);
 assert.match(appSource, /setImageFocusBlockId\(undefined\)/);
 assert.match(appSource, /onBackToCanvas=\{\(\) => \{\s*setImageFocusBlockId\(undefined\);\s*setInspectorBlockId\(undefined\)/);
 assert.match(eventBindingSource, /setImageFocusBlockIdRef\.current\(blockId\)/);

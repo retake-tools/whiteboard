@@ -83,6 +83,10 @@ import {
   type WhiteboardHistoryCommandsV1,
 } from './whiteboardHistoryCommands';
 import {
+  createWhiteboardExecutionOutputCommands,
+  type WhiteboardExecutionOutputCommandsV1,
+} from './whiteboardExecutionOutputCommands';
+import {
   createWhiteboardConnectedPluginExecutionCommands,
   type WhiteboardConnectedPluginExecutionCommandsV1,
 } from './whiteboardConnectedPluginExecutionCommands';
@@ -207,6 +211,7 @@ export interface WhiteboardProductCommandsV1 {
   readonly canvas: WhiteboardCanvasCommandsV1;
   readonly connectedPluginExecution: WhiteboardConnectedPluginExecutionCommandsV1;
   readonly executionConfiguration: WhiteboardExecutionConfigurationCommandsV1;
+  readonly executionOutput: WhiteboardExecutionOutputCommandsV1;
   readonly history: WhiteboardHistoryCommandsV1;
   readonly imageExecution: WhiteboardImageExecutionCommandsV1;
   readonly imageOperation: WhiteboardImageOperationCommandsV1;
@@ -449,6 +454,7 @@ export function createWhiteboardProductCommands(
     canvas: createWhiteboardCanvasCommands(transactions),
     connectedPluginExecution: createWhiteboardConnectedPluginExecutionCommands(transactions),
     executionConfiguration: createWhiteboardExecutionConfigurationCommands(transactions),
+    executionOutput: createWhiteboardExecutionOutputCommands(transactions),
     history: createWhiteboardHistoryCommands(transactions),
     imageExecution: createWhiteboardImageExecutionCommands(transactions),
     imageOperation: createWhiteboardImageOperationCommands(transactions),

@@ -216,6 +216,15 @@ export interface ExecutionResultSummary {
   failed: number;
 }
 
+export interface ExecutionOutputSelectionRecord {
+  executionId: string;
+  recordVersion: number;
+  selectedAssetId: string;
+  selectedAt: string;
+  selectedBlockId: string;
+  selectedBy: 'user' | 'codex' | 'system';
+}
+
 export interface ExecutionConfigurationInputSnapshot {
   assetId?: string;
   blockId: string;
@@ -292,6 +301,7 @@ export type BoardHistoryEventType =
   | 'execution_succeeded'
   | 'execution_failed'
   | 'execution_canceled'
+  | 'output_selected'
   | 'result_block_updated';
 
 export interface BoardHistoryEvent {
@@ -438,6 +448,7 @@ export interface BoardSnapshot {
   edges: BoardEdgeRecord[];
   assets: AssetRecord[];
   executions: ExecutionRecord[];
+  executionOutputSelections?: ExecutionOutputSelectionRecord[];
   agentRuns?: AgentRunRecord[];
   agentSessions?: AgentSessionRecord[];
   agentMessages?: AgentMessageRecord[];

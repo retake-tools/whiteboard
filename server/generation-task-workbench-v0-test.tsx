@@ -75,6 +75,14 @@ const snapshot: BoardSnapshot = {
   ...structuredClone(defaultSnapshot),
   assets: [sourceAsset, resultAsset],
   blocks: [source, operation, result1, result2, result3, result4],
+  executionOutputSelections: [{
+    executionId: execution.executionId,
+    recordVersion: 1,
+    selectedAssetId: resultAsset.assetId,
+    selectedAt: now,
+    selectedBlockId: result1.blockId,
+    selectedBy: 'user',
+  }],
   executions: [execution],
 };
 
@@ -112,6 +120,7 @@ const dockMarkup = renderToStaticMarkup(
     <GenerationCandidateDock
       execution={execution}
       onSelectBlock={() => undefined}
+      onSelectOutput={() => undefined}
       selectedBlockId={result1.blockId}
       snapshot={snapshot}
     />
@@ -122,7 +131,9 @@ assert.match(dockMarkup, /原图/);
 assert.match(dockMarkup, /方案 1/);
 assert.match(dockMarkup, /方案 4/);
 assert.match(dockMarkup, /预览中/);
-assert.doesNotMatch(dockMarkup, /已选|selected authority/);
+assert.match(dockMarkup, /已选用/);
+assert.match(dockMarkup, /预览不会改变已选结果/);
+assert.doesNotMatch(dockMarkup, /selected authority/);
 
 const [appSource, eventBindingSource, imageInspectorSource, taskStyles] = await Promise.all([
   readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),

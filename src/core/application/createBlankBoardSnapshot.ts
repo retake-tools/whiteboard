@@ -45,6 +45,7 @@ export function createBlankBoardSnapshot(input: {
     changeProposals: [],
     edges: [],
     executions: [],
+    executionOutputSelections: [],
     historyEvents: [],
     layers: [{
       boardId,

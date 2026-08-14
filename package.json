@@ -77,6 +77,7 @@
     "workspace-shell-v0:test": "tsx server/workspace-shell-v0-test.tsx",
     "workspace-create-ui-v0:test": "tsx server/workspace-create-ui-v0-test.tsx",
     "image-inspector-ui-v0:test": "tsx server/image-inspector-panel-v0-test.tsx",
+    "execution-output-selection-v0:test": "tsx server/execution-output-selection-v0-test.ts",
     "generation-task-workbench-v0:test": "tsx server/generation-task-workbench-v0-test.tsx",
     "generation-task-workbench-v0:ui-fixture": "RETAKE_WORKSPACE_DIR=.retake-test-generation-task-v0 tsx server/generation-task-workbench-v0-ui-fixture.ts",
     "workflow-agent-gate-workbench-v0:test": "tsx server/workflow-agent-gate-workbench-v0-test.tsx",

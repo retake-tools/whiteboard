@@ -6,6 +6,12 @@ import { useI18n } from '../i18n';
 interface GenerationCandidateDockProps {
   execution: ExecutionRecord;
   onSelectBlock: (blockId: string) => void;
+  onSelectOutput?: (input: {
+    assetId: string;
+    blockId: string;
+    executionId: string;
+    expectedSelectionVersion: number;
+  }) => void | Promise<void>;
   selectedBlockId?: string;
   snapshot: BoardSnapshot;
 }
@@ -13,6 +19,7 @@ interface GenerationCandidateDockProps {
 export const GenerationCandidateDock = memo(function GenerationCandidateDock({
   execution,
   onSelectBlock,
+  onSelectOutput,
   selectedBlockId,
   snapshot,
 }: GenerationCandidateDockProps): ReactElement | null {
@@ -27,6 +34,19 @@ export const GenerationCandidateDock = memo(function GenerationCandidateDock({
     const blockId = execution.outputBlockIds[index];
     return blockId ? outputById.get(blockId) : undefined;
   });
+  const selectedOutput = snapshot.executionOutputSelections?.find(
+    (selection) => selection.executionId === execution.executionId,
+  );
+  const previewedOutputBlock = slots.find((block) => block?.blockId === selectedBlockId);
+  const previewedOutputAsset = snapshot.assets.find(
+    (asset) => asset.assetId === previewedOutputBlock?.data.assetId,
+  );
+  const previewedOutputIsSelected = Boolean(
+    previewedOutputBlock
+    && previewedOutputAsset
+    && selectedOutput?.selectedBlockId === previewedOutputBlock.blockId
+    && selectedOutput.selectedAssetId === previewedOutputAsset.assetId
+  );
 
   return (
     <section className="generation-candidate-dock" aria-label={locale === 'zh' ? '候选结果' : 'Candidate results'}>
@@ -45,6 +65,7 @@ export const GenerationCandidateDock = memo(function GenerationCandidateDock({
             locale={locale}
             onSelectBlock={onSelectBlock}
             selected={sourceBlock.blockId === selectedBlockId}
+            selectedOutput={false}
             snapshot={snapshot}
           />
         ) : null}
@@ -56,10 +77,39 @@ export const GenerationCandidateDock = memo(function GenerationCandidateDock({
             locale={locale}
             onSelectBlock={onSelectBlock}
             selected={block?.blockId === selectedBlockId}
+            selectedOutput={Boolean(
+              block
+              && selectedOutput?.selectedBlockId === block.blockId
+              && selectedOutput.selectedAssetId === block.data.assetId
+            )}
             snapshot={snapshot}
           />
         ))}
       </div>
+      <footer>
+        <small>{locale === 'zh'
+          ? '预览不会改变已选结果，确认后仍保留全部候选。'
+          : 'Previewing does not change the selected output. All candidates remain available.'}</small>
+        <button
+          type="button"
+          disabled={!previewedOutputBlock || !previewedOutputAsset || previewedOutputIsSelected || !onSelectOutput}
+          onClick={() => {
+            if (!previewedOutputBlock || !previewedOutputAsset) return;
+            void onSelectOutput?.({
+              assetId: previewedOutputAsset.assetId,
+              blockId: previewedOutputBlock.blockId,
+              executionId: execution.executionId,
+              expectedSelectionVersion: selectedOutput?.recordVersion ?? 0,
+            });
+          }}
+        >
+          {previewedOutputIsSelected
+            ? (locale === 'zh' ? '已选用' : 'Selected')
+            : selectedOutput
+              ? (locale === 'zh' ? '改选为当前方案' : 'Select current instead')
+              : (locale === 'zh' ? '选用当前方案' : 'Select current')}
+        </button>
+      </footer>
     </section>
   );
 });
@@ -70,6 +120,7 @@ function Candidate({
   locale,
   onSelectBlock,
   selected,
+  selectedOutput,
   snapshot,
 }: {
   block?: BlockRecord;
@@ -77,6 +128,7 @@ function Candidate({
   locale: 'en' | 'zh';
   onSelectBlock: (blockId: string) => void;
   selected: boolean;
+  selectedOutput: boolean;
   snapshot: BoardSnapshot;
 }): ReactElement {
   const asset = snapshot.assets.find((candidate) => candidate.assetId === block?.data.assetId);
@@ -84,7 +136,7 @@ function Candidate({
   return (
     <button
       type="button"
-      className={selected ? 'is-previewing' : undefined}
+      className={`${selected ? 'is-previewing' : ''}${selectedOutput ? ' is-selected-output' : ''}`.trim() || undefined}
       disabled={!ready}
       onClick={() => block && onSelectBlock(block.blockId)}
     >
@@ -104,6 +156,12 @@ function Candidate({
         <span className="generation-candidate-previewing">
           <Check size={10} />
           {locale === 'zh' ? '预览中' : 'Previewing'}
+        </span>
+      ) : null}
+      {selectedOutput ? (
+        <span className="generation-candidate-selected-output">
+          <Check size={10} />
+          {locale === 'zh' ? '已选用' : 'Selected'}
         </span>
       ) : null}
     </button>

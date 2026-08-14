@@ -12,6 +12,7 @@ import {
   groupStructureLocked,
 } from '../../core/grouping';
 import { createId, nowIso } from '../../core/id';
+import { pruneInvalidExecutionOutputSelections } from '../../core/executionOutputSelection';
 import type { BoardSnapshot, ExecutionRecord } from '../../core/types';
 import type { CanvasHostScopeV1 } from '../../host-kit';
 import type { WhiteboardCanvasHostBridge } from '../../host-kit/internal/whiteboardCompatibility';
@@ -99,6 +100,7 @@ export function createWhiteboardBlockCommands(
           snapshot.edges = snapshot.edges.filter(
             (edge) => !selectedIds.has(edge.sourceBlockId) && !selectedIds.has(edge.targetBlockId),
           );
+          pruneInvalidExecutionOutputSelections(snapshot);
           for (const parentGroupId of affectedParentIds) fitGroupToChildren(snapshot, parentGroupId);
         }
         if (deletedBlockIds.length === 0 && canceledExecutions.length === 0) {

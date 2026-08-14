@@ -13,6 +13,7 @@ import type { ChangeProposalCommand } from './agentSessionContracts';
 import { normalizeBoardBackground } from './boardBackground';
 import { imageGenerateCapabilityId } from './imageGenerateContracts';
 import { arrangeWorkflowGroup } from './workflowGroupLayout';
+import { pruneInvalidExecutionOutputSelections } from './executionOutputSelection';
 
 type LegacyBlockType = BlockType | 'task' | 'frame';
 type LegacyConnectionKind = ConnectionKind | 'reference' | 'derived_from';
@@ -100,6 +101,7 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
       : repairedBlocks,
     edges: migratedEdges,
     executions: migratedExecutions,
+    executionOutputSelections: legacy.executionOutputSelections ?? [],
     agentRuns: (legacy.agentRuns ?? []).map((run) => ({
       ...run,
       permissions: run.permissions ?? {
@@ -177,6 +179,7 @@ export function migrateBoardSnapshot(snapshot: BoardSnapshot): BoardSnapshot {
   if ((legacy.imageGenerateMigrationVersion ?? 0) < 1) {
     migratedSnapshot.imageGenerateMigrationVersion = 1;
   }
+  pruneInvalidExecutionOutputSelections(migratedSnapshot);
   return migratedSnapshot;
 }
 

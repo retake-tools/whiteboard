@@ -102,6 +102,46 @@
   font-weight: 700;
 }
 
+.image-inspector-output-selection {
+  display: grid;
+  gap: 10px;
+}
+
+.image-inspector-output-selection > div {
+  display: grid;
+  gap: 3px;
+}
+
+.image-inspector-output-selection strong {
+  color: var(--retake-text-secondary);
+  font-size: 12px;
+}
+
+.image-inspector-output-selection span {
+  color: var(--retake-text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.image-inspector-output-selection button {
+  min-height: 40px;
+  border: 1px solid var(--retake-accent);
+  border-radius: 10px;
+  background: var(--retake-accent);
+  color: var(--retake-on-accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.image-inspector-output-selection button:disabled {
+  border-color: var(--retake-border-subtle);
+  background: var(--retake-surface-subtle);
+  color: var(--retake-accent-strong);
+  cursor: default;
+}
+
 .image-inspector-actions {
   position: relative;
   display: grid;

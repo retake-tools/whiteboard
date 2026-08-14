@@ -154,6 +154,7 @@ export async function duplicateBoard(input: { projectId: string; boardId: string
   snapshot.agentRuntimeEvents = [];
   snapshot.changeProposals = [];
   snapshot.changeDecisions = [];
+  snapshot.executionOutputSelections = [];
   snapshot.workflowRuns = [];
   snapshot.workflowStepRuns = [];
   snapshot.workflowGateEvaluations = [];

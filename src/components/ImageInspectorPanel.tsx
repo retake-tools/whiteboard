@@ -47,6 +47,12 @@ interface ImageInspectorPanelProps {
     source: ExecutionDetailCopySource;
   }) => void | Promise<void>;
   onDownload: () => void;
+  onSelectOutput?: (input: {
+    assetId: string;
+    blockId: string;
+    executionId: string;
+    expectedSelectionVersion: number;
+  }) => void | Promise<void>;
   onPluginFatalFailure?: (pluginModuleId: string, message: string) => Promise<void> | void;
   onRestoreConfiguration: (executionId: string) => void;
   previewUrl: string;
@@ -63,6 +69,7 @@ export const ImageInspectorPanel = memo(function ImageInspectorPanel({
   onBeforePluginOperationAction,
   onCopyPrompt,
   onDownload,
+  onSelectOutput,
   onPluginFatalFailure,
   onRestoreConfiguration,
   previewUrl,
@@ -81,6 +88,17 @@ export const ImageInspectorPanel = memo(function ImageInspectorPanel({
   const sourceExecution = relatedExecutions.find(
     (execution) => execution.executionId === asset.sourceExecutionId,
   );
+  const selectableExecution = relatedExecutions.find((execution) => (
+    execution.outputBlockIds.includes(block.blockId)
+    && execution.outputAssetIds.includes(asset.assetId)
+  ));
+  const outputSelection = selectableExecution
+    ? snapshot.executionOutputSelections?.find(
+        (selection) => selection.executionId === selectableExecution.executionId,
+      )
+    : undefined;
+  const isSelectedOutput = outputSelection?.selectedAssetId === asset.assetId
+    && outputSelection.selectedBlockId === block.blockId;
   const executionContext = useMemo(
     () => getExecutionDetailContextForBlock(snapshot, block),
     [block, snapshot],
@@ -158,6 +176,35 @@ export const ImageInspectorPanel = memo(function ImageInspectorPanel({
             </details>
           </div>
         </InspectorSection>
+
+        {selectableExecution ? (
+          <InspectorSection title={t('imageInspector.outputSelection')}>
+            <div className={`image-inspector-output-selection${isSelectedOutput ? ' is-selected' : ''}`}>
+              <div>
+                <strong>{isSelectedOutput
+                  ? t('imageInspector.selectedOutput')
+                  : t('imageInspector.outputNotSelected')}</strong>
+                <span>{t('imageInspector.outputSelectionHint')}</span>
+              </div>
+              <button
+                type="button"
+                disabled={isSelectedOutput || !onSelectOutput}
+                onClick={() => onSelectOutput?.({
+                  assetId: asset.assetId,
+                  blockId: block.blockId,
+                  executionId: selectableExecution.executionId,
+                  expectedSelectionVersion: outputSelection?.recordVersion ?? 0,
+                })}
+              >
+                {isSelectedOutput
+                  ? t('imageInspector.selectedOutput')
+                  : outputSelection
+                    ? t('imageInspector.reselectOutput')
+                    : t('imageInspector.selectOutput')}
+              </button>
+            </div>
+          </InspectorSection>
+        ) : null}
 
         <InspectorSection title={t('imageInspector.position')}>
           <dl className="image-inspector-metric-grid">

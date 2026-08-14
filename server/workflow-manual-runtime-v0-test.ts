@@ -640,6 +640,7 @@ assert.deepEqual(duplicatedGateBoard.snapshot.workflowApprovalRequests, []);
 assert.deepEqual(duplicatedGateBoard.snapshot.workflowApprovalDecisions, []);
 assert.deepEqual(duplicatedGateBoard.snapshot.workflowRuns, []);
 assert.deepEqual(duplicatedGateBoard.snapshot.agentRuns, []);
+assert.deepEqual(duplicatedGateBoard.snapshot.executionOutputSelections, []);
 
 console.log(JSON.stringify({
   ok: true,

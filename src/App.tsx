@@ -49,6 +49,7 @@ import { useOperationInputController } from './app/useOperationInputController';
 import {
   useExecutionConfigurationController,
 } from './app/useExecutionConfigurationController';
+import { useExecutionOutputSelectionController } from './app/useExecutionOutputSelectionController';
 import { useCanvasController } from './app/useCanvasController';
 import { useGroupController } from './app/useGroupController';
 import { useBlockActions } from './app/useBlockActions';
@@ -637,6 +638,11 @@ function ReadyApp({
     snapshotRef,
     t,
   });
+  const executionOutputSelectionController = useExecutionOutputSelectionController({
+    runProductCommand,
+    setOperationToast,
+    t,
+  });
   const {
     addOperationInputBlock,
     completeInputReferenceMention,
@@ -1201,6 +1207,7 @@ function ReadyApp({
               onDownload={() => downloadAsset(inspectorImageAsset, inspectorBlock.data.title)}
               onPluginFatalFailure={onPluginContributionFatalFailure}
               onRestoreConfiguration={restoreConfigurationVersion}
+              onSelectOutput={executionOutputSelectionController.selectOutput}
               previewUrl={inspectorImageUrl}
               pluginContributionRegistry={pluginContributionRegistry}
               snapshot={snapshot}
@@ -1334,6 +1341,7 @@ function ReadyApp({
         <GenerationCandidateDock
           execution={taskExecution}
           onSelectBlock={(blockId) => setSelectedBlock(snapshotRef.current, blockId)}
+          onSelectOutput={executionOutputSelectionController.selectOutput}
           selectedBlockId={selectedBlock?.blockId}
           snapshot={snapshot}
         />
