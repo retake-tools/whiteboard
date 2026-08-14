@@ -182,6 +182,14 @@
   background: #f1f5f9;
 }
 
+.top-bar-title.is-static {
+  cursor: default;
+}
+
+.top-bar-title.is-static:hover {
+  background: transparent;
+}
+
 .top-bar-title.is-active {
   background: var(--retake-accent-soft);
   color: var(--retake-accent-strong);

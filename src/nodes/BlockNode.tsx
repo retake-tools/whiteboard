@@ -15,7 +15,7 @@ import { TooltipIconButton } from '../components/Tooltip';
 import { PluginBlockRendererSlot } from '../components/PluginBlockRendererHost';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { DocumentBlockBody } from './DocumentBlockBody';
-import { OperationInlineControls } from './OperationInlineControls';
+import { ConnectedOperationInlineControls } from './OperationInlineControls';
 import { VideoBlockBody } from './VideoBlockBody';
 
 const iconByType = {
@@ -673,7 +673,7 @@ function BlockBody({
   if (type === 'operation') {
     return (
       <div className="operation-body">
-        <OperationInlineControls blockId={blockId} data={data} />
+        <ConnectedOperationInlineControls blockId={blockId} data={data} />
       </div>
     );
   }

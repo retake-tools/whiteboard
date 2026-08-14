@@ -22,11 +22,24 @@ import {
 import {
   commandShortcutFromKeyboardEvent,
 } from '../src/app/useCanvasController';
+import { I18nProvider } from '../src/i18n';
 import type {
   AssetRecord,
   BlockRecord,
   ExecutionRecord,
 } from '../src/core/types';
+
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
+  value: {
+    getItem: () => 'en',
+    setItem: () => undefined,
+  },
+});
+Object.defineProperty(globalThis, 'navigator', {
+  configurable: true,
+  value: { language: 'en-US' },
+});
 
 const host: PluginHostApiV2 = {
   assets: {
@@ -120,7 +133,53 @@ const markup = renderToStaticMarkup(
 assert.match(markup, /aria-label="Download with Plugin"/);
 assert.match(markup, /plugin-image-toolbar-action/);
 assert.match(markup, /lucide-sliders-horizontal/);
+assert.match(markup, />Download with Plugin</);
 assert.match(markup, /<button/);
+
+const unavailableRegistry = createPluginContributionRegistry();
+assert.deepEqual(unavailableRegistry.replace([{
+  activation: {
+    contributions: [{
+      contribution: {
+        contributionId: 'retake.contribution.unavailable-fixture',
+        exportName: 'unavailableFixtureCommand',
+        kind: 'command',
+      },
+      value: {
+        apiVersion: 1,
+        availability: () => ({
+          enabled: false,
+          reason: 'Add an image connection first.',
+          visible: true,
+        }),
+        commandId: 'retake.contribution.unavailable-fixture',
+        contextKind: 'image',
+        defaultBindings: [{ surfaceId: 'image.context-toolbar' }],
+        icon: 'smart-edit',
+        kind: 'command',
+        label: 'Connected edit',
+        run: () => undefined,
+      },
+    }],
+  },
+  host,
+  record: { pluginModuleId: 'retake.plugin.unavailable-fixture' },
+}]), []);
+const unavailableMenuMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <PluginImageToolbarActions
+      assetId="asset.fixture"
+      blockId="block.fixture"
+      onOpenSettings={() => undefined}
+      registry={unavailableRegistry}
+      title="Fixture image"
+      variant="menu"
+    />
+  </I18nProvider>,
+);
+assert.match(unavailableMenuMarkup, /Connected edit/);
+assert.match(unavailableMenuMarkup, /Add an image connection first\./);
+assert.match(unavailableMenuMarkup, />Open settings</);
 
 const emptyMarkup = renderToStaticMarkup(
   <PluginImageToolbarActions
@@ -175,6 +234,14 @@ const contextToolbarSource = await readFile(
   new URL('../src/components/ContextToolbar.tsx', import.meta.url),
   'utf8',
 );
+const imageContextMenuSource = await readFile(
+  new URL('../src/components/ImageContextCommandMenu.tsx', import.meta.url),
+  'utf8',
+);
+const imageContextMenuStyles = await readFile(
+  new URL('../src/components/image-context-command-menu.css', import.meta.url),
+  'utf8',
+);
 const pluginPanelHostSource = await readFile(
   new URL('../src/components/PluginPanelHost.tsx', import.meta.url),
   'utf8',
@@ -190,7 +257,10 @@ assert.match(canvasSource, /image-context-toolbar-bridge/);
 assert.match(canvasSource, /pointerEvents: 'all'/);
 assert.match(canvasSource, /startExistingOperationBlock/);
 assert.match(canvasSource, /onRegenerate=\{imageToolbarOperation/);
-assert.match(contextToolbarSource, /context\.regenerate/);
+assert.match(contextToolbarSource, /pluginMenuActions/);
+assert.match(imageContextMenuSource, /context\.regenerate/);
+assert.match(imageContextMenuStyles, /\.image-context-primary-action/);
+assert.match(imageContextMenuStyles, /min-height: 44px/);
 assert.doesNotMatch(contextToolbarSource, /quick-edit|create-similar/);
 assert.match(toolbarStyles, /\.image-context-toolbar-bridge\s*\{[\s\S]*pointer-events: auto/);
 assert.match(pluginPanelHostSource, /plugin-panel-host nodrag nopan nowheel/);

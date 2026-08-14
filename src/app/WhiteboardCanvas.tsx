@@ -497,6 +497,27 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
                     title={imageToolbarContext.block.data.title}
                   />
                 )}
+                pluginMenuActions={(
+                  <PluginImageToolbarActions
+                    assetId={imageToolbarContext.asset.assetId}
+                    blockId={imageToolbarContext.block.blockId}
+                    onFatalFailure={onPluginContributionFatalFailure}
+                    onInvoke={() => {
+                      if (
+                        canvas.selectedBlockIds.length !== 1
+                        || canvas.selectedBlockIds[0]
+                          !== imageToolbarContext.block.blockId
+                      ) {
+                        canvas.selectBlock(imageToolbarContext.block.blockId);
+                      }
+                    }}
+                    onOpenSettings={() => window.dispatchEvent(new CustomEvent('retake:open-settings'))}
+                    previewUrl={imageToolbarContext.previewUrl}
+                    registry={pluginContributionRegistry}
+                    title={imageToolbarContext.block.data.title}
+                    variant="menu"
+                  />
+                )}
                 selectedBlock={imageToolbarContext.block}
                 selectedImageUrl={imageToolbarContext.previewUrl}
                 onDownloadImage={() => downloadAsset(imageToolbarContext.asset, imageToolbarContext.block.data.title)}

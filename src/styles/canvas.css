@@ -4,7 +4,7 @@
   height: 100%;
   min-width: 0;
   min-height: 0;
-  background: #f7f8fa;
+  background: #eeeff2;
   transition: width 160ms ease;
 }
 
@@ -13,11 +13,11 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-color: #f7f8fa;
+  background-color: #eeeff2;
 }
 
 .board-background-layer.is-image {
-  background-color: #f7f8fa;
+  background-color: #eeeff2;
 }
 
 .canvas-area > .react-flow {

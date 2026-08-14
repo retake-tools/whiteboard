@@ -150,6 +150,7 @@ export type TranslationKey =
   | 'context.moreTools'
   | 'context.multiAngle'
   | 'context.noMarks'
+  | 'context.openSettings'
   | 'context.penTool'
   | 'context.quickEdit'
   | 'context.regenerate'
@@ -1356,6 +1357,17 @@ export type TranslationKey =
   | 'status.queued'
   | 'status.running'
   | 'status.succeeded'
+  | 'createMenu.agent'
+  | 'createMenu.automate'
+  | 'createMenu.blocks'
+  | 'createMenu.capabilityUnavailable'
+  | 'createMenu.generate'
+  | 'createMenu.noWorkflows'
+  | 'createMenu.open'
+  | 'createMenu.title'
+  | 'executionProgress.failed'
+  | 'executionProgress.partial'
+  | 'executionProgress.retry'
   | 'toolbar.addImage'
   | 'toolbar.addGroup'
   | 'toolbar.addOperation'
@@ -1544,6 +1556,7 @@ const translations: Record<Locale, Translations> = {
     'context.moreTools': 'More image tools',
     'context.multiAngle': 'Multi-angle',
     'context.noMarks': 'Add a mark on the image, then describe the change here.',
+    'context.openSettings': 'Open settings',
     'context.penTool': 'Pen',
     'context.quickEdit': 'Quick edit',
     'context.regenerate': 'Generate another',
@@ -2750,6 +2763,17 @@ const translations: Record<Locale, Translations> = {
     'status.queued': 'queued',
     'status.running': 'running',
     'status.succeeded': 'succeeded',
+    'createMenu.agent': 'Agent task',
+    'createMenu.automate': 'Automate',
+    'createMenu.blocks': 'Blocks',
+    'createMenu.capabilityUnavailable': 'Capability unavailable',
+    'createMenu.generate': 'Generate',
+    'createMenu.noWorkflows': 'No installed workflows',
+    'createMenu.open': 'Create on canvas',
+    'createMenu.title': 'Create',
+    'executionProgress.failed': 'failed',
+    'executionProgress.partial': 'partial',
+    'executionProgress.retry': 'Retry',
     'toolbar.addImage': 'Add image block',
     'toolbar.addGroup': 'Add group',
     'toolbar.addOperation': 'Add operation block',
@@ -2933,6 +2957,7 @@ const translations: Record<Locale, Translations> = {
     'context.moreTools': '更多图片工具',
     'context.multiAngle': '多角度',
     'context.noMarks': '先在图片上添加标记，再在这里说明修改内容。',
+    'context.openSettings': '打开设置',
     'context.penTool': '画笔',
     'context.quickEdit': '快捷编辑',
     'context.regenerate': '再生成一张',
@@ -4139,6 +4164,17 @@ const translations: Record<Locale, Translations> = {
     'status.queued': '等待中',
     'status.running': '运行中',
     'status.succeeded': '已完成',
+    'createMenu.agent': 'Agent 任务',
+    'createMenu.automate': '自动化',
+    'createMenu.blocks': 'Block',
+    'createMenu.capabilityUnavailable': '所需能力不可用',
+    'createMenu.generate': '生成',
+    'createMenu.noWorkflows': '尚未安装 Workflow',
+    'createMenu.open': '在画布中创建',
+    'createMenu.title': '创建',
+    'executionProgress.failed': '个失败',
+    'executionProgress.partial': '部分完成',
+    'executionProgress.retry': '重试',
     'toolbar.addImage': '添加图片块',
     'toolbar.addGroup': '添加分组',
     'toolbar.addOperation': '添加操作块',

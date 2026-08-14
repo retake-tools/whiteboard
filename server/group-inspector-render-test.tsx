@@ -15,6 +15,7 @@ import { ExecutionDetailContent } from '../src/components/ExecutionDetailContent
 import { BoardHistoryPanel } from '../src/components/BoardHistoryPanel';
 import { AgentMessageCard } from '../src/components/AgentMessageCard';
 import { ContextToolbar } from '../src/components/ContextToolbar';
+import { ImageContextCommandMenu } from '../src/components/ImageContextCommandMenu';
 import { defaultSnapshot } from '../src/core/sampleBoard';
 import { loadCollapsedGroupIds, saveCollapsedGroupIds } from '../src/core/groupViewState';
 import type { BlockRecord } from '../src/core/types';
@@ -262,6 +263,7 @@ const floatingToolbarMarkup = renderToStaticMarkup(
         onAddBlock={() => undefined}
         onCreateImageToImage={() => undefined}
         onCreateTextToImage={() => undefined}
+        onOpenComposer={() => undefined}
         onInvokeEntryPoint={() => undefined}
         onSubmitAgentMessage={() => undefined}
         onSetActiveTool={() => undefined}
@@ -270,12 +272,9 @@ const floatingToolbarMarkup = renderToStaticMarkup(
     </UnifiedComposerProvider>
   </I18nProvider>,
 );
-const basicElementsMenuStart = floatingToolbarMarkup.indexOf('role="menu" aria-label="Basic elements"');
-const basicElementsMenuEnd = floatingToolbarMarkup.indexOf('</div>', basicElementsMenuStart);
-assert.ok(basicElementsMenuStart >= 0 && basicElementsMenuEnd > basicElementsMenuStart);
-assert.doesNotMatch(floatingToolbarMarkup.slice(basicElementsMenuStart, basicElementsMenuEnd), /Add group/);
+assert.match(floatingToolbarMarkup, /aria-label="Create on canvas"/);
 assert.equal(floatingToolbarMarkup.match(/aria-label="Add group"/g)?.length, 1);
-assert.ok(floatingToolbarMarkup.indexOf('aria-label="Add group"') > floatingToolbarMarkup.indexOf('aria-label="Video creation"'));
+assert.ok(floatingToolbarMarkup.indexOf('aria-label="Add group"') > floatingToolbarMarkup.indexOf('aria-label="Create on canvas"'));
 
 const videoDraftMarkup = renderToStaticMarkup(
   <I18nProvider>
@@ -710,16 +709,28 @@ const replaceableToolbarMarkup = renderToStaticMarkup(
       canvasZoom={1}
       selectedBlock={replaceableImageBlock}
       selectedImageUrl="/source.png"
-      onCreateSimilar={() => undefined}
       onDownloadImage={() => undefined}
       onReplaceImage={() => undefined}
-      onRunQuickEdit={() => undefined}
     />
   </I18nProvider>,
 );
-assert.match(replaceableToolbarMarkup, /aria-label="Replace image"/);
+assert.match(replaceableToolbarMarkup, /aria-controls="image-context-command-menu"/);
+assert.match(replaceableToolbarMarkup, />More</);
 assert.doesNotMatch(replaceableToolbarMarkup, /aria-label="Crop/);
 assert.doesNotMatch(replaceableToolbarMarkup, /aria-label="Adjust"/);
+const replaceableMenuMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <ImageContextCommandMenu
+      canReplaceImage
+      onClose={() => undefined}
+      onDownloadImage={() => undefined}
+      onReplaceImage={() => undefined}
+      popoverRef={{ current: null }}
+    />
+  </I18nProvider>,
+);
+assert.match(replaceableMenuMarkup, />Replace image</);
+assert.match(replaceableMenuMarkup, />Download image</);
 const resultToolbarMarkup = renderToStaticMarkup(
   <I18nProvider>
     <ContextToolbar
@@ -730,14 +741,24 @@ const resultToolbarMarkup = renderToStaticMarkup(
         data: { ...replaceableImageBlock.data, sourceExecutionId: 'exec_result' },
       }}
       selectedImageUrl="/result.png"
-      onCreateSimilar={() => undefined}
       onDownloadImage={() => undefined}
       onReplaceImage={() => undefined}
-      onRunQuickEdit={() => undefined}
     />
   </I18nProvider>,
 );
-assert.doesNotMatch(resultToolbarMarkup, /aria-label="Replace image"/);
+assert.match(resultToolbarMarkup, /aria-controls="image-context-command-menu"/);
+const resultMenuMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <ImageContextCommandMenu
+      canReplaceImage={false}
+      onClose={() => undefined}
+      onDownloadImage={() => undefined}
+      onReplaceImage={() => undefined}
+      popoverRef={{ current: null }}
+    />
+  </I18nProvider>,
+);
+assert.doesNotMatch(resultMenuMarkup, />Replace image</);
 
 console.log({
   hasGroupBrowser: true,

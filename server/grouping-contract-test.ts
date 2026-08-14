@@ -29,6 +29,7 @@ const topBarCss = await readFile('src/components/top-bar.css', 'utf8');
 const groupToolbarCss = await readFile('src/components/group-toolbar.css', 'utf8');
 const boardHistoryCss = await readFile('src/components/board-history-panel.css', 'utf8');
 const artifactLibraryCss = await readFile('src/components/artifact-library-panel.css', 'utf8');
+const workspaceShellCss = await readFile('src/components/workspace-shell.css', 'utf8');
 const canvasImageDoubleTapSource = await readFile('src/app/useCanvasImageDoubleTap.ts', 'utf8');
 const blockNodeSource = await readFile('src/nodes/BlockNode.tsx', 'utf8');
 const executionInspectorSource = await readFile('src/components/ExecutionInspector.tsx', 'utf8');
@@ -90,7 +91,7 @@ assert.doesNotMatch(operationReferenceInputsSource, /operation-reference-popover
 assert.match(blockNodeCss, /\.operation-reference-inputs > div \{[\s\S]*?display: flex;[\s\S]*?overflow-x: auto;/);
 assert.match(canvasCss, /\[data-pointer-moving='true'\] \.react-flow__node:not\(\.dragging\)[\s\S]*?cursor: default !important;/);
 assert.doesNotMatch(
-  [canvasCss, toolbarCss, topBarCss, groupToolbarCss, boardHistoryCss, artifactLibraryCss, blockNodeCss].join('\n'),
+  [canvasCss, toolbarCss, topBarCss, groupToolbarCss, boardHistoryCss, artifactLibraryCss, workspaceShellCss, blockNodeCss].join('\n'),
   /backdrop-filter:\s*blur/,
 );
 assert.match(

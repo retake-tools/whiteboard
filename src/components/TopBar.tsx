@@ -95,6 +95,9 @@ interface TopBarProps {
   packageLifecycleController?: PackageLifecycleControllerV1;
   onPluginManagerOpenChange?: (open: boolean) => void;
   packageBootstrapFailures?: PackageBootstrapNoticeV1[];
+  showWorkspaceNavigation?: boolean;
+  showSettingsAction?: boolean;
+  showWorkspaceSurfaceActions?: boolean;
 }
 
 export function TopBar({
@@ -135,6 +138,9 @@ export function TopBar({
   onPluginManagerOpenChange,
   isHistoryOpen,
   isAgentWorkspaceOpen,
+  showWorkspaceNavigation = true,
+  showSettingsAction = true,
+  showWorkspaceSurfaceActions = true,
 }: TopBarProps): ReactElement {
   const { locale, setLocale, t } = useI18n();
   const initialUiPreferences = useRef(loadUiPreferences());
@@ -163,6 +169,12 @@ export function TopBar({
   useEffect(() => {
     onPluginManagerOpenChange?.(isPluginManagerOpen);
   }, [isPluginManagerOpen, onPluginManagerOpenChange]);
+
+  useEffect(() => {
+    const openSettings = (): void => setIsSettingsOpen(true);
+    window.addEventListener('retake:open-settings', openSettings);
+    return () => window.removeEventListener('retake:open-settings', openSettings);
+  }, []);
 
   useEffect(() => {
     function onPointerDown(event: PointerEvent): void {
@@ -269,6 +281,8 @@ export function TopBar({
     <>
       <header className="top-bar" aria-label="Project and board controls">
         <div className="top-bar-left">
+          {showWorkspaceNavigation ? (
+            <>
           <div className="top-bar-project-menu-anchor">
             <IconButton
               label={t('toolbar.menu')}
@@ -425,6 +439,13 @@ export function TopBar({
               />
             ) : null}
           </div>
+            </>
+          ) : (
+            <div className="top-bar-title is-static" aria-label={t('toolbar.boardMenu')}>
+              <strong>{snapshot.project.name}</strong>
+              <span>{snapshot.board.name}</span>
+            </div>
+          )}
           <IconButton label={t('toolbar.undo')} onClick={onUndo} disabled={!canUndo}>
             <Undo2 size={16} />
           </IconButton>
@@ -440,22 +461,26 @@ export function TopBar({
         </div>
 
         <div className="top-bar-actions">
-          <TooltipIconButton
-            className="icon-button"
-            isPressed={isArtifactLibraryOpen}
-            label={t('artifactLibrary.open')}
-            onClick={onToggleArtifactLibrary}
-          >
-            <Library size={16} />
-          </TooltipIconButton>
-          <TooltipIconButton
-            className="icon-button"
-            isPressed={isHistoryOpen}
-            label={t('history.open')}
-            onClick={onToggleHistory}
-          >
-            <History size={16} />
-          </TooltipIconButton>
+          {showWorkspaceSurfaceActions ? (
+            <>
+              <TooltipIconButton
+                className="icon-button"
+                isPressed={isArtifactLibraryOpen}
+                label={t('artifactLibrary.open')}
+                onClick={onToggleArtifactLibrary}
+              >
+                <Library size={16} />
+              </TooltipIconButton>
+              <TooltipIconButton
+                className="icon-button"
+                isPressed={isHistoryOpen}
+                label={t('history.open')}
+                onClick={onToggleHistory}
+              >
+                <History size={16} />
+              </TooltipIconButton>
+            </>
+          ) : null}
           <IconButton label={t('toolbar.refreshBoard')} onClick={onRefreshBoard}>
             <RefreshCw size={16} />
           </IconButton>
@@ -465,13 +490,15 @@ export function TopBar({
           </TooltipIconButton>
           <AutosaveIndicator status={autosaveStatus} onRetry={onRetrySave} />
           <div ref={settingsRef} className="top-bar-settings-anchor">
-            <IconButton
-              label={t('toolbar.moreSettings')}
-              onClick={() => setIsSettingsOpen((current) => !current)}
-              tone={isSettingsOpen ? 'active' : undefined}
-            >
-              <Settings size={17} />
-            </IconButton>
+            {showSettingsAction ? (
+              <IconButton
+                label={t('toolbar.moreSettings')}
+                onClick={() => setIsSettingsOpen((current) => !current)}
+                tone={isSettingsOpen ? 'active' : undefined}
+              >
+                <Settings size={17} />
+              </IconButton>
+            ) : null}
             {isSettingsOpen ? (
               <SettingsMenu
                 currentLocale={locale}

@@ -219,7 +219,7 @@ assert.match(historySource, /triggerRef\.current\?\.focus/);
 assert.match(appSource, /agentWorkspaceButtonRef\.current\?\.focus/);
 assert.match(
   appSource,
-  /useState\(\s*\(\) => initialUiPreferences\.current\.isAgentWorkspaceOpen,?\s*\)/,
+  /useWorkspaceSurfaceController\(\{\s*initialAgentOpen:\s*initialUiPreferences\.current\.isAgentWorkspaceOpen,?\s*\}\)/,
 );
 assert.match(appSource, /saveUiPreferences\(\{ isAgentWorkspaceOpen \}\)/);
 assert.match(

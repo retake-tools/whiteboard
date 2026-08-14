@@ -51,7 +51,7 @@ assert.match(canvasComposerSource, /onSubmitAgentMessage/);
 assert.match(canvasComposerSource, /listAgentComposerMentionOptions/);
 assert.match(canvasComposerSource, /groupMentionOptions/);
 assert.match(canvasComposerSource, /skill-composer-picker-source/);
-assert.match(appSource, /composerVisible=\{!isAgentWorkspaceOpen\}/);
+assert.match(appSource, /composerVisible=\{workspaceSurface\.kind !== 'agent'\}/);
 assert.match(canvasComposerSource, /skill-composer-entrypoint-remove/);
 assert.match(canvasComposerSource, /skill-composer-picker-option/);
 assert.match(canvasComposerSource, /rows=\{3\}/);

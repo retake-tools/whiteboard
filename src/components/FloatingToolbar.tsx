@@ -1,14 +1,7 @@
 import {
-  Clapperboard,
-  FileText,
   Hand,
-  ImageIcon,
   Layers3,
   MousePointer2,
-  Play,
-  Shapes,
-  Sparkles,
-  Video,
 } from 'lucide-react';
 import type { ReactElement } from 'react';
 import type { PackageComposerInvocation } from '../core/packageComposer';
@@ -16,6 +9,7 @@ import { shouldShowSkillDock } from '../core/releaseFeatures';
 import type { BlockType, BoardSnapshot } from '../core/types';
 import { useI18n } from '../i18n';
 import { SkillQuickInputComposer } from './SkillQuickInputComposer';
+import { WorkspaceCreateMenu } from './WorkspaceCreateMenu';
 import type {
   UnifiedComposerAgentInput,
   UnifiedComposerImageDraftInput,
@@ -37,6 +31,7 @@ interface FloatingToolbarProps {
   onCreateImage: (input: UnifiedComposerImageDraftInput) => Promise<void>;
   onCreateVideoDraft?: (input: UnifiedComposerVideoDraftInput) => Promise<void>;
   onCreateTextToImage: () => void;
+  onOpenComposer: (detail: { clearEntryPoint?: boolean; entrypointId?: string; mode: 'agent' }) => void;
   onInvokeEntryPoint: (invocation: PackageComposerInvocation) => Promise<void>;
   onSubmitAgentMessage: (input: UnifiedComposerAgentInput) => void;
   onSetActiveTool: (tool: CanvasTool) => void;
@@ -53,6 +48,7 @@ export function FloatingToolbar({
   onCreateImage,
   onCreateVideoDraft,
   onCreateTextToImage,
+  onOpenComposer,
   onInvokeEntryPoint,
   onSubmitAgentMessage,
   onSetActiveTool,
@@ -89,67 +85,19 @@ export function FloatingToolbar({
         <Hand size={16} strokeWidth={1.75} />
       </ToolButton>
       <div className="toolbar-divider" />
-      <ToolbarMenu icon={<Shapes size={16} strokeWidth={1.75} />} label={t('toolbar.basicElements')}>
-        <MenuItem icon={<FileText size={14} strokeWidth={1.75} />} label={t('toolbar.addText')} onClick={() => onAddBlock('text')} />
-        <MenuItem icon={<ImageIcon size={14} strokeWidth={1.75} />} label={t('toolbar.addImage')} onClick={() => onAddBlock('image')} />
-        <MenuItem icon={<Video size={14} strokeWidth={1.75} />} label={t('toolbar.addVideo')} onClick={() => onAddBlock('video')} />
-        <MenuItem icon={<Play size={14} strokeWidth={1.75} />} label={t('toolbar.addOperation')} onClick={() => onAddBlock('operation')} />
-      </ToolbarMenu>
-      <ToolbarMenu icon={<Sparkles size={16} strokeWidth={1.75} />} label={t('toolbar.generation')}>
-        <MenuItem icon={<Sparkles size={14} strokeWidth={1.75} />} label={t('toolbar.textToImage')} onClick={onCreateTextToImage} />
-        <MenuItem icon={<ImageIcon size={14} strokeWidth={1.75} />} label={t('toolbar.imageToImage')} onClick={onCreateImageToImage} />
-        <MenuItem disabled icon={<ImageIcon size={14} strokeWidth={1.75} />} label={t('toolbar.multiImageToImage')} />
-        <MenuItem disabled icon={<Sparkles size={14} strokeWidth={1.75} />} label={t('toolbar.styleTransfer')} />
-        <MenuItem icon={<FileText size={14} strokeWidth={1.75} />} label={t('toolbar.textToVideo')} onClick={() => onAddBlock('video')} />
-        <MenuItem icon={<ImageIcon size={14} strokeWidth={1.75} />} label={t('toolbar.imageToVideo')} onClick={() => onAddBlock('video')} />
-        <MenuItem icon={<Clapperboard size={14} strokeWidth={1.75} />} label={t('toolbar.firstLastFrameVideo')} onClick={() => onAddBlock('video')} />
-      </ToolbarMenu>
+      <WorkspaceCreateMenu
+        onAddBlock={onAddBlock}
+        onCreateImageToImage={onCreateImageToImage}
+        onCreateTextToImage={onCreateTextToImage}
+        onOpenAgent={() => onOpenComposer({ clearEntryPoint: true, mode: 'agent' })}
+        onOpenWorkflow={(entrypointId) => onOpenComposer({ entrypointId, mode: 'agent' })}
+      />
       <div className="toolbar-divider" />
       <ToolButton isPressed={activeTool === 'group'} label={t('toolbar.addGroup')} onClick={() => onAddBlock('group')}>
         <Layers3 size={16} strokeWidth={1.75} />
       </ToolButton>
       </nav>
     </>
-  );
-}
-
-function ToolbarMenu({
-  children,
-  icon,
-  label,
-}: {
-  children: ReactElement | ReactElement[];
-  icon: ReactElement;
-  label: string;
-}): ReactElement {
-  return (
-    <div className="floating-toolbar-menu">
-      <button type="button" className="floating-toolbar-menu-trigger" aria-label={label}>
-        {icon}
-      </button>
-      <div className="floating-toolbar-submenu" role="menu" aria-label={label}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function MenuItem({
-  disabled,
-  icon,
-  label,
-  onClick,
-}: {
-  disabled?: boolean;
-  icon: ReactElement;
-  label: string;
-  onClick?: () => void;
-}): ReactElement {
-  return (
-    <button type="button" className="floating-toolbar-menu-item" disabled={disabled} role="menuitem" onClick={onClick}>
-      {icon}
-      <span>{label}</span>
-    </button>
   );
 }
 

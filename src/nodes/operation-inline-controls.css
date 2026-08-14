@@ -6,6 +6,57 @@
   gap: 7px;
 }
 
+.execution-progress-summary {
+  display: grid;
+  min-height: 34px;
+  grid-template-columns: 16px auto minmax(0, 1fr) auto auto;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid var(--retake-border-subtle);
+  border-radius: 8px;
+  background: var(--retake-surface-subtle);
+  color: var(--retake-text-muted);
+  font-size: 11px;
+}
+
+.execution-progress-summary > strong {
+  color: var(--retake-text);
+  font-size: 12px;
+}
+
+.execution-progress-summary > small {
+  color: var(--retake-danger);
+}
+
+.execution-progress-summary.is-running > svg,
+.execution-progress-summary.is-queued > svg {
+  color: var(--retake-accent-strong);
+}
+
+.execution-progress-summary.is-failed > svg,
+.execution-progress-summary.is-partial > svg {
+  color: var(--retake-warning);
+}
+
+.execution-progress-summary.is-succeeded > svg {
+  color: var(--retake-success);
+}
+
+.execution-progress-summary > button {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--retake-accent-strong);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 680;
+}
+
 .operation-param-group,
 .operation-param-strength {
   min-width: 0;

@@ -119,11 +119,19 @@ export function PluginPanelHost({
         const hostBounds = hostElement.getBoundingClientRect();
         if (hostBounds.width <= 0 || hostBounds.height <= 0) return;
         const margin = 16;
+        const sidebarBounds = document.querySelector<HTMLElement>(
+          '.workspace-sidebar',
+        )?.getBoundingClientRect();
+        const workbenchBounds = document.querySelector<HTMLElement>(
+          '.workspace-workbench',
+        )?.getBoundingClientRect();
+        const viewportLeft = sidebarBounds?.right ?? 0;
+        const viewportRight = workbenchBounds?.left ?? window.innerWidth;
         const minimumTop = 72;
         const left = clamp(
           nodeBounds.left + nodeBounds.width / 2 - hostBounds.width / 2,
-          margin,
-          window.innerWidth - margin - hostBounds.width,
+          viewportLeft + margin,
+          viewportRight - margin - hostBounds.width,
         );
         const top = clamp(
           nodeBounds.top - hostBounds.height - 12,

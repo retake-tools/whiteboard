@@ -109,6 +109,7 @@ import {
 import {
   PluginFoundationConfigStore,
 } from './plugin-foundation-config-store';
+import { readBoardThumbnail } from './board-thumbnail-service';
 
 type MiddlewareContainer = {
   use(
@@ -882,6 +883,18 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
 
           if (method === 'GET' && url.pathname === '/workspace') {
             sendJson(res, await listWorkspace());
+            return;
+          }
+
+          const boardThumbnailMatch = url.pathname.match(/^\/boards\/([^/]+)\/([^/]+)\/thumbnail\.webp$/);
+          if (method === 'GET' && boardThumbnailMatch) {
+            const [, projectId, boardId] = boardThumbnailMatch;
+            const thumbnail = await readBoardThumbnail({ projectId, boardId });
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'image/webp');
+            res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+            res.setHeader('X-Retake-Board-Revision', thumbnail.revision);
+            res.end(thumbnail.bytes);
             return;
           }
 

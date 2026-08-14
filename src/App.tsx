@@ -11,6 +11,9 @@ import { OperationFromImagePicker } from './components/OperationFromImagePicker'
 import { ProjectBoardDialog } from './components/ProjectBoardDialog';
 import { getProjectBoardDialogView } from './components/projectBoardDialogView';
 import { TopBar } from './components/TopBar';
+import { WorkspaceShell } from './components/WorkspaceShell';
+import { WorkspaceSidebar } from './components/WorkspaceSidebar';
+import { WorkspaceWorkbench } from './components/WorkspaceWorkbench';
 import { TextBlockEditorDialog } from './components/TextBlockEditorDialog';
 import {
   UnifiedComposerProvider,
@@ -23,6 +26,7 @@ import { loadUiPreferences, saveUiPreferences } from './core/uiPreferences';
 import { loadExecutionProviderSettings } from './core/executionProviderClient';
 import { useI18n } from './i18n';
 import { useWorkspaceController } from './app/useWorkspaceController';
+import { useWorkspaceSurfaceController } from './app/useWorkspaceSurfaceController';
 import { useBoardSession, type ReadyBoardSession } from './app/useBoardSession';
 import { useImageOperationController } from './app/useImageOperationController';
 import { usePluginExecutionController } from './app/usePluginExecutionController';
@@ -225,14 +229,21 @@ function ReadyApp({
   const directImageImportInputRef = useRef<HTMLInputElement | null>(null);
   const agentWorkspaceButtonRef = useRef<HTMLButtonElement | null>(null);
   const pendingDirectImageImportBlockIdRef = useRef<string | undefined>(undefined);
-  const [inspectorBlockId, setInspectorBlockId] = useState<string | undefined>();
   const [isMiniMapVisible, setIsMiniMapVisible] = useState(() => initialUiPreferences.current.isMiniMapVisible);
   const [showGrid, setShowGrid] = useState(() => initialUiPreferences.current.showGrid);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isAgentWorkspaceOpen, setIsAgentWorkspaceOpen] = useState(
-    () => initialUiPreferences.current.isAgentWorkspaceOpen,
-  );
-  const [isArtifactLibraryOpen, setIsArtifactLibraryOpen] = useState(false);
+  const {
+    surface: workspaceSurface,
+    inspectorBlockId,
+    isAgentWorkspaceOpen,
+    isArtifactLibraryOpen,
+    isHistoryOpen,
+    setAgentWorkspaceOpen: setIsAgentWorkspaceOpen,
+    setArtifactLibraryOpen: setIsArtifactLibraryOpen,
+    setHistoryOpen: setIsHistoryOpen,
+    setInspectorBlockId,
+  } = useWorkspaceSurfaceController({
+    initialAgentOpen: initialUiPreferences.current.isAgentWorkspaceOpen,
+  });
   const [workflowWorkspaceRunId, setWorkflowWorkspaceRunId] = useState<string>();
   const [reviewDocumentBlockId, setReviewDocumentBlockId] = useState<string | undefined>();
   const [operationFromImagePicker, setOperationFromImagePicker] = useState<{
@@ -830,8 +841,31 @@ function ReadyApp({
   const projectBoardDialogView = projectBoardDialog
     ? getProjectBoardDialogView(projectBoardDialog, t)
     : undefined;
+  const workbenchOpen = workspaceSurface.kind === 'agent'
+    || workspaceSurface.kind === 'artifact'
+    || workspaceSurface.kind === 'history';
   const appShell = (
-    <main className={`app-shell${isAgentWorkspaceOpen ? ' has-agent-workspace' : ''}`}>
+    <WorkspaceShell
+      hasWorkbench={workbenchOpen}
+      sidebar={({ collapsed, onToggleCollapsed }) => (
+        <WorkspaceSidebar
+          artifactLibraryOpen={isArtifactLibraryOpen}
+          collapsed={collapsed}
+          currentBoardId={snapshot.board.boardId}
+          currentProjectId={snapshot.project.projectId}
+          historyOpen={isHistoryOpen}
+          workspace={workspace}
+          onCreateBoard={(projectId) => void createBoardFromMenu(projectId)}
+          onCreateProject={() => void createProjectFromMenu()}
+          onOpenArtifactLibrary={toggleArtifactLibrary}
+          onOpenHistory={toggleHistoryPanel}
+          onOpenSettings={() => window.dispatchEvent(new CustomEvent('retake:open-settings'))}
+          onRenameBoard={(projectId, boardId, currentName) => void renameBoardFromMenu(projectId, boardId, currentName)}
+          onSelectBoard={(projectId, boardId) => void selectBoard(projectId, boardId)}
+          onToggleCollapsed={onToggleCollapsed}
+        />
+      )}
+    >
       <input
         ref={directImageImportInputRef}
         className="hidden-file-input"
@@ -901,6 +935,9 @@ function ReadyApp({
         onToggleArtifactLibrary={toggleArtifactLibrary}
         onUndo={undo}
         onRedo={redo}
+        showSettingsAction={false}
+        showWorkspaceNavigation={false}
+        showWorkspaceSurfaceActions={false}
       />
       <OperationFeedback
         copiedPromptKey={copiedPromptKey}
@@ -1001,7 +1038,7 @@ function ReadyApp({
       <FloatingToolbar
         activeTool={activeCanvasTool}
         agentDisabled={agentWorkspaceController.isSending}
-        composerVisible={!isAgentWorkspaceOpen}
+        composerVisible={workspaceSurface.kind !== 'agent'}
         onAddBlock={addBlock}
         onAttachFiles={agentAttachmentController.attachFiles}
         onCreateImage={(input) => createAndStartImageComposerOperation({
@@ -1011,6 +1048,15 @@ function ReadyApp({
         onCreateVideoDraft={createVideoComposerDraft}
         onCreateImageToImage={() => void createImageToImageDraftFromMenu()}
         onCreateTextToImage={() => void createTextToImageDraftOperation()}
+        onOpenComposer={(detail) => {
+          setInspectorBlockId(undefined);
+          setIsHistoryOpen(false);
+          setIsAgentWorkspaceOpen(false);
+          setIsArtifactLibraryOpen(false);
+          requestAnimationFrame(() => {
+            window.dispatchEvent(new CustomEvent('retake:focus-unified-composer', { detail }));
+          });
+        }}
         onInvokeEntryPoint={packageEntryPointController.invokeEntryPoint}
         onSubmitAgentMessage={(input) => {
           setIsAgentWorkspaceOpen(true);
@@ -1019,71 +1065,77 @@ function ReadyApp({
         snapshot={snapshot}
         onSetActiveTool={setActiveCanvasTool}
       />
-      <ExecutionInspector
-        copiedPromptKey={copiedPromptKey}
-        reserveAgentWorkspace={isAgentWorkspaceOpen}
-        selectedBlock={inspectorBlock}
-        snapshot={snapshot}
-        onClose={() => setInspectorBlockId(undefined)}
-        onBeforePluginOperationAction={async () => {
-          setInspectorBlockId(undefined);
-          await nextAnimationFrame();
-          await nextAnimationFrame();
-        }}
-        onCopyPrompt={copyPromptWithHistory}
-        onPluginFatalFailure={onPluginContributionFatalFailure}
-        onRestoreConfiguration={restoreConfigurationVersion}
-        pluginContributionRegistry={pluginContributionRegistry}
-      />
-      <GroupInspector
-        copiedPromptKey={copiedPromptKey}
-        group={inspectorBlock}
-        snapshot={snapshot}
-        onClose={() => setInspectorBlockId(undefined)}
-        onCopyPrompt={copyPromptWithHistory}
-        onDownloadAll={downloadGroupAssets}
-        onDecideWorkflowApproval={workflowRuntimeController.decideWorkflowGate}
-        onCancelAgentRun={agentRuntimeController.cancelAgentRun}
-        onCreateWorkflowAgentRun={agentRuntimeController.createWorkflowAgentRun}
-        onCreateWorkflowArtifactSliceAgentRun={agentRuntimeController.createWorkflowArtifactSliceAgentRun}
-        onCreateWorkflowGateSliceAgentRun={agentRuntimeController.createWorkflowGateSliceAgentRun}
-        onCreateWorkflowSliceAgentRun={agentRuntimeController.createWorkflowSliceAgentRun}
-        onCreateWorkflowStageSliceAgentRun={agentRuntimeController.createWorkflowStageSliceAgentRun}
-        onPauseAgentRun={agentRuntimeController.pauseAgentRun}
-        onPluginFatalFailure={onPluginContributionFatalFailure}
-        onResumeAgentRun={agentRuntimeController.resumeAgentRun}
-        onSelectWorkflowOutput={workflowRuntimeController.acceptWorkflowOutput}
-        pluginContributionRegistry={pluginContributionRegistry}
-      />
-      {isArtifactLibraryOpen ? (
-        <Suspense fallback={null}>
-          <ArtifactLibraryPanel
-            error={artifactLibraryController.error}
-            isLoading={artifactLibraryController.isLoading}
-            isPromoting={artifactLibraryController.isPromoting}
-            library={artifactLibraryController.library}
-            selectedBlock={selectedBlock}
-            snapshot={snapshot}
-            onClose={() => setIsArtifactLibraryOpen(false)}
-            onInsertReference={artifactLibraryController.insertReference}
-            onPromoteSelectedAsset={artifactLibraryController.promoteSelectedAsset}
-            onRefresh={artifactLibraryController.refresh}
-          />
-        </Suspense>
-      ) : null}
-      {isHistoryOpen ? (
-        <BoardHistoryPanel
+      {workspaceSurface.kind === 'inspector' && inspectorBlock?.type !== 'group' ? (
+        <ExecutionInspector
           copiedPromptKey={copiedPromptKey}
+          reserveAgentWorkspace={false}
+          selectedBlock={inspectorBlock}
           snapshot={snapshot}
-          onClose={() => setIsHistoryOpen(false)}
+          onClose={() => setInspectorBlockId(undefined)}
+          onBeforePluginOperationAction={async () => {
+            setInspectorBlockId(undefined);
+            await nextAnimationFrame();
+            await nextAnimationFrame();
+          }}
           onCopyPrompt={copyPromptWithHistory}
-          onLocateBlock={locateBlock}
           onPluginFatalFailure={onPluginContributionFatalFailure}
+          onRestoreConfiguration={restoreConfigurationVersion}
           pluginContributionRegistry={pluginContributionRegistry}
         />
       ) : null}
-      {isAgentWorkspaceOpen ? (
-        <AgentWorkspace
+      {workspaceSurface.kind === 'inspector' && inspectorBlock?.type === 'group' ? (
+        <GroupInspector
+          copiedPromptKey={copiedPromptKey}
+          group={inspectorBlock}
+          snapshot={snapshot}
+          onClose={() => setInspectorBlockId(undefined)}
+          onCopyPrompt={copyPromptWithHistory}
+          onDownloadAll={downloadGroupAssets}
+          onDecideWorkflowApproval={workflowRuntimeController.decideWorkflowGate}
+          onCancelAgentRun={agentRuntimeController.cancelAgentRun}
+          onCreateWorkflowAgentRun={agentRuntimeController.createWorkflowAgentRun}
+          onCreateWorkflowArtifactSliceAgentRun={agentRuntimeController.createWorkflowArtifactSliceAgentRun}
+          onCreateWorkflowGateSliceAgentRun={agentRuntimeController.createWorkflowGateSliceAgentRun}
+          onCreateWorkflowSliceAgentRun={agentRuntimeController.createWorkflowSliceAgentRun}
+          onCreateWorkflowStageSliceAgentRun={agentRuntimeController.createWorkflowStageSliceAgentRun}
+          onPauseAgentRun={agentRuntimeController.pauseAgentRun}
+          onPluginFatalFailure={onPluginContributionFatalFailure}
+          onResumeAgentRun={agentRuntimeController.resumeAgentRun}
+          onSelectWorkflowOutput={workflowRuntimeController.acceptWorkflowOutput}
+          pluginContributionRegistry={pluginContributionRegistry}
+        />
+      ) : null}
+      {workbenchOpen ? (
+        <WorkspaceWorkbench surface={workspaceSurface}>
+          {workspaceSurface.kind === 'artifact' ? (
+            <Suspense fallback={null}>
+              <ArtifactLibraryPanel
+                error={artifactLibraryController.error}
+                isLoading={artifactLibraryController.isLoading}
+                isPromoting={artifactLibraryController.isPromoting}
+                library={artifactLibraryController.library}
+                selectedBlock={selectedBlock}
+                snapshot={snapshot}
+                onClose={() => setIsArtifactLibraryOpen(false)}
+                onInsertReference={artifactLibraryController.insertReference}
+                onPromoteSelectedAsset={artifactLibraryController.promoteSelectedAsset}
+                onRefresh={artifactLibraryController.refresh}
+              />
+            </Suspense>
+          ) : null}
+          {workspaceSurface.kind === 'history' ? (
+            <BoardHistoryPanel
+              copiedPromptKey={copiedPromptKey}
+              snapshot={snapshot}
+              onClose={() => setIsHistoryOpen(false)}
+              onCopyPrompt={copyPromptWithHistory}
+              onLocateBlock={locateBlock}
+              onPluginFatalFailure={onPluginContributionFatalFailure}
+              pluginContributionRegistry={pluginContributionRegistry}
+            />
+          ) : null}
+          {workspaceSurface.kind === 'agent' ? (
+            <AgentWorkspace
           binding={agentWorkspaceController.selectedBinding}
           error={agentWorkspaceController.error}
           focusedAgentRunId={agentWorkspaceController.focusedAgentRunId}
@@ -1147,7 +1199,9 @@ function ReadyApp({
           onSubmitMessage={(input) => void agentWorkspaceController.submitMessage(input)}
           onViewProposalEffect={agentWorkspaceController.focusProposalEffect}
           onViewProposalRun={agentWorkspaceController.focusProposalRun}
-        />
+            />
+          ) : null}
+        </WorkspaceWorkbench>
       ) : null}
       {workflowWorkspaceRunId ? (
         <Suspense fallback={null}>
@@ -1219,7 +1273,7 @@ function ReadyApp({
           registry={pluginContributionRegistry}
         />
       ) : null}
-    </main>
+    </WorkspaceShell>
   );
   return (
     <UnifiedComposerProvider key={`${snapshot.project.projectId}:${snapshot.board.boardId}`}>

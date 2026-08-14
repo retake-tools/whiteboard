@@ -3,6 +3,36 @@
 This file gives working guidance for AI agents and human contributors working on
 Retake Whiteboard.
 
+## Design Authority
+
+Before changing Whiteboard UI, read [`DESIGN.md`](DESIGN.md). It follows the
+Google Labs `DESIGN.md` alpha format, and its YAML frontmatter is the normative
+machine-readable authority for colors, typography, spacing, radii, and component
+tokens. Keep its standard section order and validate it with the official
+`@google/design.md` linter after changes.
+
+The Whiteboard and Retake Design Hosts share the same visual token family because
+they compose the same Workspace experience. Whiteboard's `DESIGN.md` is still a
+separate authority: it covers the open Canvas, Block graph, Agent, Workflow,
+History, dynamic Plugin surfaces, and local use without login. Do not copy hosted
+Identity, Token, Plan, billing, cloud asset, or sync semantics into the shared UI.
+
+When present, internal product definitions under `docs/product/` and current
+Figma pages define page intent and flow; they do not override root tokens or
+authorize implementation by themselves.
+
+- Keep the Canvas and visible Block graph as the primary workspace context.
+- Use one contextual Workbench for Inspector, Task, Compare, Deliverable, Agent,
+  History, and Plugin panels; do not create a permanent fourth column.
+- Preserve existing Text, Document, Image, Video, Operation, Result, Group,
+  Agent, Workflow, History, and Plugin capabilities during visual changes.
+- Build image actions from Plugin registry surfaces, ordering, and availability;
+  never replace dynamic contributions with a closed hardcoded toolbar.
+- Use semantic tokens instead of feature-local brand colors.
+- A visual component may project current facts and call typed commands, but it
+  must not replace snapshots or create a second Asset, Candidate, selected,
+  History, Execution, or Deliverable authority.
+
 ## Core Principles
 
 Work from first principles. Before adding abstractions, features, or UI, clarify:

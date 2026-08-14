@@ -1,28 +1,28 @@
 :root {
   color-scheme: light;
-  color: #172033;
+  color: #202126;
   background: #f4f5f7;
-  --retake-accent: #1677ff;
-  --retake-accent-strong: #0f63d8;
-  --retake-accent-soft: #eaf3ff;
-  --retake-accent-border: #a8cfff;
-  --retake-accent-ring: rgb(22 119 255 / 10%);
-  --retake-accent-shadow: rgb(22 119 255 / 18%);
-  --retake-accent-shadow-strong: rgb(22 119 255 / 24%);
+  --retake-accent: #7056ef;
+  --retake-accent-strong: #6048d5;
+  --retake-accent-soft: #ece9ff;
+  --retake-accent-border: #c9c1ff;
+  --retake-accent-ring: rgb(112 86 239 / 10%);
+  --retake-accent-shadow: rgb(112 86 239 / 18%);
+  --retake-accent-shadow-strong: rgb(112 86 239 / 24%);
   --retake-on-accent: #ffffff;
   --retake-surface: #ffffff;
   --retake-surface-elevated: rgb(255 255 255 / 98%);
-  --retake-surface-subtle: #f8fafc;
-  --retake-surface-hover: #f1f5f9;
-  --retake-border: #d8dee8;
-  --retake-border-subtle: #e5eaf1;
-  --retake-text: #172033;
-  --retake-text-secondary: #344054;
-  --retake-text-muted: #667085;
-  --retake-text-subtle: #98a2b3;
-  --retake-success: #027a48;
+  --retake-surface-subtle: #f6f6f9;
+  --retake-surface-hover: #f0eff6;
+  --retake-border: #c9cad2;
+  --retake-border-subtle: #e1e2e7;
+  --retake-text: #202126;
+  --retake-text-secondary: #484a51;
+  --retake-text-muted: #6d707a;
+  --retake-text-subtle: #9396a1;
+  --retake-success: #2f7d62;
   --retake-success-soft: #ecfdf3;
-  --retake-warning: #b54708;
+  --retake-warning: #a66316;
   --retake-warning-soft: #fff4e5;
   --retake-shadow-popover: 0 16px 34px rgb(16 24 40 / 18%);
   --retake-color-accent: var(--retake-accent);
@@ -50,32 +50,32 @@
 /* Dark values are ready for the future theme switch; no partial dark mode is exposed yet. */
 :root[data-theme='dark'] {
   color-scheme: dark;
-  color: #f4f7fb;
-  background: #111318;
-  --retake-accent: #4d9aff;
-  --retake-accent-strong: #73b0ff;
-  --retake-accent-soft: #172d49;
-  --retake-accent-border: #315f93;
-  --retake-accent-ring: rgb(77 154 255 / 14%);
+  color: #f3f1f6;
+  background: #141417;
+  --retake-accent: #927fff;
+  --retake-accent-strong: #e8e1ff;
+  --retake-accent-soft: #33285a;
+  --retake-accent-border: #56525f;
+  --retake-accent-ring: rgb(146 127 255 / 14%);
   --retake-accent-shadow: rgb(0 0 0 / 28%);
   --retake-accent-shadow-strong: rgb(0 0 0 / 38%);
   --retake-on-accent: #ffffff;
-  --retake-surface: #181b21;
-  --retake-surface-elevated: rgb(28 32 40 / 98%);
-  --retake-surface-subtle: #20242c;
-  --retake-surface-hover: #292e38;
-  --retake-border: #3a424f;
-  --retake-border-subtle: #303743;
-  --retake-text: #f4f7fb;
-  --retake-text-secondary: #d8dee8;
-  --retake-text-muted: #aab2bf;
-  --retake-text-subtle: #7f8998;
-  --retake-success: #68d49b;
+  --retake-surface: #232228;
+  --retake-surface-elevated: rgb(35 34 40 / 98%);
+  --retake-surface-subtle: #2a2930;
+  --retake-surface-hover: #34323b;
+  --retake-border: #56525f;
+  --retake-border-subtle: #3b3943;
+  --retake-text: #f3f1f6;
+  --retake-text-secondary: #d7d2dc;
+  --retake-text-muted: #b5b0bc;
+  --retake-text-subtle: #8f8997;
+  --retake-success: #65b596;
   --retake-success-soft: #173426;
-  --retake-warning: #ffc070;
+  --retake-warning: #e2a258;
   --retake-warning-soft: #3a2b18;
   --retake-shadow-popover: 0 18px 42px rgb(0 0 0 / 38%);
-  --retake-color-background: #111318;
+  --retake-color-background: #141417;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -102,17 +102,10 @@ button {
 }
 
 .app-shell {
-  --agent-workspace-reserved-width: 438px;
   position: relative;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-}
-
-@media (min-width: 1120px) {
-  .app-shell.has-agent-workspace .canvas-area {
-    width: calc(100% - var(--agent-workspace-reserved-width));
-  }
 }
 
 .workspace-load-shell {

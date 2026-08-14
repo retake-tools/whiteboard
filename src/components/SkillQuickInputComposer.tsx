@@ -337,9 +337,22 @@ export function SkillQuickInputComposer({
 
   useEffect(() => {
     const focusComposer = (event: Event) => {
-      const detail = (event as CustomEvent<{ instruction?: string }>).detail;
+      const detail = (event as CustomEvent<{
+        clearEntryPoint?: boolean;
+        entrypointId?: string;
+        instruction?: string;
+        mode?: ComposerMode;
+      }>).detail;
+      if (detail?.mode && detail.mode !== composerMode) {
+        setComposerMode(detail.mode);
+      }
+      if (detail?.entrypointId) {
+        selectDraftEntryPoint(detail.entrypointId);
+      } else if (detail?.clearEntryPoint) {
+        clearEntryPoint();
+      }
       if (detail?.instruction) {
-        setComposerMode('agent');
+        if (!detail.mode) setComposerMode('agent');
         setInstruction(detail.instruction);
       }
       requestAnimationFrame(() => {
@@ -352,7 +365,7 @@ export function SkillQuickInputComposer({
     };
     window.addEventListener('retake:focus-unified-composer', focusComposer);
     return () => window.removeEventListener('retake:focus-unified-composer', focusComposer);
-  }, [setComposerMode, setInstruction]);
+  }, [clearEntryPoint, composerMode, selectDraftEntryPoint, setComposerMode, setInstruction]);
 
   useEffect(() => {
     if (mode === 'agent' && composerMode !== 'agent') {

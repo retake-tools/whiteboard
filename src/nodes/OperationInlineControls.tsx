@@ -47,6 +47,8 @@ import {
 } from '../core/domainVideoGenerationContracts';
 import { AnnotationOperationInlineControls } from './AnnotationOperationInlineControls';
 import { OperationReferenceInputs } from './OperationReferenceInputs';
+import { ExecutionProgressSummary, type ExecutionProgressRecord } from '../components/ExecutionProgressSummary';
+import { useCanvasHostSnapshot } from '../host-kit/react';
 
 type AspectPreset = 'source' | ImageComposerAspectRatio;
 type ResolutionPreset = ImageComposerResolution;
@@ -61,29 +63,60 @@ const parameterKeys: GenerationParameterKey[] = [
   'strength',
 ];
 
-export function OperationInlineControls({ blockId, data }: { blockId: string; data: BlockData }): ReactElement {
-  if (data.adapter === 'local_canvas') return <LocalCanvasOperationControls data={data} />;
+export function ConnectedOperationInlineControls({ blockId, data }: { blockId: string; data: BlockData }): ReactElement {
+  const snapshot = useCanvasHostSnapshot();
+  const sourceExecutionId = typeof data.sourceExecutionId === 'string' ? data.sourceExecutionId : undefined;
+  const execution = sourceExecutionId
+    ? snapshot.executions.find((candidate) => candidate.executionId === sourceExecutionId)
+    : [...snapshot.executions].reverse().find(
+        (candidate) => candidate.params?.operationBlockId === blockId,
+      );
+  return <OperationInlineControls blockId={blockId} data={data} execution={execution} />;
+}
+
+export function OperationInlineControls({
+  blockId,
+  data,
+  execution,
+}: {
+  blockId: string;
+  data: BlockData;
+  execution?: ExecutionProgressRecord;
+}): ReactElement {
+  const progress = (
+    <ExecutionProgressSummary
+      execution={execution}
+      onRetry={() => dispatchRunOperation(blockId, false)}
+    />
+  );
+  if (data.adapter === 'local_canvas') return <>{progress}<LocalCanvasOperationControls data={data} /></>;
   const pluginDefinition = typeof data.capabilityId === 'string'
     ? pluginCapabilityDefinitionFor(data.capabilityId)
     : undefined;
   if (data.capabilityId === 'image.annotation_edit') {
     return (
-      <AnnotationOperationInlineControls
-        blockId={blockId}
-        capabilityName={pluginDefinition?.displayName ?? data.title}
-        data={data}
-      />
+      <>
+        {progress}
+        <AnnotationOperationInlineControls
+          blockId={blockId}
+          capabilityName={pluginDefinition?.displayName ?? data.title}
+          data={data}
+        />
+      </>
     );
   }
   if (pluginDefinition) {
     return (
-      <PluginOwnedOperationControls
-        capabilityName={pluginDefinition?.displayName ?? data.title}
-        data={data}
-      />
+      <>
+        {progress}
+        <PluginOwnedOperationControls
+          capabilityName={pluginDefinition?.displayName ?? data.title}
+          data={data}
+        />
+      </>
     );
   }
-  return <GenerationOperationInlineControls blockId={blockId} data={data} />;
+  return <>{progress}<GenerationOperationInlineControls blockId={blockId} data={data} /></>;
 }
 
 function LocalCanvasOperationControls({ data }: { data: BlockData }): ReactElement {
