@@ -706,7 +706,6 @@ const replaceableImageBlock: BlockRecord = {
 const replaceableToolbarMarkup = renderToStaticMarkup(
   <I18nProvider>
     <ContextToolbar
-      canvasZoom={1}
       selectedBlock={replaceableImageBlock}
       selectedImageUrl="/source.png"
       onDownloadImage={() => undefined}
@@ -734,7 +733,6 @@ assert.match(replaceableMenuMarkup, />Download image</);
 const resultToolbarMarkup = renderToStaticMarkup(
   <I18nProvider>
     <ContextToolbar
-      canvasZoom={1}
       selectedBlock={{
         ...replaceableImageBlock,
         blockId: 'image_result',

@@ -506,7 +506,6 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
               onPointerDown={(event) => event.stopPropagation()}
             >
               <ContextToolbar
-                canvasZoom={canvas.canvasZoom}
                 pluginActions={(
                   <PluginImageToolbarActions
                     assetId={imageToolbarContext.asset.assetId}

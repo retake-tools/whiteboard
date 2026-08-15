@@ -1046,11 +1046,6 @@
   display: inline-flex;
 }
 
-.context-dock > .context-popover {
-  transform: scale(var(--context-popover-scale, 1));
-  transform-origin: top center;
-}
-
 .context-toolbar {
   display: flex;
   gap: 6px;

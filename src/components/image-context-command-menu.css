@@ -16,8 +16,7 @@
   right: auto;
   bottom: calc(100% + 8px);
   left: 50%;
-  transform: translateX(-50%) scale(var(--context-popover-scale, 1));
-  transform-origin: bottom center;
+  transform: translateX(-50%);
 }
 
 .image-context-primary-action {

@@ -1,7 +1,6 @@
 import { MoreHorizontal } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type {
-  CSSProperties,
   ReactElement,
   ReactNode,
 } from 'react';
@@ -13,7 +12,6 @@ import { ImageContextCommandMenu } from './ImageContextCommandMenu';
 type ImageTool = 'more';
 
 interface ContextToolbarProps {
-  canvasZoom: number;
   pluginActions?: ReactNode;
   pluginMenuActions?: ReactNode;
   selectedBlock?: BlockRecord;
@@ -25,7 +23,6 @@ interface ContextToolbarProps {
 }
 
 export function ContextToolbar({
-  canvasZoom,
   pluginActions,
   pluginMenuActions,
   selectedBlock,
@@ -66,14 +63,12 @@ export function ContextToolbar({
 
   if (!hasImageAsset) return null;
 
-  const popoverScale = clamp(canvasZoom, 0.45, 2.2);
   const canReplaceImage = !selectedBlock.data.sourceExecutionId && !selectedBlock.data.operationBlockId;
 
   return (
     <div
       ref={dockRef}
       className="context-dock nodrag nopan nowheel"
-      style={{ '--context-popover-scale': popoverScale } as CSSProperties}
       aria-label={t('context.selectedTools')}
     >
       <div className="context-toolbar">
@@ -103,8 +98,4 @@ export function ContextToolbar({
       ) : null}
     </div>
   );
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
 }
