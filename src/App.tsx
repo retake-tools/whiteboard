@@ -262,6 +262,7 @@ function ReadyApp({
   });
   const [workflowWorkspaceRunId, setWorkflowWorkspaceRunId] = useState<string>();
   const [imageFocusBlockId, setImageFocusBlockId] = useState<string>();
+  const [imageFocusCompareMode, setImageFocusCompareMode] = useState(false);
   const [imageExecutionDetailsBlockId, setImageExecutionDetailsBlockId] = useState<string>();
   const [reviewDocumentBlockId, setReviewDocumentBlockId] = useState<string | undefined>();
   const [operationFromImagePicker, setOperationFromImagePicker] = useState<{
@@ -270,7 +271,10 @@ function ReadyApp({
   }>();
   const [pluginReducedMotion, setPluginReducedMotion] = useState(false);
   useEffect(() => {
-    if (workspaceSurface.kind !== 'inspector') setImageFocusBlockId(undefined);
+    if (workspaceSurface.kind !== 'inspector') {
+      setImageFocusBlockId(undefined);
+      setImageFocusCompareMode(false);
+    }
   }, [workspaceSurface.kind]);
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -1418,11 +1422,14 @@ function ReadyApp({
       {imageFocusBlock ? (
         <ImageFocusWorkspace
           block={imageFocusBlock}
+          compareMode={imageFocusCompareMode}
           snapshot={snapshot}
           onBackToCanvas={() => {
             setImageFocusBlockId(undefined);
             setInspectorBlockId(undefined);
+            setImageFocusCompareMode(false);
           }}
+          onCompareModeChange={setImageFocusCompareMode}
           onSelectBlock={(blockId) => {
             setImageFocusBlockId(blockId);
             setSelectedBlock(snapshotRef.current, blockId);

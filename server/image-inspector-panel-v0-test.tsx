@@ -151,7 +151,9 @@ const focusMarkup = renderToStaticMarkup(
   <I18nProvider>
     <ImageFocusWorkspace
       block={block}
+      compareMode={false}
       onBackToCanvas={() => undefined}
+      onCompareModeChange={() => undefined}
       onSelectBlock={() => undefined}
       snapshot={snapshot}
     />
@@ -177,6 +179,8 @@ const [appSource, eventBindingSource, inspectorSource, focusSource, focusStyles]
 ]);
 
 assert.match(appSource, /<ImageFocusWorkspace/);
+assert.match(appSource, /compareMode=\{imageFocusCompareMode\}/);
+assert.match(appSource, /onCompareModeChange=\{setImageFocusCompareMode\}/);
 assert.match(appSource, /onSelectOutput=\{executionOutputSelectionController\.selectOutput\}/);
 assert.match(appSource, /setImageFocusBlockId\(undefined\)/);
 assert.match(appSource, /onBackToCanvas=\{\(\) => \{\s*setImageFocusBlockId\(undefined\);\s*setInspectorBlockId\(undefined\)/);
@@ -188,6 +192,12 @@ assert.match(inspectorSource, /scrollIntoView/);
 assert.match(inspectorSource, /executionDetailsOpen \? \(/);
 assert.match(focusSource, /scrollCandidateQueue/);
 assert.match(focusSource, /activeCandidate\.offsetLeft/);
+assert.match(focusSource, /image-focus-comparison/);
+assert.match(focusSource, /selectedOutputImage/);
+assert.match(focusSource, /activeExecution\.outputBlockIds/);
+assert.match(focusSource, /aria-pressed=\{compareMode\}/);
+assert.match(focusSource, /if \(compareMode\) \{/);
+assert.match(focusStyles, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
 assert.match(focusStyles, /right: var\(--workspace-workbench-width\)/);
 
 console.log(JSON.stringify({

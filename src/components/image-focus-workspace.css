@@ -67,6 +67,101 @@
   color: var(--retake-accent-strong);
 }
 
+.image-focus-compare-toggle {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--retake-border-subtle) 72%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--retake-surface) 88%, transparent);
+  box-shadow: 0 6px 18px rgb(18 18 28 / 12%);
+  color: var(--retake-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  backdrop-filter: blur(8px);
+}
+
+.image-focus-compare-toggle:hover,
+.image-focus-compare-toggle:focus-visible,
+.image-focus-compare-toggle.is-active {
+  border-color: var(--retake-accent-border);
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
+}
+
+.image-focus-comparison {
+  display: grid;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.image-focus-comparison figure {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  place-items: center;
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid var(--retake-border-subtle);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--retake-color-background) 84%, #000);
+  box-shadow: 0 8px 24px rgb(18 18 28 / 8%);
+}
+
+.image-focus-comparison img {
+  display: block;
+  max-width: calc(100% - 32px);
+  max-height: calc(100% - 32px);
+  object-fit: contain;
+}
+
+.image-focus-comparison figcaption {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  max-width: calc(100% - 28px);
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--retake-border-subtle) 72%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--retake-surface) 88%, transparent);
+  box-shadow: 0 4px 12px rgb(18 18 28 / 10%);
+  color: var(--retake-text);
+  font-size: 11px;
+  backdrop-filter: blur(8px);
+}
+
+.image-focus-comparison figcaption strong {
+  flex: 0 0 auto;
+  color: var(--retake-accent-strong);
+}
+
+.image-focus-comparison figcaption span {
+  overflow: hidden;
+  color: var(--retake-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-focus-comparison figure:first-child figcaption {
+  left: 116px;
+  max-width: calc(100% - 130px);
+}
+
 .image-focus-candidates {
   display: grid;
   width: min(720px, 100%);

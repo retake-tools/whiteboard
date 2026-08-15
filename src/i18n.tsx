@@ -397,9 +397,15 @@ export type TranslationKey =
   | 'imageInspector.inputsAndReferences'
   | 'imageInspector.version'
   | 'imageFocus.backToCanvas'
+  | 'imageFocus.baseline'
   | 'imageFocus.candidates'
+  | 'imageFocus.compare'
+  | 'imageFocus.compareView'
+  | 'imageFocus.comparing'
   | 'imageFocus.scrollCandidatesNext'
   | 'imageFocus.scrollCandidatesPrevious'
+  | 'imageFocus.selectedBaseline'
+  | 'imageFocus.singleView'
   | 'imageFocus.title'
   | 'imageFocus.viewing'
   | 'outputSelection.failed'
@@ -1840,9 +1846,15 @@ const translations: Record<Locale, Translations> = {
     'imageInspector.inputsAndReferences': 'Inputs and references',
     'imageInspector.version': 'Current version',
     'imageFocus.backToCanvas': 'Back to canvas',
+    'imageFocus.baseline': 'Baseline',
     'imageFocus.candidates': 'Candidates from this run',
+    'imageFocus.compare': 'Compare',
+    'imageFocus.compareView': 'Side-by-side candidate comparison',
+    'imageFocus.comparing': 'Comparing',
     'imageFocus.scrollCandidatesNext': 'Scroll candidate queue right',
     'imageFocus.scrollCandidatesPrevious': 'Scroll candidate queue left',
+    'imageFocus.selectedBaseline': 'Selected',
+    'imageFocus.singleView': 'Single image',
     'imageFocus.title': 'Image focus workspace',
     'imageFocus.viewing': 'Viewing',
     'outputSelection.failed': 'Could not select output',
@@ -3278,9 +3290,15 @@ const translations: Record<Locale, Translations> = {
     'imageInspector.inputsAndReferences': '输入与参考',
     'imageInspector.version': '当前版本',
     'imageFocus.backToCanvas': '返回画布',
+    'imageFocus.baseline': '基准图',
     'imageFocus.candidates': '本次候选',
+    'imageFocus.compare': '并排对比',
+    'imageFocus.compareView': '候选图片并排对比',
+    'imageFocus.comparing': '对比中',
     'imageFocus.scrollCandidatesNext': '向右移动候选队列',
     'imageFocus.scrollCandidatesPrevious': '向左移动候选队列',
+    'imageFocus.selectedBaseline': '已选方案',
+    'imageFocus.singleView': '单图查看',
     'imageFocus.title': '图片聚焦工作区',
     'imageFocus.viewing': '正在查看',
     'outputSelection.failed': '选用失败',
