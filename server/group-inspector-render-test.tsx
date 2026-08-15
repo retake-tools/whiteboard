@@ -729,7 +729,7 @@ const replaceableMenuMarkup = renderToStaticMarkup(
   </I18nProvider>,
 );
 assert.match(replaceableMenuMarkup, />Replace image</);
-assert.match(replaceableMenuMarkup, />Download image</);
+assert.match(replaceableMenuMarkup, />Export image</);
 const resultToolbarMarkup = renderToStaticMarkup(
   <I18nProvider>
     <ContextToolbar

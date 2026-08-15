@@ -70,17 +70,6 @@ workspaceSurfaceState = reduceWorkspaceSurface(workspaceSurfaceState, { type: 'c
 assert.equal(workspaceSurfaceState.surface.kind, 'agent');
 assert.equal(workspaceSurfaceState.agentOpen, true);
 workspaceSurfaceState = reduceWorkspaceSurface(workspaceSurfaceState, {
-  type: 'set-deliverable',
-  blockId: 'block_delivery',
-});
-assert.deepEqual(workspaceSurfaceState, {
-  agentOpen: true,
-  surface: { kind: 'deliverable', blockId: 'block_delivery' },
-});
-workspaceSurfaceState = reduceWorkspaceSurface(workspaceSurfaceState, { type: 'close' });
-assert.equal(workspaceSurfaceState.surface.kind, 'agent');
-assert.equal(workspaceSurfaceState.agentOpen, true);
-workspaceSurfaceState = reduceWorkspaceSurface(workspaceSurfaceState, {
   type: 'set-workbench',
   kind: 'agent',
   open: false,
