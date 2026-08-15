@@ -10,7 +10,11 @@ import {
 import { WorkspaceShell } from '../src/components/WorkspaceShell';
 import { WorkspaceSidebar } from '../src/components/WorkspaceSidebar';
 import { WorkspaceWorkbench } from '../src/components/WorkspaceWorkbench';
-import { BlankWorkspaceStart } from '../src/components/BlankWorkspaceStart';
+import {
+  BlankWorkspaceStart,
+  blankWorkspacePlaceholderImage,
+  isBlankWorkspaceContent,
+} from '../src/components/BlankWorkspaceStart';
 import { boardThumbnailUrl, projectIdentity } from '../src/components/WorkspaceBoardSwitcher';
 import type { WorkspaceSummary } from '../src/core/types';
 import { I18nProvider } from '../src/i18n';
@@ -90,6 +94,19 @@ assert.match(blankWorkspaceMarkup, /从图片开始/);
 assert.match(blankWorkspaceMarkup, /打开图片/);
 assert.match(blankWorkspaceMarkup, /生成图片/);
 assert.doesNotMatch(blankWorkspaceMarkup, /登录|Token|Plan|云端/);
+assert.equal(isBlankWorkspaceContent([]), true);
+const emptyImageBlock = {
+  ...defaultSnapshot.blocks[0],
+  type: 'image' as const,
+  data: { title: '图片块', body: '导入或生成素材后会绑定 assetId。' },
+};
+assert.equal(isBlankWorkspaceContent([emptyImageBlock]), true);
+assert.equal(blankWorkspacePlaceholderImage([emptyImageBlock])?.blockId, emptyImageBlock.blockId);
+assert.equal(isBlankWorkspaceContent([{
+  ...emptyImageBlock,
+  data: { ...emptyImageBlock.data, assetId: 'asset_real' },
+}]), false);
+assert.equal(isBlankWorkspaceContent([defaultSnapshot.blocks[0]]), false);
 
 const workspace: WorkspaceSummary = {
   defaultProjectId: 'project_current',

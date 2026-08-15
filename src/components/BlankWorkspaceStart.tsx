@@ -1,6 +1,24 @@
 import { ImagePlus, Sparkles } from 'lucide-react';
 import { memo, type ReactElement } from 'react';
+import type { BlockRecord } from '../core/types';
 import { useI18n } from '../i18n';
+
+export function blankWorkspacePlaceholderImage(
+  blocks: readonly BlockRecord[],
+): BlockRecord | undefined {
+  if (blocks.length !== 1) return undefined;
+  const [block] = blocks;
+  if (block.type !== 'image') return undefined;
+  const hasImageContent = typeof block.data.assetId === 'string'
+    || typeof block.data.previewUrl === 'string'
+    || typeof block.data.annotatedCompositeAssetId === 'string'
+    || typeof block.data.annotatedCompositePreviewUrl === 'string';
+  return hasImageContent ? undefined : block;
+}
+
+export function isBlankWorkspaceContent(blocks: readonly BlockRecord[]): boolean {
+  return blocks.length === 0 || Boolean(blankWorkspacePlaceholderImage(blocks));
+}
 
 interface BlankWorkspaceStartProps {
   onGenerateImage: () => void;

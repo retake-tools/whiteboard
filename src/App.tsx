@@ -15,7 +15,11 @@ import {
 } from './components/GenerationTaskPanel';
 import { GroupInspector } from './components/GroupInspector';
 import { ImageInspectorPanel } from './components/ImageInspectorPanel';
-import { BlankWorkspaceStart } from './components/BlankWorkspaceStart';
+import {
+  BlankWorkspaceStart,
+  blankWorkspacePlaceholderImage,
+  isBlankWorkspaceContent,
+} from './components/BlankWorkspaceStart';
 import { ImageFocusWorkspace } from './components/ImageFocusWorkspace';
 import { InputReferencePicker } from './components/InputReferencePicker';
 import { OperationFeedback } from './components/OperationFeedback';
@@ -864,20 +868,23 @@ function ReadyApp({
 
   async function importBlankWorkspaceImage(file: File): Promise<void> {
     if (!runHostCommand) return;
-    const size = defaultBlockSize('image');
     try {
-      const created = await runHostCommand(
-        (commands) => commands.createBlock({
-          data: localizedBlockData('image', t),
-          position: centeredBlockPosition(size),
-          size,
-          type: 'image',
-        }),
-        { history: true },
-      );
-      const block = snapshotRef.current.blocks.find(
-        (candidate) => candidate.blockId === created.blockId && candidate.type === 'image',
-      );
+      let block = blankWorkspacePlaceholderImage(snapshotRef.current.blocks);
+      if (!block) {
+        const size = defaultBlockSize('image');
+        const created = await runHostCommand(
+          (commands) => commands.createBlock({
+            data: localizedBlockData('image', t),
+            position: centeredBlockPosition(size),
+            size,
+            type: 'image',
+          }),
+          { history: true },
+        );
+        block = snapshotRef.current.blocks.find(
+          (candidate) => candidate.blockId === created.blockId && candidate.type === 'image',
+        );
+      }
       if (!block) return;
       setSelectedBlock(snapshotRef.current, block.blockId);
       await importImageIntoBlock(block, file);
@@ -1463,11 +1470,15 @@ function ReadyApp({
         t={t}
         workflowRuntime={workflowRuntimeController}
       />
-      {snapshot.blocks.length === 0 && workspaceSurface.kind === 'none' ? (
+      {isBlankWorkspaceContent(snapshot.blocks) ? (
         <BlankWorkspaceStart
-          onGenerateImage={() => window.dispatchEvent(new CustomEvent('retake:focus-unified-composer', {
-            detail: { clearEntryPoint: true, mode: 'image' },
-          }))}
+          onGenerateImage={() => {
+            const placeholder = blankWorkspacePlaceholderImage(snapshotRef.current.blocks);
+            if (placeholder) setSelectedBlock(snapshotRef.current, placeholder.blockId);
+            window.dispatchEvent(new CustomEvent('retake:focus-unified-composer', {
+              detail: { clearEntryPoint: true, mode: 'image' },
+            }));
+          }}
           onOpenImage={() => blankWorkspaceImageInputRef.current?.click()}
         />
       ) : null}
