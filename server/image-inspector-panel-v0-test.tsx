@@ -162,8 +162,8 @@ const focusMarkup = renderToStaticMarkup(
 
 assert.match(focusMarkup, /图片聚焦工作区/);
 assert.match(focusMarkup, /返回画布/);
-assert.match(focusMarkup, /本次候选/);
-assert.match(focusMarkup, /本次候选 1 \/ 1/);
+assert.match(focusMarkup, /候选与版本/);
+assert.match(focusMarkup, /候选与版本 1 \/ 1/);
 assert.match(focusMarkup, /向左移动候选队列/);
 assert.match(focusMarkup, /向右移动候选队列/);
 assert.match(focusMarkup, /data-candidate-index="0"/);
@@ -194,6 +194,7 @@ assert.match(focusSource, /scrollCandidateQueue/);
 assert.match(focusSource, /activeCandidate\.offsetLeft/);
 assert.match(focusSource, /image-focus-comparison/);
 assert.match(focusSource, /selectedOutputImage/);
+assert.match(focusSource, /comparisonCandidates/);
 assert.match(focusSource, /activeExecution\.outputBlockIds/);
 assert.match(focusSource, /aria-pressed=\{compareMode\}/);
 assert.match(focusSource, /if \(compareMode\) \{/);

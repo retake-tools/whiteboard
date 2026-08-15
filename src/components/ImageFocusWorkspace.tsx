@@ -47,6 +47,10 @@ export const ImageFocusWorkspace = memo(function ImageFocusWorkspace({
     () => focusImages(snapshot, block),
     [block, snapshot],
   );
+  const comparisonCandidates = useMemo(
+    () => executionFocusImages(snapshot, block),
+    [block, snapshot],
+  );
   const activeIndex = Math.max(0, images.findIndex((item) => item.block.blockId === block.blockId));
   const activeImage = images[activeIndex];
   const candidateStripRef = useRef<HTMLDivElement>(null);
@@ -66,17 +70,21 @@ export const ImageFocusWorkspace = memo(function ImageFocusWorkspace({
       (selection) => `${selection.selectedBlockId}\u0000${selection.selectedAssetId}`,
     ),
   );
-  const selectedOutputImage = images.find((image) => (
+  const selectedOutputImage = comparisonCandidates.find((image) => (
     selectedOutputKeys.has(`${image.block.blockId}\u0000${image.asset.assetId}`)
   ));
   const comparisonImages = useMemo(() => {
-    if (!activeImage || images.length < 2) return undefined;
-    const baseline = selectedOutputImage ?? images[0];
-    const target = baseline.block.blockId === activeImage.block.blockId
-      ? images.find((image) => image.block.blockId !== baseline.block.blockId)
-      : activeImage;
+    if (comparisonCandidates.length < 2) return undefined;
+    const current = comparisonCandidates.find(
+      (image) => image.block.blockId === block.blockId,
+    );
+    if (!current) return undefined;
+    const baseline = selectedOutputImage ?? comparisonCandidates[0];
+    const target = baseline.block.blockId === current.block.blockId
+      ? comparisonCandidates.find((image) => image.block.blockId !== baseline.block.blockId)
+      : current;
     return target ? { baseline, target } : undefined;
-  }, [activeImage, images, selectedOutputImage]);
+  }, [block.blockId, comparisonCandidates, selectedOutputImage]);
 
   const syncCandidateScroll = useCallback((): void => {
     const strip = candidateStripRef.current;
@@ -328,32 +336,34 @@ const FocusCandidateButton = memo(function FocusCandidateButton({
 });
 
 function focusImages(snapshot: BoardSnapshot, block: BlockRecord): FocusImage[] {
+  const related = executionImageBrowserItems(snapshot, block.blockId);
+  if (related.some((item) => item.block.blockId === block.blockId)) return related;
+  const activeAssetId = typeof block.data.assetId === 'string' ? block.data.assetId : undefined;
+  const asset = snapshot.assets.find((candidate) => (
+    candidate.assetId === activeAssetId && candidate.kind === 'image'
+  ));
+  return asset ? [{ asset, block }, ...related] : related;
+}
+
+function executionFocusImages(snapshot: BoardSnapshot, block: BlockRecord): FocusImage[] {
   const activeAssetId = typeof block.data.assetId === 'string' ? block.data.assetId : undefined;
   const activeExecution = activeAssetId ? snapshot.executions.find((execution) => (
     execution.outputBlockIds.includes(block.blockId)
     && execution.outputAssetIds.includes(activeAssetId)
   )) : undefined;
-  if (activeExecution) {
-    const blockById = new Map(snapshot.blocks.map((candidate) => [candidate.blockId, candidate]));
-    const assetById = new Map(snapshot.assets.map((candidate) => [candidate.assetId, candidate]));
-    const outputs = activeExecution.outputBlockIds.flatMap((blockId) => {
-      const outputBlock = blockById.get(blockId);
-      const outputAssetId = typeof outputBlock?.data.assetId === 'string'
-        ? outputBlock.data.assetId
-        : undefined;
-      const outputAsset = outputAssetId ? assetById.get(outputAssetId) : undefined;
-      return outputBlock?.type === 'image'
-        && outputAsset?.kind === 'image'
-        && activeExecution.outputAssetIds.includes(outputAsset.assetId)
-        ? [{ asset: outputAsset, block: outputBlock }]
-        : [];
-    });
-    if (outputs.some((item) => item.block.blockId === block.blockId)) return outputs;
-  }
-  const related = executionImageBrowserItems(snapshot, block.blockId);
-  if (related.some((item) => item.block.blockId === block.blockId)) return related;
-  const asset = snapshot.assets.find((candidate) => (
-    candidate.assetId === activeAssetId && candidate.kind === 'image'
-  ));
-  return asset ? [{ asset, block }, ...related] : related;
+  if (!activeExecution) return [];
+  const blockById = new Map(snapshot.blocks.map((candidate) => [candidate.blockId, candidate]));
+  const assetById = new Map(snapshot.assets.map((candidate) => [candidate.assetId, candidate]));
+  return activeExecution.outputBlockIds.flatMap((blockId) => {
+    const outputBlock = blockById.get(blockId);
+    const outputAssetId = typeof outputBlock?.data.assetId === 'string'
+      ? outputBlock.data.assetId
+      : undefined;
+    const outputAsset = outputAssetId ? assetById.get(outputAssetId) : undefined;
+    return outputBlock?.type === 'image'
+      && outputAsset?.kind === 'image'
+      && activeExecution.outputAssetIds.includes(outputAsset.assetId)
+      ? [{ asset: outputAsset, block: outputBlock }]
+      : [];
+  });
 }
