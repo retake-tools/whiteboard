@@ -94,12 +94,12 @@ try {
   );
   assert.deepEqual(
     (await readdir(bundledRoot)).sort(),
-    ['image-studio-0.12.3.retakepkg', 'retake.bootstrap.json'],
+    ['image-studio-0.12.4.retakepkg', 'retake.bootstrap.json'],
     'The published Whiteboard bootstrap must not ship a Video Studio archive.',
   );
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.version),
-    ['0.12.3'],
+    ['0.12.4'],
   );
   assert.deepEqual(
     publishedProfile.packages.map((entry) => entry.updateSource),
