@@ -94,6 +94,11 @@ export type TranslationKey =
   | 'configuration.prompt'
   | 'configuration.role'
   | 'canvas.tools'
+  | 'blankWorkspace.description'
+  | 'blankWorkspace.generateImage'
+  | 'blankWorkspace.hint'
+  | 'blankWorkspace.openImage'
+  | 'blankWorkspace.title'
   | 'codex.binding.connected'
   | 'codex.binding.connect'
   | 'common.dismiss'
@@ -1557,6 +1562,11 @@ const translations: Record<Locale, Translations> = {
     'textEditor.unsaved': 'Unsaved changes',
     'context.addArrow': 'Add arrow',
     'context.arrowTool': 'Arrow',
+    'blankWorkspace.description': 'Open an existing image, or describe a new one to generate on this board.',
+    'blankWorkspace.generateImage': 'Generate image',
+    'blankWorkspace.hint': 'Text, video, workflows, and Agent remain available from the canvas create menu.',
+    'blankWorkspace.openImage': 'Open image',
+    'blankWorkspace.title': 'Start with an image',
     'context.annotateForCodex': 'Annotation Edit',
     'context.annotateEdit': 'Annotate edit',
     'context.annotationSourceMissing': 'Attach or generate an image asset before annotating.',
@@ -3022,6 +3032,11 @@ const translations: Record<Locale, Translations> = {
     'context.describeChange': '描述要修改的内容...',
     'context.downloadImage': '导出图片',
     'context.ellipseTool': '圆形',
+    'blankWorkspace.description': '打开一张已有图片，或者直接描述你想在这个画板生成的画面。',
+    'blankWorkspace.generateImage': '生成图片',
+    'blankWorkspace.hint': '文字、视频、Workflow 和 Agent 仍可从画布创建入口使用。',
+    'blankWorkspace.openImage': '打开图片',
+    'blankWorkspace.title': '从图片开始',
     'context.eraserTool': '橡皮',
     'context.expand': '扩图',
     'context.executionRoute': '执行方式',

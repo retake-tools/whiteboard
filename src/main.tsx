@@ -4,6 +4,7 @@ import '@xyflow/react/dist/style.css';
 import './styles.css';
 import './feedback.css';
 import './components/board-history-panel.css';
+import './components/blank-workspace-start.css';
 import './components/agent-workspace.css';
 import './components/execution-inspector.css';
 import './components/execution-image-viewer.css';

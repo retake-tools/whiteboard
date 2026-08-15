@@ -15,6 +15,7 @@ import {
 } from './components/GenerationTaskPanel';
 import { GroupInspector } from './components/GroupInspector';
 import { ImageInspectorPanel } from './components/ImageInspectorPanel';
+import { BlankWorkspaceStart } from './components/BlankWorkspaceStart';
 import { ImageFocusWorkspace } from './components/ImageFocusWorkspace';
 import { InputReferencePicker } from './components/InputReferencePicker';
 import { OperationFeedback } from './components/OperationFeedback';
@@ -32,6 +33,8 @@ import {
 } from './components/UnifiedComposerProvider';
 import { WorkflowContinuationDialog } from './components/WorkflowContinuationDialog';
 import { getAssetPreviewUrl } from './core/assetStore';
+import { defaultBlockSize } from './core/blockSizing';
+import { localizedBlockData } from './core/blockLocalization';
 import { blockLockedByGroup, groupMediaItems } from './core/grouping';
 import { loadUiPreferences, saveUiPreferences } from './core/uiPreferences';
 import { loadExecutionProviderSettings } from './core/executionProviderClient';
@@ -240,6 +243,7 @@ function ReadyApp({
   } = boardSession;
   const initialUiPreferences = useRef(loadUiPreferences());
   const directImageImportInputRef = useRef<HTMLInputElement | null>(null);
+  const blankWorkspaceImageInputRef = useRef<HTMLInputElement | null>(null);
   const agentWorkspaceButtonRef = useRef<HTMLButtonElement | null>(null);
   const pendingDirectImageImportBlockIdRef = useRef<string | undefined>(undefined);
   const [isMiniMapVisible, setIsMiniMapVisible] = useState(() => initialUiPreferences.current.isMiniMapVisible);
@@ -858,6 +862,35 @@ function ReadyApp({
     focusWorkflowBlocks([created.blockId]);
   }
 
+  async function importBlankWorkspaceImage(file: File): Promise<void> {
+    if (!runHostCommand) return;
+    const size = defaultBlockSize('image');
+    try {
+      const created = await runHostCommand(
+        (commands) => commands.createBlock({
+          data: localizedBlockData('image', t),
+          position: centeredBlockPosition(size),
+          size,
+          type: 'image',
+        }),
+        { history: true },
+      );
+      const block = snapshotRef.current.blocks.find(
+        (candidate) => candidate.blockId === created.blockId && candidate.type === 'image',
+      );
+      if (!block) return;
+      setSelectedBlock(snapshotRef.current, block.blockId);
+      await importImageIntoBlock(block, file);
+    } catch (error) {
+      setOperationToast({
+        id: `blank-workspace-import:${Date.now()}`,
+        title: t('feedback.handoffUnavailable'),
+        body: error instanceof Error ? error.message : t('feedback.localApiUnavailable'),
+        tone: 'error',
+      });
+    }
+  }
+
   const selectedImageUrl =
     selectedBlock?.type === 'image' ? getAssetPreviewUrl(snapshot.assets, selectedBlock.data.assetId) : undefined;
   const selectedImageAsset =
@@ -948,6 +981,17 @@ function ReadyApp({
           if (!file || !blockId) return;
           const block = snapshotRef.current.blocks.find((candidate) => candidate.blockId === blockId);
           if (block) void importImageIntoBlock(block, file);
+        }}
+      />
+      <input
+        ref={blankWorkspaceImageInputRef}
+        className="hidden-file-input"
+        type="file"
+        accept="image/*"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.currentTarget.value = '';
+          if (file) void importBlankWorkspaceImage(file);
         }}
       />
       <TopBar
@@ -1419,6 +1463,14 @@ function ReadyApp({
         t={t}
         workflowRuntime={workflowRuntimeController}
       />
+      {snapshot.blocks.length === 0 && workspaceSurface.kind === 'none' ? (
+        <BlankWorkspaceStart
+          onGenerateImage={() => window.dispatchEvent(new CustomEvent('retake:focus-unified-composer', {
+            detail: { clearEntryPoint: true, mode: 'image' },
+          }))}
+          onOpenImage={() => blankWorkspaceImageInputRef.current?.click()}
+        />
+      ) : null}
       {imageFocusBlock ? (
         <ImageFocusWorkspace
           block={imageFocusBlock}

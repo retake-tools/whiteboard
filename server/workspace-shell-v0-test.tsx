@@ -10,6 +10,7 @@ import {
 import { WorkspaceShell } from '../src/components/WorkspaceShell';
 import { WorkspaceSidebar } from '../src/components/WorkspaceSidebar';
 import { WorkspaceWorkbench } from '../src/components/WorkspaceWorkbench';
+import { BlankWorkspaceStart } from '../src/components/BlankWorkspaceStart';
 import { boardThumbnailUrl, projectIdentity } from '../src/components/WorkspaceBoardSwitcher';
 import type { WorkspaceSummary } from '../src/core/types';
 import { I18nProvider } from '../src/i18n';
@@ -76,6 +77,19 @@ workspaceSurfaceState = reduceWorkspaceSurface(workspaceSurfaceState, {
 });
 assert.equal(workspaceSurfaceState.surface.kind, 'none');
 assert.equal(workspaceSurfaceState.agentOpen, false);
+
+const blankWorkspaceMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <BlankWorkspaceStart
+      onGenerateImage={() => undefined}
+      onOpenImage={() => undefined}
+    />
+  </I18nProvider>,
+);
+assert.match(blankWorkspaceMarkup, /从图片开始/);
+assert.match(blankWorkspaceMarkup, /打开图片/);
+assert.match(blankWorkspaceMarkup, /生成图片/);
+assert.doesNotMatch(blankWorkspaceMarkup, /登录|Token|Plan|云端/);
 
 const workspace: WorkspaceSummary = {
   defaultProjectId: 'project_current',

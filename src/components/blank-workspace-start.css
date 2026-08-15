@@ -1,0 +1,114 @@
+.blank-workspace-start {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  display: grid;
+  place-items: center;
+  padding: 88px 80px 168px;
+  pointer-events: none;
+}
+
+.blank-workspace-card {
+  display: grid;
+  width: min(460px, calc(100vw - 160px));
+  justify-items: center;
+  gap: 16px;
+  padding: 26px;
+  border: 1px solid var(--retake-border-subtle);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--retake-surface) 96%, transparent);
+  box-shadow: var(--retake-shadow-popover);
+  pointer-events: auto;
+  text-align: center;
+}
+
+.blank-workspace-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
+}
+
+.blank-workspace-copy {
+  display: grid;
+  gap: 7px;
+}
+
+.blank-workspace-copy h1 {
+  color: var(--retake-text);
+  font-size: 18px;
+  font-weight: 730;
+  letter-spacing: -0.015em;
+}
+
+.blank-workspace-copy p {
+  color: var(--retake-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.blank-workspace-actions {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.blank-workspace-actions button {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--retake-border-subtle);
+  border-radius: 9px;
+  background: var(--retake-surface);
+  color: var(--retake-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.blank-workspace-actions button:hover,
+.blank-workspace-actions button:focus-visible {
+  border-color: var(--retake-accent-border);
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
+}
+
+.blank-workspace-actions button.is-primary {
+  border-color: var(--retake-accent);
+  background: var(--retake-accent);
+  color: var(--retake-on-accent);
+}
+
+.blank-workspace-actions button.is-primary:hover,
+.blank-workspace-actions button.is-primary:focus-visible {
+  background: var(--retake-accent-strong);
+  color: var(--retake-on-accent);
+}
+
+.blank-workspace-card > small {
+  color: var(--retake-text-subtle);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .blank-workspace-start {
+    padding: 78px 20px 150px;
+  }
+
+  .blank-workspace-card {
+    width: min(420px, calc(100vw - 64px));
+    padding: 22px;
+  }
+
+  .blank-workspace-actions {
+    grid-template-columns: 1fr;
+  }
+}
