@@ -21,6 +21,16 @@
     height: 32px;
   }
 
+  .autosave-indicator.is-error {
+    width: 32px;
+    min-width: 32px;
+    padding: 0;
+  }
+
+  .autosave-error-label {
+    display: none;
+  }
+
   .language-button {
     min-width: 42px;
     padding: 0 6px;

@@ -592,8 +592,15 @@
 }
 
 .autosave-indicator.is-error {
-  border-color: #fecaca;
-  color: #b42318;
+  display: inline-flex;
+  width: auto;
+  min-width: 34px;
+  padding: 0 10px;
+  gap: 6px;
+  border-color: color-mix(in srgb, var(--retake-error) 32%, var(--retake-border-subtle));
+  color: var(--retake-error);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .autosave-indicator.is-idle {

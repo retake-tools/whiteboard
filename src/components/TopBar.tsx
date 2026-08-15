@@ -4,8 +4,6 @@ import {
   Boxes,
   ChevronDown,
   ChevronRight,
-  Cloud,
-  CloudAlert,
   Copy,
   Grid3X3,
   History,
@@ -21,6 +19,7 @@ import {
   Plus,
   Redo2,
   RefreshCw,
+  Save,
   Settings,
   Sparkles,
   Trash2,
@@ -961,7 +960,8 @@ function AutosaveIndicator({ status, onRetry }: { status: AutosaveStatus; onRetr
   if (status === 'error') {
     return (
       <TooltipIconButton className="autosave-indicator is-error" label={t('autosave.retry')} onClick={onRetry}>
-        <CloudAlert size={16} />
+        <TriangleAlert size={16} />
+        <span className="autosave-error-label">{t('autosave.error')}</span>
       </TooltipIconButton>
     );
   }
@@ -976,7 +976,7 @@ function AutosaveIndicator({ status, onRetry }: { status: AutosaveStatus; onRetr
 
   return (
     <TooltipWrapper className="autosave-indicator is-idle" label={t('autosave.idle')}>
-      <Cloud size={16} />
+      <Save size={16} />
     </TooltipWrapper>
   );
 }

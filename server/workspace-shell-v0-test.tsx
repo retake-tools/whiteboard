@@ -210,12 +210,22 @@ assert.match(shellMarkup, /is-workbench-compact/);
 assert.match(shellMarkup, /data-canvas-slot="true"/);
 assert.match(shellMarkup, /data-workspace-surface="history"/);
 
-const [appSource, sidebarSource, shellCss, railCss, pluginPanelSource] = await Promise.all([
+const [
+  appSource,
+  sidebarSource,
+  shellCss,
+  railCss,
+  pluginPanelSource,
+  topBarSource,
+  topBarCss,
+] = await Promise.all([
   readFile('src/App.tsx', 'utf8'),
   readFile('src/components/WorkspaceSidebar.tsx', 'utf8'),
   readFile('src/components/workspace-shell.css', 'utf8'),
   readFile('src/components/workspace-sidebar-rail.css', 'utf8'),
   readFile('src/components/PluginPanelHost.tsx', 'utf8'),
+  readFile('src/components/TopBar.tsx', 'utf8'),
+  readFile('src/components/top-bar.css', 'utf8'),
 ]);
 assert.match(appSource, /useWorkspaceSurfaceController/);
 assert.match(appSource, /<WorkspaceShell/);
@@ -247,11 +257,17 @@ assert.match(
 );
 assert.match(pluginPanelSource, /\.workspace-sidebar/);
 assert.match(pluginPanelSource, /\.workspace-workbench/);
+assert.match(topBarSource, /className="autosave-error-label"/);
+assert.match(topBarSource, /<TriangleAlert size=\{16\} \/>/);
+assert.match(topBarSource, /<Save size=\{16\} \/>/);
+assert.doesNotMatch(topBarSource, /CloudAlert|<Cloud\b/);
+assert.match(topBarCss, /\.autosave-indicator\.is-error \{[\s\S]*var\(--retake-error\)/);
 
 console.log(JSON.stringify({
   canvasAuthorityPreserved: true,
   collapsedNavigationAccessible: true,
   hostedSemanticsExcluded: true,
+  localSaveSemanticsVisible: true,
   pluginOverlayInsetAware: true,
   singleWorkspaceSurface: true,
   workbenchConditional: true,
