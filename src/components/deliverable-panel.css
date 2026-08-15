@@ -1,0 +1,213 @@
+.deliverable-panel {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  color: var(--retake-text-secondary);
+}
+
+.deliverable-panel-header {
+  display: grid;
+  min-height: 64px;
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--retake-border-subtle);
+}
+
+.deliverable-panel-header > div {
+  min-width: 0;
+}
+
+.deliverable-panel-header span {
+  display: block;
+  color: var(--retake-accent-strong);
+  font-size: 10px;
+  font-weight: 760;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.deliverable-panel-header h2 {
+  margin-top: 2px;
+  color: var(--retake-text);
+  font-size: 16px;
+  font-weight: 720;
+}
+
+.deliverable-panel-scroll {
+  min-height: 0;
+  overflow: hidden auto;
+}
+
+.deliverable-preview-card,
+.deliverable-gate-section,
+.deliverable-actions {
+  padding: 16px;
+  border-bottom: 1px solid var(--retake-border-subtle);
+}
+
+.deliverable-preview-card {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.deliverable-preview-card img {
+  display: block;
+  width: 58px;
+  height: 72px;
+  grid-row: span 2;
+  border: 1px solid var(--retake-border-subtle);
+  border-radius: 9px;
+  background: var(--retake-surface-subtle);
+  object-fit: cover;
+}
+
+.deliverable-preview-card h3 {
+  overflow: hidden;
+  color: var(--retake-text);
+  font-size: 13px;
+  font-weight: 690;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deliverable-preview-card p {
+  margin-top: 4px;
+  color: var(--retake-text-muted);
+  font-size: 11px;
+}
+
+.deliverable-status {
+  display: inline-flex;
+  width: max-content;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.deliverable-status.is-attention {
+  background: var(--retake-warning-soft);
+  color: var(--retake-warning);
+}
+
+.deliverable-gate-section {
+  display: grid;
+  gap: 13px;
+}
+
+.deliverable-gate-section > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.deliverable-gate-section h3 {
+  color: var(--retake-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.deliverable-gate-section header p {
+  margin-top: 3px;
+  color: var(--retake-text-muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.deliverable-gate-state {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: var(--retake-surface-subtle);
+  color: var(--retake-text-muted);
+  font-size: 10px;
+  font-weight: 680;
+}
+
+.deliverable-gate-section ul {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+}
+
+.deliverable-gate-section li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--retake-warning);
+  font-size: 11px;
+}
+
+.deliverable-gate-section li.is-known {
+  color: var(--retake-success);
+}
+
+.deliverable-gate-section dl {
+  display: grid;
+  gap: 8px;
+}
+
+.deliverable-gate-section dl > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.deliverable-gate-section dt {
+  color: var(--retake-text-muted);
+}
+
+.deliverable-gate-section dd {
+  color: var(--retake-text-secondary);
+  font-weight: 650;
+  text-align: right;
+}
+
+.deliverable-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.deliverable-actions button {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--retake-border-subtle);
+  border-radius: 9px;
+  background: var(--retake-surface);
+  color: var(--retake-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.deliverable-actions button.is-primary {
+  border-color: var(--retake-accent);
+  background: var(--retake-accent);
+  color: var(--retake-on-accent);
+}
+
+.deliverable-actions button:disabled {
+  background: var(--retake-surface-subtle);
+  color: var(--retake-text-subtle);
+  cursor: not-allowed;
+}
+
+.deliverable-actions > p {
+  color: var(--retake-text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+  text-align: center;
+}

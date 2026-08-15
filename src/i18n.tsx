@@ -396,6 +396,29 @@ export type TranslationKey =
   | 'imageInspector.tools'
   | 'imageInspector.inputsAndReferences'
   | 'imageInspector.version'
+  | 'imageInspector.delivery'
+  | 'imageInspector.deliveryHint'
+  | 'imageInspector.prepareDeliverable'
+  | 'deliverable.back'
+  | 'deliverable.close'
+  | 'deliverable.contentGate'
+  | 'deliverable.contentGateHint'
+  | 'deliverable.downloadPreview'
+  | 'deliverable.eyebrow'
+  | 'deliverable.exportProject'
+  | 'deliverable.fileGate'
+  | 'deliverable.fileGateHint'
+  | 'deliverable.memberLinked'
+  | 'deliverable.needsAttention'
+  | 'deliverable.notVerified'
+  | 'deliverable.pending'
+  | 'deliverable.readback'
+  | 'deliverable.recordedFormat'
+  | 'deliverable.recordedPixels'
+  | 'deliverable.safeAreaPending'
+  | 'deliverable.title'
+  | 'deliverable.unavailableHint'
+  | 'deliverable.verifyAndExport'
   | 'imageFocus.backToCanvas'
   | 'imageFocus.baseline'
   | 'imageFocus.candidates'
@@ -1845,6 +1868,29 @@ const translations: Record<Locale, Translations> = {
     'imageInspector.tools': 'Image tools',
     'imageInspector.inputsAndReferences': 'Inputs and references',
     'imageInspector.version': 'Current version',
+    'imageInspector.delivery': 'Delivery',
+    'imageInspector.deliveryHint': 'Review content and file readiness without changing the selected candidate.',
+    'imageInspector.prepareDeliverable': 'Prepare delivery',
+    'deliverable.back': 'Back to image inspector',
+    'deliverable.close': 'Close delivery preparation',
+    'deliverable.contentGate': 'Content check',
+    'deliverable.contentGateHint': 'Membership, crop, and safe-area readiness',
+    'deliverable.downloadPreview': 'Download preview',
+    'deliverable.eyebrow': 'Current image',
+    'deliverable.exportProject': 'Export project',
+    'deliverable.fileGate': 'File check',
+    'deliverable.fileGateHint': 'Decoded pixels, format, alpha, filename, and checksum',
+    'deliverable.memberLinked': 'Current image is linked as the delivery member',
+    'deliverable.needsAttention': 'Needs attention',
+    'deliverable.notVerified': 'Not verified',
+    'deliverable.pending': 'Pending',
+    'deliverable.readback': 'Export readback',
+    'deliverable.recordedFormat': 'Recorded format',
+    'deliverable.recordedPixels': 'Recorded pixels',
+    'deliverable.safeAreaPending': 'Safe area and accidental crop have not been checked',
+    'deliverable.title': 'Delivery preparation',
+    'deliverable.unavailableHint': 'Verified export and portable project export will be enabled after their durable file contracts are available.',
+    'deliverable.verifyAndExport': 'Verify and export',
     'imageFocus.backToCanvas': 'Back to canvas',
     'imageFocus.baseline': 'Baseline',
     'imageFocus.candidates': 'Candidates and versions',
@@ -3289,6 +3335,29 @@ const translations: Record<Locale, Translations> = {
     'imageInspector.tools': '图片工具',
     'imageInspector.inputsAndReferences': '输入与参考',
     'imageInspector.version': '当前版本',
+    'imageInspector.delivery': '交付',
+    'imageInspector.deliveryHint': '在不改变当前已选方案的前提下检查内容与文件是否可交付。',
+    'imageInspector.prepareDeliverable': '准备交付',
+    'deliverable.back': '返回图片检查器',
+    'deliverable.close': '关闭交付准备',
+    'deliverable.contentGate': '内容检查',
+    'deliverable.contentGateHint': '成员归属、裁切与安全区状态',
+    'deliverable.downloadPreview': '下载预览',
+    'deliverable.eyebrow': '当前图片',
+    'deliverable.exportProject': '导出项目',
+    'deliverable.fileGate': '文件检查',
+    'deliverable.fileGateHint': '真实像素、格式、Alpha、文件名与 checksum',
+    'deliverable.memberLinked': '当前图片已关联为交付成员',
+    'deliverable.needsAttention': '需要检查',
+    'deliverable.notVerified': '尚未验证',
+    'deliverable.pending': '待检查',
+    'deliverable.readback': '导出回读',
+    'deliverable.recordedFormat': '记录格式',
+    'deliverable.recordedPixels': '记录尺寸',
+    'deliverable.safeAreaPending': '安全区与意外裁切尚未检查',
+    'deliverable.title': '交付准备',
+    'deliverable.unavailableHint': '真实验真导出与可迁移项目导出将在对应的持久化文件合同完成后开放。',
+    'deliverable.verifyAndExport': '验证并导出',
     'imageFocus.backToCanvas': '返回画布',
     'imageFocus.baseline': '基准图',
     'imageFocus.candidates': '候选与版本',

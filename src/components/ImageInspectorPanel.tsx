@@ -47,6 +47,7 @@ interface ImageInspectorPanelProps {
     source: ExecutionDetailCopySource;
   }) => void | Promise<void>;
   onDownload: () => void;
+  onPrepareDeliverable?: () => void;
   onSelectOutput?: (input: {
     assetId: string;
     blockId: string;
@@ -69,6 +70,7 @@ export const ImageInspectorPanel = memo(function ImageInspectorPanel({
   onBeforePluginOperationAction,
   onCopyPrompt,
   onDownload,
+  onPrepareDeliverable,
   onSelectOutput,
   onPluginFatalFailure,
   onRestoreConfiguration,
@@ -205,6 +207,16 @@ export const ImageInspectorPanel = memo(function ImageInspectorPanel({
             </div>
           </InspectorSection>
         ) : null}
+
+        <InspectorSection title={t('imageInspector.delivery')}>
+          <div className="image-inspector-delivery">
+            <p>{t('imageInspector.deliveryHint')}</p>
+            <button type="button" onClick={onPrepareDeliverable}>
+              <FileClock size={16} />
+              <span>{t('imageInspector.prepareDeliverable')}</span>
+            </button>
+          </div>
+        </InspectorSection>
 
         <InspectorSection title={t('imageInspector.position')}>
           <dl className="image-inspector-metric-grid">

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ImageInspectorPanel } from '../src/components/ImageInspectorPanel';
+import { DeliverablePanel } from '../src/components/DeliverablePanel';
 import { ImageFocusWorkspace } from '../src/components/ImageFocusWorkspace';
 import {
   projectFlowEdgeSelection,
@@ -74,6 +75,7 @@ const markup = renderToStaticMarkup(
       onClose={() => undefined}
       onCopyPrompt={() => undefined}
       onDownload={() => undefined}
+      onPrepareDeliverable={() => undefined}
       onRestoreConfiguration={() => undefined}
       previewUrl={asset.previewUrl}
       snapshot={snapshot}
@@ -94,7 +96,31 @@ assert.match(markup, /PNG/);
 assert.match(markup, /商品图已导入/);
 assert.match(markup, /图片工具/);
 assert.match(markup, /下载图片/);
+assert.match(markup, /准备交付/);
 assert.doesNotMatch(markup, /Token|Plan|登录|Sign in/);
+
+const deliverableMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <DeliverablePanel
+      asset={asset}
+      block={block}
+      onBack={() => undefined}
+      onClose={() => undefined}
+      onDownloadPreview={() => undefined}
+      previewUrl={asset.previewUrl}
+    />
+  </I18nProvider>,
+);
+assert.match(deliverableMarkup, /交付准备/);
+assert.match(deliverableMarkup, /内容检查/);
+assert.match(deliverableMarkup, /文件检查/);
+assert.match(deliverableMarkup, /1080 × 1440/);
+assert.match(deliverableMarkup, /尚未验证/);
+assert.match(deliverableMarkup, /下载预览/);
+assert.match(deliverableMarkup, /验证并导出/);
+assert.match(deliverableMarkup, /导出项目/);
+assert.match(deliverableMarkup, /disabled=""/);
+assert.doesNotMatch(deliverableMarkup, /可交付/);
 
 const firstNode: RetakeNode = {
   id: block.blockId,

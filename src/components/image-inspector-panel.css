@@ -142,6 +142,33 @@
   cursor: default;
 }
 
+.image-inspector-delivery {
+  display: grid;
+  gap: 10px;
+}
+
+.image-inspector-delivery p {
+  color: var(--retake-text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.image-inspector-delivery button {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--retake-accent-border);
+  border-radius: 9px;
+  background: var(--retake-accent-soft);
+  color: var(--retake-accent-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .image-inspector-actions {
   position: relative;
   display: grid;

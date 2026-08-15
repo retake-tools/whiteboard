@@ -15,6 +15,7 @@ import {
 } from './components/GenerationTaskPanel';
 import { GroupInspector } from './components/GroupInspector';
 import { ImageInspectorPanel } from './components/ImageInspectorPanel';
+import { DeliverablePanel } from './components/DeliverablePanel';
 import { ImageFocusWorkspace } from './components/ImageFocusWorkspace';
 import { InputReferencePicker } from './components/InputReferencePicker';
 import { OperationFeedback } from './components/OperationFeedback';
@@ -248,6 +249,7 @@ function ReadyApp({
     surface: workspaceSurface,
     closeSurface: closeWorkspaceSurface,
     inspectorBlockId,
+    deliverableBlockId,
     taskBlockId,
     isAgentWorkspaceOpen,
     isArtifactLibraryOpen,
@@ -256,6 +258,7 @@ function ReadyApp({
     setArtifactLibraryOpen: setIsArtifactLibraryOpen,
     setHistoryOpen: setIsHistoryOpen,
     setInspectorBlockId,
+    setDeliverableBlockId,
     setTaskBlockId,
   } = useWorkspaceSurfaceController({
     initialAgentOpen: initialUiPreferences.current.isAgentWorkspaceOpen,
@@ -880,6 +883,15 @@ function ReadyApp({
   const inspectorImageUrl = inspectorBlock?.type === 'image'
     ? getAssetPreviewUrl(snapshot.assets, inspectorBlock.data.assetId)
     : undefined;
+  const deliverableBlock = deliverableBlockId
+    ? snapshot.blocks.find((block) => block.blockId === deliverableBlockId && block.type === 'image')
+    : undefined;
+  const deliverableAsset = deliverableBlock?.data.assetId
+    ? snapshot.assets.find((asset) => asset.assetId === deliverableBlock.data.assetId)
+    : undefined;
+  const deliverablePreviewUrl = deliverableBlock?.data.assetId
+    ? getAssetPreviewUrl(snapshot.assets, deliverableBlock.data.assetId)
+    : undefined;
   const imageExecutionDetailsBlock = imageExecutionDetailsBlockId
     ? snapshot.blocks.find((block) => block.blockId === imageExecutionDetailsBlockId)
     : undefined;
@@ -908,6 +920,7 @@ function ReadyApp({
     && inspectorBlock?.type === 'image'
     && Boolean(inspectorImageAsset && inspectorImageUrl);
   const workbenchOpen = imageInspectorOpen
+    || Boolean(workspaceSurface.kind === 'deliverable' && deliverableBlock && deliverableAsset && deliverablePreviewUrl)
     || Boolean(workspaceSurface.kind === 'task' && taskBlock && taskExecution)
     || workspaceSurface.kind === 'agent'
     || workspaceSurface.kind === 'artifact'
@@ -1209,12 +1222,26 @@ function ReadyApp({
               }}
               onCopyPrompt={copyPromptWithHistory}
               onDownload={() => downloadAsset(inspectorImageAsset, inspectorBlock.data.title)}
+              onPrepareDeliverable={() => setDeliverableBlockId(inspectorBlock.blockId)}
               onPluginFatalFailure={onPluginContributionFatalFailure}
               onRestoreConfiguration={restoreConfigurationVersion}
               onSelectOutput={executionOutputSelectionController.selectOutput}
               previewUrl={inspectorImageUrl}
               pluginContributionRegistry={pluginContributionRegistry}
               snapshot={snapshot}
+            />
+          ) : null}
+          {workspaceSurface.kind === 'deliverable'
+            && deliverableBlock
+            && deliverableAsset
+            && deliverablePreviewUrl ? (
+            <DeliverablePanel
+              asset={deliverableAsset}
+              block={deliverableBlock}
+              onBack={() => setInspectorBlockId(deliverableBlock.blockId)}
+              onClose={closeWorkspaceSurface}
+              onDownloadPreview={() => downloadAsset(deliverableAsset, deliverableBlock.data.title)}
+              previewUrl={deliverablePreviewUrl}
             />
           ) : null}
           {workspaceSurface.kind === 'task' && taskBlock && taskExecution ? (
