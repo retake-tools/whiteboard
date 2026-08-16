@@ -4,7 +4,10 @@ import { BoardHistoryPanel } from './components/BoardHistoryPanel';
 import { AgentWorkspace } from './components/AgentWorkspace';
 import { ExecutionInspector } from './components/ExecutionInspector';
 import { FloatingToolbar } from './components/FloatingToolbar';
-import { GenerationCandidateDock } from './components/GenerationCandidateDock';
+import {
+  GenerationCandidateDock,
+  generationCandidatePreviewBlockIds,
+} from './components/GenerationCandidateDock';
 import {
   WorkflowCandidateDock,
   workflowCandidateDecision,
@@ -333,6 +336,7 @@ function ReadyApp({
   useEffect(() => setReviewDocumentBlockId(undefined), [snapshot.board.boardId, snapshot.project.projectId]);
   useEffect(() => {
     setInspectorBlockId(undefined);
+    setTaskBlockId(undefined);
     setImageFocusBlockId(undefined);
     setImageExecutionDetailsBlockId(undefined);
     setIsHistoryOpen(false);
@@ -932,6 +936,13 @@ function ReadyApp({
   const taskExecution = taskBlock
     ? generationExecutionForBlock(snapshot, taskBlock)
     : undefined;
+  const imageCandidatePreviewBlockIds = workspaceSurface.kind === 'task'
+    ? generationCandidatePreviewBlockIds(taskExecution)
+    : workflowCandidatePreviewBlockIds;
+  useEffect(() => {
+    if (workspaceSurface.kind !== 'task' || taskBlock) return;
+    setTaskBlockId(undefined);
+  }, [setTaskBlockId, taskBlock, workspaceSurface]);
   const reviewDocumentBlock = reviewDocumentBlockId
     ? snapshot.blocks.find((block) => block.blockId === reviewDocumentBlockId && block.type === 'document')
     : undefined;
@@ -1474,7 +1485,7 @@ function ReadyApp({
         setHistoryOpen={setIsHistoryOpen}
         setInspectorBlockId={setInspectorBlockId}
         setMiniMapVisible={setIsMiniMapVisible}
-        imageCandidatePreviewBlockIds={workflowCandidatePreviewBlockIds}
+        imageCandidatePreviewBlockIds={imageCandidatePreviewBlockIds}
         onOpenWorkflowRun={setWorkflowWorkspaceRunId}
         showGrid={showGrid}
         snapshot={snapshot}

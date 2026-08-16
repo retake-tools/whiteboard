@@ -173,7 +173,7 @@ assert.match(appSource, /<WorkflowCandidateDock/);
 assert.match(appSource, /onAcceptCandidate=\{workflowRuntimeController\.acceptWorkflowOutput\}/);
 assert.match(appSource, /onOpenCandidateDetails=/);
 assert.match(appSource, /retake:open-execution-inspector/);
-assert.match(appSource, /imageCandidatePreviewBlockIds=\{workflowCandidatePreviewBlockIds\}/);
+assert.match(appSource, /imageCandidatePreviewBlockIds=\{imageCandidatePreviewBlockIds\}/);
 assert.match(canvasSource, /imageCandidatePreviewBlockIds\.includes\(node\.id\)/);
 assert.match(canvasSource, /imageCandidatePreviewBlockIds\.includes\(selectedNode\.id\)/);
 assert.doesNotMatch(canvasSource, /suppressImageInspectorForSelection/);

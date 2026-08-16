@@ -16,6 +16,16 @@ interface GenerationCandidateDockProps {
   snapshot: BoardSnapshot;
 }
 
+export function generationCandidatePreviewBlockIds(
+  execution: ExecutionRecord | undefined,
+): string[] {
+  if (!execution) return [];
+  return [...new Set([
+    ...execution.inputBlockIds,
+    ...execution.outputBlockIds,
+  ])];
+}
+
 export const GenerationCandidateDock = memo(function GenerationCandidateDock({
   execution,
   onSelectBlock,

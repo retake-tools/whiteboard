@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { GenerationCandidateDock } from '../src/components/GenerationCandidateDock';
+import {
+  GenerationCandidateDock,
+  generationCandidatePreviewBlockIds,
+} from '../src/components/GenerationCandidateDock';
 import {
   GenerationTaskPanel,
   generationExecutionForBlock,
@@ -88,6 +91,13 @@ const snapshot: BoardSnapshot = {
 
 assert.equal(generationExecutionForBlock(snapshot, operation)?.executionId, execution.executionId);
 assert.equal(generationExecutionForBlock(snapshot, result1)?.executionId, execution.executionId);
+assert.deepEqual(generationCandidatePreviewBlockIds(execution), [
+  source.blockId,
+  result1.blockId,
+  result2.blockId,
+  result3.blockId,
+  result4.blockId,
+]);
 
 const panelMarkup = renderToStaticMarkup(
   <I18nProvider>
@@ -144,6 +154,9 @@ const [appSource, eventBindingSource, imageInspectorSource, taskStyles] = await 
 assert.match(appSource, /workspaceSurface\.kind === 'task'/);
 assert.match(appSource, /<GenerationTaskPanel/);
 assert.match(appSource, /<GenerationCandidateDock/);
+assert.match(appSource, /setTaskBlockId\(undefined\);[\s\S]*setImageFocusBlockId\(undefined\)/);
+assert.match(appSource, /workspaceSurface\.kind !== 'task' \|\| taskBlock/);
+assert.match(appSource, /imageCandidatePreviewBlockIds=\{imageCandidatePreviewBlockIds\}/);
 assert.match(appSource, /<ImageFocusWorkspace/);
 assert.match(imageInspectorSource, /<ExecutionPromptDetails/);
 assert.match(eventBindingSource, /block\.type === 'operation' && block\.data\.capabilityId === imageGenerateCapabilityId/);
