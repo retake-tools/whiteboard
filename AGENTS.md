@@ -22,8 +22,10 @@ Figma pages define page intent and flow; they do not override root tokens or
 authorize implementation by themselves.
 
 - Keep the Canvas and visible Block graph as the primary workspace context.
-- Use one contextual Workbench for Inspector, Task, Compare, Deliverable, Agent,
-  History, and Plugin panels; do not create a permanent fourth column.
+- Use one contextual Workbench for Inspector, Task, Agent, History, Artifact,
+  and Plugin panels; do not create a permanent fourth column. Focus and Compare
+  are Canvas modes, and a future deliverable model must not be implied by shell
+  chrome before a real product contract exists.
 - Preserve existing Text, Document, Image, Video, Operation, Result, Group,
   Agent, Workflow, History, and Plugin capabilities during visual changes.
 - Build image actions from Plugin registry surfaces, ordering, and availability;
@@ -31,7 +33,7 @@ authorize implementation by themselves.
 - Use semantic tokens instead of feature-local brand colors.
 - A visual component may project current facts and call typed commands, but it
   must not replace snapshots or create a second Asset, Candidate, selected,
-  History, Execution, or Deliverable authority.
+  History, or Execution authority.
 
 ## Core Principles
 

@@ -312,9 +312,11 @@ The desktop workspace uses three regions at the `1440 × 1024` reference size:
 - Navigation collapses to `48px`. User and settings remain anchored at the bottom; the collapse control stays in the brand
   header rather than consuming a permanent bottom row.
 - Canvas occupies the majority of the workspace and preserves visible Block, Edge, selection, and lineage context.
-- The top toolbar is `56px` high. Candidate navigation belongs at the bottom of the Canvas rather than in a permanent rail.
-- The single right Workbench switches between Inspector, Task, Compare, Deliverable, Agent, History, and Plugin surfaces. It is
-  normally `320px` and may widen to `410px` for Agent on wide screens; it never creates a fourth column.
+- Board controls use the current compact floating TopBar instead of a permanent full-width toolbar. Candidate navigation belongs
+  at the bottom of the Canvas rather than in a permanent rail.
+- The single right Workbench switches between Inspector, Task, Agent, History, Artifact, and Plugin surfaces. It is normally
+  `320px` and may widen to `410px` for Agent on wide screens; it never creates a fourth column. Focus, Focus Edit, and Compare
+  change the Canvas stage rather than becoming additional right-side surfaces.
 - At `1024–1279px`, navigation collapses by default and Workbench uses the compact width. Below `1024px`, Workbench becomes a
   drawer; mobile-first editing is outside V0.
 - Use 4px-based spacing tokens. Prefer separators and tonal surfaces over nested cards.
@@ -371,7 +373,7 @@ Host session, Plugin runtime, Canvas scope, Agent session, or Workflow run.
 - Do project Agent, Workflow, History, candidates, and Plugin panels from their current canonical facts.
 - Don't simplify Whiteboard into a single-image Studio or hide Text, Video, Document, Group, Agent, and Workflow capability.
 - Don't hardcode a closed list of Image Studio commands in Host UI; respect Plugin surfaces, order, and availability.
-- Don't duplicate Asset, Candidate, selected, History, Execution, or Deliverable authority in component-local state.
+- Don't duplicate Asset, Candidate, selected, History, or Execution authority in component-local state.
 - Don't require login, Token, Plan, or cloud storage to use the open shared workspace.
 - Don't use royal blue, fixture green, pink-purple, magenta, neon glow, large purple-black backgrounds, or persistent glass.
 - Don't turn every action into a pill, gradient, or card.
