@@ -106,7 +106,6 @@ const panelMarkup = renderToStaticMarkup(
       onCancelExecution={() => undefined}
       onClose={() => undefined}
       onContinueFromResult={() => undefined}
-      onOpenExecutionDetails={() => undefined}
       onRetryExecution={() => undefined}
       selectedBlockId={result1.blockId}
       snapshot={snapshot}
@@ -124,6 +123,10 @@ assert.match(panelMarkup, /Image provider/);
 assert.match(panelMarkup, /不伪造 Token 或授权结论/);
 assert.match(panelMarkup, /取消生成/);
 assert.match(panelMarkup, /基于此图继续编辑/);
+assert.match(panelMarkup, /执行技术详情/);
+assert.match(panelMarkup, /用于排查执行路由与运行记录/);
+assert.match(panelMarkup, /execution_generate/);
+assert.doesNotMatch(panelMarkup, /查看完整执行详情/);
 
 const dockMarkup = renderToStaticMarkup(
   <I18nProvider>
@@ -154,6 +157,7 @@ const [appSource, eventBindingSource, imageInspectorSource, taskStyles] = await 
 assert.match(appSource, /workspaceSurface\.kind === 'task'/);
 assert.match(appSource, /<GenerationTaskPanel/);
 assert.match(appSource, /<GenerationCandidateDock/);
+assert.doesNotMatch(appSource, /imageExecutionDetailsBlockId|onOpenExecutionDetails/);
 assert.match(appSource, /setTaskBlockId\(undefined\);[\s\S]*setImageFocusBlockId\(undefined\)/);
 assert.match(appSource, /workspaceSurface\.kind !== 'task' \|\| taskBlock/);
 assert.match(appSource, /imageCandidatePreviewBlockIds=\{imageCandidatePreviewBlockIds\}/);

@@ -1,5 +1,5 @@
 import {
-  ExternalLink,
+  ChevronRight,
   ImageIcon,
   RotateCcw,
   Square,
@@ -19,7 +19,6 @@ interface GenerationTaskPanelProps {
   onCancelExecution: (executionId: string) => Promise<void> | void;
   onClose: () => void;
   onContinueFromResult: (block: BlockRecord) => Promise<void> | void;
-  onOpenExecutionDetails: (blockId: string) => void;
   onRetryExecution: (executionId: string) => Promise<void> | void;
   selectedBlockId?: string;
   snapshot: BoardSnapshot;
@@ -30,7 +29,6 @@ export const GenerationTaskPanel = memo(function GenerationTaskPanel({
   onCancelExecution,
   onClose,
   onContinueFromResult,
-  onOpenExecutionDetails,
   onRetryExecution,
   selectedBlockId,
   snapshot,
@@ -165,14 +163,26 @@ export const GenerationTaskPanel = memo(function GenerationTaskPanel({
           </div>
         ) : null}
 
-        <button
-          type="button"
-          className="generation-task-details"
-          onClick={() => onOpenExecutionDetails(selectedOutput?.blockId ?? block.blockId)}
-        >
-          <ExternalLink size={15} />
-          <span>{label(locale, '查看完整执行详情', 'View full execution details')}</span>
-        </button>
+        <details className="generation-task-technical-details">
+          <summary>
+            <span>
+              <strong>{label(locale, '执行技术详情', 'Execution technical details')}</strong>
+              <small>{label(
+                locale,
+                '用于排查执行路由与运行记录',
+                'Use this to inspect routing and execution records',
+              )}</small>
+            </span>
+            <ChevronRight aria-hidden="true" size={16} />
+          </summary>
+          <dl className="generation-task-facts is-technical">
+            <Fact label={label(locale, '执行 ID', 'Execution ID')} value={execution.executionId} mono />
+            <Fact label={label(locale, '能力', 'Capability')} value={execution.capabilityId} />
+            <Fact label={label(locale, '执行路由', 'Adapter')} value={execution.adapter} />
+            <Fact label={label(locale, '开始时间', 'Started')} value={formatTimestamp(execution.startedAt, locale)} />
+            <Fact label={label(locale, '完成时间', 'Completed')} value={formatTimestamp(execution.completedAt, locale)} />
+          </dl>
+        </details>
       </div>
 
       <footer className="generation-task-footer">
@@ -245,12 +255,20 @@ function TaskSection({
   );
 }
 
-function Fact({ label: factLabel, value }: { label: string; value?: string }): ReactElement | null {
+function Fact({
+  label: factLabel,
+  mono,
+  value,
+}: {
+  label: string;
+  mono?: boolean;
+  value?: string;
+}): ReactElement | null {
   if (!value) return null;
   return (
     <div>
       <dt>{factLabel}</dt>
-      <dd>{value}</dd>
+      <dd className={mono ? 'is-mono' : undefined} title={mono ? value : undefined}>{value}</dd>
     </div>
   );
 }
@@ -277,6 +295,16 @@ function outputSize(params: Record<string, unknown>): string | undefined {
 
 function label(locale: Locale, zh: string, en: string): string {
   return locale === 'zh' ? zh : en;
+}
+
+function formatTimestamp(value: string | undefined, locale: Locale): string | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
+    dateStyle: 'short',
+    timeStyle: 'medium',
+  }).format(date);
 }
 
 function readNumber(value: unknown): number | undefined {

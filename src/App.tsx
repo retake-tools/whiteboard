@@ -274,7 +274,6 @@ function ReadyApp({
   const [workflowWorkspaceRunId, setWorkflowWorkspaceRunId] = useState<string>();
   const [imageFocusBlockId, setImageFocusBlockId] = useState<string>();
   const [imageFocusCompareMode, setImageFocusCompareMode] = useState(false);
-  const [imageExecutionDetailsBlockId, setImageExecutionDetailsBlockId] = useState<string>();
   const [reviewDocumentBlockId, setReviewDocumentBlockId] = useState<string | undefined>();
   const [operationFromImagePicker, setOperationFromImagePicker] = useState<{
     anchor: { x: number; y: number };
@@ -338,7 +337,6 @@ function ReadyApp({
     setInspectorBlockId(undefined);
     setTaskBlockId(undefined);
     setImageFocusBlockId(undefined);
-    setImageExecutionDetailsBlockId(undefined);
     setIsHistoryOpen(false);
     setIsArtifactLibraryOpen(false);
     setWorkflowWorkspaceRunId(undefined);
@@ -779,7 +777,6 @@ function ReadyApp({
     retryFailedImageResult,
     setHistoryOpen: setIsHistoryOpen,
     setImageFocusBlockId,
-    setImageExecutionDetailsBlockId,
     setInspectorBlockId,
     setTaskBlockId,
     setSelectedBlock,
@@ -923,9 +920,6 @@ function ReadyApp({
     : undefined;
   const inspectorImageUrl = inspectorBlock?.type === 'image'
     ? getAssetPreviewUrl(snapshot.assets, inspectorBlock.data.assetId)
-    : undefined;
-  const imageExecutionDetailsBlock = imageExecutionDetailsBlockId
-    ? snapshot.blocks.find((block) => block.blockId === imageExecutionDetailsBlockId)
     : undefined;
   const imageFocusBlock = imageFocusBlockId
     ? snapshot.blocks.find((block) => block.blockId === imageFocusBlockId && block.type === 'image')
@@ -1222,25 +1216,6 @@ function ReadyApp({
           pluginContributionRegistry={pluginContributionRegistry}
         />
       ) : null}
-      {imageExecutionDetailsBlock ? (
-        <ExecutionInspector
-          copiedPromptKey={copiedPromptKey}
-          reserveAgentWorkspace={false}
-          selectedBlock={imageExecutionDetailsBlock}
-          snapshot={snapshot}
-          onClose={() => setImageExecutionDetailsBlockId(undefined)}
-          onBeforePluginOperationAction={async () => {
-            setImageExecutionDetailsBlockId(undefined);
-            setInspectorBlockId(undefined);
-            await nextAnimationFrame();
-            await nextAnimationFrame();
-          }}
-          onCopyPrompt={copyPromptWithHistory}
-          onPluginFatalFailure={onPluginContributionFatalFailure}
-          onRestoreConfiguration={restoreConfigurationVersion}
-          pluginContributionRegistry={pluginContributionRegistry}
-        />
-      ) : null}
       {workspaceSurface.kind === 'inspector' && inspectorBlock?.type === 'group' ? (
         <GroupInspector
           copiedPromptKey={copiedPromptKey}
@@ -1301,7 +1276,6 @@ function ReadyApp({
                 });
                 setTaskBlockId(undefined);
               }}
-              onOpenExecutionDetails={setImageExecutionDetailsBlockId}
               onRetryExecution={async (executionId) => {
                 try {
                   await imageOperationController.retryFailedImageExecution(executionId);

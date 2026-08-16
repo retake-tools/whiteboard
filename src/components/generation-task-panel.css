@@ -175,29 +175,71 @@
   font-size: 11px;
 }
 
-.generation-task-details {
-  display: flex;
-  width: calc(100% - 32px);
-  min-height: 40px;
-  align-items: center;
-  gap: 9px;
+.generation-task-technical-details {
   margin: 16px;
-  padding: 0 12px;
   border: 1px solid var(--retake-border-subtle);
   border-radius: 9px;
   background: var(--retake-surface);
-  color: var(--retake-text-secondary);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 650;
 }
 
-.generation-task-details:hover,
-.generation-task-details:focus-visible {
-  border-color: var(--retake-accent-border);
+.generation-task-technical-details > summary {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  color: var(--retake-text-secondary);
+  cursor: pointer;
+  list-style: none;
+}
+
+.generation-task-technical-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.generation-task-technical-details > summary > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.generation-task-technical-details > summary strong {
+  color: var(--retake-text);
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.generation-task-technical-details > summary small {
+  overflow: hidden;
+  color: var(--retake-text-muted);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.generation-task-technical-details > summary > svg {
+  flex: 0 0 auto;
+  transition: transform 120ms ease;
+}
+
+.generation-task-technical-details[open] > summary > svg {
+  transform: rotate(90deg);
+}
+
+.generation-task-technical-details > summary:hover,
+.generation-task-technical-details > summary:focus-visible {
   background: var(--retake-accent-soft);
   color: var(--retake-accent-strong);
+}
+
+.generation-task-facts.is-technical {
+  padding: 4px 12px 12px;
+  border-top: 1px solid var(--retake-border-subtle);
+}
+
+.generation-task-facts dd.is-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .generation-task-footer {

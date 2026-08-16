@@ -15,7 +15,6 @@ interface AppEventBindingsOptions {
   retryFailedImageResult: (blockId: string) => Promise<void>;
   setHistoryOpen: (open: boolean) => void;
   setImageFocusBlockId: (blockId: string | undefined) => void;
-  setImageExecutionDetailsBlockId: (blockId: string | undefined) => void;
   setInspectorBlockId: (blockId: string | undefined) => void;
   setTaskBlockId: (blockId: string | undefined) => void;
   setSelectedBlock: (snapshot: BoardSnapshot, blockId: string) => void;
@@ -35,7 +34,6 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
     retryFailedImageResult,
     setHistoryOpen,
     setImageFocusBlockId,
-    setImageExecutionDetailsBlockId,
     setInspectorBlockId,
     setTaskBlockId,
     setSelectedBlock,
@@ -56,8 +54,6 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
   setHistoryOpenRef.current = setHistoryOpen;
   const setImageFocusBlockIdRef = useRef(setImageFocusBlockId);
   setImageFocusBlockIdRef.current = setImageFocusBlockId;
-  const setImageExecutionDetailsBlockIdRef = useRef(setImageExecutionDetailsBlockId);
-  setImageExecutionDetailsBlockIdRef.current = setImageExecutionDetailsBlockId;
   const setInspectorBlockIdRef = useRef(setInspectorBlockId);
   setInspectorBlockIdRef.current = setInspectorBlockId;
   const setTaskBlockIdRef = useRef(setTaskBlockId);
@@ -79,14 +75,12 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
       setSelectedBlockRef.current(current, blockId);
       if (block.type === 'operation' && block.data.capabilityId === imageGenerateCapabilityId) {
         setImageFocusBlockIdRef.current(undefined);
-        setImageExecutionDetailsBlockIdRef.current(undefined);
         setInspectorBlockIdRef.current(undefined);
         setTaskBlockIdRef.current(blockId);
         return;
       }
       setTaskBlockIdRef.current(undefined);
       if (block.type === 'image') {
-        setImageExecutionDetailsBlockIdRef.current(undefined);
         setInspectorBlockIdRef.current(blockId);
         setImageFocusBlockIdRef.current(blockId);
       } else {
