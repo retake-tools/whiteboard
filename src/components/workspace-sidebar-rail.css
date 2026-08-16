@@ -244,6 +244,8 @@
 }
 
 .workspace-board-switcher > footer {
+  display: grid;
+  gap: 3px;
   padding: 8px;
   border-top: 1px solid var(--retake-border-subtle);
 }

@@ -966,10 +966,16 @@ function ReadyApp({
           workspace={workspace}
           onCreateBoard={(projectId) => void createBoardFromMenu(projectId)}
           onCreateProject={() => void createProjectFromMenu()}
+          onDeleteBoard={(projectId, boardId) => void deleteBoardFromMenu(projectId, boardId)}
+          onDeleteProject={(projectId) => void deleteProjectFromMenu(projectId)}
+          onDuplicateBoard={(projectId, boardId) => void duplicateBoardFromMenu(projectId, boardId)}
           onOpenArtifactLibrary={toggleArtifactLibrary}
           onOpenHistory={toggleHistoryPanel}
           onOpenSettings={() => window.dispatchEvent(new CustomEvent('retake:open-settings'))}
           onRenameBoard={(projectId, boardId, currentName) => void renameBoardFromMenu(projectId, boardId, currentName)}
+          onRenameProject={(projectId, currentName) => void renameProjectFromMenu(projectId, currentName)}
+          onReorderBoards={(projectId, boardIds) => void reorderBoardsFromMenu(projectId, boardIds)}
+          onReorderProjects={(projectIds) => void reorderProjectsFromMenu(projectIds)}
           onSelectBoard={(projectId, boardId) => void selectBoard(projectId, boardId)}
           onToggleCollapsed={onToggleCollapsed}
         />

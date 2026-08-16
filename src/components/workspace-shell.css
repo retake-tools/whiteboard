@@ -156,6 +156,17 @@
   font-weight: 700;
 }
 
+.workspace-sidebar-project-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.workspace-sidebar > .project-board-menu {
+  top: 52px;
+  left: calc(100% - 8px);
+}
+
 .workspace-sidebar-project-list,
 .workspace-sidebar-project,
 .workspace-sidebar-board-list {
@@ -286,7 +297,13 @@
   right: 14px;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1319px) {
+  .workspace-shell.is-workbench-wide {
+    --workspace-workbench-width: 320px;
+  }
+}
+
+@media (max-width: 1023px) {
   .workspace-shell.has-workbench .workspace-shell-stage {
     padding-right: 0;
   }

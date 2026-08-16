@@ -306,15 +306,15 @@ information.
 The desktop workspace uses three regions at the `1440 × 1024` reference size:
 
 ```text
-176px collapsible navigation | minmax(640px, 1fr) Canvas | 304px contextual Workbench
+248px collapsible navigation | minmax(640px, 1fr) Canvas | 320px contextual Workbench
 ```
 
-- Navigation collapses to `60px`. User and settings remain anchored at the bottom; the collapse control stays in the brand
+- Navigation collapses to `48px`. User and settings remain anchored at the bottom; the collapse control stays in the brand
   header rather than consuming a permanent bottom row.
 - Canvas occupies the majority of the workspace and preserves visible Block, Edge, selection, and lineage context.
 - The top toolbar is `56px` high. Candidate navigation belongs at the bottom of the Canvas rather than in a permanent rail.
 - The single right Workbench switches between Inspector, Task, Compare, Deliverable, Agent, History, and Plugin surfaces. It is
-  normally `288–320px` and may widen to about `400px` for Agent on wide screens; it never creates a fourth column.
+  normally `320px` and may widen to `410px` for Agent on wide screens; it never creates a fourth column.
 - At `1024–1279px`, navigation collapses by default and Workbench uses the compact width. Below `1024px`, Workbench becomes a
   drawer; mobile-first editing is outside V0.
 - Use 4px-based spacing tokens. Prefer separators and tonal surfaces over nested cards.

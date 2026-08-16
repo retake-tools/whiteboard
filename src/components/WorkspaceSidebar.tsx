@@ -15,6 +15,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import type { WorkspaceSummary } from '../core/types';
 import { useDismissiblePopover } from '../hooks/useDismissiblePopover';
 import { useI18n } from '../i18n';
+import { ProjectBoardMenu } from './ProjectBoardMenu';
 import { WorkspaceBoardSwitcher, projectIdentity } from './WorkspaceBoardSwitcher';
 
 export function WorkspaceSidebar({
@@ -26,10 +27,16 @@ export function WorkspaceSidebar({
   workspace,
   onCreateBoard,
   onCreateProject,
+  onDeleteBoard,
+  onDeleteProject,
+  onDuplicateBoard,
   onOpenArtifactLibrary,
   onOpenHistory,
   onOpenSettings,
   onRenameBoard,
+  onRenameProject,
+  onReorderBoards,
+  onReorderProjects,
   onSelectBoard,
   onToggleCollapsed,
 }: {
@@ -41,10 +48,16 @@ export function WorkspaceSidebar({
   workspace?: WorkspaceSummary;
   onCreateBoard: (projectId: string) => void;
   onCreateProject: () => void;
+  onDeleteBoard: (projectId: string, boardId: string) => void;
+  onDeleteProject: (projectId: string) => void;
+  onDuplicateBoard: (projectId: string, boardId: string) => void;
   onOpenArtifactLibrary: () => void;
   onOpenHistory: () => void;
   onOpenSettings: () => void;
   onRenameBoard: (projectId: string, boardId: string, currentName: string) => void;
+  onRenameProject: (projectId: string, currentName: string) => void;
+  onReorderBoards: (projectId: string, boardIds: string[]) => void;
+  onReorderProjects: (projectIds: string[]) => void;
   onSelectBoard: (projectId: string, boardId: string) => void;
   onToggleCollapsed: () => void;
 }): ReactElement {
@@ -53,6 +66,7 @@ export function WorkspaceSidebar({
     () => new Set([currentProjectId]),
   );
   const [openProjectId, setOpenProjectId] = useState<string | undefined>();
+  const [managementMenuOpen, setManagementMenuOpen] = useState(false);
   const activeProjectTriggerRef = useRef<HTMLButtonElement | null>(null);
   const boardSwitcherRef = useRef<HTMLElement | null>(null);
   const openProject = workspace?.projects.find((project) => project.projectId === openProjectId);
@@ -66,7 +80,14 @@ export function WorkspaceSidebar({
 
   useEffect(() => {
     if (!collapsed) setOpenProjectId(undefined);
+    else setManagementMenuOpen(false);
   }, [collapsed]);
+
+  const openProjectBoardManager = (): void => {
+    setManagementMenuOpen(false);
+    setOpenProjectId(undefined);
+    window.dispatchEvent(new CustomEvent('retake:open-project-board-manager'));
+  };
 
   useDismissiblePopover({
     active: Boolean(collapsed && openProject),
@@ -178,6 +199,7 @@ export function WorkspaceSidebar({
               setOpenProjectId(undefined);
               onSelectBoard(projectId, boardId);
             }}
+            onOpenManager={openProjectBoardManager}
             project={openProject}
             rootRef={boardSwitcherRef}
           />
@@ -240,9 +262,19 @@ export function WorkspaceSidebar({
       >
         <header>
           {label(t('projectBoard.currentProject'))}
-          <button type="button" aria-label={t('projectBoard.addProject')} onClick={onCreateProject}>
-            <Plus size={15} />
-          </button>
+          <span className="workspace-sidebar-project-header-actions">
+            <button
+              type="button"
+              aria-expanded={managementMenuOpen}
+              aria-label={t('projectBoard.openManager')}
+              onClick={() => setManagementMenuOpen((current) => !current)}
+            >
+              <MoreHorizontal size={15} />
+            </button>
+            <button type="button" aria-label={t('projectBoard.addProject')} onClick={onCreateProject}>
+              <Plus size={15} />
+            </button>
+          </span>
         </header>
         <div className="workspace-sidebar-project-list">
           {(workspace?.projects ?? []).map((project) => {
@@ -331,6 +363,26 @@ export function WorkspaceSidebar({
           {label('Local workspace')}
         </div>
       </footer>
+      {managementMenuOpen ? (
+        <ProjectBoardMenu
+          currentBoardId={currentBoardId}
+          currentProjectId={currentProjectId}
+          mode="projects"
+          workspace={workspace}
+          onClose={() => setManagementMenuOpen(false)}
+          onCreateBoard={onCreateBoard}
+          onCreateProject={onCreateProject}
+          onDeleteBoard={onDeleteBoard}
+          onDeleteProject={onDeleteProject}
+          onDuplicateBoard={onDuplicateBoard}
+          onOpenManager={openProjectBoardManager}
+          onRenameBoard={onRenameBoard}
+          onRenameProject={onRenameProject}
+          onReorderBoards={onReorderBoards}
+          onReorderProjects={onReorderProjects}
+          onSelectBoard={onSelectBoard}
+        />
+      ) : null}
     </aside>
   );
 }

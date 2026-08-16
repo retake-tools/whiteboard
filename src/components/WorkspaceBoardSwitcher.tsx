@@ -1,4 +1,4 @@
-import { Check, LayoutGrid, Plus } from 'lucide-react';
+import { Check, LayoutGrid, Plus, Settings2 } from 'lucide-react';
 import { useState, type ReactElement, type RefObject } from 'react';
 import type { WorkspaceBoardSummary, WorkspaceProjectSummary } from '../core/types';
 import { useI18n } from '../i18n';
@@ -6,12 +6,14 @@ import { useI18n } from '../i18n';
 export function WorkspaceBoardSwitcher({
   currentBoardId,
   onCreateBoard,
+  onOpenManager,
   onSelectBoard,
   project,
   rootRef,
 }: {
   currentBoardId: string;
   onCreateBoard: (projectId: string) => void;
+  onOpenManager: () => void;
   onSelectBoard: (projectId: string, boardId: string) => void;
   project: WorkspaceProjectSummary;
   rootRef: RefObject<HTMLElement | null>;
@@ -62,6 +64,10 @@ export function WorkspaceBoardSwitcher({
         <button type="button" onClick={() => onCreateBoard(project.projectId)}>
           <Plus size={16} />
           {t('projectBoard.addBoard')}
+        </button>
+        <button type="button" onClick={onOpenManager}>
+          <Settings2 size={16} />
+          {t('projectBoard.openManager')}
         </button>
       </footer>
     </section>

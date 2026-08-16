@@ -27,7 +27,7 @@ export function WorkspaceShell({
   }, [collapsed]);
 
   useEffect(() => {
-    const compactViewport = window.matchMedia('(max-width: 1180px)');
+    const compactViewport = window.matchMedia('(max-width: 1279px)');
     const collapseForCompactViewport = (): void => {
       if (compactViewport.matches) setCollapsed(true);
     };

@@ -138,10 +138,16 @@ const sidebarMarkup = renderToStaticMarkup(
       workspace={workspace}
       onCreateBoard={() => undefined}
       onCreateProject={() => undefined}
+      onDeleteBoard={() => undefined}
+      onDeleteProject={() => undefined}
+      onDuplicateBoard={() => undefined}
       onOpenArtifactLibrary={() => undefined}
       onOpenHistory={() => undefined}
       onOpenSettings={() => undefined}
       onRenameBoard={() => undefined}
+      onRenameProject={() => undefined}
+      onReorderBoards={() => undefined}
+      onReorderProjects={() => undefined}
       onSelectBoard={() => undefined}
       onToggleCollapsed={() => undefined}
     />
@@ -152,6 +158,7 @@ assert.match(sidebarMarkup, /商品图项目/);
 assert.match(sidebarMarkup, /商品海报/);
 assert.match(sidebarMarkup, /aria-current="page"/);
 assert.match(sidebarMarkup, /aria-controls="workspace-project-list"/);
+assert.match(sidebarMarkup, /aria-label="管理项目和画板"/);
 assert.match(sidebarMarkup, /Local workspace/);
 assert.doesNotMatch(sidebarMarkup, /Token|Plan|登录|Sign in/);
 assert.equal(projectIdentity('Retake Demo'), 'RD');
@@ -173,10 +180,16 @@ const collapsedSidebarMarkup = renderToStaticMarkup(
       workspace={workspace}
       onCreateBoard={() => undefined}
       onCreateProject={() => undefined}
+      onDeleteBoard={() => undefined}
+      onDeleteProject={() => undefined}
+      onDuplicateBoard={() => undefined}
       onOpenArtifactLibrary={() => undefined}
       onOpenHistory={() => undefined}
       onOpenSettings={() => undefined}
       onRenameBoard={() => undefined}
+      onRenameProject={() => undefined}
+      onReorderBoards={() => undefined}
+      onReorderProjects={() => undefined}
       onSelectBoard={() => undefined}
       onToggleCollapsed={() => undefined}
     />
@@ -265,6 +278,7 @@ const [
   shellCss,
   railCss,
   pluginPanelSource,
+  shellSource,
   topBarSource,
   topBarCss,
 ] = await Promise.all([
@@ -273,6 +287,7 @@ const [
   readFile('src/components/workspace-shell.css', 'utf8'),
   readFile('src/components/workspace-sidebar-rail.css', 'utf8'),
   readFile('src/components/PluginPanelHost.tsx', 'utf8'),
+  readFile('src/components/WorkspaceShell.tsx', 'utf8'),
   readFile('src/components/TopBar.tsx', 'utf8'),
   readFile('src/components/top-bar.css', 'utf8'),
 ]);
@@ -285,11 +300,18 @@ assert.match(appSource, /workspaceSurface\.kind === 'agent'/);
 assert.match(appSource, /<WhiteboardCanvas/);
 assert.match(appSource, /<PluginPanelHost/);
 assert.match(sidebarSource, /workspace-sidebar-brand[\s\S]*workspace-sidebar-collapse/);
+assert.match(sidebarSource, /<ProjectBoardMenu/);
+assert.match(sidebarSource, /onDeleteBoard=\{onDeleteBoard\}/);
+assert.match(sidebarSource, /onDuplicateBoard=\{onDuplicateBoard\}/);
+assert.match(sidebarSource, /onReorderProjects=\{onReorderProjects\}/);
+assert.match(topBarSource, /retake:open-project-board-manager/);
 assert.doesNotMatch(sidebarSource, /Token|Plan|Sign in|登录/);
 assert.match(shellCss, /grid-template-columns: var\(--workspace-sidebar-width\) minmax\(0, 1fr\)/);
 assert.match(shellCss, /--workspace-sidebar-width: 48px/);
 assert.match(shellCss, /--workspace-workbench-width: 320px/);
 assert.match(shellCss, /\.workspace-shell\.is-workbench-wide/);
+assert.match(shellSource, /matchMedia\('\(max-width: 1279px\)'\)/);
+assert.match(shellCss, /@media \(max-width: 1319px\)[\s\S]*\.workspace-shell\.is-workbench-wide[\s\S]*--workspace-workbench-width: 320px/);
 assert.match(railCss, /\.workspace-board-switcher/);
 assert.match(railCss, /\.workspace-sidebar-rail \{[\s\S]*height: 100%/);
 assert.match(railCss, /\.workspace-sidebar-rail-footer \{[\s\S]*align-self: end/);
@@ -302,7 +324,7 @@ assert.match(shellCss, /left: calc\(\(100% - var\(--workspace-workbench-width\)\
 assert.match(shellCss, /width: min\(720px, calc\(100% - var\(--workspace-workbench-width\) - 32px\)\)/);
 assert.match(
   shellCss,
-  /@media \(max-width: 960px\)[\s\S]*\.workspace-shell\.has-workbench \.workspace-shell-stage > \.skill-composer:not\(\.is-agent-workspace\) \{[\s\S]*display: none/,
+  /@media \(max-width: 1023px\)[\s\S]*\.workspace-shell\.has-workbench \.workspace-shell-stage > \.skill-composer:not\(\.is-agent-workspace\) \{[\s\S]*display: none/,
 );
 assert.match(pluginPanelSource, /\.workspace-sidebar/);
 assert.match(pluginPanelSource, /\.workspace-workbench/);
@@ -317,6 +339,7 @@ console.log(JSON.stringify({
   collapsedNavigationAccessible: true,
   hostedSemanticsExcluded: true,
   localSaveSemanticsVisible: true,
+  projectBoardManagementAccessible: true,
   pluginOverlayInsetAware: true,
   singleWorkspaceSurface: true,
   workbenchConditional: true,

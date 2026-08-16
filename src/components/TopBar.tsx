@@ -176,6 +176,16 @@ export function TopBar({
   }, []);
 
   useEffect(() => {
+    const openManager = (): void => {
+      setIsBoardMenuOpen(false);
+      setIsProjectMenuOpen(false);
+      setIsProjectBoardManagerOpen(true);
+    };
+    window.addEventListener('retake:open-project-board-manager', openManager);
+    return () => window.removeEventListener('retake:open-project-board-manager', openManager);
+  }, []);
+
+  useEffect(() => {
     function onPointerDown(event: PointerEvent): void {
       if (boardControlRef.current?.contains(event.target as Node)) return;
       setIsBoardProjectActionsOpen(false);
