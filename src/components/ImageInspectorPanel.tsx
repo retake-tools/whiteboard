@@ -148,6 +148,7 @@ export const ImageInspectorPanel = memo(function ImageInspectorPanel({
               assetId={asset.assetId}
               blockId={block.blockId}
               onFatalFailure={onPluginFatalFailure}
+              onInvoke={() => onBeforePluginOperationAction?.(block.blockId)}
               previewUrl={previewUrl}
               registry={pluginContributionRegistry}
               title={block.data.title}
@@ -166,6 +167,7 @@ export const ImageInspectorPanel = memo(function ImageInspectorPanel({
                   assetId={asset.assetId}
                   blockId={block.blockId}
                   onFatalFailure={onPluginFatalFailure}
+                  onInvoke={() => onBeforePluginOperationAction?.(block.blockId)}
                   onOpenSettings={() => window.dispatchEvent(new CustomEvent('retake:open-settings'))}
                   previewUrl={previewUrl}
                   registry={pluginContributionRegistry}
@@ -220,10 +222,6 @@ export const ImageInspectorPanel = memo(function ImageInspectorPanel({
             <div>
               <dt>{t('imageInspector.source')}</dt>
               <dd>{sourceLabel}</dd>
-            </div>
-            <div>
-              <dt>{t('imageInspector.version')}</dt>
-              <dd>V{Math.max(1, relatedExecutions.length)}</dd>
             </div>
             <div>
               <dt>{t('imageInspector.format')}</dt>

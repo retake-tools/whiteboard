@@ -36,7 +36,7 @@ export function PluginImageToolbarActions({
     pluginModuleId: string,
     message: string,
   ) => Promise<void> | void;
-  onInvoke?: () => void;
+  onInvoke?: () => Promise<void> | void;
   onOpenSettings?: () => void;
   previewUrl?: string;
   registry?: PluginContributionRegistryV1;
@@ -147,7 +147,7 @@ const PluginImageToolbarActionButton = memo(
       pluginModuleId: string,
       message: string,
     ) => Promise<void> | void;
-    onInvoke?: () => void;
+    onInvoke?: () => Promise<void> | void;
     registry?: PluginContributionRegistryV1;
   }): ReactElement | null {
     const [pending, setPending] = useState(false);
@@ -167,7 +167,7 @@ const PluginImageToolbarActionButton = memo(
       if (pending) return;
       setPending(true);
       try {
-        onInvoke?.();
+        await onInvoke?.();
         await waitForPluginImageToolbarBlockBinding(
           action.host,
           block.blockId,
@@ -231,7 +231,7 @@ const PluginImageMenuActionButton = memo(
       readonly type: 'image';
     };
     onFatalFailure?: (pluginModuleId: string, message: string) => Promise<void> | void;
-    onInvoke?: () => void;
+    onInvoke?: () => Promise<void> | void;
     onOpenSettings?: () => void;
     registry?: PluginContributionRegistryV1;
   }): ReactElement | null {
@@ -253,7 +253,7 @@ const PluginImageMenuActionButton = memo(
       if (pending || !availability.enabled) return;
       setPending(true);
       try {
-        onInvoke?.();
+        await onInvoke?.();
         await waitForPluginImageToolbarBlockBinding(action.host, block.blockId);
         if (registry) await registry.invoke(action, context);
       } catch (error) {

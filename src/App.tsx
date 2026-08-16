@@ -1264,6 +1264,11 @@ function ReadyApp({
                 setImageFocusBlockId(undefined);
                 setInspectorBlockId(undefined);
               }}
+              onBeforePluginOperationAction={async () => {
+                setInspectorBlockId(undefined);
+                await nextAnimationFrame();
+                await nextAnimationFrame();
+              }}
               onCopyPrompt={copyPromptWithHistory}
               onDownload={() => downloadAsset(inspectorImageAsset, inspectorBlock.data.title)}
               onPluginFatalFailure={onPluginContributionFatalFailure}

@@ -250,6 +250,11 @@ const pluginPanelHostStyles = await readFile(
   new URL('../src/components/plugin-panel-host.css', import.meta.url),
   'utf8',
 );
+const pluginImageToolbarSource = await readFile(
+  new URL('../src/components/PluginImageToolbarActions.tsx', import.meta.url),
+  'utf8',
+);
+assert.match(pluginImageToolbarSource, /await onInvoke\?\.\(\)/);
 assert.match(canvasSource, /hoveredImageBlockId/);
 assert.match(canvasSource, /handleCanvasPointerMove/);
 assert.match(canvasSource, /onFocusCapture=\{handleCanvasFocus\}/);
