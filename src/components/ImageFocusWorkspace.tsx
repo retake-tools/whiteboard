@@ -19,6 +19,7 @@ import { executionImageBrowserItems } from '../core/executionImageBrowser';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
 import { useI18n } from '../i18n';
 import { ExecutionImageViewer } from './ExecutionImageViewer';
+import { isImageFocusEditableTarget } from './imageFocusKeyboard';
 
 interface ImageFocusWorkspaceProps {
   block: BlockRecord;
@@ -138,6 +139,7 @@ export const ImageFocusWorkspace = memo(function ImageFocusWorkspace({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
+      if (event.isComposing || isImageFocusEditableTarget(event.target)) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopImmediatePropagation();

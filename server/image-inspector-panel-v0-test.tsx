@@ -3,6 +3,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ImageInspectorPanel } from '../src/components/ImageInspectorPanel';
 import { ImageFocusWorkspace } from '../src/components/ImageFocusWorkspace';
+import { isImageFocusEditableTarget } from '../src/components/imageFocusKeyboard';
 import {
   projectFlowEdgeSelection,
   projectFlowNodeSelection,
@@ -170,6 +171,23 @@ assert.match(focusMarkup, /向左移动候选队列/);
 assert.match(focusMarkup, /向右移动候选队列/);
 assert.match(focusMarkup, /data-candidate-index="0"/);
 assert.match(focusMarkup, /execution-result-stage/);
+assert.equal(isImageFocusEditableTarget(null), false);
+assert.equal(
+  isImageFocusEditableTarget({ tagName: 'TEXTAREA' } as unknown as EventTarget),
+  true,
+);
+assert.equal(
+  isImageFocusEditableTarget({ tagName: 'input' } as unknown as EventTarget),
+  true,
+);
+assert.equal(
+  isImageFocusEditableTarget({ isContentEditable: true, tagName: 'DIV' } as unknown as EventTarget),
+  true,
+);
+assert.equal(
+  isImageFocusEditableTarget({ tagName: 'BUTTON' } as unknown as EventTarget),
+  false,
+);
 
 const { readFile } = await import('node:fs/promises');
 const [appSource, eventBindingSource, inspectorSource, focusSource, focusStyles] = await Promise.all([
