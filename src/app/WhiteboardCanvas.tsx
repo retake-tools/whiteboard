@@ -24,6 +24,7 @@ import {
 } from 'react';
 import { CanvasMiniMap } from '../components/CanvasMiniMap';
 import { CanvasViewportControls } from '../components/CanvasViewportControls';
+import { CanvasProjectionSynchronizer } from '../components/CanvasProjectionSynchronizer';
 import { BoardBackgroundLayer } from '../components/BoardBackgroundLayer';
 import { ContextToolbar } from '../components/ContextToolbar';
 import { ExecutionOutputEdge } from '../components/ExecutionOutputEdge';
@@ -71,6 +72,7 @@ interface WhiteboardCanvasProps {
   groups: ReturnType<typeof useGroupController>;
   imageOperations: ReturnType<typeof useImageOperationController>;
   isMiniMapVisible: boolean;
+  onBeforeImagePluginAction: (blockId: string) => void | Promise<void>;
   onOpenWorkflowRun: (workflowRunId: string) => void;
   onPluginContributionFatalFailure?: (
     pluginModuleId: string,
@@ -84,6 +86,7 @@ interface WhiteboardCanvasProps {
   selectedGroupMediaCount: number;
   selectedImageAsset?: AssetRecord;
   selectedImageUrl?: string;
+  suspendInspectorNavigation?: boolean;
   setHistoryOpen: (open: boolean) => void;
   setInspectorBlockId: (blockId: string | undefined) => void;
   setMiniMapVisible: Dispatch<SetStateAction<boolean>>;
@@ -102,6 +105,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
     groups,
     imageOperations,
     isMiniMapVisible,
+    onBeforeImagePluginAction,
     onOpenWorkflowRun,
     onPluginContributionFatalFailure,
     pendingDirectImageImportBlockIdRef,
@@ -112,6 +116,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
     selectedGroupMediaCount,
     selectedImageAsset,
     selectedImageUrl,
+    suspendInspectorNavigation = false,
     setHistoryOpen,
     setInspectorBlockId,
     setMiniMapVisible,
@@ -205,6 +210,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
   const onNodeDragStop = useStableCallback(canvas.onNodeDragStop);
   const onNodeClick = useStableCallback((event: Parameters<NodeMouseHandler<RetakeNode>>[0], node: RetakeNode) => {
     canvas.onNodeClick(event, node);
+    if (suspendInspectorNavigation) return;
     if (
       imageCandidatePreviewBlockIds.includes(node.id)
       || event.detail > 1
@@ -222,6 +228,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
   const onConnectEnd = useStableCallback(canvas.onConnectEnd);
   const onSelectionChange = useStableCallback((params: OnSelectionChangeParams) => {
     canvas.onSelectionChange(params);
+    if (suspendInspectorNavigation) return;
     const selectedNode = params.nodes.length === 1 ? params.nodes[0] : undefined;
     if (selectedNode && imageCandidatePreviewBlockIds.includes(selectedNode.id)) return;
     const selectedImage = selectedNode?.type === 'image'
@@ -460,6 +467,7 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
         selectionOnDrag={canvas.activeCanvasTool === 'select'}
         fitView={false}
       >
+        <CanvasProjectionSynchronizer nodes={canvas.nodes} />
         {canvas.selectedBlockIds.length >= 2
           && selectedImageActionBlocks.length
             === canvas.selectedBlockIds.length ? (
@@ -519,7 +527,9 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
                       ) {
                         canvas.selectBlock(imageToolbarContext.block.blockId);
                       }
-                      setInspectorBlockId(undefined);
+                      return onBeforeImagePluginAction(
+                        imageToolbarContext.block.blockId,
+                      );
                     }}
                     previewUrl={imageToolbarContext.previewUrl}
                     registry={pluginContributionRegistry}
@@ -539,7 +549,9 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
                       ) {
                         canvas.selectBlock(imageToolbarContext.block.blockId);
                       }
-                      setInspectorBlockId(undefined);
+                      return onBeforeImagePluginAction(
+                        imageToolbarContext.block.blockId,
+                      );
                     }}
                     onOpenSettings={() => window.dispatchEvent(new CustomEvent('retake:open-settings'))}
                     previewUrl={imageToolbarContext.previewUrl}
@@ -607,9 +619,12 @@ export function WhiteboardCanvas(props: WhiteboardCanvasProps): ReactElement {
           </NodeToolbar>
         ) : null}
         {showGrid ? <Background /> : null}
-        {isMiniMapVisible ? <CanvasMiniMap onSelectBlock={canvas.selectBlock} /> : null}
+        {isMiniMapVisible && canvas.nodes.length > 0
+          ? <CanvasMiniMap onSelectBlock={canvas.selectBlock} />
+          : null}
         <CanvasViewportControls
           isMiniMapVisible={isMiniMapVisible}
+          miniMapAvailable={canvas.nodes.length > 0}
           onToggleMiniMap={() => setMiniMapVisible((current) => !current)}
         />
         </ReactFlow>

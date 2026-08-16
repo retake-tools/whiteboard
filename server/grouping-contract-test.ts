@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { executionImageBrowserItems } from '../src/core/executionImageBrowser';
+import {
+  executionImageBrowserItems,
+  focusImageBrowserItems,
+} from '../src/core/executionImageBrowser';
 import { createFlowEdges, createFlowNodes, nodeColor, nodeStrokeColor } from '../src/core/flowProjection';
 import {
   arrangeGroupChildren,
@@ -21,7 +24,10 @@ import { refreshWorkflowGroupLayoutForBlock } from '../src/core/workflowGroupLay
 
 const canvasSource = await readFile('src/app/useCanvasController.ts', 'utf8');
 assert.match(canvasSource, /nodeDragActiveRef\.current = true/);
-assert.match(canvasSource, /if \(!nodeDragActiveRef\.current\) setNodes\(createFlowNodesForSelection\(remoteSnapshot\)\)/);
+assert.match(
+  canvasSource,
+  /onRemoteSnapshot: \(remoteSnapshot\) => \{[\s\S]*?if \(!nodeDragActiveRef\.current\) \{[\s\S]*?retainFlowNodeMeasurements\([\s\S]*?createFlowNodesForSelection\(remoteSnapshot\)[\s\S]*?current[\s\S]*?\);[\s\S]*?\}/,
+);
 const canvasViewSource = await readFile('src/app/WhiteboardCanvas.tsx', 'utf8');
 const canvasCss = await readFile('src/styles/canvas.css', 'utf8');
 const toolbarCss = await readFile('src/styles/toolbars.css', 'utf8');
@@ -508,6 +514,19 @@ assert.deepEqual(
   executionImageBrowserItems(imageBrowserSnapshot, resultOne.blockId)
     .map((item) => item.block.blockId),
   [resultOne.blockId, resultTwo.blockId, derivedImage.blockId],
+);
+const focusImageItems = focusImageBrowserItems(imageBrowserSnapshot, resultOne.blockId);
+assert.deepEqual(
+  focusImageItems.map((item) => item.block.blockId),
+  [originalImage.blockId, resultOne.blockId, resultTwo.blockId, derivedImage.blockId],
+);
+assert.strictEqual(
+  focusImageBrowserItems(imageBrowserSnapshot, originalImage.blockId),
+  focusImageItems,
+);
+assert.strictEqual(
+  focusImageBrowserItems(imageBrowserSnapshot, derivedImage.blockId),
+  focusImageItems,
 );
 assert.equal(
   createFlowNodes(imageBrowserSnapshot)

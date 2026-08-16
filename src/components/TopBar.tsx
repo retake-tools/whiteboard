@@ -55,6 +55,7 @@ const ProjectBoardManager = lazy(async () => {
 });
 
 export type AutosaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+type SettingsMenuPlacement = 'sidebar' | 'topbar';
 
 interface TopBarProps {
   agentWorkspaceButtonRef?: MutableRefObject<HTMLButtonElement | null>;
@@ -152,6 +153,7 @@ export function TopBar({
   const [isKeyboardShortcutsOpen, setIsKeyboardShortcutsOpen] = useState(false);
   const [keyboardShortcutsPosition, setKeyboardShortcutsPosition] = useState<{ left: number; top: number } | undefined>();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsMenuPlacement, setSettingsMenuPlacement] = useState<SettingsMenuPlacement>('topbar');
   const [isExecutionSettingsOpen, setIsExecutionSettingsOpen] = useState(false);
   const [isPluginManagerOpen, setIsPluginManagerOpen] = useState(false);
   const [isProjectBoardManagerOpen, setIsProjectBoardManagerOpen] =
@@ -170,7 +172,10 @@ export function TopBar({
   }, [isPluginManagerOpen, onPluginManagerOpenChange]);
 
   useEffect(() => {
-    const openSettings = (): void => setIsSettingsOpen(true);
+    const openSettings = (): void => {
+      setSettingsMenuPlacement('sidebar');
+      setIsSettingsOpen(true);
+    };
     window.addEventListener('retake:open-settings', openSettings);
     return () => window.removeEventListener('retake:open-settings', openSettings);
   }, []);
@@ -501,7 +506,12 @@ export function TopBar({
             {showSettingsAction ? (
               <IconButton
                 label={t('toolbar.moreSettings')}
-                onClick={() => setIsSettingsOpen((current) => !current)}
+                onClick={() => {
+                  setIsSettingsOpen((current) => (
+                    settingsMenuPlacement === 'topbar' ? !current : true
+                  ));
+                  setSettingsMenuPlacement('topbar');
+                }}
                 tone={isSettingsOpen ? 'active' : undefined}
               >
                 <Settings size={17} />
@@ -510,6 +520,7 @@ export function TopBar({
             {isSettingsOpen ? (
               <SettingsMenu
                 currentLocale={locale}
+                placement={settingsMenuPlacement}
                 showGrid={showGrid}
                 onOpenBoardBackground={() => {
                   setIsSettingsOpen(false);
@@ -813,6 +824,7 @@ function SettingsMenu({
   onOpenExecutionProviders,
   onOpenKeyboardShortcuts,
   onOpenPlugins,
+  placement,
   showGrid,
   onSelectLanguage,
   onToggleGrid,
@@ -822,6 +834,7 @@ function SettingsMenu({
   onOpenExecutionProviders: () => void;
   onOpenKeyboardShortcuts: () => void;
   onOpenPlugins?: () => void;
+  placement: SettingsMenuPlacement;
   showGrid: boolean;
   onSelectLanguage: (locale: Locale) => void;
   onToggleGrid: () => void;
@@ -829,7 +842,10 @@ function SettingsMenu({
   const { t } = useI18n();
 
   return (
-    <section className="top-bar-settings-menu" aria-label={t('settings.title')}>
+    <section
+      className={`top-bar-settings-menu${placement === 'sidebar' ? ' is-sidebar-triggered' : ''}`}
+      aria-label={t('settings.title')}
+    >
       <div className="settings-menu-group">
         <button type="button" className="settings-menu-item" onClick={onOpenExecutionProviders}>
           <Sparkles size={15} />

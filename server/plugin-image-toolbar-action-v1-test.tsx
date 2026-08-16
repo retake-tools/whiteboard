@@ -255,6 +255,9 @@ const pluginImageToolbarSource = await readFile(
   'utf8',
 );
 assert.match(pluginImageToolbarSource, /await onInvoke\?\.\(\)/);
+assert.match(canvasSource, /onBeforeImagePluginAction/);
+assert.match(canvasSource, /suspendInspectorNavigation/);
+assert.doesNotMatch(canvasSource, /setInspectorBlockId\(undefined\)/);
 assert.match(canvasSource, /hoveredImageBlockId/);
 assert.match(canvasSource, /handleCanvasPointerMove/);
 assert.match(canvasSource, /onFocusCapture=\{handleCanvasFocus\}/);
@@ -273,12 +276,15 @@ assert.doesNotMatch(toolbarStyles, /context-popover-scale/);
 assert.doesNotMatch(contextToolbarSource, /quick-edit|create-similar/);
 assert.match(toolbarStyles, /\.image-context-toolbar-bridge\s*\{[\s\S]*pointer-events: auto/);
 assert.match(pluginPanelHostSource, /plugin-panel-host nodrag nopan nowheel/);
-assert.match(pluginPanelHostSource, /hasVisibleAnchoredPanel/);
-assert.match(pluginPanelHostSource, /bounds\.width > 0\.5 && bounds\.height > 0\.5/);
+assert.match(pluginPanelHostSource, /hasVisiblePanel/);
+assert.match(pluginPanelHostSource, /isVisiblePanelElement/);
+assert.match(pluginPanelHostSource, /presentation=\{presentation\}/);
+assert.match(pluginPanelHostSource, /onVisibilityChange/);
 assert.match(pluginPanelHostSource, /onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/);
 assert.match(pluginPanelHostSource, /onWheel=\{\(event\) => event\.stopPropagation\(\)\}/);
 assert.match(pluginPanelHostStyles, /max-width: calc\(100vw - 32px\)/);
 assert.match(pluginPanelHostStyles, /\.plugin-panel-host__panel:empty\s*\{[^}]*display: none/s);
+assert.match(pluginPanelHostStyles, /\.plugin-panel-host\.is-focus-editor/);
 
 const selectionRegistry = createPluginContributionRegistry();
 assert.deepEqual(selectionRegistry.replace([{

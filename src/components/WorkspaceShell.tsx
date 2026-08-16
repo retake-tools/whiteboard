@@ -5,7 +5,9 @@ const sidebarPreferenceKey = 'retake.workspace-sidebar-collapsed.v1';
 export function WorkspaceShell({
   sidebar,
   children,
+  focusEditorOpen = false,
   hasWorkbench,
+  pageOpen = false,
   workbenchMode = 'compact',
 }: {
   sidebar: (options: {
@@ -13,7 +15,9 @@ export function WorkspaceShell({
     onToggleCollapsed: () => void;
   }) => ReactNode;
   children: ReactNode;
+  focusEditorOpen?: boolean;
   hasWorkbench: boolean;
+  pageOpen?: boolean;
   workbenchMode?: 'compact' | 'wide';
 }): ReactElement {
   const [collapsed, setCollapsed] = useState(readSidebarPreference);
@@ -38,7 +42,7 @@ export function WorkspaceShell({
 
   return (
     <main
-      className={`app-shell workspace-shell${collapsed ? ' is-sidebar-collapsed' : ''}${hasWorkbench ? ` has-workbench is-workbench-${workbenchMode}` : ''}`}
+      className={`app-shell workspace-shell${collapsed ? ' is-sidebar-collapsed' : ''}${hasWorkbench ? ` has-workbench is-workbench-${workbenchMode}` : ''}${pageOpen ? ' is-page' : ''}${focusEditorOpen ? ' is-focus-editor' : ''}`}
       data-workspace-shell="v0"
     >
       {sidebar({

@@ -1,8 +1,4 @@
-import {
-  Hand,
-  Layers3,
-  MousePointer2,
-} from 'lucide-react';
+import { Hand, MousePointer2 } from 'lucide-react';
 import type { ReactElement } from 'react';
 import type { PackageComposerInvocation } from '../core/packageComposer';
 import { shouldShowSkillDock } from '../core/releaseFeatures';
@@ -27,14 +23,12 @@ interface FloatingToolbarProps {
   composerVisible?: boolean;
   onAttachFiles?: Parameters<typeof SkillQuickInputComposer>[0]['onAttachFiles'];
   onAddBlock: (type: Extract<BlockType, 'group' | 'image' | 'operation' | 'text' | 'video'>) => void;
-  onCreateImageToImage: () => void;
   onCreateImage: (input: UnifiedComposerImageDraftInput) => Promise<void>;
   onCreateVideoDraft?: (input: UnifiedComposerVideoDraftInput) => Promise<void>;
-  onCreateTextToImage: () => void;
-  onOpenComposer: (detail: { clearEntryPoint?: boolean; entrypointId?: string; mode: 'agent' }) => void;
   onInvokeEntryPoint: (invocation: PackageComposerInvocation) => Promise<void>;
   onSubmitAgentMessage: (input: UnifiedComposerAgentInput) => void;
   onSetActiveTool: (tool: CanvasTool) => void;
+  onUploadAsset: () => void;
   snapshot: BoardSnapshot;
 }
 
@@ -44,14 +38,12 @@ export function FloatingToolbar({
   composerVisible = true,
   onAttachFiles,
   onAddBlock,
-  onCreateImageToImage,
   onCreateImage,
   onCreateVideoDraft,
-  onCreateTextToImage,
-  onOpenComposer,
   onInvokeEntryPoint,
   onSubmitAgentMessage,
   onSetActiveTool,
+  onUploadAsset,
   snapshot,
 }: FloatingToolbarProps): ReactElement {
   const { t } = useI18n();
@@ -87,15 +79,8 @@ export function FloatingToolbar({
       <div className="toolbar-divider" />
       <WorkspaceCreateMenu
         onAddBlock={onAddBlock}
-        onCreateImageToImage={onCreateImageToImage}
-        onCreateTextToImage={onCreateTextToImage}
-        onOpenAgent={() => onOpenComposer({ clearEntryPoint: true, mode: 'agent' })}
-        onOpenWorkflow={(entrypointId) => onOpenComposer({ entrypointId, mode: 'agent' })}
+        onUploadAsset={onUploadAsset}
       />
-      <div className="toolbar-divider" />
-      <ToolButton isPressed={activeTool === 'group'} label={t('toolbar.addGroup')} onClick={() => onAddBlock('group')}>
-        <Layers3 size={16} strokeWidth={1.75} />
-      </ToolButton>
       </nav>
     </>
   );

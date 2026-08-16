@@ -51,7 +51,10 @@ export interface PluginContributionSessionV1 {
 
 export interface PluginPanelComponentPropsV1 {
   host: PluginHostApiV2;
+  presentation?: PluginPanelPresentationV1;
 }
+
+export type PluginPanelPresentationV1 = 'focus-editor' | 'overlay';
 
 export interface PluginPanelContributionValueV1 {
   apiVersion: 1;

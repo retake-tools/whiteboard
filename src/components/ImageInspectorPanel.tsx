@@ -97,6 +97,12 @@ export const ImageInspectorPanel = memo(function ImageInspectorPanel({
         (selection) => selection.executionId === selectableExecution.executionId,
       )
     : undefined;
+  const selectableCandidateCount = selectableExecution
+    ? Math.max(
+        selectableExecution.outputAssetIds.length,
+        selectableExecution.outputBlockIds.length,
+      )
+    : 0;
   const isSelectedOutput = outputSelection?.selectedAssetId === asset.assetId
     && outputSelection.selectedBlockId === block.blockId;
   const executionContext = useMemo(
@@ -179,7 +185,7 @@ export const ImageInspectorPanel = memo(function ImageInspectorPanel({
           </div>
         </InspectorSection>
 
-        {selectableExecution ? (
+        {selectableExecution && selectableCandidateCount > 1 ? (
           <InspectorSection title={t('imageInspector.outputSelection')}>
             <div className={`image-inspector-output-selection${isSelectedOutput ? ' is-selected' : ''}`}>
               <div>

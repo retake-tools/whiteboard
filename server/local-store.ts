@@ -6,6 +6,8 @@ export {
   createMockGeneratedAsset,
   importAssetFromPath,
   importAssetFromUrl,
+  listProjectAssets,
+  relinkAssetFromDataUrl,
 } from './local-store/asset-store';
 export {
   ArtifactWriteConflictError,

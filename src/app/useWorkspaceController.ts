@@ -63,6 +63,13 @@ export function useWorkspaceController({
     await refreshWorkspace();
   }
 
+  async function createProjectAndSelect(name?: string): Promise<BoardSnapshot> {
+    const result = await createWorkspaceProject(name);
+    setWorkspace(result.workspace);
+    await applyLoadedSnapshot(result.snapshot);
+    return result.snapshot;
+  }
+
   function createProjectFromMenu(): void {
     setProjectBoardDialog({
       action: 'createProject',
@@ -113,9 +120,7 @@ export function useWorkspaceController({
     setProjectBoardDialog(undefined);
 
     if (dialog.action === 'createProject') {
-      const result = await createWorkspaceProject(value || dialog.defaultName);
-      setWorkspace(result.workspace);
-      await applyLoadedSnapshot(result.snapshot);
+      await createProjectAndSelect(value || dialog.defaultName);
       return;
     }
     if (dialog.action === 'createBoard') {
@@ -186,6 +191,7 @@ export function useWorkspaceController({
 
   return {
     createBoardFromMenu,
+    createProjectAndSelect,
     createProjectFromMenu,
     deleteBoardFromMenu,
     deleteProjectFromMenu,

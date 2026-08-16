@@ -66,6 +66,7 @@ import {
   projectFlowEdgeSelection,
   projectFlowNodeSelection,
 } from './canvasSelectionProjection';
+import { retainFlowNodeMeasurements } from './canvasLiveProjection';
 import {
   imageComposerWorkflowGeometry,
   type ImageComposerWorkflowLayoutInput,
@@ -206,12 +207,20 @@ export function useCanvasController(options: CanvasControllerOptions) {
       restoreBoardViewport(loadedSnapshot);
     },
     onRemoteSnapshot: (remoteSnapshot) => {
-      if (!nodeDragActiveRef.current) setNodes(createFlowNodesForSelection(remoteSnapshot));
+      if (!nodeDragActiveRef.current) {
+        setNodes((current) => retainFlowNodeMeasurements(
+          createFlowNodesForSelection(remoteSnapshot),
+          current,
+        ));
+      }
       setEdges(createFlowEdgesForSelection(remoteSnapshot));
       setSelectedBlockIds((current) => current.filter((blockId) => remoteSnapshot.blocks.some((block) => block.blockId === blockId)));
     },
     syncFlow: (nextSnapshot) => {
-      setNodes(createFlowNodesForSelection(nextSnapshot));
+      setNodes((current) => retainFlowNodeMeasurements(
+        createFlowNodesForSelection(nextSnapshot),
+        current,
+      ));
       setEdges(createFlowEdgesForSelection(nextSnapshot));
     },
   });
@@ -252,7 +261,10 @@ export function useCanvasController(options: CanvasControllerOptions) {
   }, [selectedBlockIds]);
 
   useEffect(() => {
-    setNodes(createFlowNodesForSelection(snapshotRef.current));
+    setNodes((current) => retainFlowNodeMeasurements(
+      createFlowNodesForSelection(snapshotRef.current),
+      current,
+    ));
     setEdges(createFlowEdgesForSelection(snapshotRef.current));
   }, [snapshot]);
 
@@ -426,7 +438,10 @@ export function useCanvasController(options: CanvasControllerOptions) {
         { history: true },
       ).catch((error: unknown) => {
         console.error('Canvas Block move failed.', error);
-        setNodes(createFlowNodesForSelection(snapshotRef.current));
+        setNodes((current) => retainFlowNodeMeasurements(
+          createFlowNodesForSelection(snapshotRef.current),
+          current,
+        ));
       }).finally(() => {
         nodeDragActiveRef.current = false;
       });
@@ -453,7 +468,10 @@ export function useCanvasController(options: CanvasControllerOptions) {
       { history: true, shouldKeepHistory: (result) => result.committed },
     ).catch((error: unknown) => {
       console.error('Canvas complex Block move failed.', error);
-      setNodes(createFlowNodesForSelection(snapshotRef.current));
+      setNodes((current) => retainFlowNodeMeasurements(
+        createFlowNodesForSelection(snapshotRef.current),
+        current,
+      ));
     }).finally(() => {
       nodeDragActiveRef.current = false;
     });
@@ -644,7 +662,8 @@ export function useCanvasController(options: CanvasControllerOptions) {
     selectedBlockIdsRef.current = nextSelectedBlockIds;
     setSelectedBlockIds(nextSelectedBlockIds);
     setNodes((current) => refreshedNodes
-      ?? projectFlowNodeSelection(current, nextSnapshot, nextSelectedBlockIds));
+      ? retainFlowNodeMeasurements(refreshedNodes, current)
+      : projectFlowNodeSelection(current, nextSnapshot, nextSelectedBlockIds));
     setEdges((current) => requiresProjectionRefresh
       ? createFlowEdgesForSelection(nextSnapshot, nextSelectedBlockIds)
       : projectFlowEdgeSelection(current, nextSnapshot, nextSelectedBlockIds));
@@ -948,7 +967,10 @@ export function useCanvasController(options: CanvasControllerOptions) {
       const block = snapshotRef.current.blocks.find((candidate) => candidate.blockId === detail.blockId && candidate.type === 'text');
       if (!block || blockLockedByGroup(snapshotRef.current, block.blockId)) return;
       textBlockDraftsRef.current.set(block.blockId, detail.body);
-      setNodes(createFlowNodesForSelection(snapshotRef.current));
+      setNodes((current) => retainFlowNodeMeasurements(
+        createFlowNodesForSelection(snapshotRef.current),
+        current,
+      ));
     }
     function onUpdateTextBlock(event: Event): void {
       const detail = (event as CustomEvent<{ blockId?: string; body?: string }>).detail;

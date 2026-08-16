@@ -32,8 +32,12 @@ interface BoardHistoryPanelProps {
   copiedPromptKey?: string;
   snapshot: BoardSnapshot;
   onClose: () => void;
+  onBeforePluginOperationAction?: (
+    operationBlockId: string,
+  ) => Promise<void> | void;
   onCopyPrompt: (input: CopyPromptInput) => void | Promise<void>;
   onLocateBlock: (blockId: string) => void;
+  onRestoreConfiguration: (executionId: string) => void | Promise<void>;
   onPluginFatalFailure?: (
     pluginModuleId: string,
     message: string,
@@ -56,9 +60,11 @@ interface HistoryEntry {
 
 export function BoardHistoryPanel({
   copiedPromptKey,
+  onBeforePluginOperationAction,
   onClose,
   onCopyPrompt,
   onLocateBlock,
+  onRestoreConfiguration,
   onPluginFatalFailure,
   pluginContributionRegistry,
   snapshot,
@@ -96,6 +102,7 @@ export function BoardHistoryPanel({
           {entries.map((entry) => {
             const locateBlockId = lastExistingBlockId(snapshot, entry.blockIds);
             const copyKey = `history:${entry.id}`;
+            const copyablePrompt = entry.prompt;
             const isCopied = copiedPromptKey === copyKey;
             const isExpanded = expandedEntryId === entry.id;
             const detailContext = entry.execution
@@ -113,39 +120,39 @@ export function BoardHistoryPanel({
                   <time dateTime={entry.createdAt}>{formatHistoryTime(entry.createdAt, locale)}</time>
                 </div>
                 <div className="board-history-actions">
-                  <TooltipIconButton
-                    disabled={!detailContext}
-                    isPressed={isExpanded}
-                    label={t(isExpanded ? 'history.collapse' : 'history.expand')}
-                    onClick={() => setExpandedEntryId((current) => (current === entry.id ? undefined : entry.id))}
-                  >
-                    <ChevronDown size={14} />
-                  </TooltipIconButton>
-                  <TooltipIconButton
-                    disabled={!entry.prompt}
-                    label={t(isCopied ? 'feedback.copied' : 'feedback.copyPrompt')}
-                    onClick={() => {
-                      if (!entry.prompt) return;
-                      void onCopyPrompt({
-                        blockIds: entry.blockIds,
-                        copyKey,
-                        executionId: entry.executionId,
-                        prompt: entry.prompt,
-                        source: 'history_panel',
-                      });
-                    }}
-                  >
-                    {isCopied ? <Check size={14} /> : <Clipboard size={14} />}
-                  </TooltipIconButton>
-                  <TooltipIconButton
-                    disabled={!locateBlockId}
-                    label={t('history.locateBlock')}
-                    onClick={() => {
-                      if (locateBlockId) onLocateBlock(locateBlockId);
-                    }}
-                  >
-                    <LocateFixed size={14} />
-                  </TooltipIconButton>
+                  {detailContext ? (
+                    <TooltipIconButton
+                      isPressed={isExpanded}
+                      label={t(isExpanded ? 'history.collapse' : 'history.expand')}
+                      onClick={() => setExpandedEntryId((current) => (current === entry.id ? undefined : entry.id))}
+                    >
+                      <ChevronDown size={14} />
+                    </TooltipIconButton>
+                  ) : null}
+                  {copyablePrompt ? (
+                    <TooltipIconButton
+                      label={t(isCopied ? 'feedback.copied' : 'feedback.copyPrompt')}
+                      onClick={() => {
+                        void onCopyPrompt({
+                          blockIds: entry.blockIds,
+                          copyKey,
+                          executionId: entry.executionId,
+                          prompt: copyablePrompt,
+                          source: 'history_panel',
+                        });
+                      }}
+                    >
+                      {isCopied ? <Check size={14} /> : <Clipboard size={14} />}
+                    </TooltipIconButton>
+                  ) : null}
+                  {locateBlockId ? (
+                    <TooltipIconButton
+                      label={t('history.locateBlock')}
+                      onClick={() => onLocateBlock(locateBlockId)}
+                    >
+                      <LocateFixed size={14} />
+                    </TooltipIconButton>
+                  ) : null}
                 </div>
                 {isExpanded && detailContext ? (
                   <div className="board-history-detail">
@@ -157,13 +164,17 @@ export function BoardHistoryPanel({
                       copySource="history_panel"
                       onCopyPrompt={onCopyPrompt}
                       onBeforePluginOperationAction={
-                        async (operationBlockId) => {
-                          onLocateBlock(operationBlockId);
-                          await nextAnimationFrame();
-                          await nextAnimationFrame();
-                        }
+                        onBeforePluginOperationAction
                       }
                       onPluginFatalFailure={onPluginFatalFailure}
+                      onRestoreConfiguration={
+                        typeof detailContext.executionVersion === 'number'
+                          ? () => {
+                              void Promise.resolve(onRestoreConfiguration(detailContext.execution.executionId))
+                                .then(onClose);
+                            }
+                          : undefined
+                      }
                       pluginContributionRegistry={
                         pluginContributionRegistry
                       }
@@ -179,12 +190,6 @@ export function BoardHistoryPanel({
       )}
     </aside>
   );
-}
-
-function nextAnimationFrame(): Promise<void> {
-  return new Promise((resolve) => {
-    window.requestAnimationFrame(() => resolve());
-  });
 }
 
 function createHistoryEntries(

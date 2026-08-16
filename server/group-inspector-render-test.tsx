@@ -261,20 +261,17 @@ const floatingToolbarMarkup = renderToStaticMarkup(
       <FloatingToolbar
         activeTool="select"
         onAddBlock={() => undefined}
-        onCreateImageToImage={() => undefined}
-        onCreateTextToImage={() => undefined}
-        onOpenComposer={() => undefined}
         onInvokeEntryPoint={() => undefined}
         onSubmitAgentMessage={() => undefined}
         onSetActiveTool={() => undefined}
+        onUploadAsset={() => undefined}
         snapshot={snapshot}
       />
     </UnifiedComposerProvider>
   </I18nProvider>,
 );
 assert.match(floatingToolbarMarkup, /aria-label="Create on canvas"/);
-assert.equal(floatingToolbarMarkup.match(/aria-label="Add group"/g)?.length, 1);
-assert.ok(floatingToolbarMarkup.indexOf('aria-label="Add group"') > floatingToolbarMarkup.indexOf('aria-label="Create on canvas"'));
+assert.doesNotMatch(floatingToolbarMarkup, /aria-label="Add group"/);
 
 const videoDraftMarkup = renderToStaticMarkup(
   <I18nProvider>
@@ -630,11 +627,40 @@ const historyMarkup = renderToStaticMarkup(
       onClose={() => undefined}
       onCopyPrompt={() => undefined}
       onLocateBlock={() => undefined}
+      onRestoreConfiguration={() => undefined}
     />
   </I18nProvider>,
 );
 assert.match(historyMarkup, /Generate image/);
 assert.match(historyMarkup, /V2 · Prompt \+ Params/);
+assert.match(historyMarkup, /Expand details/);
+assert.match(historyMarkup, /Copy prompt/);
+assert.match(historyMarkup, /Locate block/);
+
+const assetOnlyHistorySnapshot = structuredClone(historySnapshot);
+assetOnlyHistorySnapshot.executions = [];
+assetOnlyHistorySnapshot.historyEvents = [{
+  actor: 'user',
+  blockIds: [historyOperation.blockId],
+  createdAt: '2026-07-11T00:02:00.000Z',
+  eventId: 'history_asset_only',
+  summary: 'Imported product photo',
+  type: 'asset_imported',
+}];
+const assetOnlyHistoryMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <BoardHistoryPanel
+      snapshot={assetOnlyHistorySnapshot}
+      onClose={() => undefined}
+      onCopyPrompt={() => undefined}
+      onLocateBlock={() => undefined}
+      onRestoreConfiguration={() => undefined}
+    />
+  </I18nProvider>,
+);
+assert.doesNotMatch(assetOnlyHistoryMarkup, /Expand details/);
+assert.doesNotMatch(assetOnlyHistoryMarkup, /Copy prompt/);
+assert.match(assetOnlyHistoryMarkup, /Locate block/);
 
 const annotationManifestMarkup = renderToStaticMarkup(
   <I18nProvider>
@@ -763,6 +789,6 @@ console.log({
   hasGroupToolbarActions: true,
   hasGroupDrawMode: true,
   hasPerBoardCollapseState: true,
-  hasStandaloneGroupButton: true,
+  groupCreationMovedIntoCreateMenu: true,
   mediaCount: 1,
 });

@@ -55,6 +55,10 @@ import {
   type WhiteboardArtifactCommandsV1,
 } from './whiteboardArtifactCommands';
 import {
+  createWhiteboardAssetCommands,
+  type WhiteboardAssetCommandsV1,
+} from './whiteboardAssetCommands';
+import {
   createWhiteboardExecutionConfigurationCommands,
   type WhiteboardExecutionConfigurationCommandsV1,
 } from './whiteboardExecutionConfigurationCommands';
@@ -206,6 +210,7 @@ export interface WhiteboardProductCommandsV1 {
   readonly agentAttachment: WhiteboardAgentAttachmentCommandsV1;
   readonly agentWorkspace: WhiteboardAgentWorkspaceCommandsV1;
   readonly artifact: WhiteboardArtifactCommandsV1;
+  readonly asset: WhiteboardAssetCommandsV1;
   readonly block: WhiteboardBlockCommandsV1;
   readonly board: WhiteboardBoardCommandsV1;
   readonly canvas: WhiteboardCanvasCommandsV1;
@@ -449,6 +454,7 @@ export function createWhiteboardProductCommands(
     agentAttachment: createWhiteboardAgentAttachmentCommands(transactions),
     agentWorkspace: createWhiteboardAgentWorkspaceCommands(transactions),
     artifact: createWhiteboardArtifactCommands(transactions),
+    asset: createWhiteboardAssetCommands(transactions),
     block: createWhiteboardBlockCommands(transactions),
     board: createWhiteboardBoardCommands(transactions),
     canvas: createWhiteboardCanvasCommands(transactions),

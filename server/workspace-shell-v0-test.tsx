@@ -10,6 +10,7 @@ import {
 import { WorkspaceShell } from '../src/components/WorkspaceShell';
 import { WorkspaceSidebar } from '../src/components/WorkspaceSidebar';
 import { WorkspaceWorkbench } from '../src/components/WorkspaceWorkbench';
+import { WorkspaceHome, collectRecentBoards } from '../src/components/WorkspaceHome';
 import { TopBar } from '../src/components/TopBar';
 import {
   BlankWorkspaceStart,
@@ -109,6 +110,13 @@ assert.equal(isBlankWorkspaceContent([{
 }]), false);
 assert.equal(isBlankWorkspaceContent([defaultSnapshot.blocks[0]]), false);
 
+const whiteboardCanvasSource = await readFile(
+  new URL('../src/app/WhiteboardCanvas.tsx', import.meta.url),
+  'utf8',
+);
+assert.match(whiteboardCanvasSource, /isMiniMapVisible && canvas\.nodes\.length > 0/);
+assert.match(whiteboardCanvasSource, /miniMapAvailable=\{canvas\.nodes\.length > 0\}/);
+
 const workspace: WorkspaceSummary = {
   defaultProjectId: 'project_current',
   projects: [{
@@ -135,6 +143,8 @@ const sidebarMarkup = renderToStaticMarkup(
       currentBoardId="board_current"
       currentProjectId="project_current"
       historyOpen={false}
+      homeOpen={false}
+      materialsOpen={false}
       workspace={workspace}
       onCreateBoard={() => undefined}
       onCreateProject={() => undefined}
@@ -142,6 +152,8 @@ const sidebarMarkup = renderToStaticMarkup(
       onDeleteProject={() => undefined}
       onDuplicateBoard={() => undefined}
       onOpenArtifactLibrary={() => undefined}
+      onOpenHome={() => undefined}
+      onOpenMaterials={() => undefined}
       onOpenHistory={() => undefined}
       onOpenSettings={() => undefined}
       onRenameBoard={() => undefined}
@@ -177,6 +189,8 @@ const collapsedSidebarMarkup = renderToStaticMarkup(
       currentBoardId="board_current"
       currentProjectId="project_current"
       historyOpen={false}
+      homeOpen={false}
+      materialsOpen={false}
       workspace={workspace}
       onCreateBoard={() => undefined}
       onCreateProject={() => undefined}
@@ -184,6 +198,8 @@ const collapsedSidebarMarkup = renderToStaticMarkup(
       onDeleteProject={() => undefined}
       onDuplicateBoard={() => undefined}
       onOpenArtifactLibrary={() => undefined}
+      onOpenHome={() => undefined}
+      onOpenMaterials={() => undefined}
       onOpenHistory={() => undefined}
       onOpenSettings={() => undefined}
       onRenameBoard={() => undefined}
@@ -203,6 +219,25 @@ assert.equal(
   boardThumbnailUrl(workspace.projects[0].boards[0]),
   '/api/local/boards/project_current/board_current/thumbnail.webp?revision=2026-08-14T00%3A00%3A00.000Z',
 );
+
+const homeMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <WorkspaceHome
+      currentBoardId="board_current"
+      currentProjectId="project_current"
+      onCreateProject={() => undefined}
+      onOpenImage={() => undefined}
+      onSelectBoard={() => undefined}
+      workspace={workspace}
+    />
+  </I18nProvider>,
+);
+assert.match(homeMarkup, /最近项目/);
+assert.match(homeMarkup, /打开图片/);
+assert.match(homeMarkup, /商品图项目/);
+assert.match(homeMarkup, /商品海报/);
+assert.doesNotMatch(homeMarkup, /Token|Plan|登录|Cloud|云端/);
+assert.deepEqual(collectRecentBoards(workspace).map(({ board }) => board.boardId), ['board_current']);
 
 const topBarMarkup = renderToStaticMarkup(
   <I18nProvider>
@@ -272,10 +307,24 @@ assert.match(shellMarkup, /is-workbench-compact/);
 assert.match(shellMarkup, /data-canvas-slot="true"/);
 assert.match(shellMarkup, /data-workspace-surface="history"/);
 
+const focusEditorShellMarkup = renderToStaticMarkup(
+  <WorkspaceShell
+    focusEditorOpen
+    hasWorkbench
+    sidebar={() => <span>Sidebar</span>}
+  >
+    <div>Focus editor</div>
+  </WorkspaceShell>,
+);
+assert.match(focusEditorShellMarkup, /is-focus-editor/);
+assert.match(focusEditorShellMarkup, /has-workbench/);
+
 const [
   appSource,
   sidebarSource,
   shellCss,
+  homeCss,
+  materialsCss,
   railCss,
   pluginPanelSource,
   shellSource,
@@ -285,6 +334,8 @@ const [
   readFile('src/App.tsx', 'utf8'),
   readFile('src/components/WorkspaceSidebar.tsx', 'utf8'),
   readFile('src/components/workspace-shell.css', 'utf8'),
+  readFile('src/components/workspace-home.css', 'utf8'),
+  readFile('src/components/workspace-materials.css', 'utf8'),
   readFile('src/components/workspace-sidebar-rail.css', 'utf8'),
   readFile('src/components/PluginPanelHost.tsx', 'utf8'),
   readFile('src/components/WorkspaceShell.tsx', 'utf8'),
@@ -293,7 +344,10 @@ const [
 ]);
 assert.match(appSource, /useWorkspaceSurfaceController/);
 assert.match(appSource, /<WorkspaceShell/);
-assert.match(appSource, /<WorkspaceWorkbench surface=\{workspaceSurface\}>/);
+assert.match(appSource, /<WorkspaceHome/);
+assert.match(appSource, /<WorkspaceMaterials/);
+assert.match(appSource, /<WorkspaceWorkbench surface=\{visibleWorkbenchSurface\}>/);
+assert.match(appSource, /imageEditorOpen && imageEditorInspectorBlock/);
 assert.match(appSource, /workspaceSurface\.kind === 'artifact'/);
 assert.match(appSource, /workspaceSurface\.kind === 'history'/);
 assert.match(appSource, /workspaceSurface\.kind === 'agent'/);
@@ -304,9 +358,18 @@ assert.match(sidebarSource, /<ProjectBoardMenu/);
 assert.match(sidebarSource, /onDeleteBoard=\{onDeleteBoard\}/);
 assert.match(sidebarSource, /onDuplicateBoard=\{onDuplicateBoard\}/);
 assert.match(sidebarSource, /onReorderProjects=\{onReorderProjects\}/);
+assert.doesNotMatch(sidebarSource, /!homeOpen && !materialsOpen/);
 assert.match(topBarSource, /retake:open-project-board-manager/);
+assert.match(topBarSource, /setSettingsMenuPlacement\('sidebar'\)/);
+assert.match(topBarSource, /placement=\{settingsMenuPlacement\}/);
+assert.match(topBarCss, /\.top-bar-settings-menu\.is-sidebar-triggered \{[\s\S]*left: calc\(var\(--workspace-sidebar-width\) \+ 8px\)/);
 assert.doesNotMatch(sidebarSource, /Token|Plan|Sign in|登录/);
 assert.match(shellCss, /grid-template-columns: var\(--workspace-sidebar-width\) minmax\(0, 1fr\)/);
+assert.match(shellCss, /\.workspace-sidebar \{[\s\S]*font-size: 14px;[\s\S]*line-height: 1\.429;/);
+assert.match(shellCss, /\.workspace-sidebar-project-row\.is-current \.workspace-sidebar-project-toggle \{[\s\S]*font-weight: 600;/);
+assert.match(shellCss, /\.workspace-shell\.is-page \.workspace-shell-stage/);
+assert.match(homeCss, /\.workspace-home-grid/);
+assert.match(materialsCss, /\.workspace-materials-grid/);
 assert.match(shellCss, /--workspace-sidebar-width: 48px/);
 assert.match(shellCss, /--workspace-workbench-width: 320px/);
 assert.match(shellCss, /\.workspace-shell\.is-workbench-wide/);
@@ -339,6 +402,8 @@ console.log(JSON.stringify({
   collapsedNavigationAccessible: true,
   hostedSemanticsExcluded: true,
   localSaveSemanticsVisible: true,
+  localRecentProjectsAccessible: true,
+  localProjectMaterialsAccessible: true,
   projectBoardManagementAccessible: true,
   pluginOverlayInsetAware: true,
   singleWorkspaceSurface: true,

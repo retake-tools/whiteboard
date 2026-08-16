@@ -22,10 +22,7 @@ const triggerMarkup = renderToStaticMarkup(
   <I18nProvider>
     <WorkspaceCreateMenu
       onAddBlock={() => undefined}
-      onCreateImageToImage={() => undefined}
-      onCreateTextToImage={() => undefined}
-      onOpenAgent={() => undefined}
-      onOpenWorkflow={() => undefined}
+      onUploadAsset={() => undefined}
     />
   </I18nProvider>,
 );
@@ -87,16 +84,21 @@ const [toolbarSource, composerSource, createMenuSource, progressStyles] = await 
 ]);
 assert.match(toolbarSource, /<WorkspaceCreateMenu/);
 assert.doesNotMatch(toolbarSource, /<ToolbarMenu/);
-assert.match(createMenuSource, /listPackageEntryPoints/);
-assert.match(createMenuSource, /onOpenAgent/);
-assert.match(createMenuSource, /onOpenWorkflow/);
+assert.match(createMenuSource, /onUploadAsset/);
+assert.match(createMenuSource, /onAddBlock\('group'\)/);
+assert.doesNotMatch(createMenuSource, /listPackageEntryPoints/);
+assert.doesNotMatch(createMenuSource, /onOpenAgent/);
+assert.doesNotMatch(createMenuSource, /onOpenWorkflow/);
+assert.match(composerSource, /listPackageEntryPoints/);
+assert.doesNotMatch(toolbarSource, /<ToolButton[^>]+toolbar\.addGroup/);
 assert.match(composerSource, /detail\?\.entrypointId/);
 assert.match(progressStyles, /\.execution-progress-summary/);
 
 console.log({
-  agentAndWorkflowUseComposer: true,
-  blocksAndGenerationShareOneMenu: true,
-  dynamicWorkflowEntries: true,
+  agentAndWorkflowRemainInComposer: true,
+  createMenuContainsCanvasObjectsOnly: true,
+  dynamicWorkflowEntriesRemainInComposer: true,
+  groupHasNoDuplicateToolbarButton: true,
   progressSummaryProjectsTwoOfFour: true,
   singleSucceededExecutionStaysCompact: true,
 });

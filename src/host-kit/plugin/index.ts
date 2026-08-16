@@ -5,6 +5,7 @@ export {
   type PluginContributionRegistryV1,
   type PluginContributionSessionV1,
   type PluginPanelComponentPropsV1,
+  type PluginPanelPresentationV1,
   type PluginRendererBlockTypeV1,
   type PluginRendererBlockViewV1,
   type RegisteredPluginBlockRendererV1,

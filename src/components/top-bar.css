@@ -327,6 +327,14 @@
   box-shadow: 0 18px 42px rgb(16 24 40 / 18%);
 }
 
+.top-bar-settings-menu.is-sidebar-triggered {
+  position: fixed;
+  top: auto;
+  right: auto;
+  bottom: 64px;
+  left: calc(var(--workspace-sidebar-width) + 8px);
+}
+
 .settings-menu-group {
   position: relative;
 }

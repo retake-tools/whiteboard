@@ -17,9 +17,11 @@ import {
   getBoardSnapshot,
   getExecution,
   importAssetFromPath,
+  listProjectAssets,
   listWorkspace,
   markExecutionRunning,
   readAssetFile,
+  relinkAssetFromDataUrl,
   renameBoard,
   renameProject,
   reorderBoards,
@@ -1234,6 +1236,38 @@ function installLocalApiMiddleware(middlewares: MiddlewareContainer): void {
                 sourceExecutionId: body.sourceExecutionId,
               }),
             );
+            return;
+          }
+
+          if (method === 'GET' && url.pathname === '/assets') {
+            const projectId = url.searchParams.get('projectId');
+            if (!projectId) {
+              sendJson(res, { error: 'projectId is required' }, 400);
+              return;
+            }
+            sendJson(res, await listProjectAssets(projectId));
+            return;
+          }
+
+          if (method === 'POST' && url.pathname === '/assets/relink-data-url') {
+            const body = (await readJson(req)) as {
+              assetId?: string;
+              dataUrl?: string;
+              height?: number;
+              projectId?: string;
+              width?: number;
+            };
+            if (!body.assetId || !body.dataUrl || !body.projectId) {
+              sendJson(res, { error: 'projectId, assetId, and dataUrl are required' }, 400);
+              return;
+            }
+            sendJson(res, await relinkAssetFromDataUrl({
+              assetId: body.assetId,
+              dataUrl: body.dataUrl,
+              height: body.height,
+              projectId: body.projectId,
+              width: body.width,
+            }));
             return;
           }
 

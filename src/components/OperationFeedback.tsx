@@ -4,7 +4,9 @@ import { useI18n } from '../i18n';
 import { TooltipIconButton } from './Tooltip';
 
 export interface OperationToast {
+  actionLabel?: string;
   id: string;
+  onAction?: () => void;
   title: string;
   body?: string;
   tone?: 'success' | 'error';
@@ -58,7 +60,7 @@ export function OperationFeedback({
 
     const timer = window.setTimeout(() => {
       onCloseToastRef.current();
-    }, toast.tone === 'error' ? 6500 : 4200);
+    }, toast.tone === 'error' ? 6500 : toast.onAction ? 8000 : 4200);
 
     return () => window.clearTimeout(timer);
   }, [toast]);
@@ -71,6 +73,18 @@ export function OperationFeedback({
             <strong>{toast.title}</strong>
             {toast.body ? <span>{toast.body}</span> : null}
           </div>
+          {toast.actionLabel && toast.onAction ? (
+            <button
+              className="operation-toast__action"
+              onClick={() => {
+                toast.onAction?.();
+                onCloseToast();
+              }}
+              type="button"
+            >
+              {toast.actionLabel}
+            </button>
+          ) : null}
           <TooltipIconButton label={t('common.dismiss')} onClick={onCloseToast}>
             <X size={15} />
           </TooltipIconButton>

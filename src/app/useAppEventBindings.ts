@@ -20,6 +20,7 @@ interface AppEventBindingsOptions {
   setSelectedBlock: (snapshot: BoardSnapshot, blockId: string) => void;
   showGrid: boolean;
   snapshotRef: RefObject<BoardSnapshot>;
+  suspendInspectorNavigation?: boolean;
 }
 
 export function useAppEventBindings(options: AppEventBindingsOptions): void {
@@ -39,6 +40,7 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
     setSelectedBlock,
     showGrid,
     snapshotRef,
+    suspendInspectorNavigation = false,
   } = options;
   const onBindAgentOperationRef = useRef(onBindAgentOperation);
   onBindAgentOperationRef.current = onBindAgentOperation;
@@ -60,12 +62,15 @@ export function useAppEventBindings(options: AppEventBindingsOptions): void {
   setTaskBlockIdRef.current = setTaskBlockId;
   const setSelectedBlockRef = useRef(setSelectedBlock);
   setSelectedBlockRef.current = setSelectedBlock;
+  const suspendInspectorNavigationRef = useRef(suspendInspectorNavigation);
+  suspendInspectorNavigationRef.current = suspendInspectorNavigation;
 
   useEffect(() => { saveUiPreferences({ isMiniMapVisible }); }, [isMiniMapVisible]);
   useEffect(() => { saveUiPreferences({ showGrid }); }, [showGrid]);
 
   useEffect(() => {
     function onOpenInspector(event: Event): void {
+      if (suspendInspectorNavigationRef.current) return;
       const blockId = (event as CustomEvent<{ blockId?: string }>).detail?.blockId;
       if (!blockId) return;
       const current = snapshotRef.current;

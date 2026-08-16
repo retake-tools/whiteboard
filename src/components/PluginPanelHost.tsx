@@ -12,12 +12,15 @@ import {
 } from 'react';
 import type {
   PluginContributionRegistryV1,
+  PluginPanelPresentationV1,
   RegisteredPluginPanelV1,
 } from '../host-kit/plugin';
 
 export function PluginPanelHost({
   anchorBlockId,
   onFatalFailure,
+  onVisibilityChange,
+  presentation = 'overlay',
   registry,
 }: {
   anchorBlockId?: string;
@@ -25,6 +28,8 @@ export function PluginPanelHost({
     pluginModuleId: string,
     message: string,
   ): Promise<void> | void;
+  onVisibilityChange?: (visible: boolean) => void;
+  presentation?: PluginPanelPresentationV1;
   registry: PluginContributionRegistryV1;
 }): ReactElement | null {
   const panels = useSyncExternalStore(
@@ -37,13 +42,11 @@ export function PluginPanelHost({
     left: number;
     top: number;
   } | null>(null);
-  const [hasVisibleAnchoredPanel, setHasVisibleAnchoredPanel] = useState(false);
+  const [hasVisiblePanel, setHasVisiblePanel] = useState(false);
+  const onVisibilityChangeRef = useRef(onVisibilityChange);
+  onVisibilityChangeRef.current = onVisibilityChange;
 
   useLayoutEffect(() => {
-    if (!anchorBlockId) {
-      setHasVisibleAnchoredPanel(false);
-      return;
-    }
     const panelHost = hostRef.current;
     if (!panelHost) return;
     let frame = 0;
@@ -70,13 +73,12 @@ export function PluginPanelHost({
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
         observePanels();
-        const next = [...observedPanels].some((panel) => {
-          const bounds = panel.getBoundingClientRect();
-          return bounds.width > 0.5 && bounds.height > 0.5;
+        const next = [...observedPanels].some(isVisiblePanelElement);
+        setHasVisiblePanel((current) => {
+          if (current === next) return current;
+          onVisibilityChangeRef.current?.(next);
+          return next;
         });
-        setHasVisibleAnchoredPanel((current) => (
-          current === next ? current : next
-        ));
       });
     }
 
@@ -95,10 +97,10 @@ export function PluginPanelHost({
       mutationObserver.disconnect();
       resizeObserver.disconnect();
     };
-  }, [anchorBlockId]);
+  }, [panels]);
 
   useLayoutEffect(() => {
-    if (!anchorBlockId || !hasVisibleAnchoredPanel) {
+    if (!anchorBlockId || !hasVisiblePanel || presentation === 'focus-editor') {
       setAnchorPosition(null);
       return;
     }
@@ -162,7 +164,7 @@ export function PluginPanelHost({
       document.removeEventListener('wheel', update, true);
       window.removeEventListener('resize', update);
     };
-  }, [anchorBlockId, hasVisibleAnchoredPanel]);
+  }, [anchorBlockId, hasVisiblePanel, presentation]);
 
   if (panels.length === 0) return null;
   const anchorStyle = anchorPosition
@@ -175,8 +177,9 @@ export function PluginPanelHost({
   return (
     <section
       aria-label="Plugin panels"
-      className={`plugin-panel-host nodrag nopan nowheel${anchorBlockId ? ' is-block-anchored' : ''}`}
+      className={`plugin-panel-host nodrag nopan nowheel${anchorBlockId ? ' is-block-anchored' : ''}${presentation === 'focus-editor' ? ' is-focus-editor' : ''}`}
       data-retake-plugin-slot="workspace.overlay"
+      data-retake-panel-presentation={presentation}
       onPointerDown={(event) => event.stopPropagation()}
       onWheel={(event) => event.stopPropagation()}
       ref={hostRef}
@@ -195,7 +198,7 @@ export function PluginPanelHost({
             onFatalFailure={onFatalFailure}
             pluginModuleId={panel.pluginModuleId}
           >
-            <PluginPanel panel={panel} />
+            <PluginPanel panel={panel} presentation={presentation} />
           </PluginContributionErrorBoundary>
         )
       ))}
@@ -209,8 +212,10 @@ function clamp(value: number, min: number, max: number): number {
 
 function PluginPanel({
   panel,
+  presentation,
 }: {
   panel: RegisteredPluginPanelV1;
+  presentation: PluginPanelPresentationV1;
 }): ReactElement {
   return (
     <div
@@ -219,9 +224,22 @@ function PluginPanel({
       data-retake-plugin-module={panel.pluginModuleId}
       data-retake-plugin-ui="panel"
     >
-      {createElement(panel.component, { host: panel.host })}
+      {createElement(panel.component, { host: panel.host, presentation })}
     </div>
   );
+}
+
+function isVisiblePanelElement(panel: Element): boolean {
+  const candidates = [panel, ...panel.querySelectorAll('*')];
+  return candidates.some((candidate) => {
+    if (!(candidate instanceof HTMLElement)) return false;
+    const bounds = candidate.getBoundingClientRect();
+    if (bounds.width <= 0.5 || bounds.height <= 0.5) return false;
+    const style = window.getComputedStyle(candidate);
+    return style.display !== 'none'
+      && style.visibility !== 'hidden'
+      && Number(style.opacity || '1') > 0;
+  });
 }
 
 class PluginContributionErrorBoundary extends Component<{

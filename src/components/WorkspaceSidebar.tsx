@@ -6,6 +6,7 @@ import {
   Folder,
   Grid2X2,
   History,
+  Images,
   Library,
   MoreHorizontal,
   Plus,
@@ -24,6 +25,8 @@ export function WorkspaceSidebar({
   currentProjectId,
   historyOpen,
   artifactLibraryOpen,
+  homeOpen,
+  materialsOpen,
   workspace,
   onCreateBoard,
   onCreateProject,
@@ -31,6 +34,8 @@ export function WorkspaceSidebar({
   onDeleteProject,
   onDuplicateBoard,
   onOpenArtifactLibrary,
+  onOpenHome,
+  onOpenMaterials,
   onOpenHistory,
   onOpenSettings,
   onRenameBoard,
@@ -45,6 +50,8 @@ export function WorkspaceSidebar({
   currentProjectId: string;
   historyOpen: boolean;
   artifactLibraryOpen: boolean;
+  homeOpen: boolean;
+  materialsOpen: boolean;
   workspace?: WorkspaceSummary;
   onCreateBoard: (projectId: string) => void;
   onCreateProject: () => void;
@@ -52,6 +59,8 @@ export function WorkspaceSidebar({
   onDeleteProject: (projectId: string) => void;
   onDuplicateBoard: (projectId: string, boardId: string) => void;
   onOpenArtifactLibrary: () => void;
+  onOpenHome: () => void;
+  onOpenMaterials: () => void;
   onOpenHistory: () => void;
   onOpenSettings: () => void;
   onRenameBoard: (projectId: string, boardId: string, currentName: string) => void;
@@ -121,6 +130,32 @@ export function WorkspaceSidebar({
         </header>
 
         <nav className="workspace-project-rail" aria-label={t('projectBoard.projectsTitle')}>
+          <button
+            type="button"
+            className={homeOpen ? 'workspace-project-rail-utility is-active' : 'workspace-project-rail-utility'}
+            aria-label={t('workspaceHome.title')}
+            aria-pressed={homeOpen}
+            title={t('workspaceHome.title')}
+            onClick={() => {
+              setOpenProjectId(undefined);
+              onOpenHome();
+            }}
+          >
+            <Clock3 size={17} />
+          </button>
+          <button
+            type="button"
+            className={materialsOpen ? 'workspace-project-rail-utility is-active' : 'workspace-project-rail-utility'}
+            aria-label={t('workspaceMaterials.title')}
+            aria-pressed={materialsOpen}
+            title={t('workspaceMaterials.title')}
+            onClick={() => {
+              setOpenProjectId(undefined);
+              onOpenMaterials();
+            }}
+          >
+            <Images size={17} />
+          </button>
           {(workspace?.projects ?? []).map((project) => {
             const current = project.projectId === currentProjectId;
             const open = project.projectId === openProjectId;
@@ -230,28 +265,24 @@ export function WorkspaceSidebar({
       <nav className="workspace-sidebar-primary" aria-label={t('projectBoard.menuTitle')}>
         <button
           type="button"
+          className={homeOpen ? 'is-active' : undefined}
+          aria-pressed={homeOpen}
           aria-controls="workspace-project-list"
-          title={t('projectBoard.projectsTitle')}
-          onClick={() => {
-            const projectList = document.getElementById('workspace-project-list');
-            projectList?.scrollIntoView({ block: 'nearest' });
-            projectList
-              ?.querySelector<HTMLButtonElement>('[aria-current="page"]')
-              ?.focus();
-          }}
+          title={t('workspaceHome.title')}
+          onClick={onOpenHome}
         >
           <Clock3 size={18} />
-          {label(t('projectBoard.projectsTitle'))}
+          {label(t('workspaceHome.title'))}
         </button>
         <button
           type="button"
-          className={artifactLibraryOpen ? 'is-active' : undefined}
-          aria-pressed={artifactLibraryOpen}
-          title={t('artifactLibrary.open')}
-          onClick={onOpenArtifactLibrary}
+          className={materialsOpen ? 'is-active' : undefined}
+          aria-pressed={materialsOpen}
+          title={t('workspaceMaterials.title')}
+          onClick={onOpenMaterials}
         >
-          <Library size={18} />
-          {label(t('artifactLibrary.open'))}
+          <Images size={18} />
+          {label(t('workspaceMaterials.title'))}
         </button>
       </nav>
 
@@ -341,6 +372,15 @@ export function WorkspaceSidebar({
             );
           })}
         </div>
+        <button
+          type="button"
+          className={artifactLibraryOpen ? 'workspace-sidebar-artifact is-active' : 'workspace-sidebar-artifact'}
+          aria-pressed={artifactLibraryOpen}
+          onClick={onOpenArtifactLibrary}
+        >
+          <Library size={17} />
+          {label(t('artifactLibrary.open'))}
+        </button>
       </section>
 
       <footer className="workspace-sidebar-footer">

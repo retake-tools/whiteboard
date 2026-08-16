@@ -31,6 +31,8 @@ import { ProjectBoardDialog } from './components/ProjectBoardDialog';
 import { getProjectBoardDialogView } from './components/projectBoardDialogView';
 import { TopBar } from './components/TopBar';
 import { WorkspaceShell } from './components/WorkspaceShell';
+import { WorkspaceHome } from './components/WorkspaceHome';
+import { WorkspaceMaterials } from './components/WorkspaceMaterials';
 import { WorkspaceSidebar } from './components/WorkspaceSidebar';
 import { WorkspaceWorkbench } from './components/WorkspaceWorkbench';
 import { TextBlockEditorDialog } from './components/TextBlockEditorDialog';
@@ -48,9 +50,20 @@ import { loadExecutionProviderSettings } from './core/executionProviderClient';
 import { useI18n } from './i18n';
 import { useWorkspaceController } from './app/useWorkspaceController';
 import { useWorkspaceSurfaceController } from './app/useWorkspaceSurfaceController';
+import {
+  imageEditorOpeningExpired,
+  imageEditorPanelVisibilityChanged,
+  resolveImageEditorInspectorBlock,
+  startImageEditorSession,
+  type ImageEditorOrigin,
+  type ImageEditorSession,
+} from './app/imageEditorSession';
 import { useBoardSession, type ReadyBoardSession } from './app/useBoardSession';
 import { useImageOperationController } from './app/useImageOperationController';
-import { usePluginExecutionController } from './app/usePluginExecutionController';
+import {
+  usePluginExecutionController,
+  type PluginExecutionResult,
+} from './app/usePluginExecutionController';
 import {
   pluginDraftViewsForBlocks,
   usePluginDraftController,
@@ -73,6 +86,7 @@ import { useAgentRuntimeController } from './app/useAgentRuntimeController';
 import { useAgentWorkspaceController } from './app/useAgentWorkspaceController';
 import { useAgentAttachmentController } from './app/useAgentAttachmentController';
 import { useArtifactLibraryController } from './app/useArtifactLibraryController';
+import { useProjectAssetCatalogController } from './app/useProjectAssetCatalogController';
 import { useDomainVideoLaunchReviewController } from './app/useDomainVideoLaunchReviewController';
 import { WhiteboardCanvas } from './app/WhiteboardCanvas';
 import { downloadAsset } from './app/appHelpers';
@@ -251,10 +265,14 @@ function ReadyApp({
   const initialUiPreferences = useRef(loadUiPreferences());
   const directImageImportInputRef = useRef<HTMLInputElement | null>(null);
   const blankWorkspaceImageInputRef = useRef<HTMLInputElement | null>(null);
+  const homeImageInputRef = useRef<HTMLInputElement | null>(null);
   const agentWorkspaceButtonRef = useRef<HTMLButtonElement | null>(null);
   const pendingDirectImageImportBlockIdRef = useRef<string | undefined>(undefined);
   const [isMiniMapVisible, setIsMiniMapVisible] = useState(() => initialUiPreferences.current.isMiniMapVisible);
   const [showGrid, setShowGrid] = useState(() => initialUiPreferences.current.showGrid);
+  const [workspacePage, setWorkspacePage] = useState<'canvas' | 'home' | 'materials'>('canvas');
+  const workspaceHomeOpen = workspacePage === 'home';
+  const workspaceMaterialsOpen = workspacePage === 'materials';
   const {
     surface: workspaceSurface,
     closeSurface: closeWorkspaceSurface,
@@ -274,6 +292,13 @@ function ReadyApp({
   const [workflowWorkspaceRunId, setWorkflowWorkspaceRunId] = useState<string>();
   const [imageFocusBlockId, setImageFocusBlockId] = useState<string>();
   const [imageFocusCompareMode, setImageFocusCompareMode] = useState(false);
+  const [imageEditorSession, setImageEditorSession] = useState<ImageEditorSession>();
+  const imageEditorSessionRef = useRef<ImageEditorSession | undefined>(undefined);
+  const pluginExecutionSucceededRef = useRef<
+    ((result: PluginExecutionResult) => void) | undefined
+  >(undefined);
+  const imageEditorOpeningTimeoutRef = useRef<number | undefined>(undefined);
+  const imageEditorRestoreFrameRef = useRef<number | undefined>(undefined);
   const [reviewDocumentBlockId, setReviewDocumentBlockId] = useState<string | undefined>();
   const [operationFromImagePicker, setOperationFromImagePicker] = useState<{
     anchor: { x: number; y: number };
@@ -337,6 +362,16 @@ function ReadyApp({
     setInspectorBlockId(undefined);
     setTaskBlockId(undefined);
     setImageFocusBlockId(undefined);
+    imageEditorSessionRef.current = undefined;
+    if (imageEditorOpeningTimeoutRef.current !== undefined) {
+      window.clearTimeout(imageEditorOpeningTimeoutRef.current);
+      imageEditorOpeningTimeoutRef.current = undefined;
+    }
+    if (imageEditorRestoreFrameRef.current !== undefined) {
+      window.cancelAnimationFrame(imageEditorRestoreFrameRef.current);
+      imageEditorRestoreFrameRef.current = undefined;
+    }
+    setImageEditorSession(undefined);
     setIsHistoryOpen(false);
     setIsArtifactLibraryOpen(false);
     setWorkflowWorkspaceRunId(undefined);
@@ -361,6 +396,7 @@ function ReadyApp({
   });
   const {
     createBoardFromMenu,
+    createProjectAndSelect,
     createProjectFromMenu,
     deleteBoardFromMenu,
     deleteProjectFromMenu,
@@ -398,12 +434,64 @@ function ReadyApp({
     setSelectedBlock,
     setSelectedBlocks,
   } = canvasController;
+  const beginImageEditorSession = useCallback((
+    origin: ImageEditorOrigin,
+    sourceBlockId: string,
+  ) => {
+    const session = startImageEditorSession({
+      origin,
+      returnSelectedBlockIds: selectedBlockIdsRef.current,
+      sourceBlockId,
+    });
+    imageEditorSessionRef.current = session;
+    if (imageEditorOpeningTimeoutRef.current !== undefined) {
+      window.clearTimeout(imageEditorOpeningTimeoutRef.current);
+    }
+    imageEditorOpeningTimeoutRef.current = window.setTimeout(() => {
+      const current = imageEditorSessionRef.current;
+      if (!imageEditorOpeningExpired(current)) return;
+      imageEditorSessionRef.current = undefined;
+      imageEditorOpeningTimeoutRef.current = undefined;
+    }, 4_000);
+  }, [selectedBlockIdsRef]);
+  const handlePluginPanelVisibilityChange = useCallback((visible: boolean) => {
+    const current = imageEditorSessionRef.current;
+    const next = imageEditorPanelVisibilityChanged(current, visible);
+    if (next === current) return;
+    if (imageEditorOpeningTimeoutRef.current !== undefined) {
+      window.clearTimeout(imageEditorOpeningTimeoutRef.current);
+      imageEditorOpeningTimeoutRef.current = undefined;
+    }
+    imageEditorSessionRef.current = next;
+    setImageEditorSession(next);
+    if (next?.phase !== 'restoring') return;
+    const existingBlockIds = next.returnSelectedBlockIds.filter((blockId) => (
+      snapshotRef.current.blocks.some((block) => block.blockId === blockId)
+    ));
+    setSelectedBlocks(snapshotRef.current, existingBlockIds);
+    if (imageEditorRestoreFrameRef.current !== undefined) {
+      window.cancelAnimationFrame(imageEditorRestoreFrameRef.current);
+    }
+    imageEditorRestoreFrameRef.current = window.requestAnimationFrame(() => {
+      if (imageEditorSessionRef.current !== next) return;
+      imageEditorSessionRef.current = undefined;
+      imageEditorRestoreFrameRef.current = undefined;
+      setImageEditorSession(undefined);
+    });
+  }, [setSelectedBlocks, snapshotRef]);
   const selectedBlock =
     selectedBlockIds.length === 1
       ? snapshot.blocks.find((block) => block.blockId === selectedBlockIds[0])
       : undefined;
+  const handlePluginExecutionSucceeded = useCallback(
+    (result: PluginExecutionResult) => {
+      pluginExecutionSucceededRef.current?.(result);
+    },
+    [],
+  );
   const pluginExecutionRunner = usePluginExecutionController({
     adoptDurableSnapshot,
+    onExecutionSucceeded: handlePluginExecutionSucceeded,
     runHostCommand,
     runProductCommand,
     setSelectedBlock,
@@ -483,7 +571,6 @@ function ReadyApp({
     copyQueuedOperationPrompt,
     createAndStartImageComposerOperation,
     createImageToImageDraftOperation,
-    createImageToImageDraftFromMenu,
     createTextToImageDraftOperation,
     importImageIntoBlock,
     operationToast,
@@ -499,6 +586,50 @@ function ReadyApp({
     updateOperationGenerationParams,
     updateOperationGenerationProfile,
   } = imageOperationController;
+
+  pluginExecutionSucceededRef.current = (result) => {
+    if (result.status !== 'succeeded' || result.outputBlockIds.length === 0) return;
+    const outputBlockIds = [...result.outputBlockIds];
+    const editorOrigin = imageEditorSessionRef.current?.origin;
+    setOperationToast({
+      actionLabel: t('feedback.viewResult'),
+      body: t('feedback.imageEditCompletedNotice'),
+      id: `plugin-execution-completed:${result.executionId}`,
+      onAction: () => {
+        const openResult = () => {
+          const current = snapshotRef.current;
+          const targetBlockId = outputBlockIds.find((blockId) => (
+            current.blocks.some((block) => block.blockId === blockId)
+          ));
+          if (!targetBlockId) return;
+          setSelectedBlock(current, targetBlockId);
+          locateBlock(targetBlockId);
+          if (editorOrigin === 'image-focus') {
+            setImageFocusBlockId(targetBlockId);
+          }
+          setInspectorBlockId(targetBlockId);
+        };
+
+        if (imageEditorSessionRef.current) {
+          imageEditorSessionRef.current = undefined;
+          if (imageEditorOpeningTimeoutRef.current !== undefined) {
+            window.clearTimeout(imageEditorOpeningTimeoutRef.current);
+            imageEditorOpeningTimeoutRef.current = undefined;
+          }
+          if (imageEditorRestoreFrameRef.current !== undefined) {
+            window.cancelAnimationFrame(imageEditorRestoreFrameRef.current);
+            imageEditorRestoreFrameRef.current = undefined;
+          }
+          setImageEditorSession(undefined);
+          window.requestAnimationFrame(openResult);
+          return;
+        }
+        openResult();
+      },
+      title: t('feedback.imageEditCompleted'),
+      tone: 'success',
+    });
+  };
 
   useEffect(() => {
     function onCreateOperationFromImage(event: Event): void {
@@ -566,6 +697,18 @@ function ReadyApp({
     projectId: snapshot.project.projectId,
     runProductCommand,
     selectedBlockId: selectedBlock?.blockId,
+    setOperationToast,
+    setSelectedBlock,
+    snapshotRef,
+    t,
+  });
+  const projectAssetCatalogController = useProjectAssetCatalogController({
+    centeredBlockPosition,
+    isOpen: workspaceMaterialsOpen,
+    onInserted: () => setWorkspacePage('canvas'),
+    onRelinkComplete: refreshCurrentBoard,
+    projectId: snapshot.project.projectId,
+    runProductCommand,
     setOperationToast,
     setSelectedBlock,
     snapshotRef,
@@ -782,6 +925,7 @@ function ReadyApp({
     setSelectedBlock,
     showGrid,
     snapshotRef,
+    suspendInspectorNavigation: Boolean(imageEditorSession),
   });
 
 
@@ -899,6 +1043,21 @@ function ReadyApp({
     }
   }
 
+  async function importHomeImage(file: File): Promise<void> {
+    try {
+      await createProjectAndSelect(projectNameForImage(file.name, t('projectBoard.newProjectName')));
+      setWorkspacePage('canvas');
+      await importBlankWorkspaceImage(file);
+    } catch (error) {
+      setOperationToast({
+        id: `home-image-import:${Date.now()}`,
+        title: t('feedback.handoffUnavailable'),
+        body: error instanceof Error ? error.message : t('feedback.localApiUnavailable'),
+        tone: 'error',
+      });
+    }
+  }
+
   const selectedImageUrl =
     selectedBlock?.type === 'image' ? getAssetPreviewUrl(snapshot.assets, selectedBlock.data.assetId) : undefined;
   const selectedImageAsset =
@@ -914,12 +1073,20 @@ function ReadyApp({
   const inspectorBlock = inspectorBlockId
     ? snapshot.blocks.find((block) => block.blockId === inspectorBlockId)
     : undefined;
-  const inspectorImageAsset = inspectorBlock?.type === 'image'
-    && typeof inspectorBlock.data.assetId === 'string'
-    ? snapshot.assets.find((asset) => asset.assetId === inspectorBlock.data.assetId)
+  const imageEditorOpen = imageEditorSession?.phase === 'visible';
+  const imageEditorInspectorBlock = imageEditorSession
+    ? resolveImageEditorInspectorBlock(
+        snapshot,
+        imageEditorSession.sourceBlockId,
+      )
     : undefined;
-  const inspectorImageUrl = inspectorBlock?.type === 'image'
-    ? getAssetPreviewUrl(snapshot.assets, inspectorBlock.data.assetId)
+  const visibleInspectorBlock = imageEditorInspectorBlock ?? inspectorBlock;
+  const inspectorImageAsset = visibleInspectorBlock?.type === 'image'
+    && typeof visibleInspectorBlock.data.assetId === 'string'
+    ? snapshot.assets.find((asset) => asset.assetId === visibleInspectorBlock.data.assetId)
+    : undefined;
+  const inspectorImageUrl = visibleInspectorBlock?.type === 'image'
+    ? getAssetPreviewUrl(snapshot.assets, visibleInspectorBlock.data.assetId)
     : undefined;
   const imageFocusBlock = imageFocusBlockId
     ? snapshot.blocks.find((block) => block.blockId === imageFocusBlockId && block.type === 'image')
@@ -949,17 +1116,22 @@ function ReadyApp({
   const projectBoardDialogView = projectBoardDialog
     ? getProjectBoardDialogView(projectBoardDialog, t)
     : undefined;
-  const imageInspectorOpen = workspaceSurface.kind === 'inspector'
-    && inspectorBlock?.type === 'image'
+  const imageInspectorOpen = (imageEditorOpen || workspaceSurface.kind === 'inspector')
+    && visibleInspectorBlock?.type === 'image'
     && Boolean(inspectorImageAsset && inspectorImageUrl);
   const workbenchOpen = imageInspectorOpen
     || Boolean(workspaceSurface.kind === 'task' && taskBlock && taskExecution)
     || workspaceSurface.kind === 'agent'
     || workspaceSurface.kind === 'artifact'
     || workspaceSurface.kind === 'history';
+  const visibleWorkbenchSurface = imageEditorOpen && imageEditorInspectorBlock
+    ? { kind: 'inspector' as const, blockId: imageEditorInspectorBlock.blockId }
+    : workspaceSurface;
   const appShell = (
     <WorkspaceShell
-      hasWorkbench={workbenchOpen}
+      focusEditorOpen={imageEditorOpen}
+      hasWorkbench={workspacePage === 'canvas' && workbenchOpen}
+      pageOpen={workspacePage !== 'canvas'}
       workbenchMode={workspaceSurface.kind === 'agent' ? 'wide' : 'compact'}
       sidebar={({ collapsed, onToggleCollapsed }) => (
         <WorkspaceSidebar
@@ -967,21 +1139,40 @@ function ReadyApp({
           collapsed={collapsed}
           currentBoardId={snapshot.board.boardId}
           currentProjectId={snapshot.project.projectId}
+          homeOpen={workspaceHomeOpen}
           historyOpen={isHistoryOpen}
+          materialsOpen={workspaceMaterialsOpen}
           workspace={workspace}
           onCreateBoard={(projectId) => void createBoardFromMenu(projectId)}
-          onCreateProject={() => void createProjectFromMenu()}
+          onCreateProject={() => {
+            setWorkspacePage('canvas');
+            void createProjectFromMenu();
+          }}
           onDeleteBoard={(projectId, boardId) => void deleteBoardFromMenu(projectId, boardId)}
           onDeleteProject={(projectId) => void deleteProjectFromMenu(projectId)}
           onDuplicateBoard={(projectId, boardId) => void duplicateBoardFromMenu(projectId, boardId)}
-          onOpenArtifactLibrary={toggleArtifactLibrary}
-          onOpenHistory={toggleHistoryPanel}
-          onOpenSettings={() => window.dispatchEvent(new CustomEvent('retake:open-settings'))}
+          onOpenArtifactLibrary={() => {
+            setWorkspacePage('canvas');
+            toggleArtifactLibrary();
+          }}
+          onOpenHome={() => setWorkspacePage('home')}
+          onOpenMaterials={() => setWorkspacePage('materials')}
+          onOpenHistory={() => {
+            setWorkspacePage('canvas');
+            toggleHistoryPanel();
+          }}
+          onOpenSettings={() => {
+            setWorkspacePage('canvas');
+            requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('retake:open-settings')));
+          }}
           onRenameBoard={(projectId, boardId, currentName) => void renameBoardFromMenu(projectId, boardId, currentName)}
           onRenameProject={(projectId, currentName) => void renameProjectFromMenu(projectId, currentName)}
           onReorderBoards={(projectId, boardIds) => void reorderBoardsFromMenu(projectId, boardIds)}
           onReorderProjects={(projectIds) => void reorderProjectsFromMenu(projectIds)}
-          onSelectBoard={(projectId, boardId) => void selectBoard(projectId, boardId)}
+          onSelectBoard={(projectId, boardId) => {
+            setWorkspacePage('canvas');
+            void selectBoard(projectId, boardId);
+          }}
           onToggleCollapsed={onToggleCollapsed}
         />
       )}
@@ -1010,6 +1201,17 @@ function ReadyApp({
           const file = event.target.files?.[0];
           event.currentTarget.value = '';
           if (file) void importBlankWorkspaceImage(file);
+        }}
+      />
+      <input
+        ref={homeImageInputRef}
+        className="hidden-file-input"
+        type="file"
+        accept="image/*"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.currentTarget.value = '';
+          if (file) void importHomeImage(file);
         }}
       />
       <TopBar
@@ -1177,17 +1379,6 @@ function ReadyApp({
           reuseSelectedImageSlot: true,
         })}
         onCreateVideoDraft={createVideoComposerDraft}
-        onCreateImageToImage={() => void createImageToImageDraftFromMenu()}
-        onCreateTextToImage={() => void createTextToImageDraftOperation()}
-        onOpenComposer={(detail) => {
-          setInspectorBlockId(undefined);
-          setIsHistoryOpen(false);
-          setIsAgentWorkspaceOpen(false);
-          setIsArtifactLibraryOpen(false);
-          requestAnimationFrame(() => {
-            window.dispatchEvent(new CustomEvent('retake:focus-unified-composer', { detail }));
-          });
-        }}
         onInvokeEntryPoint={packageEntryPointController.invokeEntryPoint}
         onSubmitAgentMessage={(input) => {
           setIsAgentWorkspaceOpen(true);
@@ -1195,6 +1386,7 @@ function ReadyApp({
         }}
         snapshot={snapshot}
         onSetActiveTool={setActiveCanvasTool}
+        onUploadAsset={() => blankWorkspaceImageInputRef.current?.click()}
       />
       {workspaceSurface.kind === 'inspector'
         && inspectorBlock?.type !== 'group'
@@ -1205,10 +1397,8 @@ function ReadyApp({
           selectedBlock={inspectorBlock}
           snapshot={snapshot}
           onClose={() => setInspectorBlockId(undefined)}
-          onBeforePluginOperationAction={async () => {
-            setInspectorBlockId(undefined);
-            await nextAnimationFrame();
-            await nextAnimationFrame();
+          onBeforePluginOperationAction={(operationBlockId) => {
+            beginImageEditorSession('execution-inspector', operationBlockId);
           }}
           onCopyPrompt={copyPromptWithHistory}
           onPluginFatalFailure={onPluginContributionFatalFailure}
@@ -1239,24 +1429,34 @@ function ReadyApp({
         />
       ) : null}
       {workbenchOpen ? (
-        <WorkspaceWorkbench surface={workspaceSurface}>
-          {imageInspectorOpen && inspectorBlock?.type === 'image' && inspectorImageAsset && inspectorImageUrl ? (
+        <WorkspaceWorkbench surface={visibleWorkbenchSurface}>
+          {imageInspectorOpen && visibleInspectorBlock?.type === 'image' && inspectorImageAsset && inspectorImageUrl ? (
             <ImageInspectorPanel
               asset={inspectorImageAsset}
-              block={inspectorBlock}
+              block={visibleInspectorBlock}
               copiedPromptKey={copiedPromptKey}
-              contentLocked={blockLockedByGroup(snapshot, inspectorBlock.blockId)}
+              contentLocked={blockLockedByGroup(snapshot, visibleInspectorBlock.blockId)}
               onClose={() => {
+                if (imageEditorOpen) {
+                  window.dispatchEvent(new KeyboardEvent('keydown', {
+                    bubbles: true,
+                    cancelable: true,
+                    key: 'Escape',
+                  }));
+                  return;
+                }
                 setImageFocusBlockId(undefined);
                 setInspectorBlockId(undefined);
               }}
-              onBeforePluginOperationAction={async () => {
-                setInspectorBlockId(undefined);
-                await nextAnimationFrame();
-                await nextAnimationFrame();
+              onBeforePluginOperationAction={(operationBlockId) => {
+                if (imageEditorOpen) return;
+                beginImageEditorSession(
+                  imageFocusBlock ? 'image-focus' : 'image-inspector',
+                  operationBlockId,
+                );
               }}
               onCopyPrompt={copyPromptWithHistory}
-              onDownload={() => downloadAsset(inspectorImageAsset, inspectorBlock.data.title)}
+              onDownload={() => downloadAsset(inspectorImageAsset, visibleInspectorBlock.data.title)}
               onPluginFatalFailure={onPluginContributionFatalFailure}
               onRestoreConfiguration={restoreConfigurationVersion}
               onSelectOutput={executionOutputSelectionController.selectOutput}
@@ -1265,7 +1465,7 @@ function ReadyApp({
               snapshot={snapshot}
             />
           ) : null}
-          {workspaceSurface.kind === 'task' && taskBlock && taskExecution ? (
+          {!imageEditorOpen && workspaceSurface.kind === 'task' && taskBlock && taskExecution ? (
             <GenerationTaskPanel
               block={taskBlock}
               onCancelExecution={imageOperationController.cancelImageExecution}
@@ -1292,7 +1492,7 @@ function ReadyApp({
               snapshot={snapshot}
             />
           ) : null}
-          {workspaceSurface.kind === 'artifact' ? (
+          {!imageEditorOpen && workspaceSurface.kind === 'artifact' ? (
             <Suspense fallback={null}>
               <ArtifactLibraryPanel
                 error={artifactLibraryController.error}
@@ -1308,18 +1508,22 @@ function ReadyApp({
               />
             </Suspense>
           ) : null}
-          {workspaceSurface.kind === 'history' ? (
+          {!imageEditorOpen && workspaceSurface.kind === 'history' ? (
             <BoardHistoryPanel
               copiedPromptKey={copiedPromptKey}
               snapshot={snapshot}
               onClose={() => setIsHistoryOpen(false)}
               onCopyPrompt={copyPromptWithHistory}
               onLocateBlock={locateBlock}
+              onBeforePluginOperationAction={(operationBlockId) => {
+                beginImageEditorSession('history', operationBlockId);
+              }}
               onPluginFatalFailure={onPluginContributionFatalFailure}
+              onRestoreConfiguration={restoreConfigurationVersion}
               pluginContributionRegistry={pluginContributionRegistry}
             />
           ) : null}
-          {workspaceSurface.kind === 'agent' ? (
+          {!imageEditorOpen && workspaceSurface.kind === 'agent' ? (
             <AgentWorkspace
           binding={agentWorkspaceController.selectedBinding}
           error={agentWorkspaceController.error}
@@ -1448,6 +1652,9 @@ function ReadyApp({
         onPluginContributionFatalFailure={
           onPluginContributionFatalFailure
         }
+        onBeforeImagePluginAction={(blockId) => {
+          beginImageEditorSession('canvas-toolbar', blockId);
+        }}
         pendingDirectImageImportBlockIdRef={pendingDirectImageImportBlockIdRef}
         pluginContributionRegistry={pluginContributionRegistry}
         selectedBlock={selectedBlock}
@@ -1456,6 +1663,7 @@ function ReadyApp({
         selectedGroupMediaCount={selectedGroupMediaCount}
         selectedImageAsset={selectedImageAsset}
         selectedImageUrl={selectedImageUrl}
+        suspendInspectorNavigation={Boolean(imageEditorSession)}
         setHistoryOpen={setIsHistoryOpen}
         setInspectorBlockId={setInspectorBlockId}
         setMiniMapVisible={setIsMiniMapVisible}
@@ -1489,6 +1697,7 @@ function ReadyApp({
             setImageFocusCompareMode(false);
           }}
           onCompareModeChange={setImageFocusCompareMode}
+          suspended={imageEditorOpen}
           onSelectBlock={(blockId) => {
             setImageFocusBlockId(blockId);
             setSelectedBlock(snapshotRef.current, blockId);
@@ -1496,14 +1705,45 @@ function ReadyApp({
           }}
         />
       ) : null}
+      {workspaceHomeOpen ? (
+        <WorkspaceHome
+          currentBoardId={snapshot.board.boardId}
+          currentProjectId={snapshot.project.projectId}
+          onCreateProject={() => {
+            setWorkspacePage('canvas');
+            createProjectFromMenu();
+          }}
+          onOpenImage={() => homeImageInputRef.current?.click()}
+          onSelectBoard={(projectId, boardId) => {
+            setWorkspacePage('canvas');
+            void selectBoard(projectId, boardId);
+          }}
+          workspace={workspace}
+        />
+      ) : null}
+      {workspaceMaterialsOpen ? (
+        <WorkspaceMaterials
+          catalog={projectAssetCatalogController.catalog}
+          error={projectAssetCatalogController.error}
+          isLoading={projectAssetCatalogController.isLoading}
+          onAdd={(item) => void projectAssetCatalogController.insert(item)}
+          onRefresh={() => void projectAssetCatalogController.refresh()}
+          onRelink={(item, file) => void projectAssetCatalogController.relink(item, file)}
+          onUpload={(file) => void projectAssetCatalogController.upload(file)}
+          pendingAssetId={projectAssetCatalogController.pendingAssetId}
+          projectName={snapshot.project.name}
+        />
+      ) : null}
       {pluginContributionRegistry && onPluginContributionFatalFailure ? (
         <PluginPanelHost
           anchorBlockId={
-            selectedBlock?.type === 'image'
+            !imageEditorSession && selectedBlock?.type === 'image'
               ? selectedBlock.blockId
               : undefined
           }
           onFatalFailure={onPluginContributionFatalFailure}
+          onVisibilityChange={handlePluginPanelVisibilityChange}
+          presentation={imageEditorOpen ? 'focus-editor' : 'overlay'}
           registry={pluginContributionRegistry}
         />
       ) : null}
@@ -1516,10 +1756,9 @@ function ReadyApp({
   );
 }
 
-function nextAnimationFrame(): Promise<void> {
-  return new Promise((resolve) => {
-    window.requestAnimationFrame(() => resolve());
-  });
+function projectNameForImage(fileName: string, fallback: string): string {
+  const withoutExtension = fileName.replace(/\.[^.]+$/u, '').trim();
+  return withoutExtension || fallback;
 }
 
 function WorkspaceLoadState({

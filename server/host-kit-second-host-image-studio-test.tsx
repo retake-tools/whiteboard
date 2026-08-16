@@ -24,7 +24,7 @@ import { PluginPanelSurface } from '../src/host-kit/plugin-react';
 const repositoryRoot = process.cwd();
 const archivePath = path.join(
   repositoryRoot,
-  'packages/bootstrap/image-studio-0.12.4.retakepkg',
+  'packages/bootstrap/image-studio-0.12.6.retakepkg',
 );
 const bootstrap = JSON.parse(await readFile(
   path.join(repositoryRoot, 'packages/bootstrap/retake.bootstrap.json'),

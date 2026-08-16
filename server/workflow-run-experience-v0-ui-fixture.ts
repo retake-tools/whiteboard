@@ -51,7 +51,7 @@ const packageArchive = path.join(
   repositoryRoot,
   'packages',
   'bootstrap',
-  'image-studio-0.12.4.retakepkg',
+  'image-studio-0.12.6.retakepkg',
 );
 const inspected = await validateDeclarativePackage(packageArchive);
 const materialized = await readMaterializedPackageArchive(packageArchive);
@@ -198,7 +198,7 @@ function packageManifestForFixture(
     schemaVersion: 1,
     source: {
       archiveDigest: packageArchiveValue.archiveDigest,
-      installationId: 'test-fixture-image-studio-0.12.4',
+      installationId: 'test-fixture-image-studio-0.12.6',
       kind: 'installed',
     },
     version: manifest.version,

@@ -20,6 +20,22 @@
   display: none;
 }
 
+.plugin-panel-host.is-focus-editor {
+  position: absolute;
+  inset: 64px 0 0;
+  display: block;
+  max-width: none;
+  max-height: none;
+  overflow: hidden;
+  pointer-events: auto;
+  z-index: 46;
+}
+
+.plugin-panel-host.is-focus-editor .plugin-panel-host__panel {
+  width: 100%;
+  height: 100%;
+}
+
 .plugin-panel-host__fallback {
   align-items: flex-start;
   background: color-mix(in srgb, var(--retake-surface) 94%, transparent);

@@ -22,8 +22,13 @@ import {
   runConnectedPluginExecution,
 } from './runConnectedPluginExecution';
 
+export type PluginExecutionResult =
+  | PluginConnectedExecutionViewV2
+  | PluginExecutionViewV2;
+
 interface PluginExecutionControllerOptions {
   adoptDurableSnapshot: (snapshot: BoardSnapshot) => void;
+  onExecutionSucceeded?: (result: PluginExecutionResult) => void;
   runHostCommand?: <Result>(
     operation: (commands: CanvasHostCommandsV1) => Promise<Result>,
     options?: { history?: boolean; syncFlow?: boolean },
@@ -41,23 +46,27 @@ interface PluginExecutionControllerOptions {
 
 export function usePluginExecutionController({
   adoptDurableSnapshot,
+  onExecutionSucceeded,
   runHostCommand,
   runProductCommand,
   setSelectedBlock,
   snapshotRef,
 }: PluginExecutionControllerOptions): PluginExecutionRunnerV2 {
   return useCallback(
-    (request: PluginExecutionRunnerRequestV2) => (
-      runPluginExecution(request, {
+    async (request: PluginExecutionRunnerRequestV2) => {
+      const result = await runPluginExecution(request, {
         adoptDurableSnapshot,
         runHostCommand,
         runProductCommand,
         setSelectedBlock,
         snapshotRef,
-      })
-    ),
+      });
+      onExecutionSucceeded?.(result);
+      return result;
+    },
     [
       adoptDurableSnapshot,
+      onExecutionSucceeded,
       runHostCommand,
       runProductCommand,
       setSelectedBlock,
@@ -75,7 +84,7 @@ export async function runPluginExecution(
     setSelectedBlock,
     snapshotRef,
   }: PluginExecutionControllerOptions,
-): Promise<PluginConnectedExecutionViewV2 | PluginExecutionViewV2> {
+): Promise<PluginExecutionResult> {
   if (request.kind === 'connected') {
     if (!runProductCommand) {
       throw new Error('Whiteboard product command facade is required for connected Plugin execution.');

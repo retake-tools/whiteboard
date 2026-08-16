@@ -1,4 +1,9 @@
-import { useEffect, type RefObject } from 'react';
+import {
+  useEffect,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from 'react';
 import type { ReactFlowInstance } from '@xyflow/react';
 import type { DrawRect } from '../components/GroupDrawOverlay';
 import type { OperationToast } from '../components/OperationFeedback';
@@ -15,6 +20,7 @@ import type {
   GroupLayoutMode,
 } from '../core/types';
 import type { RetakeEdge, RetakeNode } from '../canvas/reactFlowTypes';
+import { retainFlowNodeMeasurements } from './canvasLiveProjection';
 import type { CanvasTool } from '../components/FloatingToolbar';
 import type { useI18n } from '../i18n';
 import type { CanvasHostCommandsV1 } from '../host-kit';
@@ -42,7 +48,7 @@ interface GroupControllerOptions {
   setActiveCanvasTool: (tool: CanvasTool) => void;
   setCollapsedGroupIds: (ids: string[]) => void;
   setEdges: (edges: RetakeEdge[]) => void;
-  setNodes: (nodes: RetakeNode[]) => void;
+  setNodes: Dispatch<SetStateAction<RetakeNode[]>>;
   setOperationToast: (toast: OperationToast | undefined) => void;
   setSelectedBlock: (snapshot: BoardSnapshot, blockId: string) => void;
   setSelectedBlocks: (snapshot: BoardSnapshot, blockIds: string[]) => void;
@@ -176,7 +182,10 @@ export function useGroupController(options: GroupControllerOptions) {
     collapsedGroupIdsRef.current = nextIds;
     setCollapsedGroupIds(nextIds);
     saveCollapsedGroupIds(snapshotRef.current.project.projectId, snapshotRef.current.board.boardId, nextIds);
-    setNodes(createFlowNodesForSelection(snapshotRef.current));
+    setNodes((current) => retainFlowNodeMeasurements(
+      createFlowNodesForSelection(snapshotRef.current),
+      current,
+    ));
     setEdges(createFlowEdgesForSelection(snapshotRef.current));
   }
 

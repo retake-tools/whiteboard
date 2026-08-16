@@ -37,6 +37,30 @@
   line-height: 1.35;
 }
 
+.operation-toast__action {
+  flex: none;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--retake-border);
+  border-radius: 8px;
+  background: var(--retake-surface);
+  color: var(--retake-accent-strong);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.operation-toast__action:hover {
+  border-color: var(--retake-accent);
+  background: var(--retake-accent-soft);
+}
+
+.operation-toast__action:focus-visible {
+  outline: 2px solid var(--retake-accent);
+  outline-offset: 2px;
+}
+
 .prompt-preview {
   position: absolute;
   right: 16px;

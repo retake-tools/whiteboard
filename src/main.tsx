@@ -27,6 +27,8 @@ import './components/top-bar.css';
 import './components/workspace-sidebar-rail.css';
 import './components/workspace-shell.css';
 import './components/workspace-create-menu.css';
+import './components/workspace-home.css';
+import './components/workspace-materials.css';
 import './nodes/block-node.css';
 import './nodes/operation-inline-controls.css';
 import './host-kit/styles/canvas-host.css';

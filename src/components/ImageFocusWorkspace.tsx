@@ -15,7 +15,10 @@ import {
   useState,
   type ReactElement,
 } from 'react';
-import { executionImageBrowserItems } from '../core/executionImageBrowser';
+import {
+  executionImageBrowserItems,
+  focusImageBrowserItems,
+} from '../core/executionImageBrowser';
 import type { AssetRecord, BlockRecord, BoardSnapshot } from '../core/types';
 import { useI18n } from '../i18n';
 import { ExecutionImageViewer } from './ExecutionImageViewer';
@@ -28,6 +31,7 @@ interface ImageFocusWorkspaceProps {
   onCompareModeChange: (open: boolean) => void;
   onSelectBlock: (blockId: string) => void;
   snapshot: BoardSnapshot;
+  suspended?: boolean;
 }
 
 interface FocusImage {
@@ -42,6 +46,7 @@ export const ImageFocusWorkspace = memo(function ImageFocusWorkspace({
   onCompareModeChange,
   onSelectBlock,
   snapshot,
+  suspended = false,
 }: ImageFocusWorkspaceProps): ReactElement | null {
   const { t } = useI18n();
   const images = useMemo(
@@ -138,6 +143,7 @@ export const ImageFocusWorkspace = memo(function ImageFocusWorkspace({
   }, [activeIndex, images]);
 
   useEffect(() => {
+    if (suspended) return;
     function onKeyDown(event: KeyboardEvent): void {
       if (event.isComposing || isImageFocusEditableTarget(event.target)) return;
       if (event.key === 'Escape') {
@@ -163,7 +169,7 @@ export const ImageFocusWorkspace = memo(function ImageFocusWorkspace({
 
     window.addEventListener('keydown', onKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
-  }, [activeIndex, compareMode, images, onBackToCanvas, onCompareModeChange, selectFocusBlock]);
+  }, [activeIndex, compareMode, images, onBackToCanvas, onCompareModeChange, selectFocusBlock, suspended]);
 
   useEffect(() => {
     const strip = candidateStripRef.current;
@@ -338,13 +344,7 @@ const FocusCandidateButton = memo(function FocusCandidateButton({
 });
 
 function focusImages(snapshot: BoardSnapshot, block: BlockRecord): FocusImage[] {
-  const related = executionImageBrowserItems(snapshot, block.blockId);
-  if (related.some((item) => item.block.blockId === block.blockId)) return related;
-  const activeAssetId = typeof block.data.assetId === 'string' ? block.data.assetId : undefined;
-  const asset = snapshot.assets.find((candidate) => (
-    candidate.assetId === activeAssetId && candidate.kind === 'image'
-  ));
-  return asset ? [{ asset, block }, ...related] : related;
+  return focusImageBrowserItems(snapshot, block.blockId);
 }
 
 function executionFocusImages(snapshot: BoardSnapshot, block: BlockRecord): FocusImage[] {

@@ -200,6 +200,9 @@ export type TranslationKey =
   | 'feedback.connectionAdapterUnavailable'
   | 'feedback.inputRequired'
   | 'feedback.executionCanceled'
+  | 'feedback.imageEditCompleted'
+  | 'feedback.imageEditCompletedNotice'
+  | 'feedback.viewResult'
   | 'feedback.codexImageStarted'
   | 'feedback.codexImageCostNotice'
   | 'feedback.codexImageCompleted'
@@ -1189,6 +1192,32 @@ export type TranslationKey =
   | 'projectBoard.renameProject'
   | 'projectBoard.switchBoard'
   | 'projectBoard.unpin'
+  | 'workspaceHome.emptyDescription'
+  | 'workspaceHome.emptyTitle'
+  | 'workspaceHome.newProjectDescription'
+  | 'workspaceHome.openImage'
+  | 'workspaceHome.subtitle'
+  | 'workspaceHome.title'
+  | 'workspaceHome.updated'
+  | 'workspaceMaterials.addedBody'
+  | 'workspaceMaterials.addedTitle'
+  | 'workspaceMaterials.addToBoard'
+  | 'workspaceMaterials.emptyDescription'
+  | 'workspaceMaterials.emptyTitle'
+  | 'workspaceMaterials.loading'
+  | 'workspaceMaterials.missing'
+  | 'workspaceMaterials.noResults'
+  | 'workspaceMaterials.noResultsDescription'
+  | 'workspaceMaterials.refresh'
+  | 'workspaceMaterials.relink'
+  | 'workspaceMaterials.relinkedBody'
+  | 'workspaceMaterials.relinkedTitle'
+  | 'workspaceMaterials.search'
+  | 'workspaceMaterials.subtitle'
+  | 'workspaceMaterials.title'
+  | 'workspaceMaterials.upload'
+  | 'workspaceMaterials.uploadedBody'
+  | 'workspaceMaterials.uploadedTitle'
   | 'pluginSettings.close'
   | 'pluginSettings.codeNotTrusted'
   | 'pluginSettings.codeTrusted'
@@ -1412,6 +1441,7 @@ export type TranslationKey =
   | 'createMenu.generate'
   | 'createMenu.noWorkflows'
   | 'createMenu.open'
+  | 'createMenu.operationBlock'
   | 'createMenu.title'
   | 'executionProgress.failed'
   | 'executionProgress.partial'
@@ -1654,6 +1684,9 @@ const translations: Record<Locale, Translations> = {
     'feedback.connectionAdapterUnavailable': 'The selected connection does not have an installed image execution adapter.',
     'feedback.inputRequired': 'Complete the operation inputs',
     'feedback.executionCanceled': 'Execution canceled',
+    'feedback.imageEditCompleted': 'Image edit completed',
+    'feedback.imageEditCompletedNotice': 'The new result is on the Canvas and in History. Your previous view was kept.',
+    'feedback.viewResult': 'View result',
     'feedback.codexImageStarted': 'Codex image generation started',
     'feedback.codexImageCostNotice': 'Codex App Server is generating image results in the background.',
     'feedback.codexImageCompleted': 'Codex image generation completed',
@@ -1841,14 +1874,14 @@ const translations: Record<Locale, Translations> = {
     'imageInspector.importedSource': 'Imported asset',
     'imageInspector.locked': 'Locked',
     'imageInspector.noHistory': 'No task history for this image yet',
-    'imageInspector.outputNotSelected': 'This candidate has not been selected',
-    'imageInspector.outputSelection': 'Output selection',
-    'imageInspector.outputSelectionHint': 'Selection is saved for this run. Other candidates remain available.',
+    'imageInspector.outputNotSelected': 'This is not the current result',
+    'imageInspector.outputSelection': 'Current result',
+    'imageInspector.outputSelectionHint': 'Records the result used by later actions and Workflow references. Other candidates remain available.',
     'imageInspector.position': 'Position and size',
     'imageInspector.prompt': 'Prompt',
-    'imageInspector.reselectOutput': 'Select this candidate instead',
-    'imageInspector.selectOutput': 'Select this candidate',
-    'imageInspector.selectedOutput': 'Selected output',
+    'imageInspector.reselectOutput': 'Use this result instead',
+    'imageInspector.selectOutput': 'Set as current result',
+    'imageInspector.selectedOutput': 'Current result',
     'imageInspector.source': 'Source',
     'imageInspector.sourceAndGeneration': 'Source and generation',
     'imageInspector.title': 'Image inspector',
@@ -1868,8 +1901,8 @@ const translations: Record<Locale, Translations> = {
     'imageFocus.title': 'Image focus workspace',
     'imageFocus.viewing': 'Viewing',
     'outputSelection.failed': 'Could not select output',
-    'outputSelection.selected': 'Output selected',
-    'outputSelection.selectedBody': 'This run now uses the selected candidate. Other candidates were kept.',
+    'outputSelection.selected': 'Current result updated',
+    'outputSelection.selectedBody': 'Later actions and Workflow references will use this result. Other candidates were kept.',
     'operation.createSimilar.prompt': 'Create similar image',
     'operation.createSimilar.title': 'Create similar image',
     'operation.generateImage.prompt': 'Generate image from prompt',
@@ -2643,6 +2676,32 @@ const translations: Record<Locale, Translations> = {
     'projectBoard.renameProject': 'Rename project',
     'projectBoard.switchBoard': 'Open board',
     'projectBoard.unpin': 'Close on outside click',
+    'workspaceHome.emptyDescription': 'Open an image or create a project to start your first local board.',
+    'workspaceHome.emptyTitle': 'No recent boards yet',
+    'workspaceHome.newProjectDescription': 'Create a local project with its first blank board.',
+    'workspaceHome.openImage': 'Open image',
+    'workspaceHome.subtitle': 'Continue a local board or start from an image.',
+    'workspaceHome.title': 'Recent projects',
+    'workspaceHome.updated': 'Updated',
+    'workspaceMaterials.addedBody': 'The existing local Asset is now referenced by this board.',
+    'workspaceMaterials.addedTitle': 'Material added',
+    'workspaceMaterials.addToBoard': 'Add to current board',
+    'workspaceMaterials.emptyDescription': 'Upload an image once, then reuse the same local Asset across boards in this project.',
+    'workspaceMaterials.emptyTitle': 'No image materials yet',
+    'workspaceMaterials.loading': 'Loading local materials…',
+    'workspaceMaterials.missing': 'Local file missing',
+    'workspaceMaterials.noResults': 'No matching materials',
+    'workspaceMaterials.noResultsDescription': 'Try a different file name.',
+    'workspaceMaterials.refresh': 'Refresh',
+    'workspaceMaterials.relink': 'Relink file',
+    'workspaceMaterials.relinkedBody': 'References keep the same Asset identity and use the restored local file.',
+    'workspaceMaterials.relinkedTitle': 'Material relinked',
+    'workspaceMaterials.search': 'Search local image materials',
+    'workspaceMaterials.subtitle': 'Original local Assets for this project',
+    'workspaceMaterials.title': 'Materials',
+    'workspaceMaterials.upload': 'Upload material',
+    'workspaceMaterials.uploadedBody': 'The image is available to every board in this local project.',
+    'workspaceMaterials.uploadedTitle': 'Material uploaded',
     'pluginSettings.close': 'Close Plugin management',
     'pluginSettings.codeNotTrusted': 'Code not trusted',
     'pluginSettings.codeTrusted': 'Exact code trusted',
@@ -2866,6 +2925,7 @@ const translations: Record<Locale, Translations> = {
     'createMenu.generate': 'Generate',
     'createMenu.noWorkflows': 'No installed workflows',
     'createMenu.open': 'Create on canvas',
+    'createMenu.operationBlock': 'Operation',
     'createMenu.title': 'Create',
     'executionProgress.failed': 'failed',
     'executionProgress.partial': 'partial',
@@ -3103,6 +3163,9 @@ const translations: Record<Locale, Translations> = {
     'feedback.connectionAdapterUnavailable': '当前连接尚未安装图片执行 Adapter。',
     'feedback.inputRequired': '请完善操作输入',
     'feedback.executionCanceled': '已取消执行',
+    'feedback.imageEditCompleted': '图片编辑完成',
+    'feedback.imageEditCompletedNotice': '新结果已加入画布和历史，当前查看位置保持不变。',
+    'feedback.viewResult': '查看结果',
     'feedback.codexImageStarted': 'Codex 图片生成已开始',
     'feedback.codexImageCostNotice': 'Codex App Server 正在后台生成图片结果。',
     'feedback.codexImageCompleted': 'Codex 图片生成完成',
@@ -3290,14 +3353,14 @@ const translations: Record<Locale, Translations> = {
     'imageInspector.importedSource': '导入素材',
     'imageInspector.locked': '已锁定',
     'imageInspector.noHistory': '当前图片暂无任务历史',
-    'imageInspector.outputNotSelected': '当前候选尚未选用',
-    'imageInspector.outputSelection': '候选选用',
-    'imageInspector.outputSelectionHint': '选用结果会保存到本次执行，其他候选仍会保留。',
+    'imageInspector.outputNotSelected': '这不是当前结果',
+    'imageInspector.outputSelection': '当前结果',
+    'imageInspector.outputSelectionHint': '记录后续操作和 Workflow 引用的结果，其他候选仍会保留。',
     'imageInspector.position': '位置与尺寸',
     'imageInspector.prompt': '提示词',
-    'imageInspector.reselectOutput': '改选为当前方案',
-    'imageInspector.selectOutput': '选用当前方案',
-    'imageInspector.selectedOutput': '已选用',
+    'imageInspector.reselectOutput': '改用这个结果',
+    'imageInspector.selectOutput': '设为当前结果',
+    'imageInspector.selectedOutput': '当前结果',
     'imageInspector.source': '来源',
     'imageInspector.sourceAndGeneration': '来源与生成',
     'imageInspector.title': '图片检查器',
@@ -3317,8 +3380,8 @@ const translations: Record<Locale, Translations> = {
     'imageFocus.title': '图片聚焦工作区',
     'imageFocus.viewing': '正在查看',
     'outputSelection.failed': '选用失败',
-    'outputSelection.selected': '已选用当前方案',
-    'outputSelection.selectedBody': '本次执行已记录该方案，其他候选仍然保留。',
+    'outputSelection.selected': '当前结果已更新',
+    'outputSelection.selectedBody': '后续操作和 Workflow 引用会使用这个结果，其他候选仍然保留。',
     'operation.createSimilar.prompt': '生成同款图片',
     'operation.createSimilar.title': '生成同款图片',
     'operation.generateImage.prompt': '根据 prompt 生成图片',
@@ -4092,6 +4155,32 @@ const translations: Record<Locale, Translations> = {
     'projectBoard.renameProject': '重命名项目',
     'projectBoard.switchBoard': '打开画板',
     'projectBoard.unpin': '点击外部关闭',
+    'workspaceHome.emptyDescription': '打开一张图片或新建项目，开始第一个本地画板。',
+    'workspaceHome.emptyTitle': '还没有最近画板',
+    'workspaceHome.newProjectDescription': '创建本地项目和第一个空白画板。',
+    'workspaceHome.openImage': '打开图片',
+    'workspaceHome.subtitle': '继续最近的本地画板，或从一张图片开始。',
+    'workspaceHome.title': '最近项目',
+    'workspaceHome.updated': '更新于',
+    'workspaceMaterials.addedBody': '当前画板已引用这个已有的本地 Asset，没有复制素材身份。',
+    'workspaceMaterials.addedTitle': '已加入画板',
+    'workspaceMaterials.addToBoard': '加入当前画板',
+    'workspaceMaterials.emptyDescription': '图片只需上传一次，即可在当前项目的不同画板中复用同一个本地 Asset。',
+    'workspaceMaterials.emptyTitle': '还没有图片素材',
+    'workspaceMaterials.loading': '正在读取本地素材…',
+    'workspaceMaterials.missing': '本地文件缺失',
+    'workspaceMaterials.noResults': '没有匹配的素材',
+    'workspaceMaterials.noResultsDescription': '可以换一个文件名关键词。',
+    'workspaceMaterials.refresh': '刷新',
+    'workspaceMaterials.relink': '重新关联文件',
+    'workspaceMaterials.relinkedBody': '所有引用继续使用原 Asset 身份，并恢复为新的本地文件。',
+    'workspaceMaterials.relinkedTitle': '素材已重新关联',
+    'workspaceMaterials.search': '搜索本地图片素材',
+    'workspaceMaterials.subtitle': '当前项目的原始本地 Asset',
+    'workspaceMaterials.title': '素材',
+    'workspaceMaterials.upload': '上传素材',
+    'workspaceMaterials.uploadedBody': '当前本地项目的所有画板都可以复用这张图片。',
+    'workspaceMaterials.uploadedTitle': '素材已上传',
     'pluginSettings.close': '关闭插件管理',
     'pluginSettings.codeNotTrusted': '代码未信任',
     'pluginSettings.codeTrusted': '已信任当前代码',
@@ -4315,6 +4404,7 @@ const translations: Record<Locale, Translations> = {
     'createMenu.generate': '生成',
     'createMenu.noWorkflows': '尚未安装 Workflow',
     'createMenu.open': '在画布中创建',
+    'createMenu.operationBlock': '操作块',
     'createMenu.title': '创建',
     'executionProgress.failed': '个失败',
     'executionProgress.partial': '部分完成',
