@@ -68,7 +68,7 @@ export const GenerationTaskPanel = memo(function GenerationTaskPanel({
     ?? readNumber(params.variationCount)
     ?? execution.outputBlockIds.length;
   const canCancel = execution.status === 'queued' || execution.status === 'running';
-  const canRetry = execution.status === 'failed' || execution.status === 'canceled';
+  const canRetry = execution.status === 'failed';
   const isImageToImage = inputImages.length > 0;
   const taskTitle = isImageToImage
     ? label(locale, '图生图', 'Image to image')

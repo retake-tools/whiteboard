@@ -128,6 +128,40 @@ assert.match(panelMarkup, /用于排查执行路由与运行记录/);
 assert.match(panelMarkup, /execution_generate/);
 assert.doesNotMatch(panelMarkup, /查看完整执行详情/);
 
+const failedSnapshot = structuredClone(snapshot);
+failedSnapshot.executions[0].status = 'failed';
+failedSnapshot.executions[0].resultSummary = { requested: 4, succeeded: 2, failed: 2 };
+const failedPanelMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <GenerationTaskPanel
+      block={failedSnapshot.blocks.find((block) => block.blockId === operation.blockId)!}
+      onCancelExecution={() => undefined}
+      onClose={() => undefined}
+      onContinueFromResult={() => undefined}
+      onRetryExecution={() => undefined}
+      snapshot={failedSnapshot}
+    />
+  </I18nProvider>,
+);
+assert.match(failedPanelMarkup, /重试未完成项/);
+assert.match(failedPanelMarkup, /部分完成/);
+
+const canceledSnapshot = structuredClone(failedSnapshot);
+canceledSnapshot.executions[0].status = 'canceled';
+const canceledPanelMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <GenerationTaskPanel
+      block={canceledSnapshot.blocks.find((block) => block.blockId === operation.blockId)!}
+      onCancelExecution={() => undefined}
+      onClose={() => undefined}
+      onContinueFromResult={() => undefined}
+      onRetryExecution={() => undefined}
+      snapshot={canceledSnapshot}
+    />
+  </I18nProvider>,
+);
+assert.doesNotMatch(canceledPanelMarkup, /重试未完成项/);
+
 const dockMarkup = renderToStaticMarkup(
   <I18nProvider>
     <GenerationCandidateDock
