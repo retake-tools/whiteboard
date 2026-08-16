@@ -440,9 +440,8 @@ export function TopBar({
           </div>
             </>
           ) : (
-            <div className="top-bar-title is-static" aria-label={t('toolbar.boardMenu')}>
-              <strong>{snapshot.project.name}</strong>
-              <span>{snapshot.board.name}</span>
+            <div className="top-bar-title is-static is-board-only" aria-label={t('projectBoard.currentBoard')}>
+              <strong>{snapshot.board.name}</strong>
             </div>
           )}
           <IconButton label={t('toolbar.undo')} onClick={onUndo} disabled={!canUndo}>

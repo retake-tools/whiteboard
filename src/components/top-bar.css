@@ -190,6 +190,13 @@
   background: transparent;
 }
 
+.top-bar-title.is-board-only {
+  width: min(240px, 30vw);
+  min-width: 160px;
+  max-width: 240px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .top-bar-title.is-active {
   background: var(--retake-accent-soft);
   color: var(--retake-accent-strong);
@@ -537,9 +544,12 @@
 }
 
 .top-bar-title strong {
+  min-width: 0;
+  overflow: hidden;
   color: #172033;
   font-size: 14px;
   font-weight: 760;
+  text-overflow: ellipsis;
 }
 
 .top-bar-title span {
@@ -619,5 +629,11 @@
   .top-bar-title {
     min-width: 204px;
     max-width: none;
+  }
+
+  .top-bar-title.is-board-only {
+    width: min(204px, 34vw);
+    min-width: 140px;
+    max-width: 204px;
   }
 }

@@ -10,6 +10,7 @@ import {
 import { WorkspaceShell } from '../src/components/WorkspaceShell';
 import { WorkspaceSidebar } from '../src/components/WorkspaceSidebar';
 import { WorkspaceWorkbench } from '../src/components/WorkspaceWorkbench';
+import { TopBar } from '../src/components/TopBar';
 import {
   BlankWorkspaceStart,
   blankWorkspacePlaceholderImage,
@@ -189,6 +190,54 @@ assert.equal(
   boardThumbnailUrl(workspace.projects[0].boards[0]),
   '/api/local/boards/project_current/board_current/thumbnail.webp?revision=2026-08-14T00%3A00%3A00.000Z',
 );
+
+const topBarMarkup = renderToStaticMarkup(
+  <I18nProvider>
+    <TopBar
+      autosaveStatus="idle"
+      canRedo={false}
+      canUndo={false}
+      hasSelection={false}
+      isAgentWorkspaceOpen
+      isArtifactLibraryOpen={false}
+      isHistoryOpen={false}
+      onCreateBoard={() => undefined}
+      onCreateProject={() => undefined}
+      onDeleteBoard={() => undefined}
+      onDeleteProject={() => undefined}
+      onDeleteSelection={() => undefined}
+      onDuplicateBoard={() => undefined}
+      onDuplicateSelection={() => undefined}
+      onRedo={() => undefined}
+      onRefreshBoard={() => undefined}
+      onRenameBoard={() => undefined}
+      onRenameProject={() => undefined}
+      onReorderBoards={() => undefined}
+      onReorderProjects={() => undefined}
+      onRetrySave={() => undefined}
+      onSelectBoard={() => undefined}
+      onSetBoardBackground={() => undefined}
+      onToggleAgentWorkspace={() => undefined}
+      onToggleArtifactLibrary={() => undefined}
+      onToggleGrid={() => undefined}
+      onToggleHistory={() => undefined}
+      onUndo={() => undefined}
+      showGrid
+      showSettingsAction={false}
+      showWorkspaceNavigation={false}
+      showWorkspaceSurfaceActions={false}
+      snapshot={{
+        ...defaultSnapshot,
+        board: { ...defaultSnapshot.board, boardId: 'board_current', name: '商品海报' },
+        project: { ...defaultSnapshot.project, projectId: 'project_current', name: '商品图项目' },
+      }}
+      workspace={workspace}
+    />
+  </I18nProvider>,
+);
+assert.match(topBarMarkup, /class="top-bar-title is-static is-board-only"/);
+assert.match(topBarMarkup, /商品海报/);
+assert.doesNotMatch(topBarMarkup, /商品图项目/);
 
 const shellMarkup = renderToStaticMarkup(
   <WorkspaceShell
